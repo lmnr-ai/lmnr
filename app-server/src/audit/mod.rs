@@ -276,7 +276,7 @@ pub async fn emit(
         .with_context(|| event_desc)
 }
 
-/// Fire-and-forget [`emit`] for read events, which must not delay the response.
+/// Fire-and-forget [`emit`]: what every request path uses, so auditing never delays or fails a response.
 pub fn emit_detached(
     db: Arc<DB>,
     cache: Arc<Cache>,

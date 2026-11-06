@@ -10,7 +10,10 @@ import { type Params, paramString, type Target, targetFields } from "./target";
 export interface AuditEventMeta {
   resource: AuditResource;
   action: AuditAction;
-  /** Read events are sent after the response; writes are awaited before it. */
+  /**
+   * Read events look names up after the response, with the event. Writes read them when
+   * `audit.target` is called, so a delete still has them. Every event is sent after the response.
+   */
   read?: boolean;
   /**
    * The request acts on no single resource (a workspace-level setting, a search). Every other
@@ -131,7 +134,7 @@ export const createHandlerWithAudit =
       },
     };
 
-    // Runs after the response is settled; anything thrown here would replace it.
+    // Runs in `finally`, where anything thrown would replace the response.
     const record = async (status: number) => {
       const userId = await deps.getUserId();
       const { workspaceId, projectId } = await scope();
@@ -161,8 +164,7 @@ export const createHandlerWithAudit =
           logAuditError(meta, e);
         }
       };
-      if (meta.read) deps.after(send);
-      else await send();
+      deps.after(send);
     };
 
     let status = 500;

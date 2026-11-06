@@ -34,13 +34,13 @@ export const handlerNoAudit = <H>(_reason: string, handler: H): H => handler;
 
 /**
  * Records one event from code that isn't a route handler: server actions,
- * server components, auth hooks. Awaited unless `read` is set.
+ * server components, auth hooks. Sent after the response.
  */
 export const recordAuditEvent = async (
-  meta: Omit<AuditEventMeta, "noTarget"> &
+  meta: Omit<AuditEventMeta, "noTarget" | "read"> &
     AuditDetails & { resourceId?: string; resourceLabel?: string; userId?: string; outcome?: AuditOutcome }
 ): Promise<void> => {
-  const { resource, action, read, userId, outcome, ...details } = meta;
+  const { resource, action, userId, outcome, ...details } = meta;
   try {
     const resolvedUserId = userId ?? (await getUserId());
     if (!resolvedUserId) return;
@@ -54,8 +54,7 @@ export const recordAuditEvent = async (
       ip: h ? clientIp(h) : undefined,
       userAgent: h?.get("user-agent") ?? undefined,
     };
-    if (read) after(() => postAuditEvent(event));
-    else await postAuditEvent(event);
+    after(() => postAuditEvent(event));
   } catch (e) {
     // `after` throws outside a request scope; the caller's work must go on.
     console.error(`Failed to record audit event ${resource}.${action}:`, e);

@@ -73,7 +73,8 @@ const processPendingInvitations = async (userId: string, email: string): Promise
   });
 
   await Promise.all(pendingInvitations.map(({ workspaceId }) => invalidateMemberAccessCache(workspaceId, [userId])));
-  await Promise.all(
+  // Not awaited: sign-up must not wait on the audit log. `postAuditEvent` never throws.
+  void Promise.all(
     pendingInvitations.map(({ workspaceId }) =>
       postAuditEvent({
         userId,

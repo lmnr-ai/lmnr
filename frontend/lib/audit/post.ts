@@ -29,7 +29,7 @@ export interface AuditEventPayload extends AuditDetails {
 export const clientIp = (h: Headers) =>
   h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || undefined;
 
-// A stalled app-server or broker must not hold up the write it records.
+// Sent from `after()`; a stalled app-server or broker must not pin the task.
 const POST_TIMEOUT_MS = 5_000;
 
 // app-server enriches ids into labels (workspace, project name, email) and
