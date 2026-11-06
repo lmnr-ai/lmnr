@@ -29,9 +29,10 @@ export const PUT = handlerWithAudit<{ projectId: string; traceId: string }>(
 
     const body = (await req.json()) as { visibility: "private" | "public" };
 
-    await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
+    // Set before the update, so a failed unshare is still logged as one.
     audit.set({ action: body?.visibility === "public" ? "share" : "unshare" });
     await audit.target(traceId);
+    await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
 
     return Response.json("Updated trace visibility successfully.");
   }
