@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 
 import { SessionPreviewSelectTraceProvider } from "@/components/traces/session-preview/select-trace-context";
 import SessionTimeline from "@/components/traces/session-view/session-timeline";
@@ -14,14 +14,14 @@ import TracePanel from "./trace-panel";
 import { useOpenTrace } from "./use-open-trace";
 
 export default function ChatSessionContent() {
-  const { openTraceId, toggleTrace, openSpan } = useOpenTrace();
+  const { openTraceId, openSpanId, toggleTrace, openSpan } = useOpenTrace();
   const timelineEnabled = useSessionViewStore((s) => s.sessionTimelineEnabled);
   const setTimelineEnabled = useSessionViewStore((s) => s.setSessionTimelineEnabled);
-  const timelineSelection = useSessionViewStore((s) => s.selectedSpan);
-  // A span clicked in the session timeline opens its trace view on that span.
-  useEffect(() => {
-    if (timelineSelection) openSpan(timelineSelection.traceId, timelineSelection.spanId);
-  }, [timelineSelection, openSpan]);
+  // The timeline highlights the open span and opens a clicked one: the URL is the only selection here.
+  const timelineSelection = useMemo(
+    () => (openTraceId && openSpanId ? { traceId: openTraceId, spanId: openSpanId } : undefined),
+    [openTraceId, openSpanId]
+  );
 
   // The timeline and control bar span only the thread column; the trace panel takes the full height beside it.
   const threadColumn = (
@@ -52,7 +52,7 @@ export default function ChatSessionContent() {
           {timelineEnabled ? (
             <ResizablePanelGroup id="chat-session-view-panels" orientation="vertical" className="min-h-0 flex-1">
               <ResizablePanel defaultSize={120} minSize={80}>
-                <SessionTimeline showCloseButton={false} />
+                <SessionTimeline selectedSpan={timelineSelection} onSelectSpan={openSpan} showCloseButton={false} />
               </ResizablePanel>
               <ResizableHandle className="z-10 transition-colors hover:scale-200 hover:bg-blue-400" />
               <ResizablePanel className="flex min-h-0 min-w-0 flex-1 flex-col">{threadColumn}</ResizablePanel>
