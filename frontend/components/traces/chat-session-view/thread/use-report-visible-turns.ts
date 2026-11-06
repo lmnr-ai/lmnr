@@ -1,0 +1,37 @@
+import { type Virtualizer } from "@tanstack/react-virtual";
+import { useMemo } from "react";
+
+import { useSessionViewStore } from "@/components/traces/session-view/store";
+import {
+  filterToViewport,
+  useReportVisibleTimeRange,
+} from "@/components/traces/trace-view/use-report-visible-time-range";
+import { type TraceRow } from "@/lib/traces/types";
+
+/** Tells the session timeline which stretch of time the turns on screen cover, for its "in view" highlight. */
+export function useReportVisibleTurns(virtualizer: Virtualizer<HTMLDivElement, Element>, traces: TraceRow[]) {
+  const setScrollTimeRange = useSessionViewStore((s) => s.setScrollTimeRange);
+  const items = virtualizer.getVirtualItems();
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+
+  const { start, end } = useMemo(() => {
+    let min = Infinity;
+    let max = -Infinity;
+    // A turn taller than the viewport can have its center off-screen while it's the only thing in view.
+    const centered = filterToViewport(items, scrollOffset, viewportHeight);
+    const inView =
+      centered.length > 0
+        ? centered
+        : items.filter((i) => i.end > scrollOffset && i.start < scrollOffset + viewportHeight);
+    for (const item of inView) {
+      const trace = traces[item.index];
+      if (!trace) continue;
+      min = Math.min(min, Date.parse(trace.startTime));
+      max = Math.max(max, Date.parse(trace.endTime));
+    }
+    return Number.isFinite(min) && Number.isFinite(max) ? { start: min, end: max } : {};
+  }, [items, scrollOffset, viewportHeight, traces]);
+
+  useReportVisibleTimeRange({ start, end, setTimeRange: setScrollTimeRange });
+}
