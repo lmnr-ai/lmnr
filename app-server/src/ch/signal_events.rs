@@ -32,9 +32,9 @@ pub struct CHSignalEvent {
     /// `signals.version` at the time the event was produced; 0 means the
     /// event predates versioning.
     pub signal_version: u32,
-    // `updated_at` / `is_deleted` (the ReplacingMergeTree version and
-    // tombstone flag) are omitted: inserts name their columns, so the server
-    // fills a live row stamped now.
+    // `created_at` (internal audit) and `updated_at` / `is_deleted` (the
+    // ReplacingMergeTree version and tombstone flag) are omitted: inserts name
+    // their columns, so the server fills a live row stamped now.
 }
 
 /// Leaf-only membership row for `signal_event_summaries`. Field order matches

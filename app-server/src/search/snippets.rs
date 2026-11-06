@@ -345,8 +345,8 @@ pub struct SignalEventSnippetRow {
 /// for this field" (the calling code then leaves the cell un-highlighted).
 ///
 /// `signal_events` is a `ReplacingMergeTree` keyed by `(project_id, signal_id,
-/// timestamp, id)`, read with `FINAL`; scoping by `project_id` + `signal_id`
-/// hits the primary-key prefix.
+/// id)`, read with `FINAL`; scoping by `project_id` + `signal_id` + `id IN`
+/// hits the whole primary key.
 #[tracing::instrument(skip_all, fields(ids_count = ids.len(), fields_count = field_names.len()))]
 pub async fn fetch_signal_event_snippets(
     clickhouse: &clickhouse::Client,

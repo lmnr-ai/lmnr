@@ -8,13 +8,16 @@
 -- which is dropped by hand.
 --
 -- Same column order as before, so writers that name their columns (the Rust
--- `Row` inserts) keep working; `updated_at` and `is_deleted` are last and
--- default to a live row stamped at insert time.
+-- `Row` inserts) keep working; `created_at`, `updated_at` and `is_deleted` are
+-- last and default to a live row stamped at insert time. `created_at` is for
+-- internal auditing only and is not exposed by the views.
 --
--- Monthly partitions on `timestamp`, which is also in the sort key, so a key
--- never spans partitions. `FINAL` still dedups across partitions anyway
--- (do_not_merge_across_partitions_select_final = 0). Leave `clean_deleted_rows`
--- at its default so tombstones survive merges.
+-- The sort key is the row's identity, (project_id, signal_id, id), and leaves
+-- out `timestamp`: a key column is immutable, so a version with a different
+-- `timestamp` would be a second row instead of a replacement. Monthly
+-- partitions on `timestamp` still prune time-range reads; `FINAL` dedups
+-- across partitions (do_not_merge_across_partitions_select_final = 0). Leave
+-- `clean_deleted_rows` at its default so tombstones survive merges.
 
 RENAME TABLE IF EXISTS signal_events TO old_signal_events;
 
@@ -32,12 +35,13 @@ CREATE TABLE IF NOT EXISTS signal_events
     severity UInt8 DEFAULT 0,
     signal_version UInt32 DEFAULT 0,
     summaries Array(String) CODEC(ZSTD(3)),
+    created_at DateTime64(9, 'UTC') DEFAULT now64(9),
     updated_at DateTime64(9, 'UTC') DEFAULT now64(9),
     is_deleted UInt8 DEFAULT 0
 )
 ENGINE = ReplacingMergeTree(updated_at, is_deleted)
 PARTITION BY toStartOfMonth(timestamp)
-ORDER BY (project_id, signal_id, timestamp, id);
+ORDER BY (project_id, signal_id, id);
 
 -- Bodies are verbatim from migration 75 apart from `FINAL` on signal_events.
 
