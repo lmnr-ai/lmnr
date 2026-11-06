@@ -3,7 +3,8 @@
 //! publisher connection, the binding is redone on the new consumer one, and
 //! messages flow again. Run with `--ignored` against a broker at
 //! `RABBITMQ_TEST_URL` (default `amqp://guest:guest@localhost:5672/%2f`),
-//! with `rabbitmqctl` on `PATH` or at `RABBITMQCTL`.
+//! with `rabbitmqctl` on `PATH` or at `RABBITMQCTL` (and `RABBITMQ_NODENAME` set
+//! when the broker doesn't run under the default node name).
 
 use std::process::Command;
 
