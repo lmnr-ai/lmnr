@@ -35,8 +35,6 @@ pub(super) enum Classification {
     Skip,
 }
 
-use Classification::Skip;
-
 /// Awaited before the response.
 const fn log_write(resource: AuditResource, action: AuditAction) -> Classification {
     Classification::Log {
@@ -60,6 +58,7 @@ const fn log_read(resource: AuditResource, action: AuditAction) -> Classificatio
 pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
     use AuditAction::*;
     use AuditResource::*;
+    use Classification::Skip;
 
     let method = method.as_str();
     let classification = match (method, path) {
@@ -219,7 +218,7 @@ pub async fn audit_v1(
             action,
             read,
         }) => (resource, action, read),
-        Some(Skip) => return Ok(res),
+        Some(Classification::Skip) => return Ok(res),
         None => {
             log::warn!(
                 "Unclassified /v1 route {} {path}; add it to audit::middleware::classify",
@@ -306,7 +305,11 @@ mod tests {
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
             (Method::POST, "/mcp"),
         ] {
-            assert_eq!(classify(&method, path), Some(Skip), "{method} {path}");
+            assert_eq!(
+                classify(&method, path),
+                Some(Classification::Skip),
+                "{method} {path}"
+            );
         }
     }
 

@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { callAppServer, callAppServerWithHeaders } from "@/lib/api/backend";
+import { callAppServer, callAppServerWithResponseHeaders } from "@/lib/api/backend";
 
 import { resolveSqlActor, type SqlActor } from "./actor";
 import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, SqlToJsonResponseSchema } from "./types";
@@ -37,7 +37,7 @@ export const executeQueryWithTables = async <T extends object>(
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
   const actor = await resolveSqlActor(options?.actor);
 
-  const { data, headers } = await callAppServerWithHeaders<T[]>(`/projects/${projectId}/sql/query`, {
+  const { data, headers } = await callAppServerWithResponseHeaders<T[]>(`/projects/${projectId}/sql/query`, {
     method: "POST",
     body: { query, parameters, actor },
   });

@@ -32,10 +32,10 @@ const errorMessage = async (res: Response): Promise<string> => {
  * `ApiError`; a 5xx stays a plain error so `apiHandler` reports it.
  */
 export const callAppServer = async <T = any>(path: string, init: { method: string; body?: unknown }): Promise<T> =>
-  (await callAppServerWithHeaders<T>(path, init)).data;
+  (await callAppServerWithResponseHeaders<T>(path, init)).data;
 
 /** `callAppServer` that also returns the response headers. */
-export const callAppServerWithHeaders = async <T = any>(
+export const callAppServerWithResponseHeaders = async <T = any>(
   path: string,
   init: { method: string; body?: unknown }
 ): Promise<{ data: T; headers: Headers }> => {
