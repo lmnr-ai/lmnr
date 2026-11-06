@@ -1,5 +1,6 @@
 import { getTrace, updateTraceVisibility } from "@/lib/actions/trace";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ projectId: string; traceId: string }>(async (_req, ctx) => {
   const params = await ctx.params;
@@ -15,15 +16,21 @@ export const GET = apiHandler<{ projectId: string; traceId: string }>(async (_re
   return Response.json(trace);
 });
 
-export const PUT = apiHandler<{ projectId: string; traceId: string }>(async (req, ctx) => {
-  const params = await ctx.params;
+export const PUT = handlerWithAudit<{ projectId: string; traceId: string }>(
+  { resource: "trace", action: "share" },
+  async (req, ctx, audit) => {
+    const params = await ctx.params;
 
-  const projectId = params.projectId;
-  const traceId = params.traceId;
+    const projectId = params.projectId;
+    const traceId = params.traceId;
 
-  const body = (await req.json()) as { visibility: "private" | "public" };
+    const body = (await req.json()) as { visibility: "private" | "public" };
 
-  await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
+    // Set before the update, so a failed unshare is still logged as one.
+    audit.set({ action: body?.visibility === "public" ? "share" : "unshare" });
+    await audit.target(traceId);
+    await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
 
-  return Response.json("Updated trace visibility successfully.");
-});
+    return Response.json("Updated trace visibility successfully.");
+  }
+);

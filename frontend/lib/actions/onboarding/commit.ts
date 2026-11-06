@@ -43,14 +43,14 @@ const isOwnOnboarding = async (state: OnboardingState | null, userId: string): P
 // tab) reuses the one already in the cookie.
 export const startOnboarding = async (
   input: z.infer<typeof StartOnboardingSchema>
-): Promise<{ workspaceId: string; projectId: string }> => {
+): Promise<{ workspaceId: string; projectId: string; created: boolean }> => {
   const session = await getServerSession();
   if (!session?.user) throw new Error("Unauthorized");
   const { workspaceName, projectName } = StartOnboardingSchema.parse(input);
 
   const existing = await getOnboardingState();
   if (existing && (await isOwnOnboarding(existing, session.user.id))) {
-    return { workspaceId: existing.workspaceId, projectId: existing.projectId };
+    return { workspaceId: existing.workspaceId, projectId: existing.projectId, created: false };
   }
   const created = await createWorkspace({ name: workspaceName, projectName, isFirstProject: true });
   const workspaceId = created.id;
@@ -63,7 +63,7 @@ export const startOnboarding = async (
     step: "invite",
     startedAt: Date.now(),
   });
-  return { workspaceId, projectId };
+  return { workspaceId, projectId, created: true };
 };
 
 // Invites are best-effort per address; a failure is reported, never blocks the rest.

@@ -1,5 +1,6 @@
 import { deleteSlackIntegration, getSlackIntegration } from "@/lib/actions/slack";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => {
   const { workspaceId } = await ctx.params;
@@ -8,9 +9,12 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => 
   return Response.json(integration);
 });
 
-export const DELETE = apiHandler<{ workspaceId: string }>(async (_request, ctx) => {
-  const { workspaceId } = await ctx.params;
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "slack_integration", action: "delete", noTarget: true },
+  async (_request, ctx) => {
+    const { workspaceId } = await ctx.params;
 
-  await deleteSlackIntegration({ workspaceId });
-  return Response.json({ success: true });
-});
+    await deleteSlackIntegration({ workspaceId });
+    return Response.json({ success: true });
+  }
+);

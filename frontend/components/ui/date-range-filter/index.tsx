@@ -135,12 +135,14 @@ const DateRangeFilterInner = ({
   className,
   quickRanges,
   hideAbsoluteDate = false,
+  ignoreTraceRetention = false,
 }: {
   disabled?: CalendarProps["disabled"];
   buttonDisabled?: boolean;
   className?: string;
   quickRanges?: DateRange[];
   hideAbsoluteDate?: boolean;
+  ignoreTraceRetention?: boolean;
 }) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -149,7 +151,7 @@ const DateRangeFilterInner = ({
   const featureFlags = useFeatureFlags();
 
   const isSubscriptionEnabled = featureFlags[Feature.SUBSCRIPTION];
-  const logRetentionDays = project?.logRetentionDays;
+  const logRetentionDays = ignoreTraceRetention ? undefined : project?.logRetentionDays;
   const maxHours = isSubscriptionEnabled && logRetentionDays != null ? logRetentionDays * 24 : undefined;
   const retentionDisabled =
     isSubscriptionEnabled && logRetentionDays != null
@@ -236,10 +238,13 @@ export default function DateRangeFilter({
   onChange,
   quickRanges,
   hideAbsoluteDate = false,
+  ignoreTraceRetention = false,
 }: {
   disabled?: CalendarProps["disabled"];
   buttonDisabled?: boolean;
   className?: string;
+  /** For data not kept under the project's trace retention (e.g. the workspace audit log). */
+  ignoreTraceRetention?: boolean;
   mode?: "url" | "state";
   value?: { pastHours?: string; startDate?: string; endDate?: string };
   onChange?: (value: { pastHours?: string; startDate?: string; endDate?: string }) => void;
@@ -260,6 +265,7 @@ export default function DateRangeFilter({
         className={className}
         quickRanges={quickRanges}
         hideAbsoluteDate={hideAbsoluteDate}
+        ignoreTraceRetention={ignoreTraceRetention}
       />
     </DateRangeFilterProvider>
   );

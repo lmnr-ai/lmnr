@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { clearOnboardingState } from "@/lib/actions/onboarding";
 import { getNewestProjectId } from "@/lib/actions/projects";
 import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspaces/subscribe";
+import { recordAuditEvent } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { invalidateMemberAccessCache } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
@@ -74,6 +75,15 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
 
       // A project link opened before joining cached "not a member"; clear it before the redirect below.
       await invalidateMemberAccessCache(workspaceId, [userId]);
+
+      await recordAuditEvent({
+        resource: "member",
+        action: "join",
+        userId,
+        workspaceId,
+        resourceId: userId,
+        resourceLabel: session.user.email,
+      });
 
       // Best-effort: a subscribe failure must not skip the onboarding cleanup +
       // redirect below, or the (app) layout would trap the now-member in the wizard.
