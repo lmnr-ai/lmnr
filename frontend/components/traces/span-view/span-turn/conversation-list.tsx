@@ -1,5 +1,5 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { buildToolNameMap } from "@/components/traces/span-view/messages";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
@@ -34,6 +34,7 @@ interface ConversationListProps {
 
 const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const searchTerm = useSpanSearchState()?.searchTerm ?? "";
 
   // Only provider-rendered (non-normalized) rows read this map.
@@ -58,11 +59,24 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
     initialOffset: () =>
       Array.from({ length: Math.max(0, linkedIndex) }, (_, i) => estimateSize(i)).reduce((a, b) => a + b, 0),
     onChange: hold.onChange,
+    // Grow the container before a size correction scrolls: near the end of the list the browser would otherwise clamp
+    // it to the old height, and the cut-off part shows as a jump once the container grows.
+    scrollToFn: (offset, options, instance) => {
+      if (containerRef.current) containerRef.current.style.height = `${instance.getTotalSize()}px`;
+      elementScroll(offset, options, instance);
+    },
     // Rows move in the same tick as scrollTop corrections, so no frame paints old positions under a new scroll.
     directDomUpdates: true,
   });
   // Set during render so it already covers the first rows' measurements.
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = hold.holding ? NEVER_ADJUST : undefined;
+  const setContainer = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node;
+      virtualizer.containerRef(node);
+    },
+    [virtualizer]
+  );
   useLayoutEffect(() => {
     if (linkedIndex >= 0) alignRow(virtualizer, linkedIndex);
   }, [linkedIndex, virtualizer]);
@@ -96,7 +110,7 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
       // The virtualizer corrects scrollTop itself; browser scroll anchoring would correct the same shifts again.
       style={{ contain: "strict", overflowAnchor: "none" }}
     >
-      <div ref={virtualizer.containerRef} className="relative w-full">
+      <div ref={setContainer} className="relative w-full">
         {premeasure.length > 0 && (
           <div aria-hidden className="invisible absolute inset-x-0 top-0 pointer-events-none">
             {premeasure.map(renderRow)}
