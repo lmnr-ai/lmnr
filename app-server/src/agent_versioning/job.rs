@@ -16,6 +16,7 @@ use crate::{
     ch::agent_prompts::{Scope, active_agents},
     db::agent_versioning::{Agent, set_release_mode, upsert_agent},
     env::agent_versioning::{ACTIVE_WINDOW_SECONDS, INTERVAL_SECONDS, RELEASE_MIN_RUN},
+    features::{Feature, is_feature_enabled},
 };
 
 impl Job {
@@ -26,6 +27,9 @@ impl Job {
         loop {
             ticker.tick().await;
             let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(i64::MAX);
+            if is_feature_enabled(Feature::AgentDetection) {
+                self.detect_agents(now).await;
+            }
             let since = now - ACTIVE_WINDOW_SECONDS.get() * NS;
             let agents = match active_agents(&self.clickhouse, since).await {
                 Ok(agents) => agents,

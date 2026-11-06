@@ -50,7 +50,8 @@ pub struct ActiveAgent {
     pub agent_hash: String,
 }
 
-/// Agents with prompts ingested after `since`.
+/// Agents with prompts ingested after `since`; unlabelled prompts are not
+/// an agent.
 pub async fn active_agents(
     clickhouse: &clickhouse::Client,
     since: i64,
@@ -59,12 +60,119 @@ pub async fn active_agents(
         .query(
             "SELECT DISTINCT project_id, agent_hash
              FROM agent_prompts
-             WHERE ingested_at > fromUnixTimestamp64Nano({since:Int64})",
+             WHERE ingested_at > fromUnixTimestamp64Nano({since:Int64})
+               AND agent_hash != ''",
         )
         .param("since", since)
         .fetch_all::<ActiveAgent>()
         .await?;
     Ok(agents)
+}
+
+/// Projects with unlabelled prompts ingested after `since`.
+pub async fn projects_with_unlabelled(
+    clickhouse: &clickhouse::Client,
+    since: i64,
+) -> Result<Vec<Uuid>> {
+    #[derive(Row, Deserialize)]
+    struct ProjectRow {
+        #[serde(with = "clickhouse::serde::uuid")]
+        project_id: Uuid,
+    }
+    let rows = clickhouse
+        .query(
+            "SELECT DISTINCT project_id
+             FROM agent_prompts
+             WHERE ingested_at > fromUnixTimestamp64Nano({since:Int64})
+               AND agent_hash = ''",
+        )
+        .param("since", since)
+        .fetch_all::<ProjectRow>()
+        .await?;
+    Ok(rows.into_iter().map(|row| row.project_id).collect())
+}
+
+/// A span to read a prompt from.
+#[derive(Row, Deserialize, Debug)]
+pub struct PromptSpan {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub span_id: Uuid,
+}
+
+/// Up to `limit` random traces with unlabelled prompts ingested after
+/// `since` and no labelled prompt ingested after `covered_since`, each with
+/// its first prompt's span. A trace with any labelled prompt is covered: its
+/// unlabelled ones are subagents of a known agent.
+pub async fn uncovered_traces(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    since: i64,
+    covered_since: i64,
+    limit: u64,
+) -> Result<Vec<PromptSpan>> {
+    let spans = clickhouse
+        .query(
+            "SELECT trace_id, argMin(span_id, start_time) AS span_id
+             FROM agent_prompts
+             WHERE project_id = {project_id:UUID}
+               AND ingested_at > fromUnixTimestamp64Nano({covered_since:Int64})
+               AND trace_id IN (
+                   SELECT trace_id FROM agent_prompts
+                   WHERE project_id = {project_id:UUID}
+                     AND agent_hash = ''
+                     AND ingested_at > fromUnixTimestamp64Nano({since:Int64}))
+             GROUP BY trace_id
+             HAVING countIf(agent_hash != '') = 0
+             ORDER BY rand()
+             LIMIT {limit:UInt64}",
+        )
+        .param("project_id", project_id)
+        .param("since", since)
+        .param("covered_since", covered_since)
+        .param("limit", limit)
+        .fetch_all::<PromptSpan>()
+        .await?;
+    Ok(spans)
+}
+
+/// An agent's prompt span.
+#[derive(Row, Deserialize, Debug)]
+pub struct AgentSpan {
+    pub agent_hash: String,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub span_id: Uuid,
+}
+
+/// The latest prompt span of each of `agent_hashes` ingested after `since`.
+pub async fn latest_agent_spans(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    agent_hashes: &[&str],
+    since: i64,
+) -> Result<Vec<AgentSpan>> {
+    if agent_hashes.is_empty() {
+        return Ok(Vec::new());
+    }
+    let spans = clickhouse
+        .query(
+            "SELECT agent_hash, trace_id, span_id
+             FROM agent_prompts
+             WHERE project_id = {project_id:UUID}
+               AND agent_hash IN {agent_hashes:Array(String)}
+               AND ingested_at > fromUnixTimestamp64Nano({since:Int64})
+             ORDER BY start_time DESC
+             LIMIT 1 BY agent_hash",
+        )
+        .param("project_id", project_id)
+        .param("agent_hashes", agent_hashes)
+        .param("since", since)
+        .fetch_all::<AgentSpan>()
+        .await?;
+    Ok(spans)
 }
 
 /// One trace's first agent prompt in the queried rows.

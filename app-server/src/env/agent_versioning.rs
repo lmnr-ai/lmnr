@@ -39,3 +39,15 @@ pub const RELEASE_MIN_RUN: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_RELEASE_M
 /// however many it has (even one) this long after it was first seen.
 pub const RELEASE_DECIDE_AFTER_SECONDS: NumEnv<i64> =
     NumEnv::new("AGENT_VERSIONING_RELEASE_DECIDE_AFTER_SECONDS", 6 * 60 * 60);
+
+/// Identify agents by their detected definitions instead of the system
+/// prompt's first sentence. Needs `AGENT_VERSIONING_ENABLED` too: detection
+/// runs inside the versioning job. Disabled by default.
+pub const DETECTION_ENABLED: BoolEnv = BoolEnv::new("AGENT_DETECTION_ENABLED", false);
+
+/// Unlabelled traces shown to the detection LLM per project per run.
+pub const DETECTION_SAMPLES: NumEnv<u64> = NumEnv::new("AGENT_DETECTION_SAMPLES", 20);
+
+/// A new agent's definition must match at least this many of the samples, so
+/// one-off subagents never become agents.
+pub const DETECTION_MIN_MATCHES: NumEnv<usize> = NumEnv::new("AGENT_DETECTION_MIN_MATCHES", 3);

@@ -146,10 +146,7 @@ async fn generate_traced(
     project_id: Uuid,
     agent_id: Uuid,
 ) -> anyhow::Result<ProviderResponse> {
-    let internal_project_id = std::env::var(CHECKPOINTS_INTERNAL_PROJECT_ID)
-        .ok()
-        .and_then(|value| Uuid::parse_str(&value).ok());
-    let Some(internal_project_id) = internal_project_id else {
+    let Some(internal_project_id) = internal_project_id() else {
         return llm_client
             .generate_content(request)
             .await
@@ -191,6 +188,13 @@ async fn generate_traced(
             Err(anyhow::anyhow!("name_agent LLM call failed: {e:?}"))
         }
     }
+}
+
+/// The project our own agent-versioning LLM calls are traced into.
+pub(super) fn internal_project_id() -> Option<Uuid> {
+    std::env::var(CHECKPOINTS_INTERNAL_PROJECT_ID)
+        .ok()
+        .and_then(|value| Uuid::parse_str(&value).ok())
 }
 
 fn parse_name(args: &Value) -> anyhow::Result<String> {

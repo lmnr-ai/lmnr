@@ -8,6 +8,10 @@
 //! tags every trace with its version in `traces_agg.agent_versions`. The
 //! consumer creates and names an agent on its first prompt ([`registry`]).
 //!
+//! Which agent a span belongs to is decided at ingest ([`identity`]): the
+//! system prompt's first sentence, or, with detection on, the first matching
+//! agent definition that the job's [`detection`] step wrote.
+//!
 //! Once most prompts carry the SDK's release (a git SHA), the agent switches
 //! to release mode for good: versions group releases instead of flips
 //! ([`releases`]), and ingest tags traces of decided releases directly.
@@ -16,6 +20,9 @@ use std::sync::Arc;
 
 use crate::{cache::Cache, db::DB, llm::LlmClient};
 
+pub mod definition;
+mod detection;
+pub mod identity;
 mod inferred;
 pub mod ingest;
 mod job;
