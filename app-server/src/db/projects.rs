@@ -128,6 +128,8 @@ pub enum WorkspaceTierName {
     Free,
     Pro,
     Hobby,
+    // Default on self-hosted instances, id = 1
+    Unlimited,
     #[default]
     Other,
 }
@@ -138,6 +140,7 @@ impl WorkspaceTierName {
             "free" => Self::Free,
             "hobby" => Self::Hobby,
             "pro" => Self::Pro,
+            "unlimited" => Self::Unlimited,
             x => {
                 log::warn!("Unknown workspace tier name: {}", x);
                 Self::Other
@@ -160,7 +163,7 @@ impl WorkspaceTierName {
             Self::Free => Some(1024i64.pow(3)),
             Self::Hobby => Some(3 * 1024i64.pow(3)),
             Self::Pro => Some(10 * 1024i64.pow(3)),
-            Self::Other => None,
+            Self::Unlimited | Self::Other => None,
         }
     }
 
@@ -169,6 +172,7 @@ impl WorkspaceTierName {
             Self::Free => "Free",
             Self::Hobby => "Hobby",
             Self::Pro => "Pro",
+            Self::Unlimited => "Unlimited",
             Self::Other => "your",
         }
     }
