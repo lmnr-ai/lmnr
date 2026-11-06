@@ -14,10 +14,16 @@
 --
 -- The sort key is the row's identity, (project_id, signal_id, id), and leaves
 -- out `timestamp`: a key column is immutable, so a version with a different
--- `timestamp` would be a second row instead of a replacement. Monthly
--- partitions on `timestamp` still prune time-range reads; `FINAL` dedups
--- across partitions (do_not_merge_across_partitions_select_final = 0). Leave
--- `clean_deleted_rows` at its default so tombstones survive merges.
+-- `timestamp` would be a second row instead of a replacement.
+--
+-- Monthly partitions are on `created_at`, which no read filters on, NOT on
+-- `timestamp`. A partition column outside the sort key that reads DO filter on
+-- lets ClickHouse prune the partition holding the winning version before
+-- `FINAL` (ClickHouse < 26.3, or defer_partition_pruning_after_final = 0 as on
+-- Laminar Cloud), so a time-range read could return a superseded or
+-- tombstoned row. `FINAL` dedups across partitions
+-- (do_not_merge_across_partitions_select_final = 0). Leave `clean_deleted_rows`
+-- at its default so tombstones survive merges.
 
 RENAME TABLE IF EXISTS signal_events TO old_signal_events;
 
@@ -40,7 +46,7 @@ CREATE TABLE IF NOT EXISTS signal_events
     is_deleted UInt8 DEFAULT 0
 )
 ENGINE = ReplacingMergeTree(updated_at, is_deleted)
-PARTITION BY toStartOfMonth(timestamp)
+PARTITION BY toStartOfMonth(created_at)
 ORDER BY (project_id, signal_id, id);
 
 -- Bodies are verbatim from migration 75 apart from `FINAL` on signal_events.

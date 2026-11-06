@@ -21,8 +21,8 @@ import { signals } from "@/lib/db/migrations/schema";
 //   2. Deploy the app-server that reads with FINAL.
 //   3. Copy per project (or per signal on large projects), skipping signals
 //      deleted from Postgres since the rename:
-//      INSERT INTO signal_events (<COLUMNS>, updated_at)
-//      SELECT <COLUMNS>, timestamp FROM old_signal_events
+//      INSERT INTO signal_events (<COLUMNS>, created_at, updated_at)
+//      SELECT <COLUMNS>, timestamp, timestamp FROM old_signal_events
 //      PREWHERE project_id = {projectId:UUID} AND signal_id IN {signalIds:Array(UUID)};
 //   4. RENAME TABLE old_signal_events TO old_signal_events_copied; once
 //      verified, DROP TABLE old_signal_events_copied. Nothing here drops it.
@@ -37,8 +37,9 @@ const TARGET = "signal_events";
 const COPIED = "old_signal_events_copied";
 
 // `updated_at` is set to the event's `timestamp`, so a replayed copy writes the
-// same key and version and ReplacingMergeTree collapses it. `is_deleted`
-// defaults to 0.
+// same key and version and ReplacingMergeTree collapses it. `created_at` (the
+// partition column) is also `timestamp`, the closest record of when the row was
+// written, so history spreads over its months. `is_deleted` defaults to 0.
 const COLUMNS = `id, project_id, signal_id, trace_id, run_id, name, payload, timestamp,
   summary, severity, signal_version, summaries`;
 
@@ -94,8 +95,8 @@ const signalExists = async (projectId: string, signalId: string): Promise<boolea
 const copySignal = async (projectId: string, signalId: string): Promise<number> => {
   const result = await ch().command({
     query: `
-      INSERT INTO ${TARGET} (${COLUMNS}, updated_at)
-      SELECT ${COLUMNS}, timestamp
+      INSERT INTO ${TARGET} (${COLUMNS}, created_at, updated_at)
+      SELECT ${COLUMNS}, timestamp, timestamp
       FROM ${SOURCE}
       PREWHERE project_id = {projectId:UUID} AND signal_id = {signalId:UUID}
     `,
