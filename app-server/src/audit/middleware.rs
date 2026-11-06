@@ -37,11 +37,21 @@ pub(super) enum Classification {
 
 use Classification::Skip;
 
-const fn log(resource: AuditResource, action: AuditAction) -> Classification {
+/// Awaited before the response.
+const fn log_write(resource: AuditResource, action: AuditAction) -> Classification {
     Classification::Log {
         resource,
         action,
         read: false,
+    }
+}
+
+/// Sent after the response, so it never delays it.
+const fn log_read(resource: AuditResource, action: AuditAction) -> Classification {
+    Classification::Log {
+        resource,
+        action,
+        read: true,
     }
 }
 
@@ -53,70 +63,71 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
 
     let method = method.as_str();
     let classification = match (method, path) {
-        // Ingestion and SDK hot paths.
-        ("POST", "/traces/metadata") => log(Trace, Update),
+        // Ingestion and SDK hot paths; SDKs patch trace metadata per trace.
         (
             "POST",
-            "/traces" | "/spans" | "/logs" | "/metrics" | "/browser-sessions/events" | "/tag",
+            "/traces"
+            | "/traces/metadata"
+            | "/spans"
+            | "/logs"
+            | "/metrics"
+            | "/browser-sessions/events"
+            | "/tag",
         ) => Skip,
         ("POST", "/labeling_queues/{queue_id}/items") => Skip,
         // The handler adds the query text and tables.
-        ("POST", "/sql/query") => log(Sql, Query),
+        ("POST", "/sql/query") => log_write(Sql, Query),
         // One route serves every tool; the SQL tool logs its own `sql.query`.
         (_, "/mcp") => Skip,
         // Discovery and schema reads carry no data.
         ("GET", "/project" | "/projects" | "/sql/schema") | ("POST", "/project") => Skip,
 
-        ("POST", "/datasets") => log(Dataset, Create),
-        ("PATCH", "/datasets/{dataset_id}") => log(Dataset, Update),
-        ("DELETE", "/datasets/{dataset_id}") => log(Dataset, Delete),
-        ("POST", "/datasets/datapoints") => log(Datapoint, Create),
-        ("GET", "/datasets/{dataset_id}/parquets/{idx}") => Classification::Log {
-            resource: Dataset,
-            action: Export,
-            read: true,
-        },
+        ("POST", "/datasets") => log_write(Dataset, Create),
+        ("PATCH", "/datasets/{dataset_id}") => log_write(Dataset, Update),
+        ("DELETE", "/datasets/{dataset_id}") => log_write(Dataset, Delete),
+        ("POST", "/datasets/datapoints") => log_write(Datapoint, Create),
+        ("GET", "/datasets/{dataset_id}/parquets/{idx}") => log_read(Dataset, Export),
         // Config reads, and datapoint pages an eval run walks through.
         ("GET", "/datasets" | "/datasets/{dataset_id}" | "/datasets/datapoints") => Skip,
 
-        ("POST", "/llm-profiles") => log(LlmProfile, Create),
-        ("PATCH", "/llm-profiles/{profile_id}") => log(LlmProfile, Update),
-        ("DELETE", "/llm-profiles/{profile_id}") => log(LlmProfile, Delete),
+        ("POST", "/llm-profiles") => log_write(LlmProfile, Create),
+        ("PATCH", "/llm-profiles/{profile_id}") => log_write(LlmProfile, Update),
+        ("DELETE", "/llm-profiles/{profile_id}") => log_write(LlmProfile, Delete),
         ("GET", "/llm-profiles" | "/llm-profiles/{profile_id}") => Skip,
 
-        ("POST", "/signals") => log(Signal, Create),
-        ("PATCH", "/signals/{signal_id}") => log(Signal, Update),
-        ("DELETE", "/signals/{signal_id}") => log(Signal, Delete),
+        ("POST", "/signals") => log_write(Signal, Create),
+        ("PATCH", "/signals/{signal_id}") => log_write(Signal, Update),
+        ("DELETE", "/signals/{signal_id}") => log_write(Signal, Delete),
         ("GET", "/signals" | "/signals/{signal_id}" | "/signals/{signal_id}/versions") => Skip,
 
-        ("POST", "/alerts") => log(Alert, Create),
-        ("PATCH", "/alerts/{alert_id}") => log(Alert, Update),
-        ("DELETE", "/alerts/{alert_id}") => log(Alert, Delete),
+        ("POST", "/alerts") => log_write(Alert, Create),
+        ("PATCH", "/alerts/{alert_id}") => log_write(Alert, Update),
+        ("DELETE", "/alerts/{alert_id}") => log_write(Alert, Delete),
 
-        ("POST", "/dashboards") => log(Dashboard, Create),
-        ("PATCH", "/dashboards/{dashboard_id}") => log(Dashboard, Update),
-        ("DELETE", "/dashboards/{dashboard_id}") => log(Dashboard, Delete),
-        ("PUT", "/dashboards/{dashboard_id}/charts") => log(Chart, Update),
-        ("DELETE", "/dashboards/{dashboard_id}/charts") => log(Chart, Delete),
+        ("POST", "/dashboards") => log_write(Dashboard, Create),
+        ("PATCH", "/dashboards/{dashboard_id}") => log_write(Dashboard, Update),
+        ("DELETE", "/dashboards/{dashboard_id}") => log_write(Dashboard, Delete),
+        ("PUT", "/dashboards/{dashboard_id}/charts") => log_write(Chart, Update),
+        ("DELETE", "/dashboards/{dashboard_id}/charts") => log_write(Chart, Delete),
 
         // An eval run is logged once, at its start; trials and status
         // updates are per-item traffic.
-        ("POST", "/evals") => log(Evaluation, Create),
+        ("POST", "/evals") => log_write(Evaluation, Create),
         (
             "POST",
             "/evals/{eval_id}"
             | "/evals/{eval_id}/datapoints"
             | "/evals/{eval_id}/datapoints/{trial_id}",
         ) => Skip,
-        ("POST", "/hosted-evals/runs") => log(Evaluation, Run),
+        ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
         (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
-        ("POST", "/rollouts/{session_id}") => log(DebuggerSession, Create),
-        ("PATCH", "/rollouts/{session_id}/name") => log(DebuggerSession, Update),
-        ("DELETE", "/rollouts/{session_id}") => log(DebuggerSession, Delete),
+        ("POST", "/rollouts/{session_id}") => log_write(DebuggerSession, Create),
+        ("PATCH", "/rollouts/{session_id}/name") => log_write(DebuggerSession, Update),
+        ("DELETE", "/rollouts/{session_id}") => log_write(DebuggerSession, Delete),
         (_, "/rollouts/{session_id}/blocks" | "/rollouts/{session_id}/cache") => Skip,
 
-        ("POST", "/agent/chat") => log(Agent, Run),
+        ("POST", "/agent/chat") => log_write(Agent, Run),
         ("POST", "/chat/completions") => Skip,
 
         _ => return None,
@@ -288,6 +299,7 @@ mod tests {
     fn ingestion_and_per_item_routes_are_skipped() {
         for (method, path) in [
             (Method::POST, "/traces"),
+            (Method::POST, "/traces/metadata"),
             (Method::POST, "/spans"),
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
@@ -301,16 +313,16 @@ mod tests {
     #[test]
     fn writes_and_run_starts_are_logged() {
         assert_eq!(
-            classify(&Method::POST, "/traces/metadata"),
-            Some(log(AuditResource::Trace, AuditAction::Update))
-        );
-        assert_eq!(
             classify(&Method::POST, "/evals"),
-            Some(log(AuditResource::Evaluation, AuditAction::Create))
+            Some(log_write(AuditResource::Evaluation, AuditAction::Create))
         );
         assert_eq!(
             classify(&Method::DELETE, "/datasets/{dataset_id}"),
-            Some(log(AuditResource::Dataset, AuditAction::Delete))
+            Some(log_write(AuditResource::Dataset, AuditAction::Delete))
+        );
+        assert_eq!(
+            classify(&Method::GET, "/datasets/{dataset_id}/parquets/{idx}"),
+            Some(log_read(AuditResource::Dataset, AuditAction::Export))
         );
         assert_eq!(classify(&Method::POST, "/unknown"), None);
     }
