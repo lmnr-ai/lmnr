@@ -67,6 +67,8 @@ export default function TracePanel() {
                 key={shown.traceId}
                 traceId={shown.traceId}
                 spanId={shown.spanId}
+                // The open trace and span live in the URL here, so tabs and message links can too.
+                urlState
                 storeKey="chat-session-trace-view-state"
                 defaultTimelineEnabled={false}
                 onClose={closeTrace}
