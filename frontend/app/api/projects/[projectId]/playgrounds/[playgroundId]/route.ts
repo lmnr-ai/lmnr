@@ -1,8 +1,13 @@
 import { updatePlayground } from "@/lib/actions/playgrounds";
-import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ projectId: string; playgroundId: string }>(async (req, ctx) => {
-  const { projectId, playgroundId } = await ctx.params;
-  const body = await req.json();
-  return Response.json(await updatePlayground({ ...body, projectId, playgroundId }));
-});
+export const POST = handlerWithAudit<{ projectId: string; playgroundId: string }>(
+  { resource: "playground", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, playgroundId } = await ctx.params;
+    const body = await req.json();
+    const playground = await updatePlayground({ ...body, projectId, playgroundId });
+    await audit.target(playgroundId);
+    return Response.json(playground);
+  }
+);

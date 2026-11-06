@@ -4,12 +4,13 @@ import { prettifyError, ZodError } from "zod/v4";
 import { handleSlackInteraction } from "@/lib/actions/slack/handle-interaction";
 import { SlackBlockActionsSchema, SlackWebhookRequestSchema } from "@/lib/actions/slack/types";
 import { processSlackEvent, verifySlackRequest } from "@/lib/actions/slack/webhook";
+import { handlerNoAudit } from "@/lib/audit";
 
 /**
  * https://api.slack.com/apis/connections/events-api
  * https://api.slack.com/authentication/verifying-requests-from-slack
  */
-export async function POST(req: NextRequest): Promise<Response> {
+export const POST = handlerNoAudit("inbound Slack webhook", async (req: NextRequest): Promise<Response> => {
   try {
     const body = await req.text();
     const timestamp = req.headers.get("x-slack-request-timestamp");
@@ -68,4 +69,4 @@ export async function POST(req: NextRequest): Promise<Response> {
       { status: 500 }
     );
   }
-}
+});

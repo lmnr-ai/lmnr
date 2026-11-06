@@ -3,12 +3,18 @@ import { prettifyError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createQueue, deleteQueues, getQueues, GetQueuesSchema } from "@/lib/actions/queues";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  const body = await req.json();
-  return Response.json(await createQueue({ projectId, name: body.name }));
-});
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "labeling_queue", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const body = await req.json();
+    const queue = await createQueue({ projectId, name: body.name });
+    await audit.target(queue.id, { name: queue.name });
+    return Response.json(queue);
+  }
+);
 
 export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const { projectId } = await ctx.params;
@@ -22,15 +28,19 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   return Response.json(await getQueues({ ...parseResult.data, projectId }));
 });
 
-export const DELETE = apiHandler<{ projectId: string }>(async (req, ctx) => {
-  const { projectId } = await ctx.params;
-  const queueIds = req.nextUrl.searchParams.get("queueIds")?.split(",");
+export const DELETE = handlerWithAudit<{ projectId: string }>(
+  { resource: "labeling_queue", action: "delete" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const queueIds = req.nextUrl.searchParams.get("queueIds")?.split(",");
 
-  if (!queueIds) {
-    return Response.json({ error: "At least one Queue ID is required" }, { status: 400 });
+    if (!queueIds) {
+      return Response.json({ error: "At least one Queue ID is required" }, { status: 400 });
+    }
+
+    await audit.target(queueIds);
+    await deleteQueues({ projectId, queueIds });
+
+    return Response.json({ message: "Queues deleted successfully" });
   }
-
-  await deleteQueues({ projectId, queueIds });
-
-  return Response.json({ message: "Queues deleted successfully" });
-});
+);

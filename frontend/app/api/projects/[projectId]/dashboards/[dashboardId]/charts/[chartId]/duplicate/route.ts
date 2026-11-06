@@ -1,10 +1,16 @@
 import { duplicateChart } from "@/lib/actions/dashboard";
-import { apiHandler } from "@/lib/api/api-handler";
 import { NotFoundError } from "@/lib/api/errors";
+import { handlerWithAudit } from "@/lib/audit";
 
-export const POST = apiHandler<{ projectId: string; dashboardId: string; chartId: string }>(async (_req, ctx) => {
-  const { projectId, dashboardId, chartId: id } = await ctx.params;
-  const chart = await duplicateChart({ projectId, dashboardId, id });
-  if (!chart) throw new NotFoundError("Chart not found");
-  return Response.json(chart);
-});
+export const POST = handlerWithAudit<{ projectId: string; dashboardId: string; chartId: string }>(
+  { resource: "chart", action: "create" },
+  async (_req, ctx, audit) => {
+    const { projectId, dashboardId, chartId: id } = await ctx.params;
+    const chart = await duplicateChart({ projectId, dashboardId, id });
+    if (!chart) throw new NotFoundError("Chart not found");
+    // The path's chartId is the source; the event records the copy.
+    audit.set({ metadata: { sourceChartId: id } });
+    await audit.target(chart.id, { name: chart.name, parent: { dashboardId } });
+    return Response.json(chart);
+  }
+);

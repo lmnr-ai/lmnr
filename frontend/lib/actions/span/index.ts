@@ -114,7 +114,7 @@ export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema
   const span = await getSpan({ spanId, projectId });
   const processedInput = normalizeSpanForExport(span.input);
 
-  await createDatapoints({
+  const [datapoint] = await createDatapoints({
     projectId,
     datasetId,
     datapoints: [
@@ -126,6 +126,7 @@ export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema
     ],
     sourceSpanId: spanId,
   });
+  return { datapointId: datapoint.id, traceId: span.traceId };
 }
 
 export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSchema>) {

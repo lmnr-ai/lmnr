@@ -1,5 +1,6 @@
 import { createDashboard, getDashboards, getOrCreateDefaultDashboard } from "@/lib/actions/dashboard/dashboards";
 import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 type Params = { projectId: string };
 
@@ -18,8 +19,10 @@ export const GET = apiHandler<Params>(async (_req, ctx) => {
   return Response.json(await getDashboards({ projectId }));
 });
 
-export const POST = apiHandler<Params>(async (req, ctx) => {
+export const POST = handlerWithAudit<Params>({ resource: "dashboard", action: "create" }, async (req, ctx, audit) => {
   const { projectId } = await ctx.params;
   const body = await req.json();
-  return Response.json(await createDashboard({ ...body, projectId }));
+  const dashboard = await createDashboard({ ...body, projectId });
+  await audit.target(dashboard.id, { name: dashboard.name });
+  return Response.json(dashboard);
 });
