@@ -11,6 +11,7 @@ use lapin::{
     protocol::{AMQPHardError, constants::REPLY_SUCCESS},
 };
 use tokio::sync::{Notify, Semaphore, SemaphorePermit};
+use tokio_util::sync::CancellationToken;
 
 use crate::utils::retry;
 
@@ -68,6 +69,7 @@ pub struct Generation {
     pub id: u64,
     pub connection: Connection,
     condemned: AtomicBool,
+    retired: CancellationToken,
     setup_timeouts: SetupTimeouts,
     bindings: DashSet<Binding>,
 }
@@ -86,6 +88,7 @@ impl Generation {
             id,
             connection,
             condemned: AtomicBool::new(false),
+            retired: CancellationToken::new(),
             setup_timeouts: SetupTimeouts::default(),
             bindings: DashSet::new(),
         }
@@ -105,6 +108,14 @@ impl Generation {
 
     pub fn record_binding(&self, binding: Binding) {
         self.bindings.insert(binding);
+    }
+
+    /// Resolves once the supervisor has given up on this connection. Consumers
+    /// race this against their next delivery, because closing a connection does
+    /// NOT end its consumers' streams until the broker sends `close-ok`, and a
+    /// wedged broker may never send it.
+    pub async fn retired(&self) {
+        self.retired.cancelled().await
     }
 }
 
@@ -203,8 +214,12 @@ impl ResilientRabbitConnection {
                 old.condemned.load(Ordering::Acquire),
             );
 
-            // A condemned connection may still be up. Closing it is what hands
-            // its consumers an error, so their workers rebuild on the new one.
+            // Retiring, not closing, is what moves this generation's workers
+            // onto the next one: the close below is best-effort and may never
+            // complete, and until it does lapin keeps their streams open.
+            old.retired.cancel();
+
+            // A condemned connection may still be up; release it broker-side.
             if old.connection.status().connected() {
                 let old = Arc::clone(&old);
                 tokio::spawn(async move {

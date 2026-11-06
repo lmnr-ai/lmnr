@@ -14,7 +14,7 @@ use super::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use crate::utils::retry;
-use connection::Binding;
+use connection::{Binding, Generation};
 use properties::{properties, retry_attempt_of, retry_properties};
 
 mod connection;
@@ -140,6 +140,9 @@ pub struct RabbitMQ {
 
 pub struct RabbitMQReceiver {
     consumer: Consumer,
+    /// The connection the consumer lives on, so the receiver ends when that
+    /// connection is replaced even if lapin never ends the stream itself.
+    generation: Arc<Generation>,
 }
 
 pub struct RabbitMQDelivery {
@@ -174,7 +177,17 @@ impl MessageQueueDeliveryTrait for RabbitMQDelivery {
 
 impl MessageQueueReceiverTrait for RabbitMQReceiver {
     async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>> {
-        if let Some(delivery) = self.consumer.next().await {
+        let next = tokio::select! {
+            biased;
+            _ = self.generation.retired() => {
+                return Some(Err(anyhow::anyhow!(
+                    "RabbitMQ connection generation {} was replaced",
+                    self.generation.id
+                )));
+            }
+            next = self.consumer.next() => next,
+        };
+        if let Some(delivery) = next {
             let Ok(delivery) = delivery else {
                 return Some(Err(anyhow::anyhow!(
                     "Failed to get delivery from RabbitMQ."
@@ -440,7 +453,11 @@ impl MessageQueueTrait for RabbitMQ {
             }
         };
 
-        Ok(RabbitMQReceiver { consumer }.into())
+        Ok(RabbitMQReceiver {
+            consumer,
+            generation,
+        }
+        .into())
     }
 
     fn is_healthy(&self) -> bool {
