@@ -24,8 +24,6 @@ interface TraceViewProps {
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSearch?: string;
-  /** Keep view tabs and message links in the URL; off where the page can't reopen the trace from it. */
-  syncUrl?: boolean;
 }
 
 export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
@@ -35,7 +33,6 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
       isAlwaysSelectSpan={props.isAlwaysSelectSpan}
       initialSignalId={props.initialSignalId}
       initialSearch={props.initialSearch}
-      syncUrl={props.syncUrl}
     >
       <TraceAgentContext traceId={props.traceId} />
       <TraceViewContent {...props} />
@@ -77,7 +74,6 @@ export function TraceViewSidePanel({
         isAlwaysSelectSpan={props.isAlwaysSelectSpan}
         initialSignalId={props.initialSignalId}
         initialSearch={props.initialSearch}
-        syncUrl={props.syncUrl}
       >
         <div className="relative w-full h-full flex flex-col">
           <TraceAgentContext traceId={props.traceId} />

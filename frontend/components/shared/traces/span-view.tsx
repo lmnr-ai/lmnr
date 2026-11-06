@@ -17,13 +17,11 @@ interface SpanViewProps {
   spanId: string;
   traceId: string;
   onClose?: () => void;
-  /** Keep the open tab in `?spanTab`; off for embeds that must leave the host URL alone. */
-  syncUrl?: boolean;
 }
 
 // Public counterpart of components/traces/span-view: same controls + tabs,
 // fetched from the shared endpoint with project-scoped actions stripped.
-export function SpanView({ spanId, traceId, onClose, syncUrl = true }: SpanViewProps) {
+export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const { data: span, isLoading, error } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
 
@@ -83,13 +81,7 @@ export function SpanView({ spanId, traceId, onClose, syncUrl = true }: SpanViewP
   return (
     <SpanSearchProvider>
       <SpanControls span={span} onClose={onClose} isShared>
-        <SpanViewTabs
-          span={span}
-          searchRef={searchRef}
-          searchOpen={searchOpen}
-          setSearchOpen={setSearchOpen}
-          syncUrl={syncUrl}
-        />
+        <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
       </SpanControls>
     </SpanSearchProvider>
   );

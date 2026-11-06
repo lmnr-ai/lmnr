@@ -92,7 +92,6 @@ export default function TraceViewContent({
   );
 
   const initialSearch = useTraceViewStore((state) => state.initialSearch);
-  const syncUrl = useTraceViewStore((state) => state.syncUrl);
 
   const handleFetchTrace = useCallback(async () => {
     if (propsTrace) {
@@ -341,7 +340,6 @@ export default function TraceViewContent({
           initialTab={snippetTabOf(selectedSpan)}
           onClose={handleSpanPanelClose}
           isAlwaysSelectSpan={isAlwaysSelectSpan}
-          syncUrl={syncUrl}
         />
       )}
     </div>

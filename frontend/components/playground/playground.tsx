@@ -11,6 +11,7 @@ import { usePlaygroundOutput } from "@/components/playground/playground-output";
 import PlaygroundPanel from "@/components/playground/playground-panel";
 import { getDefaultThinkingModelProviderOptions, type LlmRoute } from "@/components/playground/utils";
 import TraceView from "@/components/traces/trace-view";
+import { WithoutUrlState } from "@/components/traces/url-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -176,14 +177,15 @@ export default function Playground({ playground }: { playground: PlaygroundType 
               width: "65vw",
             }}
           >
-            <TraceView
-              onClose={() => {
-                setIsSidePanelOpen(false);
-                setTraceId(null);
-              }}
-              traceId={traceId!}
-              syncUrl={false}
-            />
+            <WithoutUrlState>
+              <TraceView
+                onClose={() => {
+                  setIsSidePanelOpen(false);
+                  setTraceId(null);
+                }}
+                traceId={traceId!}
+              />
+            </WithoutUrlState>
           </Resizable>
         </div>
       )}

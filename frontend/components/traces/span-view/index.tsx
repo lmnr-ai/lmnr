@@ -27,8 +27,6 @@ interface SpanViewProps {
   initialTab?: SpanViewTab;
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
-  /** Keep the tab and message links in the URL; off where the page can't reopen this span from it. */
-  syncUrl?: boolean;
 }
 
 const swrFetcher = async (url: string) => {
@@ -51,18 +49,16 @@ export const SpanViewTabs = ({
   searchOpen,
   setSearchOpen,
   initialTab,
-  syncUrl = true,
 }: {
   span: Span;
   searchRef: React.RefObject<HTMLInputElement | null>;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
   initialTab?: SpanViewTab;
-  syncUrl?: boolean;
 }) => {
   const isLLM = span.spanType === SpanType.LLM;
   const hasEvents = (span.events?.length ?? 0) > 0;
-  const [tab, setTab] = useSpanViewTab({ syncUrl, fallback: initialTab, hasEvents });
+  const [tab, setTab] = useSpanViewTab({ fallback: initialTab, hasEvents });
 
   return (
     <Tabs
@@ -84,7 +80,7 @@ export const SpanViewTabs = ({
       <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
       <div className="grow flex overflow-hidden">
         <TabsContent value="content" className="w-full h-full">
-          {isLLM ? <SpanTurn span={span} linkable={syncUrl} /> : <SpanIO span={span} />}
+          {isLLM ? <SpanTurn span={span} /> : <SpanIO span={span} />}
         </TabsContent>
         <TabsContent value="attributes" className="w-full h-full">
           <ContentRenderer
@@ -120,7 +116,6 @@ export function SpanView({
   initialTab,
   onClose,
   isAlwaysSelectSpan,
-  syncUrl = true,
 }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
@@ -187,7 +182,6 @@ export function SpanView({
             searchOpen={searchOpen}
             setSearchOpen={setSearchOpen}
             initialTab={initialTab}
-            syncUrl={syncUrl}
           />
         </SpanControls>
       </SpanSearchProvider>

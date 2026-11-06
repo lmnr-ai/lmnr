@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useState } from "react";
 
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
+import { useUrlState } from "@/components/traces/url-state";
 import { buildSpanTurn } from "@/lib/spans/turn";
 import { type Span } from "@/lib/traces/types";
 
@@ -11,8 +12,9 @@ import { useSectionFormats } from "./use-section-formats";
 
 const readAnchorHash = () => (typeof window === "undefined" ? undefined : parseAnchorHash(window.location.hash));
 
-/** `linkable`: offer per-message links (off where the URL can't reopen this span). */
-const PureSpanTurn = ({ span, linkable = false }: { span: Span; linkable?: boolean }) => {
+const PureSpanTurn = ({ span }: { span: Span }) => {
+  // Message links only where the URL can reopen this span.
+  const linkable = useUrlState();
   const turn = useMemo(() => buildSpanTurn(span.input, span.output), [span.input, span.output]);
   const [linked, setLinked] = useState<MessageAnchor | undefined>(() => (linkable ? readAnchorHash() : undefined));
 

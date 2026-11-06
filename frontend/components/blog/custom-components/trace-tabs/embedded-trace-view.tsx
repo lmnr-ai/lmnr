@@ -12,6 +12,7 @@ import TraceViewStoreProvider, {
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { WithoutUrlState } from "@/components/traces/url-state";
 
 interface EmbeddedTraceViewProps {
   trace: TraceViewTrace;
@@ -37,7 +38,6 @@ function PureEmbeddedTraceView({ trace, spans }: EmbeddedTraceViewProps) {
         spanId={selectedSpan.spanId}
         traceId={trace.id}
         onClose={() => setSelectedSpan(undefined)}
-        syncUrl={false}
       />
     ) : (
       <SpanViewSkeleton />
@@ -54,13 +54,14 @@ function PureEmbeddedTraceView({ trace, spans }: EmbeddedTraceViewProps) {
 
 export default function EmbeddedTraceView(props: EmbeddedTraceViewProps) {
   return (
-    <TraceViewStoreProvider
-      storeKey="shared-trace-view"
-      initialTrace={props.trace}
-      initialSpans={enrichSpansWithPending(props.spans)}
-      syncUrl={false}
-    >
-      <PureEmbeddedTraceView {...props} />
-    </TraceViewStoreProvider>
+    <WithoutUrlState>
+      <TraceViewStoreProvider
+        storeKey="shared-trace-view"
+        initialTrace={props.trace}
+        initialSpans={enrichSpansWithPending(props.spans)}
+      >
+        <PureEmbeddedTraceView {...props} />
+      </TraceViewStoreProvider>
+    </WithoutUrlState>
   );
 }

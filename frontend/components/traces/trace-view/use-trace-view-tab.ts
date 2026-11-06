@@ -4,6 +4,7 @@ import { shallow } from "zustand/shallow";
 
 import { SPAN_TAB_PARAM } from "@/components/traces/span-view/use-span-view-tab";
 import { type BaseTraceViewStore, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { useUrlState } from "@/components/traces/url-state";
 
 export type TraceViewTab = BaseTraceViewStore["tab"];
 const TRACE_VIEW_TABS = ["tree", "transcript", "custom"] as const satisfies readonly TraceViewTab[];
@@ -24,8 +25,9 @@ export const deleteTraceViewParams = (params: URLSearchParams) => {
  * were copied from; picking a view writes both.
  */
 export const useTraceViewTab = () => {
-  const { storeTab, setStoreTab, syncUrl } = useTraceViewBaseStore(
-    (state) => ({ storeTab: state.tab, setStoreTab: state.setTab, syncUrl: state.syncUrl }),
+  const syncUrl = useUrlState();
+  const { storeTab, setStoreTab } = useTraceViewBaseStore(
+    (state) => ({ storeTab: state.tab, setStoreTab: state.setTab }),
     shallow
   );
   const [urlTab, setUrlTab] = useQueryState(TRACE_VIEW_PARAM, traceViewParser);

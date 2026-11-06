@@ -1,6 +1,8 @@
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useCallback, useState } from "react";
 
+import { useUrlState } from "@/components/traces/url-state";
+
 /** `content` is the Messages view for LLM spans and stacked input/output for the rest. */
 export const SPAN_VIEW_TABS = ["content", "attributes", "events"] as const;
 export type SpanViewTab = (typeof SPAN_VIEW_TABS)[number];
@@ -12,18 +14,17 @@ const spanTabParser = parseAsStringLiteral(SPAN_VIEW_TABS).withOptions({ history
 
 /**
  * The open span tab, kept in `?spanTab` so it deep-links and stays put while stepping through spans.
- * `syncUrl: false` keeps it local, for embeds that must leave the host URL alone.
+ * Kept local under `WithoutUrlState`.
  */
 export const useSpanViewTab = ({
-  syncUrl,
   fallback,
   hasEvents,
 }: {
-  syncUrl: boolean;
   /** Used until a tab is picked, e.g. the tab holding a search snippet. */
   fallback?: SpanViewTab;
   hasEvents: boolean;
 }) => {
+  const syncUrl = useUrlState();
   const [urlTab, setUrlTab] = useQueryState(SPAN_TAB_PARAM, spanTabParser);
   const [localTab, setLocalTab] = useState<SpanViewTab | null>(null);
 

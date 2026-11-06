@@ -15,6 +15,7 @@ import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/das
 import GridLayout from "@/components/dashboards/grid-layout";
 import { getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import { WithoutUrlState } from "@/components/traces/url-state";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
 import { LAST_DASHBOARD_ID, LAST_ID_COOKIE_MAX_AGE } from "@/lib/cookies";
 import { track } from "@/lib/posthog";
@@ -112,13 +113,14 @@ function DashboardContent() {
         </div>
       </div>
       {traceId && (
-        <TraceViewSidePanel
-          traceId={traceId}
-          spanId={spanId ?? undefined}
-          initialSignalId={signalId ?? undefined}
-          onClose={closeTrace}
-          syncUrl={false}
-        />
+        <WithoutUrlState>
+          <TraceViewSidePanel
+            traceId={traceId}
+            spanId={spanId ?? undefined}
+            initialSignalId={signalId ?? undefined}
+            onClose={closeTrace}
+          />
+        </WithoutUrlState>
       )}
     </>
   );
