@@ -12,8 +12,6 @@ export const ValidateQuerySchema = z.object({
 export interface QueryValidationResult {
   success: boolean;
   validatedQuery?: string;
-  /** Tables the query reads, for the caller's audit event. */
-  tables: string[];
   error?: string;
 }
 

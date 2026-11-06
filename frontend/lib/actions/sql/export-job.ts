@@ -23,8 +23,6 @@ export interface ExportJobResult {
   message: string;
   jobId: string | null;
   warnings?: string[];
-  /** Tables the query reads, for the route's audit event. */
-  tables: string[];
 }
 
 export async function createExportJob(input: z.infer<typeof CreateExportJobSchema>): Promise<ExportJobResult> {
@@ -86,7 +84,6 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   return {
     message: "Export job started successfully",
     jobId: exportResult.jobId || null,
-    tables: validationResult.tables,
     warnings: validationResult.error
       ? [`Query was validated and may have been modified: ${validationResult.error}`]
       : undefined,

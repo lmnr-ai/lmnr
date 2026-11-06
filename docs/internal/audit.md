@@ -42,7 +42,7 @@ Records who changed what in a workspace and who read trace data, shown to owners
 
 - `sql.query` is logged by the route that received the query, like any other event; `sql/mod.rs` knows nothing about auditing. `run_sql_query` returns the rows and the tables the validator saw (`execute_sql_query` drops the tables), and the route puts `metadata.query` and `metadata.tables` on its event:
   - `/api/projects/[id]/sql` (the editor, dashboards, custom columns): `withAudit`, with the tables from the internal `/sql/query` route's `x-laminar-sql-tables` header (`executeQueryWithTables`).
-  - `/api/projects/[id]/sql/export-job`: `sql.export`, with the tables from `/sql/validate`. The exporter runs the validated SQL outside app-server, so this route is the last point that sees it.
+  - `/api/projects/[id]/sql/export-job`: `sql.export`, with the query and dataset. The exporter runs the validated SQL outside app-server, so this route is the last point that sees it.
   - `/v1/sql/query` and `/v1/cli/sql/query`: the `/v1` middleware; `handle_sql_query` adds the metadata with `audit::metadata`.
   - MCP `query_laminar_sql`: the tool handler, because the single `/mcp` route serves every tool.
 - SQL the platform builds (tables, charts, datasets) goes through no audited route, so it isn't logged. CLI chart saves test-run their queries as `Actor::Cli`; the `chart.update` event covers them, since nothing is read back.

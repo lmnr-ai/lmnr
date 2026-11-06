@@ -45,8 +45,6 @@ pub struct SqlValidateRequest {
 pub struct SqlValidateResponse {
     pub success: bool,
     pub validated_query: Option<String>,
-    /// Allowlisted tables the query reads, for the caller's `sql.export` audit event.
-    pub tables: Vec<String>,
     pub error: Option<String>,
 }
 
@@ -160,18 +158,15 @@ pub async fn validate_sql_query(
         Ok(validation_result) => {
             let response = match validation_result {
                 QueryEngineValidationResult::Success {
-                    validated_query,
-                    tables,
+                    validated_query, ..
                 } => SqlValidateResponse {
                     success: true,
                     validated_query: Some(validated_query),
-                    tables,
                     error: None,
                 },
                 QueryEngineValidationResult::Error { error } => SqlValidateResponse {
                     success: false,
                     validated_query: None,
-                    tables: Vec::new(),
                     error: Some(error),
                 },
             };

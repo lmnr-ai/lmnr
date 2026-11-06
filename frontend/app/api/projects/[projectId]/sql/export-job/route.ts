@@ -15,7 +15,7 @@ export const POST = withAudit<{ projectId: string }>(
       projectId,
     });
     audit.set({
-      metadata: { query: body?.sqlQuery, datasetId: body?.datasetId, tables: result.tables, jobId: result.jobId },
+      metadata: { query: body?.sqlQuery, datasetId: body?.datasetId, jobId: result.jobId },
     });
 
     return Response.json({
