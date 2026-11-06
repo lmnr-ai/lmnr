@@ -10,6 +10,7 @@ import { useLiveSession, useLiveSessionStore } from "../live-session";
 import { useOpenTrace } from "../use-open-trace";
 import TimeDivider from "./time-divider";
 import Turn from "./turn";
+import { useReportVisibleTurns } from "./use-report-visible-turns";
 
 // Gaps shorter than this between turns aren't worth a divider.
 const MIN_GAP_MS = 10 * 60_000;
@@ -43,6 +44,7 @@ export default function Thread() {
     paddingEnd: 16,
   });
   const items = virtualizer.getVirtualItems();
+  useReportVisibleTurns(virtualizer, traces);
 
   // Rendered turns (viewport + overscan) are exactly the ones whose details we need.
   const firstIndex = items[0]?.index;
