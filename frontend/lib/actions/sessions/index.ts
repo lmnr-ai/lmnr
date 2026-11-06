@@ -3,13 +3,11 @@ import { z } from "zod/v4";
 
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
+import { resolveSessionSearch } from "@/lib/actions/sessions/search";
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
 import { parseCustomColumnsJson } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils";
 import { type SessionRow, type TraceRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
@@ -50,19 +48,15 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const spanHits: SpanSearchHit[] = search
-    ? await searchSpans({
-        projectId,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
-      })
-    : [];
-  const traceIds = [...new Set(spanHits.map((hit) => hit.trace_id))];
-
-  if (search && traceIds.length === 0) {
-    return { items: [] };
-  }
+  const { traceIds, noMatches } = await resolveSessionSearch({
+    projectId,
+    search,
+    searchIn,
+    pastHours,
+    startTime,
+    endTime,
+  });
+  if (noMatches) return { items: [] };
 
   const { query: mainQuery, parameters: mainParams } = buildSessionsQueryWithParams({
     traceIds,
@@ -97,7 +91,7 @@ export const GetSessionTracesSchema = z.object({
 const SESSION_TRACES_PAD_BEFORE_MS = 60 * 60 * 1000;
 const SESSION_TRACES_PAD_AFTER_MS = 3 * 60 * 60 * 1000;
 // Every turn row loads up front (the views virtualize and fetch per-turn details lazily);
-// this is only a safety cap. Keep in step with the model-tokens trace-id limit.
+// this is only a safety cap.
 const SESSION_TRACES_LIMIT = 5000;
 
 // Only the columns the session view renders.
@@ -122,7 +116,21 @@ const sessionTracesSelectColumns = [
 // session's start_time range cheaply, then fetch the UI columns bounded by it so the validator prunes traces_v0.
 export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSchema>): Promise<{ items: TraceRow[] }> {
   const { projectId, sessionId } = GetSessionTracesSchema.parse(input);
+  return { items: await querySessionTraces<TraceRow>(projectId, sessionId, sessionTracesSelectColumns) };
+}
 
+/** The session's trace ids in start-time order. */
+export async function getSessionTraceIds(input: z.infer<typeof GetSessionTracesSchema>): Promise<string[]> {
+  const { projectId, sessionId } = GetSessionTracesSchema.parse(input);
+  const rows = await querySessionTraces<{ id: string }>(projectId, sessionId, ["id"]);
+  return rows.map((r) => r.id);
+}
+
+async function querySessionTraces<T extends object>(
+  projectId: string,
+  sessionId: string,
+  columns: string[]
+): Promise<T[]> {
   const bounds = await executeQuery<{ minStart: string; maxStart: string }>({
     query: `
       SELECT
@@ -139,15 +147,15 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
   const { minStart, maxStart } = bounds[0] ?? { minStart: "", maxStart: "" };
   // Empty session: min/max over no rows yields the epoch-zero sentinel.
   if (!minStart || !maxStart || minStart.startsWith("1970-01-01")) {
-    return { items: [] };
+    return [];
   }
 
   const startTime = new Date(new Date(minStart).getTime() - SESSION_TRACES_PAD_BEFORE_MS).toISOString();
   const endTime = new Date(new Date(maxStart).getTime() + SESSION_TRACES_PAD_AFTER_MS).toISOString();
 
-  const items = await executeQuery<TraceRow>({
+  return executeQuery<T>({
     query: `
-      SELECT ${sessionTracesSelectColumns.join(", ")}
+      SELECT ${columns.join(", ")}
       FROM traces
       WHERE session_id = {sessionId: String}
         AND trace_type = 'DEFAULT'
@@ -164,8 +172,6 @@ export async function getSessionTraces(input: z.infer<typeof GetSessionTracesSch
     },
     projectId,
   });
-
-  return { items };
 }
 
 export async function deleteSessions(input: z.infer<typeof DeleteSessionsSchema>) {

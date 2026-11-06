@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import useSWR from "swr";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { DEFAULT_TARGET_BARS } from "@/components/traces/traces-table/constants";
 import { type SessionsStatsDataPoint } from "@/lib/actions/sessions/stats";
-import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
+import { swrFetcher } from "@/lib/api/fetch-api";
+import { withOpacity } from "@/lib/clusters/colors";
+import { toast } from "@/lib/hooks/use-toast";
 
-// One neutral series (sessions have no status): the signals chart's "unclustered" gray at its bar opacity.
+// One series (sessions have no status): primary, muted to the signals chart's bar opacity.
 const chartConfig = {
-  count: { label: "sessions", color: withOpacity(UNCLUSTERED_COLOR, 0.6) },
+  count: { label: "sessions", color: withOpacity("var(--color-primary)", 0.6) },
 } as const;
 
 const fields = ["count"] as const;
@@ -41,8 +44,6 @@ export default function SessionsChart({
 }: SessionsChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
-  // Tagged with the URL it answers, so "loading" is derived instead of tracked.
-  const [result, setResult] = useState<{ url: string; items?: SessionsStatsDataPoint[] }>();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -65,24 +66,12 @@ export default function SessionsChart({
     defaultTargetBars: DEFAULT_TARGET_BARS,
   });
 
-  useEffect(() => {
-    if (isViewLoading || !statsUrl) return;
-    const controller = new AbortController();
-    (async () => {
-      let items: SessionsStatsDataPoint[] | undefined;
-      try {
-        const res = await fetch(statsUrl, { signal: controller.signal });
-        if (res.ok) items = ((await res.json()) as { items: SessionsStatsDataPoint[] }).items;
-      } catch {
-        // Aborted or offline. The chart is secondary (the traces chart doesn't toast either), so keep the last data.
-      }
-      if (!controller.signal.aborted) setResult((prev) => ({ url: statsUrl, items: items ?? prev?.items }));
-    })();
-    return () => controller.abort();
-  }, [statsUrl, isViewLoading]);
-
-  const stats = result?.items;
-  const isLoading = !!statsUrl && result?.url !== statsUrl;
+  // keepPreviousData holds the last chart through a filter change instead of flashing the skeleton.
+  const { data, isLoading } = useSWR<{ items: SessionsStatsDataPoint[] }>(isViewLoading ? null : statsUrl, swrFetcher, {
+    keepPreviousData: true,
+    onError: (e: Error) => toast({ variant: "destructive", title: e.message }),
+  });
+  const stats = data?.items;
 
   return (
     <div ref={containerRef} className="w-full rounded border bg-secondary p-2">
