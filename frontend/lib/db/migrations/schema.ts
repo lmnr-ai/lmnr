@@ -441,6 +441,7 @@ export const agents = pgTable(
     ingestedUntil: bigint("ingested_until", { mode: "number" }),
     currentVersionId: uuid("current_version_id"),
     releaseMode: boolean("release_mode").default(false).notNull(),
+    definition: jsonb(),
   },
   (table) => [
     foreignKey({

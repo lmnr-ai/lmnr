@@ -31,7 +31,8 @@ pub async fn register_new_agents(
     prompts: &[CHAgentPrompt],
 ) {
     let mut firsts: HashMap<(Uuid, &str), &CHAgentPrompt> = HashMap::new();
-    for prompt in prompts {
+    // Unlabelled prompts have no agent yet; detection creates theirs.
+    for prompt in prompts.iter().filter(|p| !p.agent_hash.is_empty()) {
         firsts
             .entry((prompt.project_id, prompt.agent_hash.as_str()))
             .or_insert(prompt);

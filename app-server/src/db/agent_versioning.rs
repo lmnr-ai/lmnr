@@ -2,10 +2,11 @@
 //! Progress times are nanoseconds, matching ClickHouse.
 
 use anyhow::Result;
-use sqlx::{FromRow, PgPool};
+use serde::{Deserialize, Serialize};
+use sqlx::{FromRow, PgPool, types::Json};
 use uuid::Uuid;
 
-use crate::utils::sanitize_string;
+use crate::{agent_versioning::definition::Definition, utils::sanitize_string};
 
 #[derive(Debug, FromRow)]
 pub struct Agent {
@@ -74,6 +75,66 @@ pub async fn set_agent_name(pool: &PgPool, agent_id: Uuid, name: &str) -> Result
     sqlx::query("UPDATE agents SET name = $2 WHERE id = $1 AND name IS NULL")
         .bind(agent_id)
         .bind(sanitize_string(name))
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// An agent identified by a detected definition rather than by its prompt's
+/// first sentence.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct DefinedAgent {
+    pub id: Uuid,
+    pub agent_hash: String,
+    pub name: Option<String>,
+    pub definition: Json<Definition>,
+}
+
+/// The project's defined agents, oldest first: ingest takes the first match.
+pub async fn get_defined_agents(pool: &PgPool, project_id: Uuid) -> Result<Vec<DefinedAgent>> {
+    let agents = sqlx::query_as::<_, DefinedAgent>(
+        "SELECT id, agent_hash, name, definition FROM agents
+         WHERE project_id = $1 AND definition IS NOT NULL
+         ORDER BY created_at, id",
+    )
+    .bind(project_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(agents)
+}
+
+pub async fn insert_defined_agent(
+    pool: &PgPool,
+    project_id: Uuid,
+    agent_id: Uuid,
+    agent_hash: &str,
+    name: &str,
+    definition: &Definition,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO agents (id, project_id, agent_hash, name, definition)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(agent_id)
+    .bind(project_id)
+    .bind(agent_hash)
+    .bind(sanitize_string(name))
+    .bind(Json(definition))
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn set_agent_definition(
+    pool: &PgPool,
+    project_id: Uuid,
+    agent_id: Uuid,
+    definition: &Definition,
+) -> Result<()> {
+    sqlx::query("UPDATE agents SET definition = $3 WHERE project_id = $1 AND id = $2")
+        .bind(project_id)
+        .bind(agent_id)
+        .bind(Json(definition))
         .execute(pool)
         .await?;
     Ok(())

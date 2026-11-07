@@ -85,6 +85,13 @@ pub const AGENT_VERSIONING_KNOWN_CACHE_KEY: &str = "agent_versioning_known";
 /// `agent_versioning_release:{project_id}:{agent_hash}:{release}`: the
 /// release's decided `version_hash`, or empty while undecided (short TTL).
 pub const AGENT_VERSIONING_RELEASE_CACHE_KEY: &str = "agent_versioning_release";
+/// `agent_definitions:{project_id}`: the project's defined agents, read by
+/// ingest on every LLM span (`agent_versioning/identity.rs`). Short TTL, so a
+/// new definition reaches ingest within it.
+pub const AGENT_DEFINITIONS_CACHE_KEY: &str = "agent_definitions";
+/// `agent_detection_lock:{project_id}`: one detection run per project per
+/// interval across replicas. Expires instead of being released.
+pub const AGENT_DETECTION_LOCK_CACHE_KEY: &str = "agent_detection_lock";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
 pub const WORKSPACE_DEPLOYMENTS_CACHE_KEY: &str = "workspace_deployment_config";

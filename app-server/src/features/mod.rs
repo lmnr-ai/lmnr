@@ -36,6 +36,11 @@ pub enum Feature {
     /// Scheduled agent versioning (`src/agent_versioning`). Gated behind
     /// `AGENT_VERSIONING_ENABLED`, default off.
     AgentVersioning,
+    /// Agents are identified by detected definitions
+    /// (`agent_versioning/detection`) instead of the system prompt's first
+    /// sentence. Detection runs inside the versioning job, so it needs BOTH
+    /// `AGENT_VERSIONING_ENABLED` and `AGENT_DETECTION_ENABLED`.
+    AgentDetection,
     /// v2 static system-prompt extraction: per-agent prompt windows +
     /// line-level version detection replacing the skeleton-hash keying.
     /// Gated behind `SP_VERSIONING_ENABLED`, default off.
@@ -102,6 +107,10 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
         Feature::AgentVersioning => env::agent_versioning::ENABLED.get(),
+        Feature::AgentDetection => {
+            is_feature_enabled(Feature::AgentVersioning)
+                && env::agent_versioning::DETECTION_ENABLED.get()
+        }
         Feature::SystemPromptVersioning => env::static_sp::V2_ENABLED.get(),
         Feature::SignalsVersionedPrompts => {
             is_feature_enabled(Feature::SystemPromptVersioning)
