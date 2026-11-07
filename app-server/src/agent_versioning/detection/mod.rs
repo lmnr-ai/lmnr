@@ -6,13 +6,13 @@
 //! ([`super::identity`]); traces ingested before stay unlabelled.
 
 mod agent;
-mod session;
+mod prompt;
 
 use anyhow::Result;
 use futures_util::future::try_join_all;
 use uuid::Uuid;
 
-use self::session::{Change, KnownAgent, Sample, Session};
+use self::agent::{Change, DetectionAgent, KnownAgent};
 use super::{Job, NS, identity::definitions_cache_key, naming};
 use crate::{
     cache::{CacheTrait, keys::AGENT_DETECTION_LOCK_CACHE_KEY},
@@ -26,9 +26,9 @@ use crate::{
     llm::LlmClient,
 };
 
-/// Candidates read per sample: uncovered traces include those stored before
-/// their agent was defined, which are filtered out after reading.
-const CANDIDATES_PER_SAMPLE: u64 = 3;
+/// Traces read per prompt shown to the model: uncovered traces include those
+/// stored before their agent was defined, which are filtered out after reading.
+const CANDIDATES_PER_PROMPT: u64 = 3;
 
 impl Job {
     pub(super) async fn detect_agents(&self, now: i64) {
@@ -57,13 +57,16 @@ impl Job {
                     continue;
                 }
             }
-            if let Err(e) = self.detect_project(llm_client, project_id, now).await {
+            if let Err(e) = self
+                .detect_agents_for_project(llm_client, project_id, now)
+                .await
+            {
                 log::error!("[AGENT DETECTION] {project_id} failed: {e:?}");
             }
         }
     }
 
-    async fn detect_project(
+    async fn detect_agents_for_project(
         &self,
         llm_client: &LlmClient,
         project_id: Uuid,
@@ -73,54 +76,51 @@ impl Job {
         // Sampled from the whole active window, not just this interval, so an
         // agent with a trace an hour still gathers enough to be defined.
         let since = now - ACTIVE_WINDOW_SECONDS.get() * NS;
-        let samples_limit = DETECTION_SAMPLES.get();
-        let traces = uncovered_traces(
+        let prompts_limit = DETECTION_SAMPLES.get();
+        let spans = uncovered_traces(
             &self.clickhouse,
             project_id,
             since,
-            samples_limit * CANDIDATES_PER_SAMPLE,
+            prompts_limit * CANDIDATES_PER_PROMPT,
         )
         .await?;
         // Fewer could never make an agent.
-        if traces.len() < min_matches {
+        if spans.len() < min_matches {
             return Ok(());
         }
         let agents = self.known_agents(project_id, since).await?;
         // A trace stored before its agent was defined stays unlabelled; it
         // needs no new agent and would only crowd out the ones that do.
-        let samples: Vec<Sample> = self
-            .read_samples(project_id, &traces)
+        let prompts: Vec<String> = self
+            .read_prompts(project_id, &spans)
             .await?
             .into_iter()
-            .filter(|sample| !is_defined(&agents, sample))
-            .take(samples_limit as usize)
+            .filter(|prompt| !is_defined(&agents, prompt))
+            .take(prompts_limit as usize)
             .collect();
-        if samples.len() < min_matches {
+        if prompts.len() < min_matches {
             return Ok(());
         }
-        let mut session = Session::new(samples, agents, min_matches);
-        let run = agent::run(
+        let changes = DetectionAgent::new(
             llm_client,
-            &mut session,
             project_id,
             naming::internal_project_id(),
+            min_matches,
+            prompts,
+            agents,
         )
+        .run()
         .await;
-        // Changes accepted before a failed LLM call are validated already.
-        self.save_changes(project_id, &session.changes).await?;
-        run
+        self.save_changes(project_id, &changes).await
     }
 
-    async fn read_samples(&self, project_id: Uuid, spans: &[PromptSpan]) -> Result<Vec<Sample>> {
+    /// The spans' system prompts; spans no longer stored are skipped.
+    async fn read_prompts(&self, project_id: Uuid, spans: &[PromptSpan]) -> Result<Vec<String>> {
         let prompts = try_join_all(spans.iter().map(|span| {
             naming::span_system_prompt(&self.clickhouse, project_id, span.trace_id, span.span_id)
         }))
         .await?;
-        Ok(prompts
-            .iter()
-            .flatten()
-            .map(|prompt| Sample::of(prompt))
-            .collect())
+        Ok(prompts.into_iter().flatten().collect())
     }
 
     /// The project's defined agents, each with its latest prompt ingested
@@ -129,7 +129,7 @@ impl Job {
         let agents = get_defined_agents(&self.db.pool, project_id).await?;
         let agent_hashes: Vec<&str> = agents.iter().map(|a| a.agent_hash.as_str()).collect();
         let latest = latest_agent_spans(&self.clickhouse, project_id, &agent_hashes, since).await?;
-        let examples = try_join_all(agents.iter().map(|agent| async {
+        let latest_prompts = try_join_all(agents.iter().map(|agent| async {
             let Some(span) = latest
                 .iter()
                 .find(|span| span.agent_hash == agent.agent_hash)
@@ -142,10 +142,10 @@ impl Job {
         .await?;
         Ok(agents
             .into_iter()
-            .zip(examples)
-            .map(|(agent, example)| KnownAgent {
+            .zip(latest_prompts)
+            .map(|(agent, latest_prompt)| KnownAgent {
                 agent,
-                example: example.as_deref().map(Sample::of),
+                latest_prompt,
             })
             .collect())
     }
@@ -192,8 +192,8 @@ impl Job {
     }
 }
 
-fn is_defined(agents: &[KnownAgent], sample: &Sample) -> bool {
+fn is_defined(agents: &[KnownAgent], prompt: &str) -> bool {
     agents
         .iter()
-        .any(|known| known.agent.definition.matches(&sample.opening))
+        .any(|known| known.agent.definition.matches(prompt))
 }

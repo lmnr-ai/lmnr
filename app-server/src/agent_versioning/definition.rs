@@ -10,21 +10,12 @@ use crate::utils::{sanitize_string, truncate_chars};
 /// subagent prompt that embeds its parent's instructions.
 pub const OPENING_CHARS: usize = 1000;
 
-/// Matches a prompt when every substring of any one alternative occurs in its
-/// opening. Substrings are stored normalized like the opening.
+/// Matches a system prompt when every substring of any one alternative occurs
+/// in its first [`OPENING_CHARS`] characters, ignoring case and whitespace.
+/// Substrings are stored normalized.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Definition {
     pub any_of: Vec<Vec<String>>,
-}
-
-/// A system prompt's first [`OPENING_CHARS`] characters, normalized like
-/// definitions: lowercased, whitespace collapsed.
-pub struct Opening(String);
-
-impl Opening {
-    pub fn of(system_prompt: &str) -> Self {
-        Self(normalize(&truncate_chars(system_prompt, OPENING_CHARS)))
-    }
 }
 
 impl Definition {
@@ -45,11 +36,12 @@ impl Definition {
         (!any_of.is_empty()).then_some(Self { any_of })
     }
 
-    pub fn matches(&self, opening: &Opening) -> bool {
+    pub fn matches(&self, system_prompt: &str) -> bool {
+        let opening = normalize(&truncate_chars(system_prompt, OPENING_CHARS));
         self.any_of.iter().any(|all_of| {
             all_of
                 .iter()
-                .all(|substring| opening.0.contains(substring.as_str()))
+                .all(|substring| opening.contains(substring.as_str()))
         })
     }
 
@@ -94,22 +86,22 @@ mod tests {
         let check = definition(&[&["You are a GTM assistant"]]);
         let prompt = "Today is 2026-11-06. User: Jane Doe (Acme), 42 credits left.\n\
                       You are a GTM   assistant that drafts outreach.";
-        assert!(check.matches(&Opening::of(prompt)));
+        assert!(check.matches(prompt));
     }
 
     #[test]
     fn needs_every_substring_of_one_alternative() {
         let check = definition(&[&["gtm assistant", "outreach"], &["sales copilot"]]);
-        assert!(check.matches(&Opening::of("You are a GTM assistant. Draft outreach.")));
-        assert!(check.matches(&Opening::of("You are the Sales Copilot.")));
-        assert!(!check.matches(&Opening::of("You are a GTM assistant.")));
+        assert!(check.matches("You are a GTM assistant. Draft outreach."));
+        assert!(check.matches("You are the Sales Copilot."));
+        assert!(!check.matches("You are a GTM assistant."));
     }
 
     #[test]
     fn ignores_text_past_the_opening() {
         let check = definition(&[&["you are a gtm assistant"]]);
         let prompt = format!("{}You are a GTM assistant.", "x".repeat(OPENING_CHARS));
-        assert!(!check.matches(&Opening::of(&prompt)));
+        assert!(!check.matches(&prompt));
     }
 
     #[test]
@@ -127,6 +119,6 @@ mod tests {
             extended,
             definition(&[&["research analyst"], &["market analyst"]])
         );
-        assert!(extended.matches(&Opening::of("You are a Research Analyst.")));
+        assert!(extended.matches("You are a Research Analyst."));
     }
 }

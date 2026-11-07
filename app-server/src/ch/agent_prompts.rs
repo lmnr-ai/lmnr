@@ -102,8 +102,10 @@ pub struct PromptSpan {
 }
 
 /// Up to `limit` random traces with prompts ingested after `since`, none of
-/// them labelled, each with its first prompt's span. A trace with any labelled
-/// prompt is covered: its unlabelled ones are subagents of a known agent.
+/// them labelled, each with the span of its largest prompt (most lines: system
+/// prompt plus tools), which is the main agent's rather than a helper's like a
+/// task summarizer. A trace with any labelled prompt is covered: its
+/// unlabelled ones are subagents of a known agent.
 pub async fn uncovered_traces(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
@@ -112,15 +114,10 @@ pub async fn uncovered_traces(
 ) -> Result<Vec<PromptSpan>> {
     let spans = clickhouse
         .query(
-            "SELECT trace_id, argMin(span_id, start_time) AS span_id
+            "SELECT trace_id, argMax(span_id, length(line_hashes)) AS span_id
              FROM agent_prompts
              WHERE project_id = {project_id:UUID}
                AND ingested_at > fromUnixTimestamp64Nano({since:Int64})
-               AND trace_id IN (
-                   SELECT trace_id FROM agent_prompts
-                   WHERE project_id = {project_id:UUID}
-                     AND agent_hash = ''
-                     AND ingested_at > fromUnixTimestamp64Nano({since:Int64}))
              GROUP BY trace_id
              HAVING countIf(agent_hash != '') = 0
              ORDER BY rand()
