@@ -27,6 +27,9 @@ use crate::{
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
 const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+/// TTL for the fail-open 0 seeded when ClickHouse can't report usage: spares it a query
+/// per batch during an outage, and the real total is read again soon after it recovers.
+const WORKSPACE_USAGE_QUERY_FAILED_TTL_SECONDS: u64 = 60;
 #[cfg(feature = "signals")]
 const SIGNALS_SIGNUP_CREDIT_MICRO_USD: i64 = 5_000_000;
 
@@ -75,6 +78,48 @@ fn current_billing_period_start(reset_time: DateTime<Utc>) -> DateTime<Utc> {
     }
 }
 
+/// Recompute bytes usage from ClickHouse and seed the cache. A failed query fails open with 0,
+/// cached only briefly: batches count up from it, so it would otherwise hold off the hard limit.
+async fn seed_workspace_bytes_usage(
+    clickhouse: clickhouse::Client,
+    cache: &Cache,
+    cache_key: &str,
+    workspace_project_ids: Vec<Uuid>,
+    reset_time: DateTime<Utc>,
+    project_id: Uuid,
+) -> i64 {
+    let (bytes, ttl_seconds) = match get_workspace_bytes_ingested_by_project_ids(
+        clickhouse,
+        workspace_project_ids,
+        reset_time,
+    )
+    .await
+    {
+        Ok(bytes) => (bytes as i64, WORKSPACE_USAGE_TTL_SECONDS),
+        Err(e) => {
+            log::error!(
+                "Failed to get workspace bytes ingested for project [{}]: {:?}",
+                project_id,
+                e
+            );
+            (0, WORKSPACE_USAGE_QUERY_FAILED_TTL_SECONDS)
+        }
+    };
+
+    if let Err(e) = cache
+        .insert_with_ttl::<i64>(cache_key, bytes, ttl_seconds)
+        .await
+    {
+        log::error!(
+            "Failed to insert workspace bytes ingested cache for project [{}]: {:?}",
+            project_id,
+            e
+        );
+    }
+
+    bytes
+}
+
 pub async fn get_workspace_bytes_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -105,35 +150,15 @@ pub async fn get_workspace_bytes_limit_exceeded(
     let bytes_ingested = match cache.get::<i64>(&cache_key).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) | Err(_) => {
-            let bytes = match get_workspace_bytes_ingested_by_project_ids(
+            seed_workspace_bytes_usage(
                 clickhouse,
+                &cache,
+                &cache_key,
                 project_info.workspace_project_ids,
                 project_info.reset_time,
+                project_id,
             )
             .await
-            {
-                Ok(bytes) => bytes as i64,
-                Err(e) => {
-                    log::error!(
-                        "Failed to get workspace bytes ingested for project [{}]: {:?}",
-                        project_id,
-                        e
-                    );
-                    0
-                }
-            };
-            if let Err(e) = cache
-                .insert_with_ttl::<i64>(&cache_key, bytes, WORKSPACE_USAGE_TTL_SECONDS)
-                .await
-            {
-                log::error!(
-                    "Failed to insert workspace bytes ingested cache for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-            };
-
-            bytes
         }
     };
 
@@ -318,35 +343,19 @@ pub async fn update_workspace_bytes_ingested(
             }
         }
         Ok(None) | Err(_) => {
-            // Cache miss - recompute from ClickHouse and seed the cache.
-            // We add the current batch size to the ClickHouse value so the cache
-            // reflects the true total (ClickHouse may not have replicated this batch yet).
-            let bytes_ingested = match get_workspace_bytes_ingested_by_project_ids(
-                clickhouse,
-                project_info.workspace_project_ids,
-                project_info.reset_time,
-            )
-            .await
-            {
-                Ok(b) => b as i64,
-                Err(e) => {
-                    log::error!(
-                        "Failed to get workspace bytes ingested for project [{}]: {:?}",
-                        project_id,
-                        e
-                    );
-                    0
-                }
-            };
             // We do not add the current value, because Clickhouse likely has already ingested
             // the current payload. Even if it didn't, it's safer to underestimate, so that:
             // - for soft limits, the limit is less likely to be silently skipped
             // - for hard limits, the limit is not hit prematurely
-            cache
-                .insert_with_ttl::<i64>(&cache_key, bytes_ingested, WORKSPACE_USAGE_TTL_SECONDS)
-                .await?;
-
-            bytes_ingested
+            seed_workspace_bytes_usage(
+                clickhouse,
+                &cache,
+                &cache_key,
+                project_info.workspace_project_ids,
+                project_info.reset_time,
+                project_id,
+            )
+            .await
         }
     };
 
@@ -875,5 +884,173 @@ pub async fn get_workspace_info_for_project_id(
             }
             Ok(info)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use sqlx::PgPool;
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::any};
+
+    use super::*;
+    use crate::{cache::in_memory::InMemoryCache, mq::tokio_mpsc::TokioMpscQueue};
+
+    const USAGE_LIMIT: i64 = 1_000;
+
+    struct Fixture {
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+        queue: Arc<MessageQueue>,
+        project_id: Uuid,
+        usage_key: String,
+    }
+
+    /// Workspace capped at `USAGE_LIMIT`. Billing info and warnings are pre-cached, so
+    /// the lazy pool is never connected unless a test crosses the limit.
+    async fn fixture() -> Fixture {
+        let project_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        cache
+            .insert(
+                &format!("{PROJECT_CACHE_KEY}:{project_id}"),
+                ProjectWithWorkspaceBillingInfo {
+                    id: project_id,
+                    name: "project".to_string(),
+                    workspace_id,
+                    tier_name: WorkspaceTierName::Free,
+                    reset_time: Utc::now(),
+                    workspace_project_ids: vec![project_id],
+                    bytes_limit: USAGE_LIMIT,
+                    custom_bytes_limit: None,
+                    signal_cost_hard_limit_micro_usd: None,
+                    trialing: false,
+                    settings: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+        cache
+            .insert(
+                &format!("{WORKSPACE_USAGE_WARNINGS_CACHE_KEY}:{workspace_id}"),
+                Vec::<usage_warnings::UsageWarning>::new(),
+            )
+            .await
+            .unwrap();
+
+        Fixture {
+            db: Arc::new(DB {
+                pool: PgPool::connect_lazy("postgres://127.0.0.1:1/unused").unwrap(),
+            }),
+            cache,
+            queue: Arc::new(MessageQueue::TokioMpsc(TokioMpscQueue::new())),
+            project_id,
+            usage_key: format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}"),
+        }
+    }
+
+    fn clickhouse_at(url: impl Into<String>) -> clickhouse::Client {
+        clickhouse::Client::default()
+            .with_url(url)
+            .with_validation(false)
+            .with_compression(clickhouse::Compression::None)
+    }
+
+    fn unreachable_clickhouse() -> clickhouse::Client {
+        clickhouse_at("http://127.0.0.1:1")
+    }
+
+    /// Stand-in answering any query with a single RowBinary UInt64.
+    async fn clickhouse_reporting_usage(bytes: u64) -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(bytes.to_le_bytes()))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// Moves the paused clock an hour on, well inside the full usage TTL, and lets
+    /// the cache's TTL timers fire.
+    async fn advance_one_hour() {
+        // TTL timers are spawned tasks that start counting on their first poll.
+        tokio::task::yield_now().await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(60 * 60)).await;
+        tokio::task::yield_now().await;
+    }
+
+    #[tokio::test]
+    async fn limit_check_recovers_from_failed_usage_query() {
+        let f = fixture().await;
+
+        let exceeded = get_workspace_bytes_limit_exceeded(
+            f.db.clone(),
+            unreachable_clickhouse(),
+            f.cache.clone(),
+            f.queue.clone(),
+            f.project_id,
+        )
+        .await
+        .unwrap();
+        assert!(!exceeded, "a failed usage query fails open");
+
+        advance_one_hour().await;
+        assert_eq!(f.cache.get::<i64>(&f.usage_key).await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn usage_update_recovers_from_failed_usage_query() {
+        let f = fixture().await;
+
+        update_workspace_bytes_ingested(
+            f.db.clone(),
+            unreachable_clickhouse(),
+            f.cache.clone(),
+            f.queue.clone(),
+            f.project_id,
+            100,
+        )
+        .await
+        .unwrap();
+        assert_eq!(f.cache.get::<i64>(&f.usage_key).await.unwrap(), Some(0));
+
+        // A later batch counts up from the placeholder but must not extend its life.
+        update_workspace_bytes_ingested(
+            f.db.clone(),
+            unreachable_clickhouse(),
+            f.cache.clone(),
+            f.queue.clone(),
+            f.project_id,
+            100,
+        )
+        .await
+        .unwrap();
+        assert_eq!(f.cache.get::<i64>(&f.usage_key).await.unwrap(), Some(100));
+
+        advance_one_hour().await;
+        assert_eq!(f.cache.get::<i64>(&f.usage_key).await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn successful_usage_query_is_cached_for_the_full_ttl() {
+        let f = fixture().await;
+        let server = clickhouse_reporting_usage(100).await;
+
+        let exceeded = get_workspace_bytes_limit_exceeded(
+            f.db.clone(),
+            clickhouse_at(server.uri()),
+            f.cache.clone(),
+            f.queue.clone(),
+            f.project_id,
+        )
+        .await
+        .unwrap();
+        assert!(!exceeded);
+
+        advance_one_hour().await;
+        assert_eq!(f.cache.get::<i64>(&f.usage_key).await.unwrap(), Some(100));
     }
 }
