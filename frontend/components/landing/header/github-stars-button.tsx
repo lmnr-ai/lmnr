@@ -25,7 +25,9 @@ export const useGitHubStars = (owner: string, repo: string): number | null => {
   useEffect(() => {
     const fetchStars = async () => {
       try {
-        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+          headers: { "X-GitHub-Api-Version": "2026-03-10" },
+        });
         if (response.ok) {
           const data = await response.json();
           setStars(data.stargazers_count);
