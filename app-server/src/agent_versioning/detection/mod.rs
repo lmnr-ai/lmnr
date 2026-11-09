@@ -26,11 +26,6 @@ use crate::{
     llm::LlmClient,
 };
 
-/// Traces read per prompt shown to the model. When the newest uncovered traces
-/// run out, sampling reaches back to traces stored before their agent was
-/// defined, which are filtered out after reading.
-const CANDIDATES_PER_PROMPT: u64 = 3;
-
 impl Job {
     pub(super) async fn detect_agents(&self, now: i64) {
         let Some(llm_client) = &self.llm_client else {
@@ -77,14 +72,8 @@ impl Job {
         // Sampled from the whole active window, not just this interval, so an
         // agent with a trace an hour still gathers enough to be defined.
         let since = now - ACTIVE_WINDOW_SECONDS.get() * NS;
-        let prompts_limit = DETECTION_SAMPLES.get();
-        let spans = uncovered_traces(
-            &self.clickhouse,
-            project_id,
-            since,
-            prompts_limit * CANDIDATES_PER_PROMPT,
-        )
-        .await?;
+        let spans =
+            uncovered_traces(&self.clickhouse, project_id, since, DETECTION_SAMPLES.get()).await?;
         // Fewer could never make an agent.
         if spans.len() < min_matches {
             return Ok(());
@@ -97,7 +86,6 @@ impl Job {
             .await?
             .into_iter()
             .filter(|prompt| !is_defined(&agents, &prompt.system_prompt))
-            .take(prompts_limit as usize)
             .collect();
         if prompts.len() < min_matches {
             return Ok(());
