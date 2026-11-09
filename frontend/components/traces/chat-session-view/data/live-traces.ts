@@ -3,6 +3,13 @@ import { type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
 const byStartTime = (a: TraceRow, b: TraceRow) => Date.parse(a.startTime) - Date.parse(b.startTime);
 
+/** Fetched rows win; live turns the fetch doesn't have yet (ClickHouse lags the stream) stay. */
+export const mergeFetched = (local: TraceRow[], fetched: TraceRow[], live: ReadonlySet<string>): TraceRow[] => {
+  const fetchedIds = new Set(fetched.map((t) => t.id));
+  const pending = local.filter((t) => live.has(t.id) && !fetchedIds.has(t.id));
+  return pending.length === 0 ? fetched : [...fetched, ...pending].sort(byStartTime);
+};
+
 /** Folds one `trace_update` batch into the session's rows: known traces merge, new ones become turns. */
 export const applyTraceDeltas = (rows: TraceRow[], deltas: RealtimeTracePayload[]): TraceRow[] => {
   const next = [...rows];

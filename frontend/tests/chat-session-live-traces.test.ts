@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { applyAgentInput, applyTraceDeltas, replyOf } from "@/components/traces/chat-session-view/data/live-traces";
+import {
+  applyAgentInput,
+  applyTraceDeltas,
+  mergeFetched,
+  replyOf,
+} from "@/components/traces/chat-session-view/data/live-traces";
 import { type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
 const T1 = "2026-11-06T10:00:00.000Z";
@@ -69,5 +74,19 @@ describe("replyOf", () => {
     assert.deepEqual(replyOf(false, undefined, false), { status: "loading" });
     assert.deepEqual(replyOf(false, null, false), { status: "none" });
     assert.deepEqual(replyOf(false, "hi", false), { status: "text", text: "hi" });
+  });
+});
+
+describe("mergeFetched", () => {
+  it("prefers fetched rows and keeps live turns the fetch doesn't have yet", () => {
+    const local = [{ ...row("a", T1), totalTokens: 99 }, row("b", T2), row("c", T2)];
+    const merged = mergeFetched(local, [row("a", T1)], new Set(["a", "b"]));
+    assert.deepEqual(
+      merged.map((t) => [t.id, t.totalTokens]),
+      [
+        ["a", 10],
+        ["b", 10],
+      ]
+    );
   });
 });

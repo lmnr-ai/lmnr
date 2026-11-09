@@ -1,7 +1,7 @@
 "use client";
 
 import ChatSessionContent from "./content";
-import { SessionDataProvider } from "./data";
+import { SessionTracesSync } from "./data";
 import { ChatSessionProvider } from "./store";
 
 /**
@@ -11,9 +11,8 @@ import { ChatSessionProvider } from "./store";
 export function ChatSessionView({ sessionId }: { sessionId: string }) {
   return (
     <ChatSessionProvider key={sessionId} sessionId={sessionId}>
-      <SessionDataProvider sessionId={sessionId}>
-        <ChatSessionContent />
-      </SessionDataProvider>
+      <SessionTracesSync sessionId={sessionId} />
+      <ChatSessionContent />
     </ChatSessionProvider>
   );
 }

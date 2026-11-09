@@ -2,7 +2,7 @@ import useSWR from "swr";
 
 import { type TraceRow } from "@/lib/traces/types";
 
-import { useSessionData } from "./index";
+import { useChatSession } from "../store";
 import { replyOf } from "./live-traces";
 
 /**
@@ -10,7 +10,8 @@ import { replyOf } from "./live-traces";
  * trace's end time, so a turn that settles again after new spans fetches both anew.
  */
 export function useTurnDetails({ id: traceId, endTime }: TraceRow, live: boolean) {
-  const { loadReply, loadCounts } = useSessionData();
+  const loadReply = useChatSession((s) => s.loadReply);
+  const loadCounts = useChatSession((s) => s.loadCounts);
   // `null`: the turn has no reply (the route omits it), as opposed to `undefined`, not loaded yet.
   const reply = useSWR(
     live ? null : ["chat-turn-reply", traceId, endTime],

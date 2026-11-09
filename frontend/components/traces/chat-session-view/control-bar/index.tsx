@@ -8,7 +8,6 @@ import { type ModelTokens } from "@/lib/actions/sessions/model-tokens";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { cn } from "@/lib/utils";
 
-import { useSessionData } from "../data";
 import { sessionModelTokensUrl } from "../session-api";
 import { useChatSession } from "../store";
 import ModelsPill from "./models-pill";
@@ -20,7 +19,7 @@ const distinct = (values: (string | null | undefined)[]) =>
 
 /** Session stats, user and model pills, and the timeline toggle. */
 export default function ControlBar() {
-  const { traces } = useSessionData();
+  const traces = useChatSession((s) => s.traces);
   const timelineEnabled = useChatSession((s) => s.timelineEnabled);
   const { project } = useProjectContext();
   const projectId = project?.id ?? "";

@@ -1,11 +1,12 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
+import { shallow } from "zustand/shallow";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useSessionData } from "../data";
+import { useChatSession } from "../store";
 import { useOpenTrace } from "../use-open-trace";
 import TimeDivider from "./time-divider";
 import Turn from "./turn";
@@ -19,7 +20,10 @@ const ESTIMATED_TURN_HEIGHT = 260;
 const OVERSCAN = 6;
 
 export default function Thread() {
-  const { traces, live, isLoading, error } = useSessionData();
+  const { traces, live, isLoading, error } = useChatSession(
+    (s) => ({ traces: s.traces, live: s.live, isLoading: s.isLoading, error: s.error }),
+    shallow
+  );
   // Read by the scroll-to-turn effect without re-running it on every live update.
   const tracesRef = useRef(traces);
   useEffect(() => {

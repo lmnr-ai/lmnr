@@ -6,7 +6,6 @@ import { formatTimeMarkerLabel } from "@/components/traces/trace-view/condensed-
 import { useWheelZoom, zoomKeepingCenter } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useSessionData } from "../data";
 import { useChatSession } from "../store";
 import SessionTimelineControls from "./controls";
 import SessionTimelineGap from "./session-timeline-gap";
@@ -24,7 +23,8 @@ interface SessionTimelineProps {
 function SessionTimeline({ selectedSpan, onSelectSpan }: SessionTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { traces, isLoading: isTracesLoading } = useSessionData();
+  const traces = useChatSession((s) => s.traces);
+  const isTracesLoading = useChatSession((s) => s.isLoading);
   const {
     traceSpans,
     traceSpansLoading,

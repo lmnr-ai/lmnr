@@ -1,53 +1,19 @@
 "use client";
 
+import { debounce } from "lodash";
 import { useParams } from "next/navigation";
-import {
-  createContext,
-  type PropsWithChildren,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import useSWR, { useSWRConfig } from "swr";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useSWRConfig } from "swr";
 
-import { type TraceSpanCounts } from "@/lib/actions/traces/span-counts";
-import { fetchApi } from "@/lib/api/fetch-api";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { createIdBatchFetcher } from "@/lib/id-batch-loader";
-import { type RealtimeAgentInputPayload, type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
+import { type RealtimeAgentInputPayload, type RealtimeTracePayload } from "@/lib/traces/types";
 
 import { fetchSessionTraces, sessionModelTokensUrl } from "../session-api";
+import { useChatSession } from "../store";
 import { applyAgentInput, applyTraceDeltas } from "./live-traces";
 
 // Refresh from the server once live updates pause this long; ClickHouse lags the realtime stream.
 const SETTLE_MS = 2000;
-
-interface SessionData {
-  traces: TraceRow[];
-  /** Turns with live updates no server fetch reflects yet. */
-  live: ReadonlySet<string>;
-  isLoading: boolean;
-  error?: string;
-  loadReply: (traceId: string) => Promise<string | null | undefined>;
-  loadCounts: (traceId: string) => Promise<TraceSpanCounts | undefined>;
-}
-
-const SessionDataContext = createContext<SessionData | null>(null);
-const NO_TRACES: TraceRow[] = [];
-const NOT_LIVE: ReadonlySet<string> = new Set();
-
-const postIds = async <T,>(url: string, traceIds: string[]): Promise<T> => {
-  const { data, error } = await fetchApi<T>(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ traceIds }),
-  });
-  if (error !== null) throw new Error(error);
-  return data;
-};
 
 const parse = <T,>(event: MessageEvent): T | undefined => {
   try {
@@ -58,107 +24,75 @@ const parse = <T,>(event: MessageEvent): T | undefined => {
 };
 
 /**
- * The session's traces from SWR, patched by `session_<id>` realtime deltas and refreshed once they settle.
- * SWR drops a refresh that overlaps a patch, so a refresh that succeeds reflects every update so far.
+ * Keeps the store's session traces in sync: loads them, patches them with `session_<id>` realtime deltas, and
+ * refreshes once the stream goes quiet.
  */
-export function SessionDataProvider({ sessionId, children }: PropsWithChildren<{ sessionId: string }>) {
+export function SessionTracesSync({ sessionId }: { sessionId: string }) {
   const { projectId } = useParams<{ projectId: string }>();
-  const { mutate: mutateKey } = useSWRConfig();
-  const [live, setLive] = useState(NOT_LIVE);
+  const { mutate } = useSWRConfig();
+  const patchTraces = useChatSession((s) => s.patchTraces);
+  const receiveTraces = useChatSession((s) => s.receiveTraces);
+  const failTraces = useChatSession((s) => s.failTraces);
   const hadLive = useRef(false);
-  // A ref, not a dependency: new handlers would reconnect the stream and drop events in between.
-  const loaded = useRef(false);
-  // Updates that arrive before the first load: patching then would make SWR discard that load.
-  const early = useRef<((rows: TraceRow[]) => TraceRow[])[]>([]);
-  const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Set while a refresh is scheduled: a fetch that lands then may predate the latest updates, so it doesn't settle.
   const refreshPending = useRef(false);
-  useEffect(() => () => clearTimeout(refreshTimer.current), []);
+  const inFlight = useRef<AbortController>(undefined);
 
-  // Live turns settle once the refresh after the stream goes quiet finishes, failed or not; an earlier fetch (the
-  // first load) may predate their updates. Each settled turn then fetches its own reply.
-  const settle = () => {
-    if (refreshPending.current) return;
-    setLive(NOT_LIVE);
-    if (hadLive.current) void mutateKey(sessionModelTokensUrl(projectId, sessionId));
-    hadLive.current = false;
-  };
+  const load = useCallback(async () => {
+    inFlight.current?.abort();
+    const controller = new AbortController();
+    inFlight.current = controller;
+    const { traces, error } = await fetchSessionTraces(projectId, sessionId, controller.signal);
+    if (controller.signal.aborted) return;
 
-  const { data, error, isLoading, mutate } = useSWR(
-    projectId ? ["chat-session-traces", projectId, sessionId] : null,
-    async () => {
-      const { traces, error } = await fetchSessionTraces(projectId, sessionId);
-      if (!traces) throw new Error(error ?? "Failed to load the session.");
-      return traces;
-    },
-    { revalidateOnFocus: false, onSuccess: settle, onError: settle }
-  );
+    const settled = !refreshPending.current;
+    if (traces) receiveTraces(traces, settled);
+    else failTraces(error ?? "Failed to load the session.", settled);
+    // Settled turns changed the session's token totals.
+    if (settled && hadLive.current) {
+      hadLive.current = false;
+      void mutate(sessionModelTokensUrl(projectId, sessionId));
+    }
+  }, [projectId, sessionId, receiveTraces, failTraces, mutate]);
 
-  // Refresh once updates pause; SWR drops a refresh that overlaps a patch, so each patch pushes it back.
-  const scheduleRefresh = useCallback(() => {
-    clearTimeout(refreshTimer.current);
-    refreshPending.current = true;
-    refreshTimer.current = setTimeout(() => {
-      refreshPending.current = false;
-      void mutate();
-    }, SETTLE_MS);
-  }, [mutate]);
-
-  // Fold the early updates into the first load once it's stored, each exactly once (deltas add up).
   useEffect(() => {
-    if (data === undefined || loaded.current) return;
-    loaded.current = true;
-    const pending = early.current;
-    early.current = [];
-    if (pending.length === 0) return;
-    void mutate((rows) => rows && pending.reduce((acc, apply) => apply(acc), rows), false);
-    scheduleRefresh();
-  }, [data, mutate, scheduleRefresh]);
+    if (!projectId) return;
+    void load();
+    return () => inFlight.current?.abort();
+  }, [projectId, load]);
 
-  const eventHandlers = useMemo(() => {
-    const patch = (apply: (rows: TraceRow[]) => TraceRow[]) => {
-      if (loaded.current) void mutate((rows) => rows && apply(rows), { revalidate: false });
-      else early.current.push(apply);
-      scheduleRefresh();
-    };
-    return {
+  const runRefresh = useCallback(() => {
+    refreshPending.current = false;
+    void load();
+  }, [load]);
+  const refresh = useMemo(() => debounce(runRefresh, SETTLE_MS), [runRefresh]);
+  useEffect(() => () => refresh.cancel(), [refresh]);
+
+  // Each update pushes the refresh back, so it runs once updates pause.
+  const eventHandlers = useMemo(
+    () => ({
       trace_update: (event: MessageEvent) => {
         const deltas = parse<{ traces?: RealtimeTracePayload[] }>(event)?.traces ?? [];
         if (deltas.length === 0) return;
         hadLive.current = true;
-        setLive((prev) => new Set([...prev, ...deltas.map((d) => d.id)]));
-        patch((rows) => applyTraceDeltas(rows, deltas));
+        refreshPending.current = true;
+        patchTraces(
+          (rows) => applyTraceDeltas(rows, deltas),
+          deltas.map((d) => d.id)
+        );
+        refresh();
       },
       trace_agent_input_update: (event: MessageEvent) => {
         const payload = parse<RealtimeAgentInputPayload>(event);
-        if (payload?.traceId) patch((rows) => applyAgentInput(rows, payload.traceId, payload.agentInput));
+        if (!payload?.traceId) return;
+        refreshPending.current = true;
+        patchTraces((rows) => applyAgentInput(rows, payload.traceId, payload.agentInput));
+        refresh();
       },
-    };
-  }, [mutate, scheduleRefresh]);
+    }),
+    [patchTraces, refresh]
+  );
   useRealtime({ key: `session_${sessionId}`, projectId, eventHandlers, enabled: !!projectId });
 
-  const loaders = useMemo(
-    () => ({
-      loadReply: createIdBatchFetcher(
-        (ids) => postIds<Record<string, string | null>>(`/api/projects/${projectId}/traces/output`, ids),
-        { debounceMs: 50 }
-      ),
-      loadCounts: createIdBatchFetcher(
-        (ids) => postIds<Record<string, TraceSpanCounts>>(`/api/projects/${projectId}/traces/span-counts`, ids),
-        { debounceMs: 50 }
-      ),
-    }),
-    [projectId]
-  );
-
-  const value = useMemo(
-    () => ({ traces: data ?? NO_TRACES, live, isLoading, error: error?.message, ...loaders }),
-    [data, live, isLoading, error, loaders]
-  );
-  return <SessionDataContext.Provider value={value}>{children}</SessionDataContext.Provider>;
-}
-
-export function useSessionData(): SessionData {
-  const value = useContext(SessionDataContext);
-  if (!value) throw new Error("useSessionData must be used within SessionDataProvider");
-  return value;
+  return null;
 }
