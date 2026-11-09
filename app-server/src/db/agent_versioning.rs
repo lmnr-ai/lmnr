@@ -41,6 +41,24 @@ pub async fn upsert_agent(pool: &PgPool, project_id: Uuid, agent_hash: &str) -> 
     Ok(agent)
 }
 
+/// The agent for `agent_hash`, if it has a definition.
+pub async fn get_defined_agent(
+    pool: &PgPool,
+    project_id: Uuid,
+    agent_hash: &str,
+) -> Result<Option<Agent>> {
+    let agent = sqlx::query_as::<_, Agent>(
+        "SELECT id, name, tagged_until, ingested_until, current_version_id, release_mode
+         FROM agents
+         WHERE project_id = $1 AND agent_hash = $2 AND definition IS NOT NULL",
+    )
+    .bind(project_id)
+    .bind(agent_hash)
+    .fetch_optional(pool)
+    .await?;
+    Ok(agent)
+}
+
 pub async fn save_progress(
     pool: &PgPool,
     agent_id: Uuid,

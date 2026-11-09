@@ -40,7 +40,7 @@ pub enum Feature {
     /// (`agent_versioning/detection`) instead of the system prompt's first
     /// sentence. Detection runs inside the versioning job and calls an LLM, so
     /// it needs `AGENT_VERSIONING_ENABLED` and an LLM backend as well as
-    /// `AGENT_DETECTION_ENABLED` (default on): without a backend, ingest would
+    /// `AGENT_DETECTION_ENABLED` (default off): without a backend, ingest would
     /// wait for definitions nothing can write and label no span.
     AgentDetection,
     /// v2 static system-prompt extraction: per-agent prompt windows +

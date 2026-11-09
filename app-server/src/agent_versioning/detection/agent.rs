@@ -33,13 +33,21 @@ pub struct UnlabelledPrompt {
     pub trace_id: Uuid,
     pub span_id: Uuid,
     pub system_prompt: String,
+    /// The trace's start, ns.
+    pub time: i64,
 }
 
 /// A defined agent with its latest system prompt, when one was ingested
 /// recently.
 pub struct KnownAgent {
     pub agent: DefinedAgent,
-    pub latest_prompt: Option<String>,
+    pub latest: Option<LatestPrompt>,
+}
+
+pub struct LatestPrompt {
+    pub system_prompt: String,
+    /// The span's start, ns.
+    pub time: i64,
 }
 
 /// An accepted change. `Extend` carries the agent's full new definition.
@@ -153,6 +161,7 @@ impl<'a> DetectionAgent<'a> {
                     "trace_id": prompt.trace_id,
                     "span_id": prompt.span_id,
                     "opening": truncate_chars(&prompt.system_prompt, OPENING_CHARS),
+                    "seen": prompt::format_time(prompt.time),
                 })
             })
             .collect();
@@ -163,6 +172,7 @@ impl<'a> DetectionAgent<'a> {
                     "agent_id": known.agent.id,
                     "name": known.agent.name,
                     "check": known.agent.definition.any_of,
+                    "last_seen": known.latest.as_ref().map(|latest| prompt::format_time(latest.time)),
                 })
             })
             .collect();
@@ -408,9 +418,9 @@ impl<'a> DetectionAgent<'a> {
             .filter(|(id, _)| Some(*id) != except)
             .filter(|(_, known)| {
                 known
-                    .latest_prompt
-                    .as_deref()
-                    .is_some_and(|prompt| definition.matches(prompt))
+                    .latest
+                    .as_ref()
+                    .is_some_and(|latest| definition.matches(&latest.system_prompt))
             })
             .map(|(id, _)| id)
             .collect()
@@ -489,7 +499,10 @@ mod tests {
                 name: Some(name.to_string()),
                 definition: Json(Definition::new(check(any_of)).unwrap()),
             },
-            latest_prompt: Some(latest_prompt.to_string()),
+            latest: Some(LatestPrompt {
+                system_prompt: latest_prompt.to_string(),
+                time: 0,
+            }),
         }
     }
 
@@ -498,6 +511,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             span_id: Uuid::new_v4(),
             system_prompt: system_prompt.to_string(),
+            time: 0,
         }
     }
 

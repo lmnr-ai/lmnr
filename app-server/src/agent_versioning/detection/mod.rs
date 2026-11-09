@@ -12,7 +12,7 @@ use anyhow::Result;
 use futures_util::future::try_join_all;
 use uuid::Uuid;
 
-use self::agent::{Change, DetectionAgent, KnownAgent, UnlabelledPrompt};
+use self::agent::{Change, DetectionAgent, KnownAgent, LatestPrompt, UnlabelledPrompt};
 use super::{Job, NS, identity::definitions_cache_key, naming};
 use crate::{
     cache::{CacheTrait, keys::AGENT_DETECTION_LOCK_CACHE_KEY},
@@ -121,6 +121,7 @@ impl Job {
                 trace_id: span.trace_id,
                 span_id: span.span_id,
                 system_prompt,
+                time: span.time,
             }))
         }))
         .await?;
@@ -140,17 +141,23 @@ impl Job {
             else {
                 return Ok(None);
             };
-            naming::span_system_prompt(&self.clickhouse, project_id, span.trace_id, span.span_id)
-                .await
+            let system_prompt = naming::span_system_prompt(
+                &self.clickhouse,
+                project_id,
+                span.trace_id,
+                span.span_id,
+            )
+            .await?;
+            anyhow::Ok(system_prompt.map(|system_prompt| LatestPrompt {
+                system_prompt,
+                time: span.start_time,
+            }))
         }))
         .await?;
         Ok(agents
             .into_iter()
             .zip(latest_prompts)
-            .map(|(agent, latest_prompt)| KnownAgent {
-                agent,
-                latest_prompt,
-            })
+            .map(|(agent, latest)| KnownAgent { agent, latest })
             .collect())
     }
 

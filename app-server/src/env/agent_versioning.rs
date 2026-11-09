@@ -42,8 +42,8 @@ pub const RELEASE_DECIDE_AFTER_SECONDS: NumEnv<i64> =
 
 /// Identify agents by their detected definitions instead of the system
 /// prompt's first sentence. Only takes effect with `AGENT_VERSIONING_ENABLED`
-/// and an LLM backend (see `Feature::AgentDetection`). Enabled by default.
-pub const DETECTION_ENABLED: BoolEnv = BoolEnv::new("AGENT_DETECTION_ENABLED", true);
+/// and an LLM backend (see `Feature::AgentDetection`). Disabled by default.
+pub const DETECTION_ENABLED: BoolEnv = BoolEnv::new("AGENT_DETECTION_ENABLED", false);
 
 /// Unlabelled traces shown to the detection LLM per project per run.
 pub const DETECTION_SAMPLES: NumEnv<u64> = NumEnv::new("AGENT_DETECTION_SAMPLES", 20);

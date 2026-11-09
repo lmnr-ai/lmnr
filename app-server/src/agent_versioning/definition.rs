@@ -12,27 +12,33 @@ pub const OPENING_CHARS: usize = 1000;
 
 /// Matches a system prompt when every substring of any one alternative occurs
 /// in its first [`OPENING_CHARS`] characters, ignoring case and whitespace.
-/// Substrings are stored normalized.
+/// Substrings are normalized on construction and again when read back, so a
+/// definition written to Postgres by hand still matches.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "StoredDefinition")]
 pub struct Definition {
     pub any_of: Vec<Vec<String>>,
+}
+
+#[derive(Deserialize)]
+struct StoredDefinition {
+    any_of: Vec<Vec<String>>,
+}
+
+impl From<StoredDefinition> for Definition {
+    /// A stored definition left without any substring matches nothing.
+    fn from(stored: StoredDefinition) -> Self {
+        Self {
+            any_of: normalized(stored.any_of),
+        }
+    }
 }
 
 impl Definition {
     /// Normalizes the substrings and drops empty ones; `None` when no
     /// alternative is left.
     pub fn new(any_of: Vec<Vec<String>>) -> Option<Self> {
-        let any_of: Vec<Vec<String>> = any_of
-            .iter()
-            .map(|all_of| {
-                all_of
-                    .iter()
-                    .map(|substring| normalize(substring))
-                    .filter(|substring| !substring.is_empty())
-                    .collect::<Vec<_>>()
-            })
-            .filter(|all_of| !all_of.is_empty())
-            .collect();
+        let any_of = normalized(any_of);
         (!any_of.is_empty()).then_some(Self { any_of })
     }
 
@@ -56,6 +62,20 @@ impl Definition {
         }
         Definition { any_of }
     }
+}
+
+fn normalized(any_of: Vec<Vec<String>>) -> Vec<Vec<String>> {
+    any_of
+        .iter()
+        .map(|all_of| {
+            all_of
+                .iter()
+                .map(|substring| normalize(substring))
+                .filter(|substring| !substring.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .filter(|all_of| !all_of.is_empty())
+        .collect()
 }
 
 /// Control characters go too: Postgres rejects NUL inside `jsonb`.
@@ -102,6 +122,19 @@ mod tests {
         let check = definition(&[&["you are a gtm assistant"]]);
         let prompt = format!("{}You are a GTM assistant.", "x".repeat(OPENING_CHARS));
         assert!(!check.matches(&prompt));
+    }
+
+    #[test]
+    fn a_hand_written_definition_is_normalized_when_read() {
+        let stored = r#"{"any_of": [["You are a  GTM\nAssistant"]]}"#;
+        let check: Definition = serde_json::from_str(stored).unwrap();
+        assert_eq!(
+            check.any_of,
+            vec![vec!["you are a gtm assistant".to_string()]]
+        );
+        assert!(check.matches("Today is Monday. You are a GTM assistant."));
+        let empty: Definition = serde_json::from_str(r#"{"any_of": [[" "]]}"#).unwrap();
+        assert!(!empty.matches("anything"));
     }
 
     #[test]

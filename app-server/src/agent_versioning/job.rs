@@ -14,7 +14,7 @@ use super::{Job, NS, VISIBILITY_LAG_NS};
 use crate::{
     cache::{CacheTrait, keys::AGENT_VERSIONING_LOCK_CACHE_KEY},
     ch::agent_prompts::{Scope, active_agents},
-    db::agent_versioning::{Agent, set_release_mode, upsert_agent},
+    db::agent_versioning::{Agent, get_defined_agent, set_release_mode, upsert_agent},
     env::agent_versioning::{ACTIVE_WINDOW_SECONDS, INTERVAL_SECONDS, RELEASE_MIN_RUN},
     features::{Feature, is_feature_enabled},
 };
@@ -65,7 +65,17 @@ impl Job {
     }
 
     async fn version_agent(&self, project_id: Uuid, agent_hash: &str, now: i64) -> Result<()> {
-        let agent = upsert_agent(&self.db.pool, project_id, agent_hash).await?;
+        let agent = if is_feature_enabled(Feature::AgentDetection) {
+            // Ingest only labels prompts with defined agents' hashes. Any other
+            // hash is from before detection, and upserting it would bring back
+            // an agent deleted while migrating to definitions.
+            match get_defined_agent(&self.db.pool, project_id, agent_hash).await? {
+                Some(agent) => agent,
+                None => return Ok(()),
+            }
+        } else {
+            upsert_agent(&self.db.pool, project_id, agent_hash).await?
+        };
         if agent.release_mode
             || self
                 .switch_to_releases(&agent, project_id, agent_hash, now)

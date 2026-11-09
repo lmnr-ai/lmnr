@@ -99,6 +99,8 @@ pub struct PromptSpan {
     pub trace_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
+    /// The trace's first prompt start, ns.
+    pub time: i64,
 }
 
 /// Up to `limit` traces with prompts ingested after `since`, none of them
@@ -116,11 +118,12 @@ pub async fn uncovered_traces(
 ) -> Result<Vec<PromptSpan>> {
     let spans = clickhouse
         .query(
-            "SELECT trace_id, span_id
+            "SELECT trace_id, span_id, time
              FROM (
                  SELECT trace_id,
                         argMax(span_id, length(line_hashes)) AS span_id,
-                        toStartOfMinute(min(start_time)) AS minute
+                        min(start_time) AS time,
+                        toStartOfMinute(time) AS minute
                  FROM agent_prompts
                  WHERE project_id = {project_id:UUID}
                    AND ingested_at > fromUnixTimestamp64Nano({since:Int64})
@@ -146,6 +149,8 @@ pub struct AgentSpan {
     pub trace_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
+    /// ns.
+    pub start_time: i64,
 }
 
 /// The latest prompt span of each of `agent_hashes` ingested after `since`.
@@ -160,7 +165,7 @@ pub async fn latest_agent_spans(
     }
     let spans = clickhouse
         .query(
-            "SELECT agent_hash, trace_id, span_id
+            "SELECT agent_hash, trace_id, span_id, start_time
              FROM agent_prompts
              WHERE project_id = {project_id:UUID}
                AND agent_hash IN {agent_hashes:Array(String)}
