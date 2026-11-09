@@ -6,7 +6,7 @@ import { messageLinkUrl } from "@/components/traces/trace-view/trace-panel-url";
 import { buildSpanTurn } from "@/lib/spans/turn";
 import { type Span } from "@/lib/traces/types";
 
-import { buildRows, type MessageAnchor } from "./build-rows";
+import { buildRows, type ConversationRow, hasContextFold, type MessageAnchor } from "./build-rows";
 import ConversationList from "./conversation-list";
 import { anchorHash, isFoldedAnchor, linkedAnchor } from "./message-anchor";
 import { useSectionFormats } from "./use-section-formats";
@@ -40,15 +40,14 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
 
   const rawInput = formats.input.mode !== "messages";
   const rawOutput = formats.output.mode !== "messages";
-  const allRows = useMemo(
-    () => buildRows(turn, true, { input: rawInput, output: rawOutput }),
-    [turn, rawInput, rawOutput]
-  );
-  const foldedRows = useMemo(
-    () => (contextOpen ? undefined : buildRows(turn, false, { input: rawInput, output: rawOutput })),
-    [turn, contextOpen, rawInput, rawOutput]
-  );
-  const rows = foldedRows ?? allRows;
+  const raw = useMemo(() => ({ input: rawInput, output: rawOutput }), [rawInput, rawOutput]);
+  // Lazy: the full list normalizes every earlier message, which only an open context or a search needs.
+  const allRows = useMemo(() => {
+    let built: ConversationRow[] | undefined;
+    return () => (built ??= buildRows(turn, true, raw));
+  }, [turn, raw]);
+  const folded = !contextOpen && !rawInput && hasContextFold(turn);
+  const rows = useMemo(() => (folded ? buildRows(turn, false, raw) : allRows()), [folded, turn, raw, allRows]);
 
   const sections = useMemo(
     () => ({

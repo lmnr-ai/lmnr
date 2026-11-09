@@ -25,9 +25,9 @@ const sum = (counts?: number[]) => counts?.reduce((a, b) => a + b, 0) ?? 0;
 
 /**
  * Registers the whole conversation as one search source, counted from the text index rather than mounted editors.
- * `allRows` is the list with the context open, so matches in folded messages count (and a jump into one opens it).
+ * `allRows` gives the list with the context open, so matches in folded messages count (and a jump into one opens it).
  */
-export const useTurnSearch = (allRows: ConversationRow[], sections: Record<SectionKey, SectionText>) => {
+export const useTurnSearch = (allRows: () => ConversationRow[], sections: Record<SectionKey, SectionText>) => {
   const registration = useSpanSearchRegistration();
   const [matches, setMatches] = useState<TurnMatches>();
   const [active, setActive] = useState<ActiveRowMatch>();
@@ -36,7 +36,7 @@ export const useTurnSearch = (allRows: ConversationRow[], sections: Record<Secti
   // Built on the first search only: rendering every part's text is the expensive step.
   const index = useMemo(() => {
     let built: TurnSearchIndex | undefined;
-    return () => (built ??= buildTurnSearchIndex(allRows, sections));
+    return () => (built ??= buildTurnSearchIndex(allRows(), sections));
   }, [allRows, sections]);
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export const useTurnSearch = (allRows: ConversationRow[], sections: Record<Secti
   const contextHits = useMemo(
     () =>
       matches &&
-      allRows.reduce(
+      allRows().reduce(
         (total, row) => (row.kind === "message" && row.inContext ? total + sum(matches.byRow.get(row.key)) : total),
         0
       ),
@@ -79,7 +79,7 @@ export const useTurnSearch = (allRows: ConversationRow[], sections: Record<Secti
   );
 
   const activeInContext = useMemo(
-    () => !!active && allRows.some((row) => row.key === active.key && row.kind === "message" && row.inContext),
+    () => !!active && allRows().some((row) => row.key === active.key && row.kind === "message" && row.inContext),
     [active, allRows]
   );
 
