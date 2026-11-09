@@ -32,6 +32,7 @@ pnpm build          # Production build
 ```
 
 - The sandbox's global pnpm is v10 but the lockfile is written by pnpm 12 (`.github/workflows/fe-build-check.yml` pins 12.14.0, `frontend/Dockerfile` 12.8.1). `pnpm add` on v10 rewrites hundreds of `(supports-color@…)` peer suffixes. Add or bump deps with `npx -y pnpm@12.14.0 add <pkg> --lockfile-only`, then `npx -y pnpm@12.14.0 install --frozen-lockfile` to sync `node_modules`.
+- **Dependency build scripts are denied.** Every `allowBuilds` entry in `frontend/pnpm-workspace.yaml` stays `false` unless the package does not work without its script (supply-chain risk). A new dep with a build script fails `pnpm install` until it is listed. Policy and review steps: `docs/internal/frontend-dependencies.md`.
 - Format only the files you changed: `npx oxfmt --write <files>`. `prettier` is present in `node_modules` (transitive dep) but is NOT the project formatter — running it reformats files oxfmt then flags in the pre-commit hook.
 - In a fresh checkout, `pnpm type-check` (and the husky pre-commit hook) fails with `TS2307: Cannot find module '@/assets/...svg'` errors — `next-env.d.ts` is gitignored. Fix: `npx next typegen` (or any `next dev`/`next build` run).
 - `tsconfig.json` sets `"incremental": true`, so a bare `npx tsc --noEmit` can report **zero errors on files it skipped** and give a false green. When verifying a type fix, run `npx tsc --noEmit --incremental false` (the pre-commit hook does a full check and will catch what you missed otherwise). On an 8 GB box the full check OOMs at Node's default heap; prefix `NODE_OPTIONS=--max-old-space-size=8192`.
@@ -171,6 +172,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/frontend-trace-view.md` | Trace view, span rendering/message parsing, ContentRenderer, rrweb replay |
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
+| `docs/internal/frontend-dependencies.md` | Adding/bumping frontend deps, `pnpm-workspace.yaml` `allowBuilds` (build-script policy) |
 | `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs |
 | `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator |
 | `docs/internal/oss-release.md` | `.github/workflows/build-push.yml` (GHCR images, attestations, release-source gate) |

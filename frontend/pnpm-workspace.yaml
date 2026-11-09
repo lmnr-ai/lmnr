@@ -1,10 +1,17 @@
 publicHoistPattern:
   - pdfjs-dist
 
+# Dependency lifecycle scripts are denied by default (supply-chain risk). Keep
+# every entry false unless the package cannot work without its script; see
+# docs/internal/frontend-dependencies.md before flipping one to true.
 allowBuilds:
-  "@sentry/cli": true
-  core-js: true
-  esbuild: true
-  # Its only build script is a no-op preinstall.
+  # Binary ships via @sentry/cli-<platform>; postinstall is only a CDN-download fallback.
+  "@sentry/cli": false
+  # Prints a funding banner.
+  core-js: false
+  # Binary ships via @esbuild/<platform>; postinstall only verifies/hardlinks it.
+  esbuild: false
+  # Only build script is a no-op preinstall.
   "@google/genai": false
-  protobufjs: true
+  # Only warns about protobufjs version-scheme mismatches.
+  protobufjs: false
