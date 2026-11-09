@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "framer-motion";
 import { useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 import { shallow } from "zustand/shallow";
@@ -106,15 +107,18 @@ function TracesContent() {
             <SessionsTable />
           </TabsContent>
         </Tabs>
-        {traceId && (
-          <TraceViewSidePanel
-            urlState
-            spanId={spanId || undefined}
-            onClose={() => pushOpenTrace(null)}
-            traceId={traceId}
-            initialSearch={searchParams.get("search") ?? undefined}
-          />
-        )}
+        <AnimatePresence>
+          {traceId && (
+            <TraceViewSidePanel
+              key="trace-side-panel"
+              urlState
+              spanId={spanId || undefined}
+              onClose={() => pushOpenTrace(null)}
+              traceId={traceId}
+              initialSearch={searchParams.get("search") ?? undefined}
+            />
+          )}
+        </AnimatePresence>
       </TraceViewNavigationProvider>
     </SessionPreviewSelectTraceProvider>
   );

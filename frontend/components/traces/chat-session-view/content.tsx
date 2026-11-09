@@ -28,7 +28,6 @@ export default function ChatSessionContent() {
         {/* The header spans only the thread column; the trace panel takes the full height beside it. */}
         <div className="flex min-w-0 flex-1 flex-col">
           <SessionHeader projectId={projectId} />
-          <div className="flex-none border-t" />
           <Thread />
         </div>
         <TracePanel />

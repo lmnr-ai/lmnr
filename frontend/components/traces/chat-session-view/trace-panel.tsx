@@ -1,3 +1,5 @@
+import { AnimatePresence } from "framer-motion";
+
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 
 import { useOpenTrace } from "./use-open-trace";
@@ -11,17 +13,21 @@ const MIN_THREAD_WIDTH = 360;
  */
 export default function TracePanel() {
   const { openTraceId, openSpanId, closeTrace } = useOpenTrace();
-  if (!openTraceId) return null;
   return (
-    <TraceViewSidePanel
-      inline
-      reservedWidth={MIN_THREAD_WIDTH}
-      traceId={openTraceId}
-      spanId={openSpanId}
-      // The open trace and span live in the URL here, so tabs and message links can too.
-      urlState
-      storeKey="chat-session-trace-view-state"
-      onClose={closeTrace}
-    />
+    <AnimatePresence>
+      {openTraceId && (
+        <TraceViewSidePanel
+          key="trace-side-panel"
+          inline
+          reservedWidth={MIN_THREAD_WIDTH}
+          traceId={openTraceId}
+          spanId={openSpanId}
+          // The open trace and span live in the URL here, so tabs and message links can too.
+          urlState
+          storeKey="chat-session-trace-view-state"
+          onClose={closeTrace}
+        />
+      )}
+    </AnimatePresence>
   );
 }

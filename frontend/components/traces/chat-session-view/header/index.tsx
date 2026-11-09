@@ -9,7 +9,7 @@ import { swrFetcher } from "@/lib/api/fetch-api";
 
 import { sessionModelTokensUrl } from "../session-api";
 import { useChatSession } from "../store";
-import ModelsPill from "./models-pill";
+import ModelPills from "./model-pills";
 
 const EMPTY: ModelTokens[] = [];
 
@@ -33,16 +33,18 @@ export default function SessionHeader({ projectId }: { projectId: string }) {
     <Header
       path={[
         { name: "sessions", href: `/project/${projectId}/traces?view=sessions` },
-        { name: sessionId, copyValue: sessionId },
+        // Wrapping is decided at the 200px basis, so the pills move to a second row only when that doesn't
+        // fit beside them; the name then grows to its full text (no further) or truncates.
+        { name: sessionId, copyValue: sessionId, className: "min-w-0 basis-[200px] grow max-w-fit" },
       ]}
-      // Nothing shrinks: a narrow thread column cuts the row off at its right edge.
-      className="overflow-hidden pr-0"
-      childrenContainerClassName="overflow-hidden [&>*]:shrink-0"
+      className="h-auto min-h-12 py-2 pr-2.5"
+      childrenContainerClassName="flex-wrap gap-y-2"
     >
       {stats && (
-        <div className="ml-2 flex items-center gap-2 [&>*]:shrink-0">
+        // `contents`: each pill is its own item in the header row, so they wrap one at a time.
+        <div className="contents [&>*]:ml-2 [&>*]:shrink-0">
           <StatsShields stats={stats} />
-          <ModelsPill models={models} />
+          <ModelPills models={models} />
           <UsersPill projectId={projectId} userIds={users} />
         </div>
       )}

@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from "framer-motion";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { AnimatePresence, motion, useIsPresent } from "framer-motion";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
@@ -17,9 +17,16 @@ interface DynamicWidthLayoutProps {
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
   /** Width kept free beside the panel for the page it sits over or next to. */
   reservedWidth?: number;
+  /** Slide the trace in from zero width on mount (the panel opening, not a trace switch inside it). */
+  slideIn?: boolean;
 }
 
-export default function DynamicWidthLayout({ panels, sidePanelRef, reservedWidth = 80 }: DynamicWidthLayoutProps) {
+export default function DynamicWidthLayout({
+  panels,
+  sidePanelRef,
+  reservedWidth = 80,
+  slideIn = false,
+}: DynamicWidthLayoutProps) {
   const { targets, maxWidth, layoutChangeSource, resizePanel, setMaxWidth } = useTraceViewStore(
     (state) => ({
       targets: state.targets,
@@ -63,18 +70,29 @@ export default function DynamicWidthLayout({ panels, sidePanelRef, reservedWidth
   const isResizing = spanResize.isResizing;
   const transition = !isResizing && layoutChangeSource === "visibility" ? enterExitTransition : instantTransition;
 
+  // While the trace slides in or out (under a parent AnimatePresence), its content stays pinned at full width so
+  // text doesn't reflow; otherwise it flows with the column, which keeps resizes and span toggles gap-free.
+  const [sliding, setSliding] = useState(slideIn);
+  const isPresent = useIsPresent();
+  const pinned = sliding || !isPresent;
+
   return (
     <div ref={containerRef} className="h-full w-full overflow-hidden">
       <div className="flex flex-row h-full">
-        {/* Trace has no inner-abs wrapper because it never animates from 0 — content reflows
-            with the flex item. Span/chat keep the inner-abs pinned-at-target slide-in pattern. */}
         <motion.div
-          className="relative flex h-full flex-shrink-0"
-          initial={false}
-          animate={{ width: widths.trace }}
-          transition={transition}
+          className="relative flex h-full flex-shrink-0 overflow-hidden"
+          initial={sliding ? { width: 0, opacity: 0.5 } : false}
+          animate={{ width: widths.trace, opacity: 1 }}
+          exit={{ width: 0, opacity: 0.5, transition: enterExitTransition }}
+          transition={sliding ? enterExitTransition : transition}
+          onAnimationComplete={() => setSliding(false)}
         >
-          {panels.tracePanel}
+          <div
+            className={pinned ? "absolute inset-y-0 left-0 flex" : "flex h-full w-full"}
+            style={pinned ? { width: widths.trace } : undefined}
+          >
+            {panels.tracePanel}
+          </div>
         </motion.div>
 
         <AnimatePresence initial={false}>

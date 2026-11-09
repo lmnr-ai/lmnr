@@ -59,6 +59,9 @@ export function TraceViewSidePanel({ className, children, inline, reservedWidth,
   const sidePanelRef = useRef<HTMLDivElement>(null);
   // Below STACK_THRESHOLD the drawer covers the page and stacks like the mobile trace view.
   const [narrow, setNarrow] = useState(false);
+  // Only the first trace slides in: switching traces remounts the content (keyed store) and mustn't replay it.
+  const [shown, setShown] = useState({ traceId: props.traceId, first: true });
+  if (shown.traceId !== props.traceId) setShown({ traceId: props.traceId, first: false });
 
   useLayoutEffect(() => {
     const el = sidePanelRef.current?.parentElement;
@@ -101,7 +104,12 @@ export function TraceViewSidePanel({ className, children, inline, reservedWidth,
                   intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
                   opens between the span view and the screen edge. */}
           {children && <div className="w-0 min-w-full">{children}</div>}
-          <TraceViewContent {...props} sidePanelRef={narrow ? undefined : sidePanelRef} reservedWidth={reservedWidth} />
+          <TraceViewContent
+            {...props}
+            sidePanelRef={narrow ? undefined : sidePanelRef}
+            reservedWidth={reservedWidth}
+            slideIn={shown.first}
+          />
         </div>
       </TraceViewStoreProvider>
     </ElevatedSurface>

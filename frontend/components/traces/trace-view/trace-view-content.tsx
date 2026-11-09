@@ -35,6 +35,7 @@ export interface TraceViewContentProps {
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
   reservedWidth?: number;
+  slideIn?: boolean;
 }
 
 export default function TraceViewContent({
@@ -45,6 +46,7 @@ export default function TraceViewContent({
   isAlwaysSelectSpan,
   sidePanelRef,
   reservedWidth,
+  slideIn,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
   const { projectId } = useParams();
@@ -348,6 +350,6 @@ export default function TraceViewContent({
   return isNil(sidePanelRef) ? (
     <FillWidthLayout panels={panels} />
   ) : (
-    <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} reservedWidth={reservedWidth} />
+    <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} reservedWidth={reservedWidth} slideIn={slideIn} />
   );
 }
