@@ -41,7 +41,8 @@ export type ConversationRow =
   | { kind: "context"; key: string; summary: string; open: boolean }
   | MessageRow;
 
-const CONTEXT_SOURCES = new Set<Source>(["system", "task", "history", "previous"]);
+const CONTEXT_PARTS = ["system", "task", "history", "previous"] as const;
+const CONTEXT_SOURCES = new Set<Source>(CONTEXT_PARTS);
 
 /** Rows shown inside the opened context. */
 export const isContextRow = (row: MessageRow) => !!row.inContext;
@@ -197,8 +198,11 @@ const toolResultCount = (row: MessageRow) =>
       ? 1
       : 0;
 
-/** "23 earlier steps": what is folded away (with the system prompt) before this call's new input. */
-const contextSummary = (turn: SpanTurn): string => pluralize(turn.earlierSteps, "earlier step", "earlier steps");
+/** "23 earlier messages": everything folded away before this call's new input, system prompt included. */
+const contextSummary = (turn: SpanTurn): string => {
+  const count = CONTEXT_PARTS.reduce((sum, part) => sum + (turn[part]?.messages.length ?? 0), 0);
+  return pluralize(count, "earlier message", "earlier messages");
+};
 
 /** "4 tool results", "1 user message", "3 messages": what the Input section holds. */
 const summarizeNewInput = (rows: MessageRow[]): string => {
