@@ -12,7 +12,7 @@ use anyhow::Result;
 use futures_util::future::try_join_all;
 use uuid::Uuid;
 
-use self::agent::{Change, DetectionAgent, KnownAgent};
+use self::agent::{Change, DetectionAgent, KnownAgent, UnlabelledPrompt};
 use super::{Job, NS, identity::definitions_cache_key, naming};
 use crate::{
     cache::{CacheTrait, keys::AGENT_DETECTION_LOCK_CACHE_KEY},
@@ -91,11 +91,11 @@ impl Job {
         let agents = self.known_agents(project_id, since).await?;
         // A trace stored before its agent was defined stays unlabelled; it
         // needs no new agent and would only crowd out the ones that do.
-        let prompts: Vec<String> = self
+        let prompts: Vec<UnlabelledPrompt> = self
             .read_prompts(project_id, &spans)
             .await?
             .into_iter()
-            .filter(|prompt| !is_defined(&agents, prompt))
+            .filter(|prompt| !is_defined(&agents, &prompt.system_prompt))
             .take(prompts_limit as usize)
             .collect();
         if prompts.len() < min_matches {
@@ -115,9 +115,24 @@ impl Job {
     }
 
     /// The spans' system prompts; spans no longer stored are skipped.
-    async fn read_prompts(&self, project_id: Uuid, spans: &[PromptSpan]) -> Result<Vec<String>> {
-        let prompts = try_join_all(spans.iter().map(|span| {
-            naming::span_system_prompt(&self.clickhouse, project_id, span.trace_id, span.span_id)
+    async fn read_prompts(
+        &self,
+        project_id: Uuid,
+        spans: &[PromptSpan],
+    ) -> Result<Vec<UnlabelledPrompt>> {
+        let prompts = try_join_all(spans.iter().map(|span| async {
+            let system_prompt = naming::span_system_prompt(
+                &self.clickhouse,
+                project_id,
+                span.trace_id,
+                span.span_id,
+            )
+            .await?;
+            anyhow::Ok(system_prompt.map(|system_prompt| UnlabelledPrompt {
+                trace_id: span.trace_id,
+                span_id: span.span_id,
+                system_prompt,
+            }))
         }))
         .await?;
         Ok(prompts.into_iter().flatten().collect())

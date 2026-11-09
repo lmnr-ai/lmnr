@@ -5,14 +5,14 @@
 //! step cap.
 
 use anyhow::Result;
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use tracing::Instrument;
 use uuid::Uuid;
 
 use super::prompt::{self, SUBMIT_TOOL, TEST_CHECK_TOOL};
 use crate::{
-    agent_versioning::definition::Definition,
+    agent_versioning::definition::{Definition, OPENING_CHARS},
     db::agent_versioning::DefinedAgent,
     instrumentation::spans::{self, InternalSpan, SpanType},
     llm::{
@@ -20,12 +20,20 @@ use crate::{
         ProviderGenerationConfig, ProviderPart, ProviderRequest, request_to_span_input,
         request_to_tools_attr,
     },
+    utils::truncate_chars,
 };
 
 const INTERNAL_TRACING_TARGET: &str = "lmnr::internal";
 const MAX_STEPS: usize = 10;
 /// Room for a reasoning model to think and still emit its tool call.
 const MAX_OUTPUT_TOKENS: i32 = 16_000;
+
+/// A system prompt no definition matched, with the span it came from.
+pub struct UnlabelledPrompt {
+    pub trace_id: Uuid,
+    pub span_id: Uuid,
+    pub system_prompt: String,
+}
 
 /// A defined agent with its latest system prompt, when one was ingested
 /// recently.
@@ -35,7 +43,8 @@ pub struct KnownAgent {
 }
 
 /// An accepted change. `Extend` carries the agent's full new definition.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Change {
     Create {
         name: String,
@@ -56,8 +65,7 @@ pub struct DetectionAgent<'a> {
     internal_project_id: Option<Uuid>,
     /// A new check must match at least this many of `prompts`.
     min_matches: usize,
-    /// System prompts no definition matched.
-    prompts: Vec<String>,
+    prompts: Vec<UnlabelledPrompt>,
     agents: Vec<KnownAgent>,
     /// Accepted so far; kept when a later LLM call fails.
     changes: Vec<Change>,
@@ -100,7 +108,7 @@ impl<'a> DetectionAgent<'a> {
         project_id: Uuid,
         internal_project_id: Option<Uuid>,
         min_matches: usize,
-        prompts: Vec<String>,
+        prompts: Vec<UnlabelledPrompt>,
         agents: Vec<KnownAgent>,
     ) -> Self {
         Self {
@@ -122,14 +130,43 @@ impl<'a> DetectionAgent<'a> {
         )
         .project(self.internal_project_id)
         .metadata_str("project_id", &self.project_id.to_string())
+        .input(&self.trace_input())
         .build();
-        if let Err(e) = self.converse().instrument(root).await {
+        if let Err(e) = self.converse().instrument(root.clone()).await {
+            spans::record_error(&root, e.to_string());
             log::warn!(
                 "[AGENT DETECTION] {} run ended early: {e:?}",
                 self.project_id
             );
         }
+        spans::set_output(&root, &json!({ "changes": self.changes }));
         self.changes
+    }
+
+    /// The run's inputs by the ids the model sees, each prompt pointing back
+    /// to its span in the source project.
+    fn trace_input(&self) -> Value {
+        let prompts: Vec<Value> = numbered(&self.prompts)
+            .map(|(id, prompt)| {
+                json!({
+                    "id": id,
+                    "trace_id": prompt.trace_id,
+                    "span_id": prompt.span_id,
+                    "opening": truncate_chars(&prompt.system_prompt, OPENING_CHARS),
+                })
+            })
+            .collect();
+        let agents: Vec<Value> = numbered(&self.agents)
+            .map(|(id, known)| {
+                json!({
+                    "id": id,
+                    "agent_id": known.agent.id,
+                    "name": known.agent.name,
+                    "check": known.agent.definition.any_of,
+                })
+            })
+            .collect();
+        json!({ "prompts": prompts, "agents": agents, "min_matches": self.min_matches })
     }
 
     async fn converse(&mut self) -> Result<()> {
@@ -166,7 +203,17 @@ impl<'a> DetectionAgent<'a> {
             let mut finished = false;
             let mut responses = Vec::with_capacity(calls.len());
             for call in calls {
-                let result = self.call_tool(&call.name, call.args.unwrap_or(Value::Null));
+                let args = call.args.unwrap_or(Value::Null);
+                let span = InternalSpan::wrap(
+                    tracing::info_span!(target: INTERNAL_TRACING_TARGET, "tool_call"),
+                    SpanType::Tool,
+                )
+                .project(self.internal_project_id)
+                .input(&json!({ "name": call.name, "args": args }))
+                .step(step)
+                .build();
+                let result = span.in_scope(|| self.call_tool(&call.name, args));
+                spans::set_output(&span, &result.response);
                 finished |= result.finished;
                 responses.push(ProviderPart {
                     function_response: Some(ProviderFunctionResponse {
@@ -351,7 +398,7 @@ impl<'a> DetectionAgent<'a> {
 
     fn matched_prompts(&self, definition: &Definition) -> Vec<usize> {
         numbered(&self.prompts)
-            .filter(|(_, prompt)| definition.matches(prompt))
+            .filter(|(_, prompt)| definition.matches(&prompt.system_prompt))
             .map(|(id, _)| id)
             .collect()
     }
@@ -446,9 +493,21 @@ mod tests {
         }
     }
 
-    fn gtm_prompts(count: usize) -> Vec<String> {
+    fn unlabelled(system_prompt: &str) -> UnlabelledPrompt {
+        UnlabelledPrompt {
+            trace_id: Uuid::new_v4(),
+            span_id: Uuid::new_v4(),
+            system_prompt: system_prompt.to_string(),
+        }
+    }
+
+    fn gtm_prompts(count: usize) -> Vec<UnlabelledPrompt> {
         (0..count)
-            .map(|i| format!("Today is day {i}. User #{i}.\nYou are a GTM assistant."))
+            .map(|i| {
+                unlabelled(&format!(
+                    "Today is day {i}. User #{i}.\nYou are a GTM assistant."
+                ))
+            })
             .collect()
     }
 
@@ -458,7 +517,7 @@ mod tests {
 
     fn agent<'a>(
         llm_client: &'a LlmClient,
-        prompts: Vec<String>,
+        prompts: Vec<UnlabelledPrompt>,
         agents: Vec<KnownAgent>,
     ) -> DetectionAgent<'a> {
         DetectionAgent::new(llm_client, Uuid::new_v4(), None, 3, prompts, agents)
@@ -473,8 +532,8 @@ mod tests {
     fn test_check_reports_matching_prompts_and_agents() {
         let client = mock_client();
         let prompts = vec![
-            "You are a GTM assistant.".to_string(),
-            "You are a coder.".to_string(),
+            unlabelled("You are a GTM assistant."),
+            unlabelled("You are a coder."),
         ];
         let agents = vec![known("Coder", &[&["you are a coder"]], "You are a coder.")];
         let mut agent = agent(&client, prompts, agents);
@@ -508,7 +567,7 @@ mod tests {
     fn one_off_prompts_do_not_become_agents() {
         let client = mock_client();
         let mut prompts = gtm_prompts(5);
-        prompts.push("You are a one-off subagent.".to_string());
+        prompts.push(unlabelled("You are a one-off subagent."));
         let mut agent = agent(&client, prompts, Vec::new());
         let result = submit_new(&mut agent, "Subagent", &[&["one-off subagent"]]);
         assert_eq!(result["accepted"], json!(0));

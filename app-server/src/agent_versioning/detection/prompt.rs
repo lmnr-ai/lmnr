@@ -3,7 +3,7 @@
 
 use serde_json::json;
 
-use super::agent::KnownAgent;
+use super::agent::{KnownAgent, UnlabelledPrompt};
 use crate::{
     agent_versioning::definition::OPENING_CHARS,
     llm::{ProviderFunctionDeclaration, ProviderTool},
@@ -45,7 +45,7 @@ pub fn instructions(min_matches: usize) -> String {
 
 /// The first user message. Prompts and agents are numbered from 1, the ids the
 /// tools take and report.
-pub fn context(prompts: &[String], agents: &[KnownAgent]) -> String {
+pub fn context(prompts: &[UnlabelledPrompt], agents: &[KnownAgent]) -> String {
     let agents: String = agents
         .iter()
         .enumerate()
@@ -70,7 +70,7 @@ pub fn context(prompts: &[String], agents: &[KnownAgent]) -> String {
             format!(
                 "<prompt id=\"{}\">\n{}\n</prompt>\n",
                 index + 1,
-                truncate_chars(prompt, OPENING_CHARS)
+                truncate_chars(&prompt.system_prompt, OPENING_CHARS)
             )
         })
         .collect();
