@@ -307,9 +307,6 @@ pub async fn process_span_messages(
     )
     .await?;
 
-    // Live agent_input — the stat delta can't carry it (extraction is async).
-    dispatch_input_realtime_updates(&raw_trace_io, &pii_modes, cache.clone(), &pubsub).await;
-
     let pii_outcome = redact_pii(
         &mut batch.spans,
         &recordable_indices,
@@ -340,6 +337,9 @@ pub async fn process_span_messages(
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &trace_aggregations).await;
             dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
         }
+        // After the trace deltas, so live views already have the row the input belongs to. Raw (pre-redaction) I/O
+        // with the PII modes resolved above; the stat delta can't carry it because extraction is async.
+        dispatch_input_realtime_updates(&raw_trace_io, &pii_modes, cache.clone(), &pubsub).await;
         write_trace_tables(
             &ch,
             config,
