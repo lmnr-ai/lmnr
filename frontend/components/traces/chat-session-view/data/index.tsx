@@ -1,7 +1,16 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import useSWR, { useSWRConfig } from "swr";
 
 import { type TraceSpanCounts } from "@/lib/actions/traces/span-counts";
@@ -57,6 +66,22 @@ export function SessionDataProvider({ sessionId, children }: PropsWithChildren<{
   const { mutate: mutateKey } = useSWRConfig();
   const [live, setLive] = useState(NOT_LIVE);
   const hadLive = useRef(false);
+  // A ref, not a dependency: new handlers would reconnect the stream and drop events in between.
+  const loaded = useRef(false);
+  // Updates that arrive before the first load: patching then would make SWR discard that load.
+  const early = useRef<((rows: TraceRow[]) => TraceRow[])[]>([]);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const refreshPending = useRef(false);
+  useEffect(() => () => clearTimeout(refreshTimer.current), []);
+
+  // Live turns settle once the refresh after the stream goes quiet finishes, failed or not; an earlier fetch (the
+  // first load) may predate their updates. Each settled turn then fetches its own reply.
+  const settle = () => {
+    if (refreshPending.current) return;
+    setLive(NOT_LIVE);
+    if (hadLive.current) void mutateKey(sessionModelTokensUrl(projectId, sessionId));
+    hadLive.current = false;
+  };
 
   const { data, error, isLoading, mutate } = useSWR(
     projectId ? ["chat-session-traces", projectId, sessionId] : null,
@@ -65,30 +90,35 @@ export function SessionDataProvider({ sessionId, children }: PropsWithChildren<{
       if (!traces) throw new Error(error ?? "Failed to load the session.");
       return traces;
     },
-    {
-      revalidateOnFocus: false,
-      onSuccess: () => {
-        setLive(NOT_LIVE);
-        if (hadLive.current) void mutateKey(sessionModelTokensUrl(projectId, sessionId));
-        hadLive.current = false;
-      },
-    }
+    { revalidateOnFocus: false, onSuccess: settle, onError: settle }
   );
 
-  // A ref, not a dependency: new handlers would reconnect the stream and drop events in between.
-  const loaded = useRef(false);
+  // Refresh once updates pause; SWR drops a refresh that overlaps a patch, so each patch pushes it back.
+  const scheduleRefresh = useCallback(() => {
+    clearTimeout(refreshTimer.current);
+    refreshPending.current = true;
+    refreshTimer.current = setTimeout(() => {
+      refreshPending.current = false;
+      void mutate();
+    }, SETTLE_MS);
+  }, [mutate]);
+
+  // Fold the early updates into the first load once it's stored, each exactly once (deltas add up).
   useEffect(() => {
-    loaded.current = data !== undefined;
-  }, [data]);
-  const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(refreshTimer.current), []);
+    if (data === undefined || loaded.current) return;
+    loaded.current = true;
+    const pending = early.current;
+    early.current = [];
+    if (pending.length === 0) return;
+    void mutate((rows) => rows && pending.reduce((acc, apply) => apply(acc), rows), false);
+    scheduleRefresh();
+  }, [data, mutate, scheduleRefresh]);
 
   const eventHandlers = useMemo(() => {
     const patch = (apply: (rows: TraceRow[]) => TraceRow[]) => {
-      // Patching before the first load lands would discard it; the refresh below picks the update up instead.
       if (loaded.current) void mutate((rows) => rows && apply(rows), { revalidate: false });
-      clearTimeout(refreshTimer.current);
-      refreshTimer.current = setTimeout(() => void mutate(), SETTLE_MS);
+      else early.current.push(apply);
+      scheduleRefresh();
     };
     return {
       trace_update: (event: MessageEvent) => {
@@ -103,7 +133,7 @@ export function SessionDataProvider({ sessionId, children }: PropsWithChildren<{
         if (payload?.traceId) patch((rows) => applyAgentInput(rows, payload.traceId, payload.agentInput));
       },
     };
-  }, [mutate]);
+  }, [mutate, scheduleRefresh]);
   useRealtime({ key: `session_${sessionId}`, projectId, eventHandlers, enabled: !!projectId });
 
   const loaders = useMemo(

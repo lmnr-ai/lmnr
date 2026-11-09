@@ -24,7 +24,7 @@ function Turn({
   dividerAbove: boolean;
   dividerBelow: boolean;
 }) {
-  const { reply, retryReply, counts } = useTurnDetails(trace.id, live);
+  const { reply, retryReply, counts } = useTurnDetails(trace, live);
   const { openTraceId, toggleTrace } = useOpenTrace();
   const active = openTraceId === trace.id;
 
