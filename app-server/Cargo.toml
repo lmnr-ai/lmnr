@@ -10,17 +10,17 @@ signals = ["dep:half", "dep:ndarray", "dep:ort", "dep:tokenizers"]
 [dependencies]
 actix-limitation = {version = "0.6.0", default-features = false, features = ["redis-rustls"]}
 actix-web = "4.14.1"
-actix-web-httpauth = "0.8.2"
+actix-web-httpauth = "0.8.3"
 anyhow = "1.0"
 arc-swap = "1.9"
 async-stream = "0.3.6"
 async-trait = "0.1"
-aws-config = "1.10.1"
-aws-sdk-bedrockruntime = {version = "1.139.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
-aws-sdk-ecr = {version = "1.126.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
-aws-sdk-s3 =  {version = "1.141.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
+aws-config = "1.13.0"
+aws-sdk-bedrockruntime = {version = "1.153.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
+aws-sdk-ecr = {version = "1.138.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
+aws-sdk-s3 =  {version = "1.157.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
 # Only for `HTTP_BEARER_AUTH_SCHEME_ID`, which the bedrockruntime crate does not re-export.
-aws-smithy-runtime-api = "1.15"
+aws-smithy-runtime-api = "1.19"
 backon = {version = "1.6.0", default-features = false, features = ["std", "tokio-sleep"]}
 base64 = "0.22.1"
 blake3 = "1.8"
@@ -29,7 +29,7 @@ chacha20poly1305 = "0.11"
 chrono = {version = "0.4.45", features = ["serde"]}
 clickhouse = {version = "0.15.1", features = ["rustls-tls", "uuid"]}
 dashmap = "6.1.0"
-deadpool = "0.12.2"
+deadpool = "0.13.1"
 dotenv = "0.15"
 # Ed25519 keys are libsodium-format (64-byte seed||pubkey), which `SecretKey::from_slice` accepts as-is.
 ed25519-compact = "2.4"
@@ -40,8 +40,8 @@ half = {version = "2.7.1", features = ["serde"], optional = true}
 hex = "0.4"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
-jsonwebtoken = {version = "11", default-features = false, features = ["use_pem", "rust_crypto"]}
-jwks_client_rs = "0.6"
+jsonwebtoken = {version = "11", default-features = false, features = ["use_pem", "aws_lc_rs"]}
+jwks_client_rs = {version = "0.6", default-features = false, features = ["rustls", "aws_lc_rs"]}
 lapin = "4.12"
 log = "0.4.34"
 moka = {version = "0.12", features = ["sync", "future"]}
