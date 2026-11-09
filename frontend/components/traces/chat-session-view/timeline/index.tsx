@@ -7,6 +7,7 @@ import { useWheelZoom, zoomKeepingCenter } from "@/components/traces/trace-view/
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useChatSession } from "../store";
+import { useOpenTrace } from "../use-open-trace";
 import SessionTimelineControls from "./controls";
 import SessionTimelineGap from "./session-timeline-gap";
 import SessionTimelineSegment, { type HoverInfo } from "./session-timeline-segment";
@@ -14,13 +15,13 @@ import { ROW_HEIGHT } from "./session-timeline-trace-bar";
 import { type TimelineSelection } from "./types";
 import { computeSessionTimelineSegments, GAP_WIDTH_PX } from "./utils";
 
-interface SessionTimelineProps {
-  /** The open span, from the URL. */
-  selectedSpan?: TimelineSelection;
-  onSelectSpan: (traceId: string, spanId: string) => void;
-}
-
-function SessionTimeline({ selectedSpan, onSelectSpan }: SessionTimelineProps) {
+function SessionTimeline() {
+  // The timeline highlights the open span and opens a clicked one: the URL is the only selection here.
+  const { openTraceId, openSpanId, openSpan } = useOpenTrace();
+  const selectedSpan = useMemo<TimelineSelection | undefined>(
+    () => (openTraceId && openSpanId ? { traceId: openTraceId, spanId: openSpanId } : undefined),
+    [openTraceId, openSpanId]
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const traces = useChatSession((s) => s.traces);
@@ -87,6 +88,17 @@ function SessionTimeline({ selectedSpan, onSelectSpan }: SessionTimelineProps) {
       }
     });
   }, [traceSpans, traceSpansError, expandedTraceIds, toggleTraceExpanded]);
+
+  // An expanded turn's spans are a snapshot: reload them once the turn settles past the end time they were loaded for.
+  const live = useChatSession((s) => s.live);
+  const traceSpansEndTime = useChatSession((s) => s.traceSpansEndTime);
+  useEffect(() => {
+    for (const trace of traces) {
+      const loadedFor = traceSpansEndTime[trace.id];
+      if (!expandedTraceIds.has(trace.id) || live.has(trace.id) || loadedFor === undefined) continue;
+      if (loadedFor !== trace.endTime) void fetchTraceSpans(trace);
+    }
+  }, [traces, expandedTraceIds, live, traceSpansEndTime, fetchTraceSpans]);
 
   const handleTraceBarClick = useCallback(
     (traceId: string) => {
@@ -176,7 +188,7 @@ function SessionTimeline({ selectedSpan, onSelectSpan }: SessionTimelineProps) {
                 selectedSpan={selectedSpan}
                 contentHeight={contentHeight}
                 onTraceBarClick={handleTraceBarClick}
-                onSpanBarClick={onSelectSpan}
+                onSpanBarClick={openSpan}
                 onHover={setHoverInfo}
               />
             </div>

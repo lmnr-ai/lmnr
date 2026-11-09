@@ -38,7 +38,8 @@ export default function ControlBar() {
   return (
     <div
       className={cn(
-        "flex h-10 shrink-0 items-center gap-2 border-b pl-3 transition-[padding] duration-200",
+        // A narrow thread column scrolls the pills sideways rather than squeezing them into each other.
+        "no-scrollbar flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b pl-3 transition-[padding] duration-200 [&>*]:shrink-0",
         // Closed: leave room for the floating Timeline toggle (see chat-session-view/index.tsx).
         timelineEnabled ? "pr-3" : "pr-[96px]"
       )}

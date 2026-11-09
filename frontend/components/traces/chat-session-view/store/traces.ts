@@ -22,9 +22,10 @@ export interface TracesSlice extends TracesDeps {
   patchTraces: (apply: TracesPatch, liveIds?: string[]) => void;
   /**
    * Replays the patches applied while the fetch was in flight on top of it, since it may predate them. A settled
-   * fetch reflects every update, so it ends live turns.
+   * fetch reflects every update, so it ends live turns, except ones it's missing (ClickHouse can lag). Returns how
+   * many live turns it was missing.
    */
-  receiveTraces: (fetched: TraceRow[], settled: boolean, patchesSinceFetch: TracesPatch[]) => void;
+  receiveTraces: (fetched: TraceRow[], settled: boolean, patchesSinceFetch: TracesPatch[]) => number;
   /** A failed fetch keeps the rows already shown; a settled one still ends live turns. */
   failTraces: (error: string, settled: boolean) => void;
 }
@@ -48,9 +49,12 @@ export const createTracesSlice =
     },
 
     receiveTraces: (fetched, settled, patchesSinceFetch) => {
-      const live = settled ? NOT_LIVE : get().live;
+      const fetchedIds = new Set(fetched.map((t) => t.id));
+      const missing = [...get().live].filter((id) => !fetchedIds.has(id));
+      const live = settled ? (missing.length ? new Set(missing) : NOT_LIVE) : get().live;
       const patched = patchesSinceFetch.reduce((rows, apply) => apply(rows), fetched);
       set({ traces: mergeFetched(get().traces, patched, live), live, isLoading: false, error: undefined });
+      return missing.length;
     },
 
     failTraces: (error, settled) => set({ error, isLoading: false, ...(settled ? { live: NOT_LIVE } : {}) }),

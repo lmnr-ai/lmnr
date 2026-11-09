@@ -15,8 +15,10 @@ type Props = { params: Promise<{ projectId: string; sessionId: string[] }> };
 
 const sessionIdOf = async ({ params }: Props) => (await params).sessionId.map(safeDecode).join("/");
 
-export async function generateMetadata(props: Props): Promise<Metadata> {
-  return { title: `Session ${await sessionIdOf(props)}` };
+// Next hands generateMetadata already-decoded segments (the page gets them encoded), so decoding again would
+// corrupt an id that contains `%`.
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  return { title: `Session ${(await params).sessionId.join("/")}` };
 }
 
 export default async function SessionPage(props: Props) {

@@ -15,6 +15,8 @@ import { applyAgentInput, applyTraceDeltas } from "./live-traces";
 
 // Refresh from the server once live updates pause this long; ClickHouse lags the realtime stream.
 const SETTLE_MS = 2000;
+// Settle refreshes retried while a live turn is still missing from ClickHouse, before it's given up on.
+const MAX_LAG_RETRIES = 5;
 
 const parse = <T,>(event: MessageEvent): T | undefined => {
   try {
@@ -40,6 +42,8 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
   const inFlight = useRef<AbortController>(undefined);
   // Patches applied while the current fetch is in flight; its rows may predate them.
   const patchesSinceFetch = useRef<TracesPatch[]>([]);
+  const lagRetries = useRef(0);
+  const scheduleRefresh = useRef<() => void>(undefined);
 
   const load = useCallback(async () => {
     inFlight.current?.abort();
@@ -58,8 +62,17 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
 
     const { traces, error } = result;
     const settled = !refreshPending.current;
-    if (traces) receiveTraces(traces, settled, patchesSinceFetch.current);
-    else failTraces(error ?? "Failed to load the session.", settled);
+    if (traces) {
+      const missing = receiveTraces(traces, settled, patchesSinceFetch.current);
+      // A live turn ClickHouse hasn't written yet stays live; refresh again rather than drop it.
+      if (settled && missing > 0 && lagRetries.current < MAX_LAG_RETRIES) {
+        lagRetries.current += 1;
+        refreshPending.current = true;
+        scheduleRefresh.current?.();
+        return;
+      }
+      lagRetries.current = 0;
+    } else failTraces(error ?? "Failed to load the session.", settled);
     // Settled turns changed the session's token totals.
     if (settled && hadLive.current) {
       hadLive.current = false;
@@ -78,7 +91,10 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
     void load();
   }, [load]);
   const refresh = useMemo(() => debounce(runRefresh, SETTLE_MS), [runRefresh]);
-  useEffect(() => () => refresh.cancel(), [refresh]);
+  useEffect(() => {
+    scheduleRefresh.current = refresh;
+    return () => refresh.cancel();
+  }, [refresh]);
 
   // Each update pushes the refresh back, so it runs once updates pause.
   const eventHandlers = useMemo(() => {

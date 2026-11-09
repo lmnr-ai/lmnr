@@ -79,6 +79,25 @@ describe("createIdBatchFetcher", () => {
     assert.deepEqual(calls, [["a", "b"], ["c"]]);
   });
 
+  it("gives a caller that asks mid-flight the next load, not the one already running", async () => {
+    let version = 0;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const load = createIdBatchFetcher(
+      async (ids) => {
+        const v = ++version;
+        if (v === 1) await gate;
+        return Object.fromEntries(ids.map((id) => [id, `${id}@${v}`]));
+      },
+      { debounceMs: 0 }
+    );
+    const first = load("a");
+    await settle();
+    const second = load("a");
+    release?.();
+    assert.deepEqual(await Promise.all([first, second]), ["a@1", "a@2"]);
+  });
+
   it("rejects every id in a failed chunk", async () => {
     const load = createIdBatchFetcher(async () => Promise.reject(new Error("boom")), { debounceMs: 0 });
     await assert.rejects(load("a"), /boom/);

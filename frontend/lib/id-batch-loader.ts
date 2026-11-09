@@ -52,21 +52,31 @@ type Waiter<V> = { resolve: (value: V | undefined) => void; reject: (error: unkn
 /**
  * One id at a time over `createIdBatchLoader`, so each caller (e.g. a visible row's SWR hook) awaits its own value
  * while the batch sends one request. Resolves `undefined` for an id the load omits; rejects with the chunk's error.
+ * A caller that asks while its id is in flight gets the next load, not the one that started before it asked.
  */
 export function createIdBatchFetcher<V>(
   load: (ids: string[]) => Promise<Record<string, V>>,
   options?: Pick<IdBatchLoaderOptions<V>, "batchSize" | "debounceMs">
 ): (id: string) => Promise<V | undefined> {
-  const waiters = new Map<string, Waiter<V>[]>();
+  const queued = new Map<string, Waiter<V>[]>();
+  const sent = new Map<string, Waiter<V>[]>();
   const settle = (ids: string[], fn: (waiter: Waiter<V>, id: string) => void) => {
     for (const id of ids) {
-      const forId = waiters.get(id) ?? [];
-      waiters.delete(id);
+      const forId = sent.get(id) ?? [];
+      sent.delete(id);
       forId.forEach((w) => fn(w, id));
     }
+    const again = ids.filter((id) => queued.has(id));
+    if (again.length > 0) request(again);
   };
   const request = createIdBatchLoader<V>({
-    load,
+    load: (ids) => {
+      for (const id of ids) {
+        sent.set(id, queued.get(id) ?? []);
+        queued.delete(id);
+      }
+      return load(ids);
+    },
     onLoaded: (ids, values) => settle(ids, (w, id) => w.resolve(values[id])),
     onFailed: (ids, error) => settle(ids, (w) => w.reject(error)),
     ...options,
@@ -74,7 +84,7 @@ export function createIdBatchFetcher<V>(
 
   return (id) =>
     new Promise((resolve, reject) => {
-      waiters.set(id, [...(waiters.get(id) ?? []), { resolve, reject }]);
+      queued.set(id, [...(queued.get(id) ?? []), { resolve, reject }]);
       request([id]);
     });
 }

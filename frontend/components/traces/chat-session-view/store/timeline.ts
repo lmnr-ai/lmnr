@@ -10,8 +10,10 @@ export interface TimelineDeps {
 export interface TimelineSlice {
   timelineEnabled: boolean;
   timelineZoom: number;
-  /** Spans per trace, loaded the first time a turn is expanded. */
+  /** Spans per trace, loaded the first time a turn is expanded and reloaded once its end time moves. */
   traceSpans: Record<string, TraceViewSpan[]>;
+  /** The trace end time each `traceSpans` entry was loaded for. */
+  traceSpansEndTime: Record<string, string>;
   traceSpansLoading: Record<string, boolean>;
   traceSpansError: Record<string, string | undefined>;
   expandedTraceIds: Set<string>;
@@ -41,6 +43,7 @@ export const createTimelineSlice =
       timelineEnabled: false,
       timelineZoom: 1,
       traceSpans: {},
+      traceSpansEndTime: {},
       traceSpansLoading: {},
       traceSpansError: {},
       expandedTraceIds: new Set(),
@@ -49,8 +52,9 @@ export const createTimelineSlice =
       setTimelineZoom: (zoom) => set({ timelineZoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
 
       fetchTraceSpans: async (trace) => {
-        const { traceSpans, traceSpansLoading } = get();
-        if (traceSpans[trace.id] || traceSpansLoading[trace.id]) return;
+        const { traceSpans, traceSpansEndTime, traceSpansLoading } = get();
+        const current = traceSpans[trace.id] && traceSpansEndTime[trace.id] === trace.endTime;
+        if (current || traceSpansLoading[trace.id]) return;
         set({
           traceSpansLoading: { ...traceSpansLoading, [trace.id]: true },
           traceSpansError: { ...get().traceSpansError, [trace.id]: undefined },
@@ -58,7 +62,11 @@ export const createTimelineSlice =
         const result = await loadTraceSpans(trace);
         set({ traceSpansLoading: { ...get().traceSpansLoading, [trace.id]: false } });
         if ("error" in result) set({ traceSpansError: { ...get().traceSpansError, [trace.id]: result.error } });
-        else set({ traceSpans: { ...get().traceSpans, [trace.id]: result.spans } });
+        else
+          set({
+            traceSpans: { ...get().traceSpans, [trace.id]: result.spans },
+            traceSpansEndTime: { ...get().traceSpansEndTime, [trace.id]: trace.endTime },
+          });
       },
 
       toggleTraceExpanded: (traceId) => setExpanded(traceId, !get().expandedTraceIds.has(traceId)),
