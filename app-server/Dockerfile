@@ -24,12 +24,13 @@ FROM chef AS builder
 COPY --from=planner /app-server/recipe.json recipe.json
 # Build dependencies
 RUN cargo chef cook --release --recipe-path recipe.json
-# And again for the test profile. `[dev-dependencies]` activates tokio's
-# `test-util`, which the binary's build does not, so `cargo test` unifies
-# features differently and resolves a different fingerprint for tokio and for
-# every crate downstream of it (hyper, h2, actix-rt, aws-smithy-*, ~70 in all).
-# Cooking both variants puts that second set in this cached layer instead of
-# making every CI run rebuild it before it can start the tests.
+# Cooked twice on purpose: `[dev-dependencies]` activates tokio's `test-util`,
+# which the binary's resolution does not, so `cargo test` needs a second set of
+# dependency fingerprints (73 of the 533 crates — tokio and everything
+# downstream of it; the rest are reused from the cook above). Without this layer
+# every CI run rebuilds those 73 before it can start the tests. Keep the plain
+# cook first: it is what the binary links, and dropping it moves the rebuild
+# into the uncached application layer. See docs/internal/backend-ci.md.
 RUN cargo chef cook --release --tests --recipe-path recipe.json
 
 # Build application

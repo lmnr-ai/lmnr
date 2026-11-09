@@ -32,10 +32,19 @@ cargo tree -e no-dev --format "{f}" -p tokio --depth 0  # binary resolution: doe
 
 So the Dockerfile cooks dependencies **twice**: `cargo chef cook --release` then `cargo chef cook --release --tests`. Both fingerprints then coexist in `target/release/deps` and neither build rebuilds the other's. Notes:
 
-- Keep the plain cook **first and present**. Cooking only `--tests` would leave the binary's (no-`test-util`) variant missing and move the 71-crate rebuild into the uncached application layer, which is strictly worse.
+- Keep the plain cook **first and present**. Cooking only `--tests` would leave the binary's (no-`test-util`) variant missing and move that 73-crate rebuild into the uncached application layer, which is strictly worse.
 - `cargo chef prepare` preserves dev-dependency features in the recipe (`[dev-dependencies.tokio] features = ["test-util"]`), which is what makes `--tests` cook the right set. Simple dev-deps are emitted inline under `[dev-dependencies]` while featured ones get their own `[dev-dependencies.<name>]` table — grep for both before concluding a recipe dropped something.
 - This only moves the *dependency* rebuild into the cached layer. Compiling app-server's own test harness (~2m43s) is not cacheable across commits; eliminating it means not building release artifacts on PRs at all. Measured on run `42614337189`: the test step went 4m51s → 2m48s and the crates it recompiles went 71 → 1. If that count is ever back above 1, a profile or feature divergence has crept back in — diff the two `cargo tree` invocations above before touching anything else.
-- The second cook costs ~2.3 min on a cold build (12.1m → 14.4m), paid only on a `Cargo.lock` change and on the `dev` warming run.
+- The second cook reuses most of the first rather than redoing it, because only crates whose graph includes tokio change fingerprint. Per-layer, from the cold build of run `42619764703`:
+
+  | Layer | Crates compiled | Time |
+  |---|---|---|
+  | `cargo chef cook --release` | 533 | 6m11s |
+  | `cargo chef cook --release --tests` | 73 | 2m48s |
+  | `cargo build --release --all` | 1 (app-server) | 3m23s |
+
+  That last row is the check that the two variants really do coexist: if the `--tests` cook had clobbered the binary's set instead of adding a parallel one, the application layer would rebuild those 73 crates back and show 74. Both cooks also report `Compiling app-server` — that is cargo-chef's dummy skeleton, not the real crate.
+- Net: ~2m48s added to a cold build, paid only on a `Cargo.lock` or `Dockerfile` change and on the `dev` warming run, against ~2m saved on every run. It pays for itself after about two runs.
 
 `cargo install cargo-chef` in the `chef` stage compiles from source and costs minutes whenever that layer invalidates (rust bump, apt change); the prebuilt `lukemathwalker/cargo-chef` image avoids it.
 
