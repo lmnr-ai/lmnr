@@ -188,6 +188,53 @@ export const signalVersions = pgTable(
   ]
 );
 
+// Reviewer notes. Every write mints a signal version that snapshots the full list.
+export const signalNotes = pgTable(
+  "signal_notes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    content: text().notNull(),
+    createdBy: uuid("created_by"),
+    updatedBy: uuid("updated_by"),
+    // ClickHouse signal_events row the note responds to; no FK across stores.
+    sourceEventId: uuid("source_event_id"),
+    sourceTraceId: uuid("source_trace_id"),
+    sourceEventSnapshot: jsonb("source_event_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_notes_project_signal_created_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_notes_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_notes_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "signal_notes_created_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [users.id],
+      name: "signal_notes_updated_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
 export const tracesAgentMessages = pgTable(
   "traces_agent_messages",
   {
