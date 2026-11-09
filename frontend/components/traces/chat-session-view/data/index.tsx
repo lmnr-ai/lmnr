@@ -10,6 +10,7 @@ import { type RealtimeAgentInputPayload, type RealtimeTracePayload } from "@/lib
 
 import { fetchSessionTraces, sessionModelTokensUrl } from "../session-api";
 import { useChatSession } from "../store";
+import { type TracesPatch } from "../store/traces";
 import { applyAgentInput, applyTraceDeltas } from "./live-traces";
 
 // Refresh from the server once live updates pause this long; ClickHouse lags the realtime stream.
@@ -37,16 +38,27 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
   // Set while a refresh is scheduled: a fetch that lands then may predate the latest updates, so it doesn't settle.
   const refreshPending = useRef(false);
   const inFlight = useRef<AbortController>(undefined);
+  // Patches applied while the current fetch is in flight; its rows may predate them.
+  const patchesSinceFetch = useRef<TracesPatch[]>([]);
 
   const load = useCallback(async () => {
     inFlight.current?.abort();
     const controller = new AbortController();
     inFlight.current = controller;
-    const { traces, error } = await fetchSessionTraces(projectId, sessionId, controller.signal);
+    patchesSinceFetch.current = [];
+    let result: Awaited<ReturnType<typeof fetchSessionTraces>>;
+    try {
+      result = await fetchSessionTraces(projectId, sessionId, controller.signal);
+    } catch (err) {
+      // fetchApi rethrows aborts; a newer fetch or unmount superseded this one.
+      if (controller.signal.aborted) return;
+      throw err;
+    }
     if (controller.signal.aborted) return;
 
+    const { traces, error } = result;
     const settled = !refreshPending.current;
-    if (traces) receiveTraces(traces, settled);
+    if (traces) receiveTraces(traces, settled, patchesSinceFetch.current);
     else failTraces(error ?? "Failed to load the session.", settled);
     // Settled turns changed the session's token totals.
     if (settled && hadLive.current) {
@@ -69,29 +81,29 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
   useEffect(() => () => refresh.cancel(), [refresh]);
 
   // Each update pushes the refresh back, so it runs once updates pause.
-  const eventHandlers = useMemo(
-    () => ({
+  const eventHandlers = useMemo(() => {
+    const patch = (apply: TracesPatch, liveIds?: string[]) => {
+      refreshPending.current = true;
+      patchesSinceFetch.current.push(apply);
+      patchTraces(apply, liveIds);
+      refresh();
+    };
+    return {
       trace_update: (event: MessageEvent) => {
         const deltas = parse<{ traces?: RealtimeTracePayload[] }>(event)?.traces ?? [];
         if (deltas.length === 0) return;
         hadLive.current = true;
-        refreshPending.current = true;
-        patchTraces(
+        patch(
           (rows) => applyTraceDeltas(rows, deltas),
           deltas.map((d) => d.id)
         );
-        refresh();
       },
       trace_agent_input_update: (event: MessageEvent) => {
         const payload = parse<RealtimeAgentInputPayload>(event);
-        if (!payload?.traceId) return;
-        refreshPending.current = true;
-        patchTraces((rows) => applyAgentInput(rows, payload.traceId, payload.agentInput));
-        refresh();
+        if (payload?.traceId) patch((rows) => applyAgentInput(rows, payload.traceId, payload.agentInput));
       },
-    }),
-    [patchTraces, refresh]
-  );
+    };
+  }, [patchTraces, refresh]);
   useRealtime({ key: `session_${sessionId}`, projectId, eventHandlers, enabled: !!projectId });
 
   return null;
