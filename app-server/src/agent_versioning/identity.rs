@@ -16,8 +16,9 @@ use crate::{
     features::{Feature, is_feature_enabled},
 };
 
-/// How long a new or edited definition may take to reach ingest.
-const DEFINITIONS_CACHE_TTL_SECONDS: u64 = 60;
+/// Detection invalidates the entry when it saves, so this only bounds how long
+/// a stale list can survive a race with that or a failed invalidation.
+const DEFINITIONS_CACHE_TTL_SECONDS: u64 = 5 * 60;
 
 /// Resolves the agents of one ingest batch's spans, loading the project's
 /// definitions on first use.
