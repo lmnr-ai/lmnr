@@ -6,8 +6,10 @@ use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResponse, CallToolResult, ClientJsonRpcMessage, ContentBlock, GetExtensions,
-        Implementation, ServerCapabilities, ServerConfig,
+        CacheScope, CallToolResponse, CallToolResult, ClientJsonRpcMessage, ContentBlock,
+        CustomRequest, CustomResult, ErrorCode, ExtensionCapabilities, GetExtensions,
+        Implementation, ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ServerCapabilities, ServerConfig,
     },
     schemars,
     service::{RequestContext, serve_directly},
@@ -17,6 +19,7 @@ use rmcp::{
 use serde_json::{Value, json};
 use uuid::Uuid;
 
+use super::mcp_skills::{self, SKILLS_EXTENSION_ID, SKILLS_GET_METHOD, SKILLS_LIST_METHOD};
 use crate::{
     access_policy::{self, AccessPolicy, Actor},
     audit::{
@@ -507,8 +510,67 @@ impl LaminarMcpServer {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for LaminarMcpServer {
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new("laminar", env!("CARGO_PKG_VERSION")))
+        let skills = mcp_skills::registry();
+        // The skills extension requires the `resources` capability: skill files are resources.
+        let capabilities = if skills.is_empty() {
+            ServerCapabilities::builder().enable_tools().build()
+        } else {
+            let mut extensions = ExtensionCapabilities::new();
+            extensions.insert(SKILLS_EXTENSION_ID.to_string(), Default::default());
+            ServerCapabilities::builder()
+                .enable_extensions_with(extensions)
+                .enable_resources()
+                .enable_tools()
+                .build()
+        };
+        let config = ServerConfig::new(capabilities)
+            .with_server_info(Implementation::new("laminar", env!("CARGO_PKG_VERSION")));
+        match skills.server_instructions() {
+            Some(instructions) => config.with_instructions(instructions),
+            None => config,
+        }
+    }
+
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        Ok(
+            ListResourcesResult::with_all_items(mcp_skills::registry().resources())
+                .with_ttl_ms(mcp_skills::SKILLS_TTL_MS)
+                .with_cache_scope(CacheScope::Public),
+        )
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, McpError> {
+        mcp_skills::registry()
+            .read(&request.uri)
+            .map(ReadResourceResponse::from)
+            .ok_or_else(|| {
+                McpError::resource_not_found(format!("Unknown resource: {}", request.uri), None)
+            })
+    }
+
+    async fn on_custom_request(
+        &self,
+        request: CustomRequest,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CustomResult, McpError> {
+        let skills = mcp_skills::registry();
+        match request.method.as_str() {
+            SKILLS_LIST_METHOD if !skills.is_empty() => Ok(skills.list()),
+            SKILLS_GET_METHOD if !skills.is_empty() => skills.get(request.params),
+            _ => Err(McpError::new(
+                ErrorCode::METHOD_NOT_FOUND,
+                request.method,
+                None,
+            )),
+        }
     }
 }
 

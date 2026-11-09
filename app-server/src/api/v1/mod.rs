@@ -8,6 +8,7 @@ pub mod labeling_queues;
 pub mod llm_profiles;
 pub mod logs;
 pub mod mcp;
+mod mcp_skills;
 pub mod metrics;
 pub mod projects;
 pub mod rollouts;
