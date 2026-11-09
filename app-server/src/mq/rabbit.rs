@@ -2,8 +2,11 @@ use backon::Retryable;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
-    Acker, BasicProperties, Channel, Connection, ConnectionStatus, Consumer,
-    options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
+    Acker, BasicProperties, Channel, Confirmation, Connection, ConnectionStatus, Consumer,
+    options::{
+        BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, ConfirmSelectOptions,
+        QueueBindOptions,
+    },
     types::{AMQPValue, FieldTable, ShortString},
 };
 use std::sync::{Arc, LazyLock};
@@ -31,6 +34,11 @@ enum PublishError {
 /// can leave channel ops stalled for tens of seconds before the alarm clears.
 static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> =
     LazyLock::new(|| Duration::from_secs(crate::env::mq::CONSUMER_SETUP_TIMEOUT_SECS.get()));
+
+/// Per-attempt timeout for opening a publisher channel. lapin can hang in
+/// `create_channel` against a half-dead connection, which would otherwise stall
+/// the retry loop on its first attempt.
+const PUBLISHER_CHANNEL_SETUP_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Carries the delayed-retry count across a retry-queue round trip. RabbitMQ
 /// preserves headers through dead-lettering, so the value survives the hop back
@@ -74,6 +82,22 @@ fn retry_attempt_of(properties: &BasicProperties) -> u32 {
         .unwrap_or(0)
 }
 
+/// Only a broker ack makes a publish durable. A nack means the broker refused
+/// the message (an internal queue error, or a `reject-publish` overflow), so it is retried.
+/// `NotRequested` means the channel lost confirm mode: retrying gets a fresh
+/// channel, because `recycle` discards it.
+fn confirmation_result(confirmation: Confirmation) -> Result<(), PublishError> {
+    match confirmation {
+        Confirmation::Ack(_) => Ok(()),
+        Confirmation::Nack(_) => Err(PublishError::Transient(anyhow::anyhow!(
+            "Broker nacked the published message"
+        ))),
+        Confirmation::NotRequested => Err(PublishError::Transient(anyhow::anyhow!(
+            "Publisher confirms are not enabled on the channel"
+        ))),
+    }
+}
+
 struct RabbitChannelManager {
     connection: Arc<Connection>,
 }
@@ -83,7 +107,21 @@ impl Manager for RabbitChannelManager {
     type Error = anyhow::Error;
 
     async fn create(&self) -> Result<Channel, Self::Error> {
-        let create_channel = || async { self.connection.create_channel().await };
+        // Confirm mode is what makes `basic_publish`'s promise wait for the broker;
+        // without it the promise resolves immediately. lapin re-enables it when it
+        // recovers the channel.
+        let create_channel = || async {
+            let setup = async {
+                let channel = self.connection.create_channel().await?;
+                channel
+                    .confirm_select(ConfirmSelectOptions::default())
+                    .await?;
+                anyhow::Ok(channel)
+            };
+            tokio::time::timeout(PUBLISHER_CHANNEL_SETUP_TIMEOUT, setup)
+                .await
+                .map_err(|_| anyhow::anyhow!("Timed out creating channel"))?
+        };
         let backoff = retry::bounded_delay(
             Duration::from_millis(100),
             Duration::from_secs(5),
@@ -114,13 +152,18 @@ impl Manager for RabbitChannelManager {
         channel: &mut Channel,
         _: &deadpool::managed::Metrics,
     ) -> deadpool::managed::RecycleResult<Self::Error> {
-        if channel.status().connected() {
-            Ok(())
-        } else {
+        if !channel.status().connected() {
             log::debug!("Channel is not connected, marking for recycling");
             Err(RecycleError::Backend(anyhow::anyhow!(
                 "Channel disconnected"
             )))
+        } else if !channel.status().confirm() {
+            log::warn!("Channel is not in confirm mode, marking for recycling");
+            Err(RecycleError::Backend(anyhow::anyhow!(
+                "Channel not in confirm mode"
+            )))
+        } else {
+            Ok(())
         }
     }
 }
@@ -245,7 +288,7 @@ impl RabbitMQ {
                 )));
             }
 
-            match channel
+            let confirm = match channel
                 .basic_publish(
                     exchange.into(),
                     routing_key.into(),
@@ -255,15 +298,22 @@ impl RabbitMQ {
                 )
                 .await
             {
-                Ok(promise) => match promise.await {
-                    Ok(_confirmation) => Ok(()),
-                    Err(e) => {
-                        log::warn!("Failed to publish message promise: {:?}", e);
-                        Err(PublishError::Transient(anyhow::Error::from(e)))
-                    }
-                },
+                Ok(confirm) => confirm,
                 Err(e) => {
                     log::warn!("Failed to get call promise from basic_publish: {:?}", e);
+                    return Err(PublishError::Transient(anyhow::Error::from(e)));
+                }
+            };
+            // A channel carries many outstanding confirms, so return it to the
+            // pool instead of holding it for the broker round trip.
+            drop(channel);
+
+            match confirm.await {
+                Ok(confirmation) => confirmation_result(confirmation).inspect_err(|e| {
+                    log::warn!("Publish not confirmed: {}", e);
+                }),
+                Err(e) => {
+                    log::warn!("Failed to publish message promise: {:?}", e);
                     Err(PublishError::Transient(anyhow::Error::from(e)))
                 }
             }
@@ -499,6 +549,21 @@ mod tests {
     }
 
     #[test]
+    fn only_a_broker_ack_counts_as_published() {
+        assert!(confirmation_result(Confirmation::Ack(None)).is_ok());
+        assert!(matches!(
+            confirmation_result(Confirmation::Nack(None)),
+            Err(PublishError::Transient(_))
+        ));
+        // Without confirm mode lapin resolves every publish as `NotRequested`,
+        // which says nothing about whether the broker stored the message.
+        assert!(matches!(
+            confirmation_result(Confirmation::NotRequested),
+            Err(PublishError::Transient(_))
+        ));
+    }
+
+    #[test]
     fn retry_attempt_of_a_first_delivery_is_zero() {
         // Nothing published by `publish` carries the header.
         let properties = BasicProperties::default().with_delivery_mode(2);
@@ -525,5 +590,113 @@ mod tests {
             retry_attempt_of(&BasicProperties::default().with_headers(wrong_type)),
             0
         );
+    }
+
+    /// Needs a broker at `RABBITMQ_URL` (default `amqp://guest:guest@localhost:5672/%2f`).
+    /// Run with:
+    /// `cargo test --bin app-server mq::rabbit::tests::live -- --ignored --nocapture`
+    mod live {
+        use lapin::{
+            ConnectionProperties,
+            options::{QueueDeclareOptions, QueueDeleteOptions},
+        };
+
+        use super::*;
+
+        async fn connect() -> Arc<Connection> {
+            let url = std::env::var(crate::env::mq::URL)
+                .unwrap_or("amqp://guest:guest@localhost:5672/%2f".to_string());
+            Arc::new(
+                Connection::connect(&url, ConnectionProperties::default())
+                    .await
+                    .unwrap(),
+            )
+        }
+
+        /// A queue that holds one message and nacks every publish past it. Classic,
+        /// because a quorum queue enforces `reject-publish` only approximately.
+        async fn declare_one_slot_queue(connection: &Connection, name: &str) -> Channel {
+            let channel = connection.create_channel().await.unwrap();
+            let mut args = FieldTable::default();
+            args.insert("x-max-length".into(), AMQPValue::LongInt(1));
+            args.insert(
+                "x-overflow".into(),
+                AMQPValue::LongString("reject-publish".into()),
+            );
+            channel
+                .queue_declare(
+                    name.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..QueueDeclareOptions::default()
+                    },
+                    args,
+                )
+                .await
+                .unwrap();
+            channel
+        }
+
+        #[tokio::test]
+        #[ignore]
+        async fn pooled_channels_surface_broker_acks_and_nacks() {
+            let connection = connect().await;
+            let queue_name = format!("lmnr-test-confirms-{}", uuid::Uuid::new_v4());
+            let admin = declare_one_slot_queue(&connection, &queue_name).await;
+            let mq = RabbitMQ::new(Arc::clone(&connection), None, 2);
+
+            let publish = || async {
+                let channel = mq.publisher_channel_pool.get().await.unwrap();
+                channel
+                    .basic_publish(
+                        "".into(),
+                        queue_name.as_str().into(),
+                        BasicPublishOptions::default(),
+                        b"payload",
+                        properties(None, None),
+                    )
+                    .await
+                    .unwrap()
+                    .await
+                    .unwrap()
+            };
+
+            assert!(matches!(publish().await, Confirmation::Ack(_)));
+            assert!(matches!(publish().await, Confirmation::Nack(_)));
+
+            admin
+                .queue_delete(queue_name.as_str().into(), QueueDeleteOptions::default())
+                .await
+                .unwrap();
+        }
+
+        #[tokio::test]
+        #[ignore]
+        async fn publish_returns_once_the_broker_has_the_message() {
+            let connection = connect().await;
+            let queue_name = format!("lmnr-test-confirms-{}", uuid::Uuid::new_v4());
+            let admin = declare_one_slot_queue(&connection, &queue_name).await;
+            let mq = RabbitMQ::new(Arc::clone(&connection), None, 2);
+
+            mq.publish(b"payload", "", &queue_name, None).await.unwrap();
+
+            let queue = admin
+                .queue_declare(
+                    queue_name.as_str().into(),
+                    QueueDeclareOptions {
+                        passive: true,
+                        ..QueueDeclareOptions::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(queue.message_count(), 1);
+
+            admin
+                .queue_delete(queue_name.as_str().into(), QueueDeleteOptions::default())
+                .await
+                .unwrap();
+        }
     }
 }
