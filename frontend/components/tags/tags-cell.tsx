@@ -6,6 +6,7 @@ import useSWR from "swr";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { type TagClass } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +19,7 @@ interface TagsCellProps {
 const TagsCell = ({ tags }: TagsCellProps) => {
   const { projectId } = useParams();
   const { data: tagClasses = [] } = useSWR<TagClass[]>(
-    projectId ? `/api/projects/${projectId}/tag-classes` : null,
+    projectId ? swrKeys.tagClasses(String(projectId)) : null,
     swrFetcher
   );
 

@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +62,7 @@ export default function ViewsPicker({
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
-  const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
+  const listKey = swrKeys.views(projectId, resource);
   const { data: views, isLoading } = useSWR<View[]>(listKey, swrFetcher);
 
   const setLastViewId = useLastViewStore((s) => s.setLastViewId);

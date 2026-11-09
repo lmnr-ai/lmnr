@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import useSWR from "swr";
 
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { type SpanTag, type TagClass } from "@/lib/traces/types";
 
 import { Badge } from "../ui/badge";
@@ -18,7 +19,7 @@ interface SpanTagsListProps {
 const SpanTagsList = ({ traceId, spanId }: SpanTagsListProps) => {
   const { projectId } = useParams();
 
-  const { data: tagClasses = [] } = useSWR<TagClass[]>(`/api/projects/${projectId}/tag-classes`, swrFetcher);
+  const { data: tagClasses = [] } = useSWR<TagClass[]>(swrKeys.tagClasses(String(projectId)), swrFetcher);
 
   const { data: rawTags = [] } = useSWR<SpanTag[]>(
     traceId && spanId ? `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}/tags` : null,

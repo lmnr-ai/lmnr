@@ -6,6 +6,8 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
+import { fetchApi } from "@/lib/api/fetch-api";
+import { createLatestRequest } from "@/lib/api/latest-request";
 
 import { type BaseSessionViewStore, createBaseSessionViewSlice, SessionViewContext } from "./base";
 
@@ -41,8 +43,10 @@ interface SessionViewStoreActions {
 
 export type SessionViewStore = BaseSessionViewStore & SessionViewStoreState & SessionViewStoreActions;
 
-const createSessionViewStore = (options?: { initialSession?: SessionSummary; storeKey?: string }) =>
-  createStore<SessionViewStore>()(
+const createSessionViewStore = (options?: { initialSession?: SessionSummary; storeKey?: string }) => {
+  const searchRequest = createLatestRequest();
+
+  return createStore<SessionViewStore>()(
     persist(
       (set, get) => ({
         ...createBaseSessionViewSlice<SessionViewStore>(set, get, {}),
@@ -62,37 +66,33 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
 
           set({ isSearchLoading: true, searchError: undefined });
 
-          try {
-            const params = new URLSearchParams();
-            if (search) params.set("search", search);
-            params.append("searchIn", "input");
-            params.append("searchIn", "output");
-            for (const f of filters) params.append("filter", JSON.stringify(f));
+          const params = new URLSearchParams();
+          if (search) params.set("search", search);
+          params.append("searchIn", "input");
+          params.append("searchIn", "output");
+          for (const f of filters) params.append("filter", JSON.stringify(f));
 
-            const encodedSessionId = encodeURIComponent(session.sessionId);
-            const url = `/api/projects/${projectId}/sessions/${encodedSessionId}/spans?${params.toString()}`;
-            const res = await fetch(url);
-            if (!res.ok) {
-              const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
-              set({ searchError: err.error || "Search failed", isSearchLoading: false });
-              return;
-            }
+          const encodedSessionId = encodeURIComponent(session.sessionId);
+          const url = `/api/projects/${projectId}/sessions/${encodedSessionId}/spans?${params.toString()}`;
+          const response = await searchRequest.run((signal) =>
+            fetchApi<{ traces: SessionSpansTraceResult[] }>(url, { signal })
+          );
+          if (response.superseded) return;
 
-            const body = (await res.json()) as { traces: SessionSpansTraceResult[] };
-
-            const results: Record<string, SessionSpansTraceResult> = {};
-            for (const t of body.traces) results[t.traceId] = t;
-
-            set({ searchResults: results, isSearchLoading: false });
-          } catch (e) {
-            set({
-              searchError: e instanceof Error ? e.message : "Search failed",
-              isSearchLoading: false,
-            });
+          const { data, error } = response.data;
+          if (error !== null) {
+            set({ searchError: error || "Search failed", isSearchLoading: false });
+            return;
           }
+
+          const results: Record<string, SessionSpansTraceResult> = {};
+          for (const t of data.traces) results[t.traceId] = t;
+
+          set({ searchResults: results, isSearchLoading: false });
         },
 
         clearSearch: () => {
+          searchRequest.cancel();
           set({ searchResults: undefined, isSearchLoading: false, searchError: undefined });
         },
       }),
@@ -121,6 +121,7 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
       }
     )
   );
+};
 
 const SessionViewStoreContext = createContext<StoreApi<SessionViewStore> | undefined>(undefined);
 

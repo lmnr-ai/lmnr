@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
@@ -46,7 +47,7 @@ export default function CreateQueueDialog({
       const newQueue = (await res.json()) as LabelingQueue;
 
       await mutate<PaginatedResponse<LabelingQueue>>(
-        `/api/projects/${projectId}/queues`,
+        swrKeys.queues(String(projectId)),
         (currentData) =>
           currentData
             ? { items: [newQueue, ...currentData.items], totalCount: currentData.totalCount + 1 }

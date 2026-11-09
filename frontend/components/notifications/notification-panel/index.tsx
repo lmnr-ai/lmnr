@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 
 // Re-exported so existing `@/components/notifications/notification-panel`
@@ -28,7 +29,7 @@ const NotificationPanel = () => {
   const { workspace, project } = useProjectContext();
   const { toast } = useToast();
 
-  const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
+  const swrKey = workspace && project ? swrKeys.notifications(workspace.id, project.id) : null;
 
   const { data: notifications, mutate } = useSWR<WebNotification[]>(swrKey, swrFetcher);
 

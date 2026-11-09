@@ -11,6 +11,7 @@ import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor
 import { useCreateTemplate } from "@/components/sql/use-create-template";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const deleteTemplate = async (projectId: string, id: string) => {
@@ -48,7 +49,7 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
         router.push(`/project/${projectId}/sql`);
 
         await mutate<SQLTemplate[]>(
-          `/api/projects/${projectId}/sql/templates`,
+          swrKeys.sqlTemplates(String(projectId)),
           async (currentData = []) => {
             await deleteTemplate(projectId as string, template.id);
 

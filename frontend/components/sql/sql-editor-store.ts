@@ -11,6 +11,7 @@ import {
   saveParameterValues,
   type SQLParameter,
 } from "@/components/sql/parameters";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { toast } from "@/lib/hooks/use-toast";
 
 export interface SQLTemplate {
@@ -97,7 +98,7 @@ const runSave = (templateId: string, setStatus: StatusSetter, keepalive: boolean
       // Keep the templates list in sync. The rename path reads its copy of the query, and a stale
       // copy there is what used to travel back to the server and undo the edit.
       await mutate<SQLTemplate[]>(
-        `/api/projects/${save.projectId}/sql/templates`,
+        swrKeys.sqlTemplates(save.projectId),
         (current) => current?.map((t) => (t.id === templateId ? { ...t, query: save.query } : t)),
         { revalidate: false }
       );

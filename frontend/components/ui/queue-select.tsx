@@ -6,6 +6,7 @@ import useSWR from "swr";
 import CreateQueueDialog from "@/components/queues/create-queue-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { type LabelingQueue, type LabelingQueueWithProgress } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,7 @@ interface QueueSelectProps {
 export default function QueueSelect({ onChange, value, className }: QueueSelectProps) {
   const { projectId } = useParams();
   const { data, isLoading } = useSWR<PaginatedResponse<LabelingQueueWithProgress>>(
-    `/api/projects/${projectId}/queues`,
+    swrKeys.queues(String(projectId)),
     swrFetcher
   );
 

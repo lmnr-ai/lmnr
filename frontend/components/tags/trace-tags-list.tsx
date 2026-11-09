@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { HeaderIconButton } from "@/components/traces/trace-view/header/header-icon-button";
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TagClass } from "@/lib/traces/types";
 
@@ -18,12 +19,12 @@ export function useTraceTags(traceId: string) {
   const { projectId } = useParams();
 
   const { data: tagClasses = [], mutate: mutateTagClasses } = useSWR<TagClass[]>(
-    `/api/projects/${projectId}/tag-classes`,
+    swrKeys.tagClasses(String(projectId)),
     swrFetcher
   );
 
   const { data: rawTags = [], mutate: mutateTags } = useSWR<string[]>(
-    traceId ? `/api/projects/${projectId}/traces/${traceId}/tags` : null,
+    traceId ? swrKeys.traceTags(String(projectId), traceId) : null,
     swrFetcher
   );
 

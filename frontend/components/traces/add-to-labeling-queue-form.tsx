@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
@@ -49,7 +50,7 @@ export default function AddToLabelingQueueForm({
   const isSpanMode = !!spanId;
 
   const { data: labelingQueues, isLoading: isQueuesLoading } = useSWR<PaginatedResponse<LabelingQueue>>(
-    `/api/projects/${projectId}/queues`,
+    swrKeys.queues(String(projectId)),
     swrFetcher
   );
 

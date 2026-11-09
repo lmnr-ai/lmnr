@@ -8,6 +8,7 @@ import { useNotificationPanelStore } from "@/components/notifications/notificati
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +16,7 @@ const NotificationTrigger = () => {
   const { workspace, project } = useProjectContext();
   const { isOpen, toggle } = useNotificationPanelStore();
 
-  const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
+  const swrKey = workspace && project ? swrKeys.notifications(workspace.id, project.id) : null;
   const { data: notifications } = useSWR<WebNotification[]>(swrKey, swrFetcher);
 
   const hasUnread = notifications?.some((n) => !n.isRead && formatNotification(n) !== null) ?? false;

@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { useTableConfigStore, useTableConfigStoreApi, useTableView } from "../model/table-config-store";
@@ -41,7 +42,7 @@ export default function ViewsToolbar({ projectId, resource }: ViewsToolbarProps)
   // Newer save aborts the in-flight one — last-write-wins on baseline.
   const saveAbortRef = useRef<AbortController | null>(null);
 
-  const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
+  const listKey = swrKeys.views(projectId, resource);
 
   const handleSelect = useCallback((next: View | null) => selectViewUrl(next), [selectViewUrl]);
 

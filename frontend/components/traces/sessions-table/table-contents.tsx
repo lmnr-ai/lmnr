@@ -50,7 +50,7 @@ export const SessionsTableContents = memo(function SessionsTableContents({
   const shouldFetch = !!(pastHours || startDate || endDate);
 
   const fetchSessions = useCallback(
-    async (pageNumber: number) => {
+    async (pageNumber: number, signal: AbortSignal) => {
       try {
         const urlParams = new URLSearchParams();
         urlParams.set("pageNumber", pageNumber.toString());
@@ -72,7 +72,7 @@ export const SessionsTableContents = memo(function SessionsTableContents({
         }
 
         const url = `/api/projects/${projectId}/sessions?${urlParams.toString()}`;
-        const res = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
+        const res = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" }, signal });
 
         if (!res.ok) {
           const text = (await res.json()) as { error: string };
@@ -82,6 +82,7 @@ export const SessionsTableContents = memo(function SessionsTableContents({
         const data = (await res.json()) as { items: SessionRow[] };
         return { items: data.items, count: 0 };
       } catch (error) {
+        if (signal.aborted) throw error;
         toast({
           title: error instanceof Error ? error.message : "Failed to load sessions. Please try again.",
           variant: "destructive",

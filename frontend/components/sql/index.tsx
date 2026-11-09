@@ -9,6 +9,7 @@ import Sidebar from "@/components/sql/sidebar";
 import { type SQLTemplate } from "@/components/sql/sql-editor-store";
 import { ElevatedSurface } from "@/components/ui/surface";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { track } from "@/lib/posthog";
 
 // Client-only: the panel restores its split from localStorage, which the server cannot read.
@@ -19,7 +20,7 @@ const SQLEditorPanel = dynamic(() => import("@/components/sql/editor-panel.tsx")
 
 const SQLTemplates = () => {
   const { projectId } = useParams();
-  const { data = [], isLoading } = useSWR<SQLTemplate[]>(`/api/projects/${projectId}/sql/templates`, swrFetcher);
+  const { data = [], isLoading } = useSWR<SQLTemplate[]>(swrKeys.sqlTemplates(String(projectId)), swrFetcher);
 
   useEffect(() => {
     track("sql_editor", "page_viewed");

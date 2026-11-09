@@ -19,6 +19,7 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -58,7 +59,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
     data: users = [],
     mutate,
     isLoading,
-  } = useSWR<WorkspaceUser[]>(`/api/workspaces/${workspace.id}/users`, swrFetcher);
+  } = useSWR<WorkspaceUser[]>(swrKeys.workspaceUsers(workspace.id), swrFetcher);
 
   const [dialogState, setDialogState] = useState<DialogState>({ type: "none" });
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);

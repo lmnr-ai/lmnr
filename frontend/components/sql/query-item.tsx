@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +68,7 @@ const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDe
       await flushQuerySave();
 
       await mutate<SQLTemplate[]>(
-        `/api/projects/${projectId}/sql/templates`,
+        swrKeys.sqlTemplates(String(projectId)),
         async (currentData) => {
           await renameTemplate(projectId as string, template.id, name);
 

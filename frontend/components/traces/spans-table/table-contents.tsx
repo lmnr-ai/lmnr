@@ -47,7 +47,7 @@ export const SpansTableContents = memo(function SpansTableContents({
   const shouldFetch = !!(pastHours || startDate || endDate);
 
   const fetchSpans = useCallback(
-    async (pageNumber: number) => {
+    async (pageNumber: number, signal: AbortSignal) => {
       try {
         const urlParams = new URLSearchParams();
         urlParams.set("pageNumber", pageNumber.toString());
@@ -70,6 +70,7 @@ export const SpansTableContents = memo(function SpansTableContents({
           headers: {
             "Content-Type": "application/json",
           },
+          signal,
         });
 
         if (!res.ok) {
@@ -80,6 +81,7 @@ export const SpansTableContents = memo(function SpansTableContents({
         const data = (await res.json()) as { items: SpanRow[] };
         return { items: data.items, count: 0 };
       } catch (error) {
+        if (signal.aborted) throw error;
         toast({
           title: error instanceof Error ? error.message : "Failed to load spans. Please try again.",
           variant: "destructive",

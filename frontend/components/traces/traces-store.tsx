@@ -4,6 +4,8 @@ import { createStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
+import { fetchApi } from "@/lib/api/fetch-api";
+import { createLatestRequest } from "@/lib/api/latest-request";
 
 type TracesState = {
   traceId: string | null;
@@ -40,6 +42,8 @@ const createTracesStore = (initProps?: Partial<TracesProps>) => {
     chartContainerWidth: null,
   };
 
+  const statsRequest = createLatestRequest();
+
   return createStore<TracesStore>()((set, get) => ({
     ...DEFAULT_PROPS,
     ...initProps,
@@ -52,18 +56,10 @@ const createTracesStore = (initProps?: Partial<TracesProps>) => {
 
     fetchStats: async (url: string) => {
       set({ isLoadingStats: true });
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch stats: ${response.status} ${response.statusText}`);
-        }
-        const data = (await response.json()) as { items: TracesStatsDataPoint[] };
-
-        set({ stats: data.items, isLoadingStats: false });
-      } catch (error) {
-        console.error("Failed to fetch stats:", error);
-        set({ isLoadingStats: false });
-      }
+      const response = await statsRequest.run((signal) => fetchApi<{ items: TracesStatsDataPoint[] }>(url, { signal }));
+      if (response.superseded) return;
+      const { data } = response.data;
+      set(data ? { stats: data.items, isLoadingStats: false } : { isLoadingStats: false });
     },
 
     isTraceInTimeRange: (timestamp: string) => {

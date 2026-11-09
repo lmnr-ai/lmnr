@@ -40,6 +40,9 @@ New tables built on `InfiniteDataTable` MUST follow the split established for tr
 - **`table-contents.tsx`** — `export const XTableContents = memo(function …)`. Owns data fetching (`useInfiniteScroll`, `useRealtime`) and renders `<InfiniteDataTable>`, forwarding `{children}` through to it. This is the component whose re-renders are expensive, so every prop it takes must be memoized upstream and it is wrapped in `memo`.
 - **`table-controls.tsx`** — the toolbar/filter/search/chart JSX (`DataTableFilter`, `AdvancedSearch`, `ViewsToolbar`, `DateRangeFilter`, `RefreshButton`, columns menu, charts). It re-renders freely on filter/search changes; because it's rendered as `children` inside a separate `<div>` in `InfiniteDataTable`, its churn doesn't touch the virtualized rows.
 
+- **Give the list query a unique tie-breaker after its sort column** (`id` for traces, `span_id` for spans, `session_id` for sessions). Pages are fetched by `LIMIT … OFFSET`, and rows sharing a sort value come back in a different order per request, so a page boundary between them duplicates one row and drops another (measured: 2 of 130 traces with shared `start_time`s).
+- `useInfiniteScroll` drops a page whose load was superseded (deps change, refetch) and passes `fetchFn` an `AbortSignal`. Forward it to `fetch` on heavy endpoints, and `if (signal.aborted) throw error;` before the error toast, or every cancelled load toasts "Failed to load".
+
 Row/cell memoization lives inside `InfiniteDataTable` (row + cell are `memo`'d with custom comparators) — you get it for free. Your job is only to (a) keep the props you pass into `*TableContents` referentially stable, and (b) keep cell components cheap (see the tooltip rule below). For a heavy custom virtualized list outside the datatable (e.g. the trace-view transcript), apply the same idea: a `memo`'d row component with a hand-written comparator that checks only the fields that row actually reads.
 
 ### Tooltips in table cells / hot render paths
@@ -51,6 +54,19 @@ There is ONE app-wide `<TooltipProvider>` in `app/layout.tsx`. Cell components (
 A `"use client"` component importing a **value** (a const array, an enum, a helper fn) from anything under `lib/actions/` drags that module's whole transitive import graph into the browser bundle. Most of those modules import drizzle, which imports `postgres`, which imports `fs` — the dev server and the build both die with `Module not found: Can't resolve 'fs'`. **`tsc --noEmit` cannot catch this**; only a real render (or `pnpm build`) will. A TYPE-only import is fine — it's erased — which is why the trap only springs when someone later needs the actual value (e.g. building a filter dropdown from the status list that used to be a bare type union).
 
 Fix: split the client-safe surface into its own leaf module with no server imports (`lib/actions/<resource>/types.ts`), re-export it from `index.ts` (`export * from "./types"`) so server callers are unaffected, and point client components at the leaf path directly. See `lib/actions/signal-runs/types.ts`.
+
+### Server state: SWR or a Zustand store, never both
+
+Decide by who writes the data:
+
+- **Only a refetch replaces it** (settings, views, tag classes, SQL templates, stats without live increments): `useSWR` with `swrFetcher`. When one component reads a key and another `mutate`s it, build the key with `swrKeys` (`lib/api/swr-keys.ts`) so the two can't drift.
+- **The client edits it in place** (realtime upserts, optimistic deletes, live counters — every `InfiniteDataTable` list, traces stats, trace view, debugger, queue): one Zustand store owns it, including the fetch. Do not keep the fetched copy in SWR and the edits in a store; the merged view goes stale and the two disagree.
+
+SWR fights client-edited data, which is why the split exists:
+- A `mutate` on a key while a fetch for it is in flight discards that fetch's result (`MUTATION` timestamps, set before the updater runs). A realtime stream that mutates a key drops every refresh of it.
+- `useSWRInfinite` refetches any page whose cached copy no longer equals what it fetched, so a `mutate` on its pages triggers refetches on the next "load more".
+- The `mutate` returned by `useSWR` targets the hook's *current* key, not the one a request started with. After an `await`, capture the key and use the global `mutate`.
+- Do not add an app-wide `SWRConfig` `fetcher`: SWR resolves `fn || config.fetcher`, so the `null`-fetcher cache-only reads (`contexts/project-context.tsx`) would start fetching their keys as URLs.
 
 ### Bias towards complex logic and state in the Zustand store
 
@@ -70,7 +86,9 @@ Use an `AbortController` to cancel in-flight `fetch` requests when a newer reque
 
 Use it for: an older response overwriting newer state (user paginates, then changes the filter — page 1 resolves after page 0 and splices stale rows onto fresh data), wasted network/server work, and rapid user actions (repeated scrolls, debounce-escaped clicks, search typing) where only the latest result should land.
 
-**The reference implementation is `fetchNextTablePage` / `executeQuery` in `frontend/components/dashboards/editor/dashboard-editor-store.tsx`** — a per-store-instance controller ref in closure scope (not module scope, so instances can't cancel each other). Four non-obvious rules it encodes:
+**For a single request slot use `createLatestRequest()` (`lib/api/latest-request.ts`)** — one per store instance or component (`useState(createLatestRequest)`). `run()` aborts the previous request and resolves `{ superseded: true }` instead of throwing when a newer `run`/`cancel` took over; return without touching state in that case. Users: `useInfiniteScroll`, traces-store `fetchStats`, the trace view's trace/spans fetches, session-view span search.
+
+**The hand-rolled reference implementation is `fetchNextTablePage` / `executeQuery` in `frontend/components/dashboards/editor/dashboard-editor-store.tsx`** — a per-store-instance controller ref in closure scope (not module scope, so instances can't cancel each other). Four non-obvious rules it encodes:
 
 - Do NOT reset loading flags in the abort branch of the catch. Whoever aborted you owns the next state, and resetting races with it.
 - Conversely, when one action aborts another, the ABORTING action must clear any loading flag the aborted one left behind.

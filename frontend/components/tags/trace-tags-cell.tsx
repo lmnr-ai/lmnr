@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 
 import TagsCell from "./tags-cell";
 
@@ -14,7 +15,7 @@ interface TraceTagsCellProps {
 const TraceTagsCell = ({ traceId }: TraceTagsCellProps) => {
   const { projectId } = useParams();
   const { data: tags = [] } = useSWR<string[]>(
-    traceId ? `/api/projects/${projectId}/traces/${traceId}/tags` : null,
+    traceId ? swrKeys.traceTags(String(projectId), traceId) : null,
     swrFetcher,
     { revalidateIfStale: false }
   );

@@ -1,14 +1,17 @@
 "use client";
 
-import { type DependencyList, useCallback, useEffect } from "react";
+import { type DependencyList, useCallback, useEffect, useState } from "react";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
+
+import { createLatestRequest } from "@/lib/api/latest-request";
 
 import { useTableConfigStore } from "../model/table-config-store.tsx";
 import { useTableStore } from "../model/table-store.tsx";
 
 export interface InfiniteScrollOptions<TData> {
-  fetchFn: (pageParam: number) => Promise<{ items: TData[]; count?: number }>;
+  /** `signal` aborts when a newer load (deps change, refetch) supersedes this one. */
+  fetchFn: (pageParam: number, signal: AbortSignal) => Promise<{ items: TData[]; count?: number }>;
   enabled?: boolean;
   deps?: DependencyList;
 }
@@ -56,6 +59,8 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
   );
 
   const depsString = JSON.stringify(deps);
+  // Without it, page 0 of the old filters can land after the new one and replace it.
+  const [request] = useState(createLatestRequest);
 
   const fetchPage = useCallback(
     async (pageNumber: number, shouldReset: boolean = false) => {
@@ -67,7 +72,10 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
           setIsLoading(true);
         }
 
-        const result = await fetchFn(pageNumber);
+        const response = await request.run((signal) => fetchFn(pageNumber, signal));
+        // The load that superseded this one owns the rows and the loading flags.
+        if (response.superseded) return;
+        const result = response.data;
 
         if (shouldReset) {
           replaceData(result.items, result.count);
@@ -81,7 +89,7 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
         setIsLoading(false);
       }
     },
-    [enabled, setIsFetching, fetchFn, setCurrentPage, setIsLoading, replaceData, appendData, setError]
+    [enabled, request, setIsFetching, fetchFn, setCurrentPage, setIsLoading, replaceData, appendData, setError]
   );
 
   const fetchNextPage = useCallback(() => {
@@ -106,9 +114,16 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
     if (enabled && !isViewLoading) {
       resetInfiniteScroll();
       fetchPage(0, true);
+    } else {
+      // Rows for the old deps must not land while the new ones are gated.
+      request.cancel();
+      setIsFetching(false);
+      setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, isViewLoading, depsString]);
+
+  useEffect(() => request.cancel, [request]);
 
   return {
     data,

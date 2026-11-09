@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn } from "@/lib/utils.ts";
 import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types.ts";
@@ -62,7 +63,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
       onSuccess: () => {
         onOpenChange(false);
         toast({ description: "Ownership transferred successfully." });
-        mutate(`/api/workspaces/${workspace.id}/users`);
+        mutate(swrKeys.workspaceUsers(workspace.id));
         router.refresh();
       },
       onError: (error) => {

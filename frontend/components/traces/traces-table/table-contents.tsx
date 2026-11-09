@@ -14,6 +14,7 @@ import { type buildColumnDefs, buildFetchParams } from "@/components/traces/trac
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { applyTracePartial, mergeTraceDelta, realtimeTraceToRow, type TracePartial } from "@/lib/traces/realtime";
@@ -74,7 +75,7 @@ export const TracesTableContents = memo(function TracesTableContents({
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   const fetchTraces = useCallback(
-    async (pageNumber: number) => {
+    async (pageNumber: number, signal: AbortSignal) => {
       try {
         const urlParams = buildFetchParams(
           {
@@ -109,6 +110,7 @@ export const TracesTableContents = memo(function TracesTableContents({
           headers: {
             "Content-Type": "application/json",
           },
+          signal,
         });
 
         if (!res.ok) {
@@ -119,13 +121,14 @@ export const TracesTableContents = memo(function TracesTableContents({
         const data = (await res.json()) as { items: TraceRow[] };
 
         data.items.map((trace) =>
-          globalMutate(`/api/projects/${projectId}/traces/${trace.id}/tags`, trace.traceTags ?? [], {
+          globalMutate(swrKeys.traceTags(String(projectId), trace.id), trace.traceTags ?? [], {
             revalidate: false,
           })
         );
 
         return { items: data.items, count: 0 };
       } catch (error) {
+        if (signal.aborted) throw error;
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",

@@ -7,6 +7,8 @@ import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-eva
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { fetchApi } from "@/lib/api/fetch-api";
+import { createLatestRequest } from "@/lib/api/latest-request";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
@@ -87,38 +89,36 @@ export default function TraceViewContent({
 
   const initialSearch = useTraceViewStore((state) => state.initialSearch);
 
+  // A response for a previous trace or search must not overwrite the current one.
+  const [traceRequest] = useState(createLatestRequest);
+  const [spansRequest] = useState(createLatestRequest);
+
   const handleFetchTrace = useCallback(async () => {
     if (propsTrace) {
       return;
     }
 
-    try {
-      setIsTraceLoading(true);
-      setTraceError(undefined);
+    setIsTraceLoading(true);
+    setTraceError(undefined);
 
-      const response = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
+    const response = await traceRequest.run((signal) =>
+      fetchApi<TraceViewTrace>(`/api/projects/${projectId}/traces/${traceId}`, { signal })
+    );
+    if (response.superseded) return;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        const errorMessage = errorData.error || "Failed to load trace";
-
-        setTraceError(errorMessage);
-        return;
-      }
-
-      const traceData = (await response.json()) as TraceViewTrace;
+    const { data: traceData, error } = response.data;
+    if (error !== null) {
+      setTraceError(error || "Failed to load trace");
+    } else {
       if (traceData.hasBrowserSession) {
         setHasBrowserSession(true);
         setBrowserSession(true);
       }
       setTrace(traceData);
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : "Failed to load trace. Please try again.";
-      setTraceError(errorMessage);
-    } finally {
-      setIsTraceLoading(false);
     }
+    setIsTraceLoading(false);
   }, [
+    traceRequest,
     projectId,
     propsTrace,
     setBrowserSession,
@@ -149,6 +149,7 @@ export default function TraceViewContent({
 
   const fetchSpans = useCallback(
     async (search: string, filters: Filter[]) => {
+      let superseded = false;
       try {
         setIsSpansLoading(true);
         setSpansError(undefined);
@@ -171,17 +172,18 @@ export default function TraceViewContent({
         }
 
         const url = `/api/projects/${projectId}/traces/${traceId}/spans?${params.toString()}`;
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-          const errorMessage = errorData.error || "Failed to load spans";
-
-          setSpansError(errorMessage);
+        const response = await spansRequest.run((signal) => fetchApi<TraceViewSpan[]>(url, { signal }));
+        if (response.superseded) {
+          superseded = true;
           return;
         }
 
-        const results = (await response.json()) as TraceViewSpan[];
+        const { data: results, error } = response.data;
+        if (error !== null) {
+          setSpansError(error || "Failed to load spans");
+          return;
+        }
+
         const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
         setSpans(spans);
@@ -208,10 +210,11 @@ export default function TraceViewContent({
 
         console.error(e);
       } finally {
-        setIsSpansLoading(false);
+        if (!superseded) setIsSpansLoading(false);
       }
     },
     [
+      spansRequest,
       trace,
       setIsSpansLoading,
       setSpansError,
@@ -278,17 +281,19 @@ export default function TraceViewContent({
 
   useEffect(() => {
     handleFetchTrace();
-  }, [handleFetchTrace]);
+    return traceRequest.cancel;
+  }, [handleFetchTrace, traceRequest]);
 
   useEffect(() => {
     fetchSpans(initialSearch, []);
 
     return () => {
+      spansRequest.cancel();
       setSpans([]);
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [traceId, projectId, setSpans, setTraceError, setSpansError]);
+  }, [traceId, projectId, spansRequest, setSpans, setTraceError, setSpansError]);
 
   useRealtime({
     key: `trace_${traceId}`,

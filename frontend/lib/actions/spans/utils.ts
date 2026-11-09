@@ -208,6 +208,8 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
         column: "start_time",
         direction: "DESC",
       },
+      // Stable tie-breaker: spans sharing a start_time otherwise come back in a different order per page.
+      { column: "span_id", direction: "ASC" },
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {

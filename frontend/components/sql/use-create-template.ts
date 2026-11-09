@@ -6,6 +6,7 @@ import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
 import { type SQLTemplate } from "@/components/sql/sql-editor-store";
+import { swrKeys } from "@/lib/api/swr-keys";
 import { useToast } from "@/lib/hooks/use-toast";
 
 /**
@@ -28,7 +29,7 @@ export const useCreateTemplate = () => {
     };
 
     await mutate<SQLTemplate[]>(
-      `/api/projects/${projectId}/sql/templates`,
+      swrKeys.sqlTemplates(String(projectId)),
       (currentData = []) => [optimisticData, ...currentData],
       { revalidate: false }
     );

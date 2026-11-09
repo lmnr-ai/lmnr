@@ -6,6 +6,7 @@ import useSWR from "swr";
 
 import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { swrKeys } from "@/lib/api/swr-keys";
 
 import { useLastViewStore } from "./last-view-store";
 import { EMPTY_VIEW_PARAMS, paramsEqual, readParamsFromView, type ViewParams } from "./params";
@@ -111,7 +112,7 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
   // One-shot — reactive `lastViewId` would re-arm the gate on mid-session clears.
   const [hadLastViewIdAtMount] = useState<boolean>(() => lastViewId !== null);
 
-  const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
+  const listKey = swrKeys.views(projectId, resource);
   const { data: views } = useSWR<View[]>(listKey, swrFetcher);
 
   // A link that carries filter/search/sort params but no explicit `v` is a

@@ -267,6 +267,8 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
   } else {
     orderBy.push({ column: "start_time", direction: sortDirection ?? "DESC" });
   }
+  // Stable tie-breaker: traces sharing a sort value otherwise come back in a different order per page, duplicating/dropping rows.
+  orderBy.push({ column: "id", direction: "ASC" });
 
   // Build filter config with custom column processors
   const columnFilterConfig = buildFilterConfigWithCustomColumns(customColumns);
