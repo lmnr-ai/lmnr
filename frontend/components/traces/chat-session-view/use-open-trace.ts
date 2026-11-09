@@ -1,8 +1,9 @@
 import { parseAsString, useQueryStates } from "nuqs";
 import { useCallback } from "react";
 
-import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
+
+import { useChatSession } from "./store";
 
 const openTraceParams = { traceId: parseAsString, spanId: parseAsString };
 
@@ -10,7 +11,7 @@ const openTraceParams = { traceId: parseAsString, spanId: parseAsString };
 export function useOpenTrace() {
   const [{ traceId, spanId }] = useQueryStates(openTraceParams);
   const navigate = useTracePanelNavigate();
-  const setTraceExpanded = useSessionViewStore((s) => s.setTraceExpanded);
+  const setTraceExpanded = useChatSession((s) => s.setTraceExpanded);
 
   const closeTrace = useCallback(() => {
     // Also collapse the trace's timeline segment.

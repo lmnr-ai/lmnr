@@ -5,7 +5,7 @@ import { InputItem, OutputItem } from "@/components/traces/trace-view/transcript
 import { Skeleton } from "@/components/ui/skeleton";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 
-import { useSessionViewBaseStore } from "../store";
+import { useSessionViewBaseStore } from "../store/base";
 
 interface TraceCollapsedBodyProps {
   trace: TraceRow;

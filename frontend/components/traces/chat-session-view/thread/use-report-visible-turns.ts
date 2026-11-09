@@ -1,16 +1,17 @@
 import { type Virtualizer } from "@tanstack/react-virtual";
 import { useMemo } from "react";
 
-import { useSessionViewStore } from "@/components/traces/session-view/store";
 import {
   filterToViewport,
   useReportVisibleTimeRange,
 } from "@/components/traces/trace-view/use-report-visible-time-range";
 import { type TraceRow } from "@/lib/traces/types";
 
+import { useChatSession } from "../store";
+
 /** Tells the session timeline which stretch of time the turns on screen cover, for its "in view" highlight. */
 export function useReportVisibleTurns(virtualizer: Virtualizer<HTMLDivElement, Element>, traces: TraceRow[]) {
-  const setScrollTimeRange = useSessionViewStore((s) => s.setScrollTimeRange);
+  const setVisibleRange = useChatSession((s) => s.setVisibleRange);
   const items = virtualizer.getVirtualItems();
   const scrollOffset = virtualizer.scrollOffset ?? 0;
   const viewportHeight = virtualizer.scrollRect?.height ?? 0;
@@ -36,5 +37,5 @@ export function useReportVisibleTurns(virtualizer: Virtualizer<HTMLDivElement, E
     return Number.isFinite(min) && Number.isFinite(max) ? { start: min, end: max } : {};
   }, [items, scrollOffset, viewportHeight, traces]);
 
-  useReportVisibleTimeRange({ start, end, setTimeRange: setScrollTimeRange });
+  useReportVisibleTimeRange({ start, end, setTimeRange: setVisibleRange });
 }

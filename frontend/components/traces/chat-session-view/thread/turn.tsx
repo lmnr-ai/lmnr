@@ -1,13 +1,11 @@
 import { memo } from "react";
-import { shallow } from "zustand/shallow";
 
 import { StatsShields } from "@/components/traces/stats-shields";
 import { agentInputText } from "@/lib/traces/agent-input";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { useLiveSession } from "../live-session";
-import { isLive, replyOf } from "../live-session/sync";
+import { useTurnDetails } from "../data/use-turn-details";
 import { useOpenTrace } from "../use-open-trace";
 import TurnReply from "./turn-reply";
 import UserBubble from "./user-bubble";
@@ -16,20 +14,21 @@ import WorkedRow from "./worked-row";
 /** One trace rendered as a chat exchange: user bubble → work summary → assistant reply. */
 function Turn({
   trace,
+  live,
   dividerAbove,
   dividerBelow,
 }: {
   trace: TraceRow;
+  /** Still receiving updates, so its reply and counts aren't final. */
+  live: boolean;
   dividerAbove: boolean;
   dividerBelow: boolean;
 }) {
-  const reply = useLiveSession((s) => replyOf(s.replies[trace.id], isLive(s.sync, trace.id)), shallow);
-  const retryReply = useLiveSession((s) => s.retryReply);
+  const { reply, retryReply, counts } = useTurnDetails(trace.id, live);
   const { openTraceId, toggleTrace } = useOpenTrace();
   const active = openTraceId === trace.id;
 
   const inputText = agentInputText(trace.agentInput);
-  const counts = useLiveSession((s) => s.counts[trace.id]);
   const failed = trace.status === "error" || (counts?.errors ?? 0) > 0;
 
   return (
@@ -47,7 +46,7 @@ function Turn({
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-8">
         {inputText && <UserBubble text={inputText} time={trace.startTime} />}
         <WorkedRow counts={counts} open={active} onClick={() => toggleTrace(trace.id)} />
-        <TurnReply reply={reply} turnFailed={failed} onRetry={() => retryReply(trace.id)} />
+        <TurnReply reply={reply} turnFailed={failed} onRetry={retryReply} />
         <StatsShields
           stats={trace}
           className="h-auto w-fit rounded-none bg-transparent px-0 text-xs text-secondary-foreground"

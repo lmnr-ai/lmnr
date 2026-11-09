@@ -28,7 +28,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { type TraceRow } from "@/lib/traces/types";
 
-import { useSessionViewBaseStore } from "../store";
+import { useSessionViewBaseStore } from "../../store/base";
 import CloseButton from "./close-button";
 
 const EMPTY_SET = new Set<string>();

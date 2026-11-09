@@ -2,7 +2,7 @@ import React, { memo, useMemo } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { type SessionViewSelectedSpan } from "../store";
+import { type TimelineSelection } from "./types";
 import { type SessionTimelineContainerSpan } from "./utils";
 
 const ROW_HEIGHT = 8;
@@ -11,7 +11,7 @@ interface SessionTimelineSpanBarElementProps {
   /** Span bar inside an expanded trace's container. Coords are trace-relative. */
   bar: SessionTimelineContainerSpan;
   traceId: string;
-  selectedSpan?: SessionViewSelectedSpan;
+  selectedSpan?: TimelineSelection;
   onClick: (traceId: string, spanId: string) => void;
 }
 

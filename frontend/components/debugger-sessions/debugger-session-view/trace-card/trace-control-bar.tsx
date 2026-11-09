@@ -8,7 +8,7 @@ import { type Feature, track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { useSessionViewBaseStore } from "../store";
+import { useSessionViewBaseStore } from "../store/base";
 
 interface TraceControlBarProps {
   trace: TraceRow;

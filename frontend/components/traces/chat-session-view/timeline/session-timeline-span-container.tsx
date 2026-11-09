@@ -1,16 +1,13 @@
 import React, { memo } from "react";
-import { shallow } from "zustand/shallow";
 
-import { cn } from "@/lib/utils";
-
-import { type SessionViewSelectedSpan, useSessionViewStore } from "../store";
 import SessionTimelineSpanBarElement from "./session-timeline-span-bar";
 import { ROW_HEIGHT } from "./session-timeline-trace-bar";
+import { type TimelineSelection } from "./types";
 import { type SessionTimelineSpanContainer } from "./utils";
 
 interface SessionTimelineSpanContainerElementProps {
   container: SessionTimelineSpanContainer;
-  selectedSpan?: SessionViewSelectedSpan;
+  selectedSpan?: TimelineSelection;
   onClick: (traceId: string) => void;
   onSpanClick: (traceId: string, spanId: string) => void;
 }
@@ -31,14 +28,6 @@ const SessionTimelineSpanContainerElement = ({
   onClick,
   onSpanClick,
 }: SessionTimelineSpanContainerElementProps) => {
-  const { transcriptExpandedGroups, requestScrollToGroup } = useSessionViewStore(
-    (s) => ({
-      transcriptExpandedGroups: s.transcriptExpandedGroups,
-      requestScrollToGroup: s.requestScrollToGroup,
-    }),
-    shallow
-  );
-
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onClick(container.traceId);
@@ -67,37 +56,22 @@ const SessionTimelineSpanContainerElement = ({
         />
       ))}
 
-      {/* Subagent group wrappers — collapsed = solid cyan, click scrolls the
-          panel list to the group header. Expanded = outline only,
-          pointer-events-none so span bars underneath stay interactive.
-          Collapsed/expanded state is sync'd with the panel transcript via
-          the session store's namespaced transcriptExpandedGroups. */}
-      {container.groupBoxes.map((box) => {
-        const collapsed = !transcriptExpandedGroups.has(`${container.traceId}::${box.groupId}`);
-        return (
+      {/* Subagent groups: a solid box over the group's spans. Clicking one doesn't toggle the trace. */}
+      {container.groupBoxes.map((box) => 
+        (
           <div
             key={box.groupId}
-            className={cn(
-              "absolute rounded-xs border border-subagent/70",
-              collapsed ? "bg-subagent/70 cursor-pointer hover:brightness-110 z-10" : "pointer-events-none"
-            )}
+            className="absolute z-10 rounded-xs border border-subagent/70 bg-subagent/70"
             style={{
               left: `${box.left}%`,
               width: `max(${box.width}%, 4px)`,
               top: box.topRow * ROW_HEIGHT + 1,
               height: box.rowSpan * ROW_HEIGHT - 2,
             }}
-            onClick={
-              collapsed
-                ? (e) => {
-                    e.stopPropagation();
-                    requestScrollToGroup(container.traceId, box.groupId);
-                  }
-                : undefined
-            }
+            onClick={(e) => e.stopPropagation()}
           />
-        );
-      })}
+        )
+      )}
     </div>
   );
 };

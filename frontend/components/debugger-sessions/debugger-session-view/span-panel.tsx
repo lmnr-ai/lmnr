@@ -9,7 +9,7 @@ import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
 import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
 
-import { useSessionViewBaseStore } from "./store";
+import { useSessionViewBaseStore } from "./store/base";
 
 const enterExitTransition = { duration: 0.25, ease: "easeOut" } as const;
 const instantTransition = { duration: 0 } as const;

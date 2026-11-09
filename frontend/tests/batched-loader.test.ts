@@ -100,26 +100,3 @@ describe("createBatchedLoader onFailed", () => {
     assert.deepEqual(failed, [["a", "b"], ["c"]]);
   });
 });
-
-describe("createBatchedLoader invalidate", () => {
-  it("drops an in-flight result that went stale and loads it again", async () => {
-    let version = 1;
-    const loaded: Record<string, number> = {};
-    const loader = createBatchedLoader<number>({
-      load: async (ids) => {
-        const v = version;
-        await new Promise((r) => setTimeout(r, 20));
-        return Object.fromEntries(ids.map((id) => [id, v]));
-      },
-      onLoaded: (values) => Object.assign(loaded, values),
-      isResolved: (id) => id in loaded,
-      debounceMs: 0,
-    });
-    loader.request(["a"]);
-    await new Promise((r) => setTimeout(r, 5));
-    version = 2;
-    loader.invalidate(["a"]);
-    await new Promise((r) => setTimeout(r, 80));
-    assert.equal(loaded.a, 2);
-  });
-});

@@ -1,4 +1,3 @@
-import { computeTranscriptEntries } from "@/components/traces/session-view/utils";
 import {
   type TraceViewListSpan,
   type TraceViewSpan,
@@ -9,6 +8,7 @@ import { type CommandBlockContent, type SessionEvaluationRef } from "@/lib/actio
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 
 import { isRunTransparentBlock, type SessionBlockView, type TraceRowState } from "../store";
+import { computeTranscriptEntries } from "./transcript-entries";
 
 // The one inter-block spacing unit (px) — the single density knob for the whole
 // timeline. Spacing between top-level blocks is owned by dedicated seam rows (see

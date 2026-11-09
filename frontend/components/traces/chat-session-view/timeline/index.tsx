@@ -1,55 +1,49 @@
 import { isEmpty } from "lodash";
-import { X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatTimeMarkerLabel } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 import { useWheelZoom, zoomKeepingCenter } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { type SessionViewSelectedSpan, useSessionViewStore } from "../store";
+import { useSessionData } from "../data";
+import { useChatSession } from "../store";
 import SessionTimelineControls from "./controls";
 import SessionTimelineGap from "./session-timeline-gap";
 import SessionTimelineSegment, { type HoverInfo } from "./session-timeline-segment";
 import { ROW_HEIGHT } from "./session-timeline-trace-bar";
+import { type TimelineSelection } from "./types";
 import { computeSessionTimelineSegments, GAP_WIDTH_PX } from "./utils";
 
 interface SessionTimelineProps {
-  /** Owned by the host: the session view keeps it in its store, the chat session view in the URL. */
-  selectedSpan?: SessionViewSelectedSpan;
+  /** The open span, from the URL. */
+  selectedSpan?: TimelineSelection;
   onSelectSpan: (traceId: string, spanId: string) => void;
-  showCloseButton?: boolean;
 }
 
-function SessionTimeline({ selectedSpan, onSelectSpan, showCloseButton = true }: SessionTimelineProps) {
+function SessionTimeline({ selectedSpan, onSelectSpan }: SessionTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const { traces, isLoading: isTracesLoading } = useSessionData();
   const {
-    traces,
     traceSpans,
     traceSpansLoading,
     traceSpansError,
     expandedTraceIds,
-    isTracesLoading,
     toggleTraceExpanded,
     fetchTraceSpans,
     zoom,
     setZoom,
-    setSessionTimelineEnabled,
-  } = useSessionViewStore(
+  } = useChatSession(
     (s) => ({
-      traces: s.traces,
       traceSpans: s.traceSpans,
       traceSpansLoading: s.traceSpansLoading,
       traceSpansError: s.traceSpansError,
       expandedTraceIds: s.expandedTraceIds,
-      isTracesLoading: s.isTracesLoading,
       toggleTraceExpanded: s.toggleTraceExpanded,
       fetchTraceSpans: s.fetchTraceSpans,
-      zoom: s.sessionTimelineZoom,
-      setZoom: s.setSessionTimelineZoom,
-      setSessionTimelineEnabled: s.setSessionTimelineEnabled,
+      zoom: s.timelineZoom,
+      setZoom: s.setTimelineZoom,
     }),
     shallow
   );
@@ -74,14 +68,8 @@ function SessionTimeline({ selectedSpan, onSelectSpan, showCloseButton = true }:
   // Hover needle — driven by segment callbacks
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
-  // Two-phase expand (mirrors list/trace-item.tsx): when the user clicks a
-  // collapsed trace whose spans aren't loaded yet, we DON'T flip
-  // `expandedTraceIds` immediately — we kick off `fetchTraceSpans` and
-  // flush to expand once spans arrive. The bar meanwhile shows a shimmer
-  // (driven by `traceSpansLoading` → `bar.shimmer` in utils.ts).
-  //
-  // Keeps the timeline's expansion state consistent with the list, and
-  // avoids flashing an empty container before spans arrive.
+  // Two-phase expand: a collapsed trace whose spans aren't loaded fetches them first (the bar shimmers meanwhile) and
+  // expands once they arrive, so it never flashes an empty container.
   const pendingExpandIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -227,15 +215,6 @@ function SessionTimeline({ selectedSpan, onSelectSpan, showCloseButton = true }:
             </div>
           </div>
           <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
-        </div>
-      )}
-
-      {/* Close button — top-right, styled as a flush tab */}
-      {showCloseButton && (
-        <div className="absolute top-0 right-0 z-40 h-6 w-7 bg-muted border-b border-l rounded-bl flex items-end overflow-hidden">
-          <Button onClick={() => setSessionTimelineEnabled(false)} variant="ghost" size="icon-xs" className="min-w-5">
-            <X className="size-3.5" />
-          </Button>
         </div>
       )}
 

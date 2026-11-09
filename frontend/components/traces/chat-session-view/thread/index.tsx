@@ -1,12 +1,11 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
-import { shallow } from "zustand/shallow";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useLiveSession, useLiveSessionStore } from "../live-session";
+import { useSessionData } from "../data";
 import { useOpenTrace } from "../use-open-trace";
 import TimeDivider from "./time-divider";
 import Turn from "./turn";
@@ -16,15 +15,16 @@ import { useReportVisibleTurns } from "./use-report-visible-turns";
 const MIN_GAP_MS = 10 * 60_000;
 // Near the median rendered turn (bubble + stats row + clipped reply).
 const ESTIMATED_TURN_HEIGHT = 260;
-// Turns rendered (and whose counts/replies are fetched) beyond each edge of the viewport.
+// Turns rendered (and so fetching their counts and replies) beyond each edge of the viewport.
 const OVERSCAN = 6;
 
 export default function Thread() {
-  const { traces, status, error, requestDetails } = useLiveSession(
-    (s) => ({ traces: s.sync.traces, status: s.sync.status, error: s.sync.error, requestDetails: s.requestDetails }),
-    shallow
-  );
-  const store = useLiveSessionStore();
+  const { traces, live, isLoading, error } = useSessionData();
+  // Read by the scroll-to-turn effect without re-running it on every live update.
+  const tracesRef = useRef(traces);
+  useEffect(() => {
+    tracesRef.current = traces;
+  }, [traces]);
   const { openTraceId } = useOpenTrace();
 
   const gaps = useMemo(
@@ -46,24 +46,17 @@ export default function Thread() {
   const items = virtualizer.getVirtualItems();
   useReportVisibleTurns(virtualizer, traces);
 
-  // Rendered turns (viewport + overscan) are exactly the ones whose details we need.
-  const firstIndex = items[0]?.index;
-  const lastIndex = items.at(-1)?.index;
-  useEffect(() => {
-    if (firstIndex === undefined || lastIndex === undefined) return;
-    requestDetails(traces.slice(firstIndex, lastIndex + 1).map((t) => t.id));
-  }, [firstIndex, lastIndex, traces, requestDetails]);
-
   // A turn opened from the session timeline may be far off-screen. Runs when a turn opens (or the session first
   // loads under a deep link), not on live updates, so reading another turn isn't interrupted.
-  const ready = status === "ready";
+  const ready = traces.length > 0;
   useEffect(() => {
     if (!openTraceId || !ready) return;
-    const index = store.getState().sync.traces.findIndex((t) => t.id === openTraceId);
+    const index = tracesRef.current.findIndex((t) => t.id === openTraceId);
     if (index >= 0) virtualizer.scrollToIndex(index, { align: "auto" });
-  }, [openTraceId, ready, store, virtualizer]);
+  }, [openTraceId, ready, virtualizer]);
 
-  if (status === "error") {
+  // A failed refresh keeps the rows already shown; only a failed first load is an error.
+  if (error && traces.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm">
         <AlertTriangle className="size-8 text-destructive-text" />
@@ -72,7 +65,7 @@ export default function Thread() {
     );
   }
 
-  if (status === "loading" && traces.length === 0) {
+  if (isLoading && traces.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
         <Skeleton className="ml-auto h-10 w-1/2" />
@@ -96,7 +89,12 @@ export default function Thread() {
                     highlighted={openTraceId === t.id || openTraceId === traces[v.index - 1]?.id}
                   />
                 )}
-                <Turn trace={t} dividerAbove={dividerAbove} dividerBelow={(gaps[v.index + 1] ?? 0) >= MIN_GAP_MS} />
+                <Turn
+                  trace={t}
+                  live={live.has(t.id)}
+                  dividerAbove={dividerAbove}
+                  dividerBelow={(gaps[v.index + 1] ?? 0) >= MIN_GAP_MS}
+                />
               </div>
             );
           })}

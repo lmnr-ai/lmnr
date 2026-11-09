@@ -20,8 +20,8 @@ import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import SessionCondensedTimeline from "../session-condensed-timeline";
-import { useSessionViewBaseStore } from "../store";
+import { useSessionViewBaseStore } from "../store/base";
+import SessionCondensedTimeline from "./condensed-timeline";
 import TraceControlBar from "./trace-control-bar";
 
 interface TraceItemProps {

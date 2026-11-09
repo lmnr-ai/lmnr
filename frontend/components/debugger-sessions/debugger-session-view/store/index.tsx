@@ -3,11 +3,6 @@ import { createContext, type PropsWithChildren, useContext, useState } from "rea
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
-import {
-  type BaseSessionViewStore,
-  createBaseSessionViewSlice,
-  SessionViewContext,
-} from "@/components/traces/session-view/store/base";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
@@ -17,6 +12,8 @@ import { createIdBatchLoader } from "@/lib/id-batch-loader";
 import { mergeTraceDelta, realtimeTraceToRow } from "@/lib/traces/realtime";
 import { type RealtimeSpan, type RealtimeTracePayload, type SpanType, type TraceRow } from "@/lib/traces/types";
 import { tryParseJson } from "@/lib/utils";
+
+import { type BaseSessionViewStore, createBaseSessionViewSlice, SessionViewContext } from "./base";
 
 /**
  * Client view of a session block — same shape as the server `SessionBlock`:

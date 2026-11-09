@@ -3,7 +3,7 @@ import { CircleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { type TurnReply as Reply } from "../live-session/sync";
+import { type TurnReply as Reply } from "../data/live-traces";
 import CollapsibleReply from "./collapsible-reply";
 
 const Note = ({ alert, children }: { alert?: boolean; children: React.ReactNode }) => (

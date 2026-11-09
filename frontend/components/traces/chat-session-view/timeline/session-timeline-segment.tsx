@@ -5,9 +5,10 @@ import React, { memo, useCallback, useMemo } from "react";
 
 import { useDynamicTimeIntervals } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 
-import { type SessionViewSelectedSpan, useSessionViewStore } from "../store";
+import { useChatSession } from "../store";
 import SessionTimelineSpanContainerElement from "./session-timeline-span-container";
 import SessionTimelineTraceBarElement from "./session-timeline-trace-bar";
+import { type TimelineSelection } from "./types";
 import { type SessionTimelineSegmentData } from "./utils";
 
 interface HoverInfo {
@@ -21,7 +22,7 @@ interface SessionTimelineSegmentProps {
   segment: SessionTimelineSegmentData;
   /** Epoch ms of the very first trace in the session — used to compute global time offsets. */
   sessionStartMs: number;
-  selectedSpan?: SessionViewSelectedSpan;
+  selectedSpan?: TimelineSelection;
   contentHeight: number;
   onTraceBarClick: (traceId: string) => void;
   onSpanBarClick: (traceId: string, spanId: string) => void;
@@ -59,15 +60,15 @@ function SessionTimelineSegment({
 
   const segmentOffsetMs = segment.startTimeMs - sessionStartMs;
 
-  // Scroll indicator — the session panel writes the absolute-ms (start, end)
-  // time range covered by rows in its viewport. This range can span a session
+  // Scroll indicator — the thread writes the absolute-ms (start, end)
+  // time range covered by the turns on screen. This range can span a session
   // gap when the user is looking at two traces in different clusters, so we
   // compute the *intersection* with this segment's own time domain rather
   // than clamping a scrollEnd−scrollStart width. A segment that is wholly
   // enclosed by the range (neither endpoint inside) is treated as an
   // intermediate segment the user isn't looking at — render nothing.
-  const scrollStartTime = useSessionViewStore((s) => s.scrollStartTime);
-  const scrollEndTime = useSessionViewStore((s) => s.scrollEndTime);
+  const scrollStartTime = useChatSession((s) => s.visibleRange?.start);
+  const scrollEndTime = useChatSession((s) => s.visibleRange?.end);
   const scrollIndicator = useMemo(() => {
     if (scrollStartTime === undefined || scrollEndTime === undefined || segment.widthMs <= 0) return null;
     const startInside = scrollStartTime >= segment.startTimeMs && scrollStartTime < segment.endTimeMs;

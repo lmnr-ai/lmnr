@@ -6,7 +6,7 @@ import TraceView from "@/components/traces/trace-view";
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
 import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
 
-import { useChatViewStore } from "./store";
+import { useChatSession } from "./store";
 import { useOpenTrace } from "./use-open-trace";
 
 const enterExitTransition = { duration: 0.25, ease: "easeOut" } as const;
@@ -19,7 +19,7 @@ const instantTransition = { duration: 0 } as const;
  */
 export default function TracePanel() {
   const { openTraceId, openSpanId, closeTrace } = useOpenTrace();
-  const { width, resizeTrace, setContainerWidth } = useChatViewStore(
+  const { width, resizeTrace, setContainerWidth } = useChatSession(
     useShallow((s) => ({
       width: s.traceWidth,
       resizeTrace: s.resizeTrace,

@@ -2,7 +2,7 @@ import { memo } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { useSessionViewStore } from "../store";
+import { useChatSession } from "../store";
 import { formatGapDuration, GAP_WIDTH_PX } from "./utils";
 
 interface SessionTimelineGapProps {
@@ -12,12 +12,10 @@ interface SessionTimelineGapProps {
 }
 
 function SessionTimelineGap({ durationMs, startMs, endMs }: SessionTimelineGapProps) {
-  // Highlight when the session-panel's visible scroll range spans across this
-  // gap — i.e. the user is looking at rows on both sides of it.
-  const isInRange = useSessionViewStore((s) => {
-    if (s.scrollStartTime === undefined || s.scrollEndTime === undefined) return false;
-    return s.scrollStartTime <= startMs && s.scrollEndTime >= endMs;
-  });
+  // Highlight when the turns on screen sit on both sides of this gap.
+  const isInRange = useChatSession(
+    (s) => !!s.visibleRange && s.visibleRange.start <= startMs && s.visibleRange.end >= endMs
+  );
 
   return (
     <div

@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 import useSWR from "swr";
-import { shallow } from "zustand/shallow";
 
-import { useSessionViewStore } from "@/components/traces/session-view/store";
 import { computeTraceStats, StatsShields } from "@/components/traces/stats-shields";
 import UsersPill from "@/components/traces/user-preview/users-pill";
 import { useProjectContext } from "@/contexts/project-context";
@@ -10,7 +8,9 @@ import { type ModelTokens } from "@/lib/actions/sessions/model-tokens";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { cn } from "@/lib/utils";
 
+import { useSessionData } from "../data";
 import { sessionModelTokensUrl } from "../session-api";
+import { useChatSession } from "../store";
 import ModelsPill from "./models-pill";
 
 const EMPTY: ModelTokens[] = [];
@@ -20,14 +20,14 @@ const distinct = (values: (string | null | undefined)[]) =>
 
 /** Session stats, user and model pills, and the timeline toggle. */
 export default function ControlBar() {
-  const traces = useSessionViewStore((s) => s.traces, shallow);
-  const timelineEnabled = useSessionViewStore((s) => s.sessionTimelineEnabled);
+  const { traces } = useSessionData();
+  const timelineEnabled = useChatSession((s) => s.timelineEnabled);
   const { project } = useProjectContext();
   const projectId = project?.id ?? "";
 
   const stats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
   const users = useMemo(() => distinct(traces.map((t) => t.userId)), [traces]);
-  const sessionId = useSessionViewStore((s) => s.session?.sessionId);
+  const sessionId = useChatSession((s) => s.sessionId);
   // One grouped query over the session's LLM spans; on failure the optional pill just stays hidden.
   const { data: models = EMPTY } = useSWR<ModelTokens[]>(
     projectId && sessionId ? sessionModelTokensUrl(projectId, sessionId) : null,
