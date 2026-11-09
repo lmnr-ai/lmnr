@@ -143,9 +143,9 @@ export default function TraceViewContent({
     (span?: TraceViewSpan) => {
       if (!span) return;
       setSelectedSpan(span);
-      navigate({ type: "selectSpan", spanId: span.spanId, spanTab: snippetTabOf(span) });
+      navigate({ type: "selectSpan", spanId: span.spanId, spanTab: urlState ? snippetTabOf(span) : undefined });
     },
-    [setSelectedSpan, navigate]
+    [setSelectedSpan, navigate, urlState]
   );
 
   const [traceSearchTerm, setTraceSearchTerm] = useState("");

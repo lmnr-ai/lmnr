@@ -117,7 +117,9 @@ export const buildRows = (
       maxHeight: segment.maxHeight,
       defaultExpanded: segment.defaultExpanded,
     };
-    bySource.set(segment.source, [...(bySource.get(segment.source) ?? []), row]);
+    const list = bySource.get(segment.source);
+    if (list) list.push(row);
+    else bySource.set(segment.source, [row]);
   });
   // Per source, so a merged card never spans earlier steps, new input and output.
   const rowsOf = (source: Source) => groupToolResults(mergeResponsesTurns(bySource.get(source) ?? []));

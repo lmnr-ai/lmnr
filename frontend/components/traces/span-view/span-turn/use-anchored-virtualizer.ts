@@ -32,11 +32,16 @@ export const useAnchoredVirtualizer = ({
   searching: boolean;
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const estimateSize = (i: number) => {
-    const row = rows[i];
-    if (row?.kind === "message") return MESSAGE_ESTIMATE_SIZE;
-    return row?.kind === "context" && row.open ? OPEN_CONTEXT_SIZE : HEADER_ESTIMATE_SIZE;
-  };
+  const estimateSize = useCallback(
+    (i: number) => {
+      const row = rows[i];
+      if (row?.kind === "message") return MESSAGE_ESTIMATE_SIZE;
+      return row?.kind === "context" && row.open ? OPEN_CONTEXT_SIZE : HEADER_ESTIMATE_SIZE;
+    },
+    [rows]
+  );
+  // Stable: the virtualizer rebuilds every measurement when this function's identity changes.
+  const getItemKey = useCallback((i: number) => rows[i]?.key ?? i, [rows]);
   // A linked context message lands below the context card the sticky band pins over the top.
   const inset = useCallback(
     (virtualizer: Virtualizer<HTMLDivElement, Element>, index: number) => bandInset(rows, virtualizer, index),
@@ -48,7 +53,7 @@ export const useAnchoredVirtualizer = ({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize,
-    getItemKey: (i) => rows[i]?.key ?? i,
+    getItemKey,
     overscan: searching ? 100 : 10,
     initialOffset: linkedRow.initialOffset,
     onChange: linkedRow.onChange,
