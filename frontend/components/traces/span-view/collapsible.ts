@@ -57,7 +57,9 @@ export const collapsibleAt = (
   const y = (scroller.querySelector("[data-sticky-band-base]")?.getBoundingClientRect().bottom ?? rect.top) + 1;
   const hit = document
     .elementsFromPoint(rect.left + rect.width / 2, y)
-    .find((node) => scroller.contains(node) && !node.closest("[data-sticky-band]"));
+    .find(
+      (node) => scroller.contains(node) && !node.closest("[data-sticky-band]") && !node.closest("[data-sticky-header]")
+    );
   for (let node = hit ?? null; node && node !== scroller; node = node.parentElement) {
     const entry = registry.get(node);
     const box = entry && node.getBoundingClientRect();

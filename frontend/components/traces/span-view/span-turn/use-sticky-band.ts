@@ -108,5 +108,8 @@ export const useStickyBand = (
     item.entry.collapse();
   }, [item, scrollRef, virtualizer]);
 
-  return { registry, band, item, collapseContext, collapseItem };
+  // Message headers pin below the band's context card while it shows.
+  const inset = band ? (virtualizer.measurementsCache[band.index]?.size ?? 0) + BAND_PADDING : 0;
+
+  return { registry, band, item, inset, collapseContext, collapseItem };
 };

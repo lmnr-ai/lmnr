@@ -43,7 +43,7 @@ export type ConversationRow =
 
 const CONTEXT_SOURCES = new Set<Source>(["system", "task", "history", "previous"]);
 
-/** Rows shown inside the opened context, which hang off one rail. */
+/** Rows shown inside the opened context. */
 export const isContextRow = (row: MessageRow) => !!row.inContext;
 
 /** Only earlier steps make a fold worth it; on a first call the system prompt shows inline. */
@@ -197,14 +197,8 @@ const toolResultCount = (row: MessageRow) =>
       ? 1
       : 0;
 
-/** "system prompt + 23 earlier steps": what is folded away before this call's new input. */
-const contextSummary = (turn: SpanTurn): string =>
-  [
-    turn.system && "system prompt",
-    turn.earlierSteps > 0 && pluralize(turn.earlierSteps, "earlier step", "earlier steps"),
-  ]
-    .filter(Boolean)
-    .join(" + ");
+/** "23 earlier steps": what is folded away (with the system prompt) before this call's new input. */
+const contextSummary = (turn: SpanTurn): string => pluralize(turn.earlierSteps, "earlier step", "earlier steps");
 
 /** "4 tool results", "1 user message", "3 messages": what the Input section holds. */
 const summarizeNewInput = (rows: MessageRow[]): string => {

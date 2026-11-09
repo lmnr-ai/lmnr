@@ -1,8 +1,6 @@
-import { upperFirst } from "lodash";
 import { ChevronDown } from "lucide-react";
 import { memo } from "react";
 
-import { ElevatedSurface } from "@/components/ui/surface";
 import { cn } from "@/lib/utils";
 
 interface ContextStackProps {
@@ -11,36 +9,20 @@ interface ContextStackProps {
   onToggle: () => void;
 }
 
-const EDGE = "h-1.5 -mt-px border border-t-0 rounded-b-lg";
-
-/** The system prompt + earlier steps: a folded stack of cards, or the header of the railed list it opens into. */
+/** The system prompt + earlier steps: a folded card, or the header of the list it opens into. */
 const ContextStack = ({ summary, open, onToggle }: ContextStackProps) => (
-  <div className={cn("flex flex-col", !open && "pb-4")}>
-    <ElevatedSurface offset={1} className="relative z-2 border rounded-lg overflow-clip">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:overlay-hover"
-      >
-        <ChevronDown
-          className={cn(
-            "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
-            !open && "-rotate-90"
-          )}
-        />
-        <span className="min-w-0 truncate font-medium text-secondary-foreground">{upperFirst(summary)}</span>
-        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{open ? "Collapse" : "Expand"}</span>
-      </button>
-    </ElevatedSurface>
-    {open ? (
-      <div className="ml-1.5 h-3 border-l" />
-    ) : (
-      <>
-        <ElevatedSurface offset={1} className={cn(EDGE, "relative z-1 mx-1.5")} />
-        <ElevatedSurface offset={1} className={cn(EDGE, "mx-3")} />
-      </>
-    )}
+  <div className="pb-4">
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="flex w-full items-center justify-center gap-1.5 rounded-lg border bg-foreground/5 px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+    >
+      <ChevronDown className={cn("size-3.5 shrink-0 transition-transform duration-200", open && "rotate-180")} />
+      <span className="truncate">
+        {open ? "Hide" : "Show"} {summary}
+      </span>
+    </button>
   </div>
 );
 

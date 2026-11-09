@@ -61,7 +61,7 @@ const SectionHeader = ({
         {summary && <span className="-ml-1 text-sm text-muted-foreground whitespace-nowrap">· {summary}</span>}
         <TemplatePickerView mode={mode} onModeChange={onModeChange} modes={SECTION_MODES} />
         {mode === "custom" && <TemplatePickerActions />}
-        <div className="flex-1 border-t" />
+        <div className="flex-1" />
         {copyExtra ? (
           <CopyMenu options={[{ label: `Copy full ${title.toLowerCase()}`, getText: () => value }, copyExtra]} />
         ) : (

@@ -22,7 +22,7 @@ const StickyBand = ({ band, item, onCollapseContext, onCollapseItem }: StickyBan
         <ContextStack summary={band.summary} open onToggle={onCollapseContext} />
       </div>
     )}
-    {item && <BandItem entry={item.entry} inContext={!!band} onCollapse={onCollapseItem} />}
+    {item && <BandItem entry={item.entry} onCollapse={onCollapseItem} />}
   </div>
 );
 

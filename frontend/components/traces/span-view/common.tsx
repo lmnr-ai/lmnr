@@ -174,7 +174,7 @@ export const RoleHeader = ({ role, className, action }: RoleHeaderProps) => {
       // emphasis is translucent; layer it over bg-surface so the sticky header stays opaque.
       <div
         className={cn(
-          "flex items-center gap-2 px-2 py-1 border-b rounded-t bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
+          "flex items-center gap-2 px-2 py-1 border-b bg-surface bg-linear-to-b from-emphasis-2 to-emphasis-2 dark:from-emphasis-1 dark:to-emphasis-1",
           className
         )}
       >
@@ -187,6 +187,22 @@ export const RoleHeader = ({ role, className, action }: RoleHeaderProps) => {
   }
   return null;
 };
+
+/**
+ * A card's rounded top with its role header. The square backdrop is the list's own surface: pinned mid-card, it hides
+ * the body's side borders behind the rounded corners.
+ */
+export const RoleTab = ({ sticky = false, ...props }: Omit<RoleHeaderProps, "className"> & { sticky?: boolean }) => (
+  // Sticky: pinned to the list's top (below the opened-context band, via `--band-inset`) while its card spans it.
+  <div
+    data-sticky-header={sticky || undefined}
+    className={cn("bg-surface", sticky && "sticky top-[var(--band-inset,0px)] z-10")}
+  >
+    <ElevatedSurface offset={1} className="border border-b-0 rounded-t-lg overflow-clip">
+      <RoleHeader {...props} />
+    </ElevatedSurface>
+  </div>
+);
 
 interface ImageContentPartProps {
   src: string;
@@ -262,24 +278,25 @@ export const MessageWrapper = ({
 }>) => {
   const cardRef = useRef<HTMLDivElement>(null);
   return (
-    // overflow-clip (not hidden): clips to radius without creating a scroll
-    // container, so sticky can still pin to the messages list.
-    <ElevatedSurface
-      ref={cardRef}
-      offset={1}
-      className={cn("group/span-message relative border rounded-lg overflow-clip scroll-mt-16", highlighted && FLASH)}
-    >
-      <RoleHeader role={role} action={headerAction} />
-      <div className="bg-emphasis-1 dark:bg-transparent">
-        <MessageRole value={role}>
-          <HeightClamp maxHeight={maxHeight} defaultExpanded={defaultExpanded} anchorRef={cardRef}>
-            <div className="flex flex-col divide-y">{children}</div>
-          </HeightClamp>
-        </MessageRole>
-      </div>
-    </ElevatedSurface>
+    // The tab sits outside the body's clip so, pinned, it can cover the body's side borders.
+    <div ref={cardRef} className={cn("group/span-message relative rounded-lg scroll-mt-16", highlighted && FLASH)}>
+      {role && <RoleTab role={role} action={headerAction} sticky />}
+      {/* overflow-clip (not hidden): clips to radius without creating a scroll container, so sticky still pins. */}
+      <ElevatedSurface
+        offset={1}
+        className={cn("border overflow-clip", role ? "border-t-0 rounded-b-lg" : "rounded-lg")}
+      >
+        <div className="bg-emphasis-1 dark:bg-transparent">
+          <MessageRole value={role}>
+            <HeightClamp maxHeight={maxHeight} defaultExpanded={defaultExpanded} anchorRef={cardRef}>
+              <div className="flex flex-col divide-y">{children}</div>
+            </HeightClamp>
+          </MessageRole>
+        </div>
+      </ElevatedSurface>
+    </div>
   );
 };
 
-// Drawn over the card's own border, so the flash needs no layout or state.
+// Drawn over the card's border, so the flash needs no layout or state.
 const FLASH = "outline outline-1 -outline-offset-1 outline-transparent animate-link-flash";

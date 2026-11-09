@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef } from "react";
+import { type CSSProperties, memo, useCallback, useMemo, useRef } from "react";
 
 import { CollapsibleRegistry } from "@/components/traces/span-view/collapsible";
 import { buildToolNameMap } from "@/components/traces/span-view/messages";
@@ -68,7 +68,7 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
         ref={parentRef}
         className="size-full overflow-y-auto styled-scrollbar scrollbar-gutter-stable px-2"
         // The virtualizer corrects scrollTop itself; browser scroll anchoring would correct the same shifts again.
-        style={{ contain: "strict", overflowAnchor: "none" }}
+        style={{ contain: "strict", overflowAnchor: "none", "--band-inset": `${sticky.inset}px` } as CSSProperties}
       >
         <StickyBand
           band={sticky.band}

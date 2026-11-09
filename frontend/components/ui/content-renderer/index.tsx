@@ -51,6 +51,8 @@ interface ContentRendererProps {
    * for keymap injections that need to win over `defaultKeymap` from `basicSetup`.
    */
   extraExtensions?: Extension[];
+  /** Leads the mode picker row, e.g. a section title. */
+  header?: React.ReactNode;
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -83,6 +85,7 @@ const PureContentRenderer = ({
   contentPartIndex = 0,
   customTheme,
   extraExtensions,
+  header,
 }: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const editorId = useId();
@@ -302,6 +305,7 @@ const PureContentRenderer = ({
         {canPickMode ? (
           <>
             <div className="flex justify-end items-center gap-1 pl-2 pr-1 w-full rounded-t bg-transparent">
+              {header}
               <TemplatePickerView mode={mode} onModeChange={handleModeChange} modes={modes} />
               {mode === "custom" && (
                 <TemplatePickerActions
