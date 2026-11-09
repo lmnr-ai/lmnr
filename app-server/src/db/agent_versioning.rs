@@ -11,8 +11,6 @@ use crate::{agent_versioning::definition::Definition, utils::sanitize_string};
 #[derive(Debug, FromRow)]
 pub struct Agent {
     pub id: Uuid,
-    /// `None` until generated or set by a user.
-    pub name: Option<String>,
     /// Traces starting up to here are tagged (by start time); frozen in release
     /// mode.
     pub tagged_until: Option<i64>,
@@ -25,22 +23,6 @@ pub struct Agent {
     pub release_mode: bool,
 }
 
-/// Get or create the agent for `agent_hash`.
-pub async fn upsert_agent(pool: &PgPool, project_id: Uuid, agent_hash: &str) -> Result<Agent> {
-    // The no-op `DO UPDATE` makes `RETURNING` yield the existing row too.
-    let agent = sqlx::query_as::<_, Agent>(
-        "INSERT INTO agents (project_id, agent_hash)
-         VALUES ($1, $2)
-         ON CONFLICT (project_id, agent_hash) DO UPDATE SET agent_hash = EXCLUDED.agent_hash
-         RETURNING id, name, tagged_until, ingested_until, current_version_id, release_mode",
-    )
-    .bind(project_id)
-    .bind(agent_hash)
-    .fetch_one(pool)
-    .await?;
-    Ok(agent)
-}
-
 /// The agent for `agent_hash`, if it has a definition.
 pub async fn get_defined_agent(
     pool: &PgPool,
@@ -48,7 +30,7 @@ pub async fn get_defined_agent(
     agent_hash: &str,
 ) -> Result<Option<Agent>> {
     let agent = sqlx::query_as::<_, Agent>(
-        "SELECT id, name, tagged_until, ingested_until, current_version_id, release_mode
+        "SELECT id, tagged_until, ingested_until, current_version_id, release_mode
          FROM agents
          WHERE project_id = $1 AND agent_hash = $2 AND definition IS NOT NULL",
     )
@@ -88,18 +70,7 @@ pub async fn set_release_mode(pool: &PgPool, agent_id: Uuid) -> Result<()> {
     Ok(())
 }
 
-/// Set a generated name, never overwriting one a user already set.
-pub async fn set_agent_name(pool: &PgPool, agent_id: Uuid, name: &str) -> Result<()> {
-    sqlx::query("UPDATE agents SET name = $2 WHERE id = $1 AND name IS NULL")
-        .bind(agent_id)
-        .bind(sanitize_string(name))
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-/// An agent identified by a detected definition rather than by its prompt's
-/// first sentence.
+/// An agent with the definition ingest identifies its spans by.
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct DefinedAgent {
     pub id: Uuid,

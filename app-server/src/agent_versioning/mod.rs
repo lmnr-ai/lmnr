@@ -5,12 +5,11 @@
 //! hashes in `agent_prompts`. A scheduled job per agent ([`job`]) samples one
 //! prompt per trace, finds sharp line flips ([`inferred::timeline`]), mints a
 //! version per new stable core (the lines in every prompt after the flip), and
-//! tags every trace with its version in `traces_agg.agent_versions`. The
-//! consumer creates and names an agent on its first prompt ([`registry`]).
+//! tags every trace with its version in `traces_agg.agent_versions`.
 //!
 //! Which agent a span belongs to is decided at ingest ([`identity`]): the
-//! system prompt's first sentence, or, with detection on, the first matching
-//! agent definition that the job's [`detection`] step wrote.
+//! first matching agent definition. The job's [`detection`] step creates and
+//! names agents and writes their definitions.
 //!
 //! Once most prompts carry the SDK's release (a git SHA), the agent switches
 //! to release mode for good: versions group releases instead of flips
@@ -26,9 +25,8 @@ pub mod identity;
 mod inferred;
 pub mod ingest;
 mod job;
-pub mod naming;
 pub mod normalize;
-pub mod registry;
+mod prompts;
 mod releases;
 mod versions;
 

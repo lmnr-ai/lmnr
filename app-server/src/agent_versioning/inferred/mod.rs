@@ -113,11 +113,10 @@ impl Job {
         // New versions are appended to `cores`, so ids and hashes line up.
         let mut ids: Vec<Uuid> = versions.iter().map(|v| v.id).collect();
         let mut hashes: Vec<String> = versions.into_iter().map(|v| v.version_hash).collect();
-        let mut system_prompt = None;
         for new_version in &timeline.new_versions {
             let core = &timeline.cores[new_version.version];
             let example = labeled.iter().chain(&unlabeled).nth(new_version.example);
-            let (prompt, text) = match example {
+            let text = match example {
                 Some(example) => self.version_text(project_id, example, core).await?,
                 None => Default::default(),
             };
@@ -125,7 +124,6 @@ impl Job {
             let lines: Vec<i64> = core.iter().map(|&l| l as i64).collect();
             ids.push(insert_version(pool, project_id, agent.id, &hash, &lines, &text).await?);
             hashes.push(hash);
-            system_prompt = system_prompt.or(prompt.filter(|p| !p.is_empty()));
         }
 
         let mut labels = Vec::new();
@@ -153,10 +151,7 @@ impl Job {
             current_version_id,
         )
         .await?;
-
-        let sample = unlabeled.last().or(labeled.last());
-        self.name_agent(agent, project_id, system_prompt, sample)
-            .await
+        Ok(())
     }
 
     /// Every trace starting in `(from, to]`, by time except where the timeline

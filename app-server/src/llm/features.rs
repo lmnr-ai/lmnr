@@ -28,7 +28,6 @@ pub enum LlmFeature {
     AgentChat,
     AgentAutoname,
     ClusteringNaming,
-    CheckpointsAgentNaming,
     AgentDetection,
     Reports,
     /// Upstream of the hosted signals gateway (`/v1/chat/completions`). Resolved
@@ -53,7 +52,6 @@ impl LlmFeature {
             LlmFeature::AgentChat => "agent_chat",
             LlmFeature::AgentAutoname => "agent_autoname",
             LlmFeature::ClusteringNaming => "clustering_naming",
-            LlmFeature::CheckpointsAgentNaming => "checkpoints_agent_naming",
             LlmFeature::AgentDetection => "agent_detection",
             LlmFeature::Reports => "reports",
             LlmFeature::SignalsGateway => "signals_gateway",
@@ -66,8 +64,7 @@ impl LlmFeature {
             LlmFeature::InputExtractionDirect
             | LlmFeature::InputExtractionRegexGeneration
             | LlmFeature::AgentAutoname
-            | LlmFeature::ClusteringNaming
-            | LlmFeature::CheckpointsAgentNaming => ModelSize::Small,
+            | LlmFeature::ClusteringNaming => ModelSize::Small,
             LlmFeature::Default
             | LlmFeature::Signals
             | LlmFeature::SignalsPromptSummarization
@@ -126,7 +123,7 @@ impl Default for LlmRoute {
 mod tests {
     use super::*;
 
-    const ALL: [LlmFeature; 15] = [
+    const ALL: [LlmFeature; 14] = [
         LlmFeature::Default,
         LlmFeature::Signals,
         LlmFeature::SignalsPromptSummarization,
@@ -138,7 +135,6 @@ mod tests {
         LlmFeature::AgentChat,
         LlmFeature::AgentAutoname,
         LlmFeature::ClusteringNaming,
-        LlmFeature::CheckpointsAgentNaming,
         LlmFeature::AgentDetection,
         LlmFeature::Reports,
         LlmFeature::SignalsGateway,

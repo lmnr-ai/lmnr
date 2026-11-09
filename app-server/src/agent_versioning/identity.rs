@@ -1,8 +1,9 @@
-//! Which agent an LLM span belongs to, decided at ingest. With detection on,
-//! it is the first defined agent whose definition matches the system prompt;
-//! a span matching none stays unlabelled (empty `agent_hash` in
-//! `agent_prompts`) until detection defines its agent. With detection off, it
-//! is the prompt's first-sentence hash.
+//! Which agent an LLM span belongs to, decided at ingest. With agent
+//! versioning on, it is the first defined agent whose definition matches the
+//! system prompt; a span matching none stays unlabelled (empty `agent_hash` in
+//! `agent_prompts`) until detection defines its agent. With it off, it is the
+//! prompt's first-sentence hash, which system-prompt versioning and input
+//! extraction still key on.
 
 use tokio::sync::OnceCell;
 use uuid::Uuid;
@@ -41,7 +42,7 @@ impl<'a> AgentResolver<'a> {
 
     /// `None` when no defined agent matches.
     pub async fn agent_hash(&self, system_prompt: &str, first_sentence: String) -> Option<String> {
-        if !is_feature_enabled(Feature::AgentDetection) {
+        if !is_feature_enabled(Feature::AgentVersioning) {
             return Some(first_sentence);
         }
         let agents = self

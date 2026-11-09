@@ -1,4 +1,4 @@
-//! Agent detection (`AGENT_DETECTION_ENABLED`). Each run, for every project
+//! Agent detection. Each run, for every project
 //! with uncovered traces (no prompt of theirs matched a defined agent), an
 //! LLM sees the most recent of them plus the known agents, and defines the
 //! missing agents or extends the checks of agents whose prompt changed
@@ -13,15 +13,18 @@ use futures_util::future::try_join_all;
 use uuid::Uuid;
 
 use self::agent::{Change, DetectionAgent, KnownAgent, LatestPrompt, UnlabelledPrompt};
-use super::{Job, NS, identity::definitions_cache_key, naming};
+use super::{Job, NS, identity::definitions_cache_key, prompts::span_system_prompt};
 use crate::{
     cache::{CacheTrait, keys::AGENT_DETECTION_LOCK_CACHE_KEY},
     ch::agent_prompts::{
         PromptSpan, latest_agent_spans, projects_with_unlabelled, uncovered_traces,
     },
     db::agent_versioning::{get_defined_agents, insert_defined_agent, set_agent_definition},
-    env::agent_versioning::{
-        ACTIVE_WINDOW_SECONDS, DETECTION_MIN_MATCHES, DETECTION_SAMPLES, INTERVAL_SECONDS,
+    env::{
+        agent_versioning::{
+            ACTIVE_WINDOW_SECONDS, DETECTION_MIN_MATCHES, DETECTION_SAMPLES, INTERVAL_SECONDS,
+        },
+        connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
     },
     llm::LlmClient,
 };
@@ -93,7 +96,7 @@ impl Job {
         let changes = DetectionAgent::new(
             llm_client,
             project_id,
-            naming::internal_project_id(),
+            internal_project_id(),
             min_matches,
             prompts,
             agents,
@@ -110,13 +113,9 @@ impl Job {
         spans: &[PromptSpan],
     ) -> Result<Vec<UnlabelledPrompt>> {
         let prompts = try_join_all(spans.iter().map(|span| async {
-            let system_prompt = naming::span_system_prompt(
-                &self.clickhouse,
-                project_id,
-                span.trace_id,
-                span.span_id,
-            )
-            .await?;
+            let system_prompt =
+                span_system_prompt(&self.clickhouse, project_id, span.trace_id, span.span_id)
+                    .await?;
             anyhow::Ok(system_prompt.map(|system_prompt| UnlabelledPrompt {
                 trace_id: span.trace_id,
                 span_id: span.span_id,
@@ -141,13 +140,9 @@ impl Job {
             else {
                 return Ok(None);
             };
-            let system_prompt = naming::span_system_prompt(
-                &self.clickhouse,
-                project_id,
-                span.trace_id,
-                span.span_id,
-            )
-            .await?;
+            let system_prompt =
+                span_system_prompt(&self.clickhouse, project_id, span.trace_id, span.span_id)
+                    .await?;
             anyhow::Ok(system_prompt.map(|system_prompt| LatestPrompt {
                 system_prompt,
                 time: span.start_time,
@@ -201,6 +196,13 @@ impl Job {
         }
         Ok(())
     }
+}
+
+/// The project the detection LLM calls are traced into.
+fn internal_project_id() -> Option<Uuid> {
+    std::env::var(CHECKPOINTS_INTERNAL_PROJECT_ID)
+        .ok()
+        .and_then(|value| Uuid::parse_str(&value).ok())
 }
 
 fn is_defined(agents: &[KnownAgent], prompt: &str) -> bool {

@@ -2,8 +2,10 @@
 
 use super::{BoolEnv, NumEnv};
 
-/// Master switch. When false, ingest writes no `agent_prompts` rows and the
-/// scheduled job does not start. Disabled by default.
+/// Master switch, effective only with an LLM backend (see
+/// `Feature::AgentVersioning`). When off, ingest writes no `agent_prompts`
+/// rows, the scheduled job does not start, and spans keep the first-sentence
+/// agent hash. Disabled by default.
 pub const ENABLED: BoolEnv = BoolEnv::new("AGENT_VERSIONING_ENABLED", false);
 
 /// N: traces a line must be present (or absent) in, consecutively, on each
@@ -39,11 +41,6 @@ pub const RELEASE_MIN_RUN: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_RELEASE_M
 /// however many it has (even one) this long after it was first seen.
 pub const RELEASE_DECIDE_AFTER_SECONDS: NumEnv<i64> =
     NumEnv::new("AGENT_VERSIONING_RELEASE_DECIDE_AFTER_SECONDS", 6 * 60 * 60);
-
-/// Identify agents by their detected definitions instead of the system
-/// prompt's first sentence. Only takes effect with `AGENT_VERSIONING_ENABLED`
-/// and an LLM backend (see `Feature::AgentDetection`). Disabled by default.
-pub const DETECTION_ENABLED: BoolEnv = BoolEnv::new("AGENT_DETECTION_ENABLED", false);
 
 /// Unlabelled traces shown to the detection LLM per project per run.
 pub const DETECTION_SAMPLES: NumEnv<u64> = NumEnv::new("AGENT_DETECTION_SAMPLES", 20);
