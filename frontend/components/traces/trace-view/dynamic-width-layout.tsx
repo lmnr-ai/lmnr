@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useIsPresent } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
@@ -32,8 +32,9 @@ export default function DynamicWidthLayout({ panels, maxWidth: budget, slideIn }
     shallow
   );
 
-  // The store keeps the budget too, so drags clamp to it and resizes from it skip the animation.
-  useEffect(() => setMaxWidth(budget), [budget, setMaxWidth]);
+  // The store keeps the budget too, so drags clamp to it and resizes from it skip the animation. A layout
+  // effect, so the store catches up before paint and no frame lays out against a stale budget.
+  useLayoutEffect(() => setMaxWidth(budget), [budget, setMaxWidth]);
 
   const visible = useMemo<Visible>(() => ({ span: panels.showSpan }), [panels.showSpan]);
 
