@@ -24,6 +24,13 @@ FROM chef AS builder
 COPY --from=planner /app-server/recipe.json recipe.json
 # Build dependencies
 RUN cargo chef cook --release --recipe-path recipe.json
+# And again for the test profile. `[dev-dependencies]` activates tokio's
+# `test-util`, which the binary's build does not, so `cargo test` unifies
+# features differently and resolves a different fingerprint for tokio and for
+# every crate downstream of it (hyper, h2, actix-rt, aws-smithy-*, ~70 in all).
+# Cooking both variants puts that second set in this cached layer instead of
+# making every CI run rebuild it before it can start the tests.
+RUN cargo chef cook --release --tests --recipe-path recipe.json
 
 # Build application
 COPY . .

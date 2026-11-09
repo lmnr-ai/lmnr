@@ -14,6 +14,34 @@ on:
       - "app-server/**/*.rs"
       - "app-server/Cargo.lock"
       - "app-server/Cargo.toml"
+      - "app-server/Dockerfile"
+      - ".github/workflows/backend-build-and-test.yml"
+  # Actions caches are branch-scoped: a run reads its own branch's scope and the
+  # base branch's, nothing else. With a pull_request-only trigger nothing ever
+  # wrote a cache into dev's scope, so every new branch's first run was a cold
+  # dependency build (~17 min vs ~10 min warm) even when an identical key already
+  # existed in another PR's scope. This trigger keeps dev's scope warm for every
+  # PR to inherit; it is not here to validate dev itself.
+  # GitHub Actions does not support YAML anchors, hence the repeated paths.
+  push:
+    branches:
+      - dev
+    paths:
+      - "app-server/src/**"
+      - "app-server/proto/**"
+      - "app-server/**/*.rs"
+      - "app-server/Cargo.lock"
+      - "app-server/Cargo.toml"
+      - "app-server/Dockerfile"
+      - ".github/workflows/backend-build-and-test.yml"
+
+# A new commit supersedes the verdict of any run still in flight for the same PR,
+# and each run holds an arm runner for ~10 minutes. Pushes to dev are exempt:
+# consecutive merges share refs/heads/dev, so cancelling would keep killing the
+# run that is there to populate the cache.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-test:
@@ -26,13 +54,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.4.1 # immutable tag
 
-      - name: Cache Docker layers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Restore-only on pull_request: a cache written from a PR run lands in that
+      # PR's own scope, where nothing else can ever read it, while still counting
+      # against the repo's 10 GB quota and evicting the dev entry that PRs do
+      # read. Only the dev push writes — see the save step below.
+      - name: Restore Docker layer cache
+        id: layer-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-app-server-pr-${{ hashFiles('app-server/Cargo.lock') }}
+          key: ${{ runner.os }}-buildx-app-server-${{ hashFiles('app-server/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-buildx-app-server-pr-
+            ${{ runner.os }}-buildx-app-server-
 
       - name: Build Docker image
         uses: docker/build-push-action@v7.4.0 # immutable tag
@@ -41,7 +74,10 @@ jobs:
           push: false
           platforms: linux/arm64
           cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+          # Exporting the layers costs ~1 min, so only do it on the run that goes
+          # on to save them. buildkit cannot read and write the same local cache
+          # directory, hence the separate -new destination.
+          cache-to: ${{ github.event_name == 'push' && steps.layer-cache.outputs.cache-hit != 'true' && 'type=local,dest=/tmp/.buildx-cache-new,mode=max' || '' }}
           target: builder
           tags: app-server-test:latest
           load: true
@@ -52,5 +88,22 @@ jobs:
           # --release reuses the release artifacts the `builder` stage already
           # compiled (target/release). A debug `cargo test` reads target/debug,
           # which is empty, so it recompiles the whole dependency tree from
-          # scratch — the recompile that was blowing past the 30 min timeout.
+          # scratch. The dependencies for this profile specifically come from the
+          # second `cargo chef cook` in app-server/Dockerfile; without that cook
+          # this step rebuilds tokio and everything downstream of it.
           docker run --rm -t app-server-test:latest cargo test --release -- --nocapture
+
+      # Replacing the directory rather than exporting onto it keeps the local
+      # cache from growing without bound across runs.
+      - name: Swap in the new layer cache
+        if: github.event_name == 'push' && steps.layer-cache.outputs.cache-hit != 'true'
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Save Docker layer cache
+        if: github.event_name == 'push' && steps.layer-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-app-server-${{ hashFiles('app-server/Cargo.lock') }}

@@ -176,3 +176,4 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs |
 | `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator |
 | `docs/internal/oss-release.md` | `.github/workflows/build-push.yml` (GHCR images, attestations, release-source gate) |
+| `docs/internal/backend-ci.md` | `.github/workflows/backend-build-and-test.yml`, `app-server/Dockerfile` (branch-scoped Actions cache, cargo-chef cook layers, CI timing baseline) |
