@@ -17,7 +17,7 @@ const whenIdle = (fn: () => void) => {
  * measurement then corrects scrollTop while the user scrolls up, and that write cancels the browser's smooth wheel
  * scroll, so small scrolls stutter. This measures those rows ahead of time, a few per idle period and never while the
  * user scrolls. Returns the row indices to render in a hidden measuring layer.
- * `paused` while searching: hidden rows would register as search sources, and a match could scroll to an invisible row.
+ * `paused` while searching: a hidden row's editors could take the current match and scroll to an invisible row.
  */
 export const usePremeasureAbove = (
   virtualizer: Virtualizer<HTMLDivElement, Element>,

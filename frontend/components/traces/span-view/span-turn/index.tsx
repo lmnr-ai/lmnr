@@ -1,7 +1,6 @@
 import { memo, useCallback, useMemo, useState } from "react";
 
 import { spanPathKey } from "@/components/traces/span-view/span-io";
-import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { useUrlState } from "@/components/traces/trace-view/store/base";
 import { messageLinkUrl } from "@/components/traces/trace-view/trace-panel-url";
 import { buildSpanTurn } from "@/lib/spans/turn";
@@ -11,6 +10,7 @@ import { buildRows, type MessageAnchor } from "./build-rows";
 import ConversationList from "./conversation-list";
 import { anchorHash, isFoldedAnchor, parseAnchorHash } from "./message-anchor";
 import { useSectionFormats } from "./use-section-formats";
+import { useTurnSearch } from "./use-turn-search";
 
 const readAnchorHash = () => (typeof window === "undefined" ? undefined : parseAnchorHash(window.location.hash));
 
@@ -20,16 +20,8 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
   const turn = useMemo(() => buildSpanTurn(span.input, span.output), [span.input, span.output]);
   const [linked, setLinked] = useState<MessageAnchor | undefined>(() => (linkable ? readAnchorHash() : undefined));
 
-  // Folded context can't be searched (or linked to), so a search term or a link into it opens it.
-  const searchTerm = useSpanSearchState()?.searchTerm ?? "";
-  const [contextOpen, setContextOpen] = useState(
-    () => searchTerm.length > 0 || (!!linked && isFoldedAnchor(turn, linked))
-  );
-  const [prevSearchTerm, setPrevSearchTerm] = useState(searchTerm);
-  if (searchTerm !== prevSearchTerm) {
-    setPrevSearchTerm(searchTerm);
-    if (searchTerm) setContextOpen(true);
-  }
+  // A link into the folded context opens it.
+  const [contextOpen, setContextOpen] = useState(() => !!linked && isFoldedAnchor(turn, linked));
   const toggleContext = useCallback(() => setContextOpen((open) => !open), []);
 
   const linkMessage = useCallback(
@@ -47,10 +39,30 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
 
   const rawInput = formats.input.mode !== "messages";
   const rawOutput = formats.output.mode !== "messages";
-  const rows = useMemo(
-    () => buildRows(turn, contextOpen, { input: rawInput, output: rawOutput }),
+  const allRows = useMemo(
+    () => buildRows(turn, true, { input: rawInput, output: rawOutput }),
+    [turn, rawInput, rawOutput]
+  );
+  const foldedRows = useMemo(
+    () => (contextOpen ? undefined : buildRows(turn, false, { input: rawInput, output: rawOutput })),
     [turn, contextOpen, rawInput, rawOutput]
   );
+  const rows = foldedRows ?? allRows;
+
+  const sections = useMemo(
+    () => ({
+      input: { mode: formats.input.mode, value: formats.input.value },
+      output: { mode: formats.output.mode, value: formats.output.value },
+    }),
+    [formats.input.mode, formats.input.value, formats.output.mode, formats.output.value]
+  );
+  const search = useTurnSearch(allRows, sections);
+  // Going to a match in the folded context opens it.
+  const [prevActive, setPrevActive] = useState(search.active);
+  if (search.active !== prevActive) {
+    setPrevActive(search.active);
+    if (search.activeInContext) setContextOpen(true);
+  }
 
   const isEmpty = !turn.system && !turn.task && !turn.history && !turn.previous && !turn.input && !turn.output;
 
@@ -66,6 +78,9 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
           onToggleContext={toggleContext}
           linked={linked}
           onLinkMessage={linkable ? linkMessage : undefined}
+          matches={search.matches}
+          activeMatch={search.active}
+          contextHits={search.contextHits}
         />
       )}
     </div>

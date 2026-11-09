@@ -25,16 +25,23 @@ interface SpanSearchStateContextValue {
   goToPrev: () => void;
 }
 
-interface SpanSearchRegistrationContextValue {
+export interface SpanSearchRegistrationContextValue {
   registerSource: (source: SearchableSource) => void;
   unregisterSource: (id: string) => void;
 }
 
 const SpanSearchStateContext = createContext<SpanSearchStateContextValue | null>(null);
 const SpanSearchRegistrationContext = createContext<SpanSearchRegistrationContextValue | null>(null);
+/** Match counts per part of the enclosing message, from the span's search index; absent while not searching. */
+const SpanSearchHitsContext = createContext<readonly number[] | undefined>(undefined);
 
 export const useSpanSearchState = () => useContext(SpanSearchStateContext);
 export const useSpanSearchRegistration = () => useContext(SpanSearchRegistrationContext);
+export const useSpanSearchHits = () => useContext(SpanSearchHitsContext);
+
+/** Lets a virtualized list collect its mounted editors per row instead of registering each one here. */
+export const SpanSearchRegistrationScope = SpanSearchRegistrationContext.Provider;
+export const SpanSearchHitsProvider = SpanSearchHitsContext.Provider;
 
 export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChildren<{ initialSearchTerm?: string }>) {
   const sources = useRef<Map<string, RegisteredSource>>(new Map());
@@ -42,61 +49,15 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
   const [searchTerm, setSearchTermState] = useState(initialSearchTerm ?? "");
   const [totalMatches, setTotalMatches] = useState(0);
   const [currentGlobalIndex, setCurrentGlobalIndex] = useState(0);
+  // A new term jumps to its first match, as soon as one is counted (sources can register after the term is set).
+  const jumpPending = useRef(!!initialSearchTerm);
 
   const setSearchTerm = useCallback((term: string) => {
     searchTermRef.current = term;
+    jumpPending.current = term.trim().length > 0;
     setCurrentGlobalIndex(0);
     setSearchTermState(term);
   }, []);
-
-  const syncTotals = useCallback(() => {
-    let total = 0;
-    sources.current.forEach((entry) => {
-      total += entry.matchCount;
-    });
-    setTotalMatches(total);
-    setCurrentGlobalIndex((prev) => {
-      if (total === 0) return 0;
-      return Math.min(prev, total);
-    });
-  }, []);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      sources.current.forEach((entry) => {
-        entry.matchCount = entry.source.apply(searchTerm);
-      });
-      syncTotals();
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [searchTerm, syncTotals]);
-
-  const registerSource = useCallback(
-    (source: SearchableSource) => {
-      const existing = sources.current.get(source.id);
-      if (existing && existing.source !== source) {
-        existing.source.destroy();
-      }
-
-      const matchCount = source.apply(searchTermRef.current);
-      sources.current.set(source.id, { source, matchCount });
-      requestAnimationFrame(() => syncTotals());
-    },
-    [syncTotals]
-  );
-
-  const unregisterSource = useCallback(
-    (id: string) => {
-      const entry = sources.current.get(id);
-      if (entry) {
-        entry.source.destroy();
-        sources.current.delete(id);
-        requestAnimationFrame(() => syncTotals());
-      }
-    },
-    [syncTotals]
-  );
 
   const getSortedSources = useCallback(
     (): RegisteredSource[] =>
@@ -149,6 +110,59 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
       entry.source.goTo(localIndex);
     },
     [getSourceForGlobalIndex]
+  );
+
+  const syncTotals = useCallback(() => {
+    let total = 0;
+    sources.current.forEach((entry) => {
+      total += entry.matchCount;
+    });
+    setTotalMatches(total);
+    setCurrentGlobalIndex((prev) => {
+      if (total === 0) return 0;
+      return Math.min(prev, total);
+    });
+    if (total > 0 && jumpPending.current) {
+      jumpPending.current = false;
+      goToGlobalMatch(0);
+    }
+  }, [goToGlobalMatch]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      sources.current.forEach((entry) => {
+        entry.matchCount = entry.source.apply(searchTerm);
+      });
+      syncTotals();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [searchTerm, syncTotals]);
+
+  const registerSource = useCallback(
+    (source: SearchableSource) => {
+      const existing = sources.current.get(source.id);
+      if (existing && existing.source !== source) {
+        existing.source.destroy();
+      }
+
+      const matchCount = source.apply(searchTermRef.current);
+      sources.current.set(source.id, { source, matchCount });
+      requestAnimationFrame(() => syncTotals());
+    },
+    [syncTotals]
+  );
+
+  const unregisterSource = useCallback(
+    (id: string) => {
+      const entry = sources.current.get(id);
+      if (entry) {
+        entry.source.destroy();
+        sources.current.delete(id);
+        requestAnimationFrame(() => syncTotals());
+      }
+    },
+    [syncTotals]
   );
 
   const goToNext = useCallback(() => {

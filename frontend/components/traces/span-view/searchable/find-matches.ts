@@ -1,4 +1,4 @@
-interface MatchOffset {
+export interface MatchOffset {
   start: number;
   end: number;
 }
@@ -20,28 +20,32 @@ export function buildSearchRegex(query: string): RegExp | null {
   return new RegExp(core, "iu");
 }
 
-function findMatchOffsets(text: string, term: string): MatchOffset[] {
-  const trimmed = term.trim();
-  if (!trimmed) return [];
+/** The global regex every search source matches `term` with; null when the term has nothing to match. */
+export const searchPattern = (term: string): RegExp | null => {
+  const regex = buildSearchRegex(term.trim());
+  return regex && new RegExp(regex.source, "giu");
+};
 
-  const regex = buildSearchRegex(trimmed);
-  if (!regex) return [];
-
-  const globalRegex = new RegExp(regex.source, "giu");
-  const offsets: MatchOffset[] = [];
+const eachMatch = (text: string, pattern: RegExp, visit: (start: number, end: number) => void) => {
+  pattern.lastIndex = 0;
   let match: RegExpExecArray | null;
-
-  while ((match = globalRegex.exec(text)) !== null) {
+  while ((match = pattern.exec(text)) !== null) {
     if (match[0].length === 0) {
-      globalRegex.lastIndex++;
+      pattern.lastIndex++;
       continue;
     }
-    offsets.push({ start: match.index, end: match.index + match[0].length });
+    visit(match.index, match.index + match[0].length);
   }
+};
 
+export const findMatchOffsets = (text: string, pattern: RegExp): MatchOffset[] => {
+  const offsets: MatchOffset[] = [];
+  eachMatch(text, pattern, (start, end) => offsets.push({ start, end }));
   return offsets;
-}
+};
 
-export function countMatches(text: string, term: string): number {
-  return findMatchOffsets(text, term).length;
-}
+export const countMatches = (text: string, pattern: RegExp): number => {
+  let count = 0;
+  eachMatch(text, pattern, () => count++);
+  return count;
+};

@@ -1,16 +1,17 @@
-import { memo, useCallback, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { CollapsibleRegistry } from "@/components/traces/span-view/collapsible";
 import { buildToolNameMap } from "@/components/traces/span-view/messages";
-import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 
 import { type ConversationRow, type MessageAnchor, type SectionKey } from "./build-rows";
 import ConversationRowView, { type ConversationRowProps } from "./conversation-row";
 import ScrollToBottom from "./scroll-to-bottom";
+import { type TurnMatches } from "./search-index";
 import { type SectionFormat } from "./section-header";
 import StickyBand from "./sticky-band";
 import { useAnchoredVirtualizer } from "./use-anchored-virtualizer";
 import { useStickyBand } from "./use-sticky-band";
+import { type ActiveRowMatch } from "./use-turn-search";
 
 const BAND_HEIGHT = 48;
 
@@ -23,11 +24,15 @@ interface ConversationListProps {
   linked?: MessageAnchor;
   /** Omitted where a link couldn't reopen this span. */
   onLinkMessage?: (anchor: MessageAnchor) => Promise<void>;
+  /** Search matches per row, from the span's text index; undefined while not searching. */
+  matches?: TurnMatches;
+  activeMatch?: ActiveRowMatch;
+  /** Matches inside the folded context, shown on its card. */
+  contextHits?: number;
 }
 
-const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) => {
+const ConversationList = ({ rows, linked, matches, activeMatch, contextHits, ...rowProps }: ConversationListProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
-  const searchTerm = useSpanSearchState()?.searchTerm ?? "";
 
   // Only provider-rendered (non-normalized) rows read this map.
   const toolNameMap = useMemo(() => {
@@ -36,12 +41,36 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
     return new Map([...segments].flatMap((segment) => [...buildToolNameMap(segment)]));
   }, [rows]);
 
-  const { virtualizer, items, premeasure, setContainer, highlightedIndex } = useAnchoredVirtualizer({
+  const { virtualizer, items, premeasure, setContainer, highlightedIndex, releaseLinked } = useAnchoredVirtualizer({
     scrollRef: parentRef,
     rows,
     linked,
-    searching: !!searchTerm,
+    searching: !!matches,
   });
+
+  // Brings the current match's row into the range (mounting it); its editor then scrolls to the match itself.
+  const scrolledNonce = useRef(0);
+  useEffect(() => {
+    if (!activeMatch || activeMatch.nonce === scrolledNonce.current) return;
+    const index = rows.findIndex((row) => row.key === activeMatch.key);
+    if (index < 0) return;
+    scrolledNonce.current = activeMatch.nonce;
+    releaseLinked();
+    virtualizer.scrollToIndex(index, { align: "auto" });
+  }, [activeMatch, rows, virtualizer, releaseLinked]);
+
+  const claimedNonce = useRef(0);
+  const claimReveal = useCallback(
+    (nonce: number) => {
+      if (nonce === claimedNonce.current) return false;
+      claimedNonce.current = nonce;
+      // Ends scrollToIndex's settling: it would pull the row's start back over the editor's scroll to the match.
+      const el = virtualizer.scrollElement;
+      if (el) virtualizer.scrollToOffset(el.scrollTop);
+      return true;
+    },
+    [virtualizer]
+  );
 
   const sticky = useStickyBand(parentRef, virtualizer, rows, BAND_HEIGHT, rowProps.onToggleContext);
   const scrollToBottom = useCallback(
@@ -58,6 +87,10 @@ const ConversationList = ({ rows, linked, ...rowProps }: ConversationListProps) 
       measureRef: virtualizer.measureElement,
       toolNameMap,
       highlighted: index === highlightedIndex,
+      hits: matches?.byRow.get(row.key),
+      activeMatch: activeMatch?.key === row.key ? activeMatch : undefined,
+      claimReveal,
+      contextHits: row.kind === "context" && !row.open ? contextHits : undefined,
     };
     return <ConversationRowView key={row.key} {...props} />;
   };

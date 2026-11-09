@@ -11,7 +11,7 @@ import {
 } from "react";
 
 import { useCollapsible } from "@/components/traces/span-view/collapsible";
-import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
+import { useSpanSearchHits } from "@/components/traces/span-view/span-search-context";
 
 const ExpandClamp = createContext<() => void>(() => {});
 
@@ -36,8 +36,8 @@ const HeightClamp = ({
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [open, setOpen] = useState(defaultExpanded);
   // Clipped content can't show its search matches.
-  const searching = !!useSpanSearchState()?.searchTerm;
-  const expanded = open || searching;
+  const hasMatches = !!useSpanSearchHits();
+  const expanded = open || hasMatches;
   // Clipped whether or not it overflows: content can grow after mount (editors render late), and a row that grew past
   // the clamp before re-clipping would shift everything below it under the virtualizer.
   const clamped = !expanded;
@@ -62,7 +62,7 @@ const HeightClamp = ({
   const collapse = useCallback(() => setOpen(false), []);
   const expand = useCallback(() => setOpen(true), []);
   // The sticky band folds it while "Show less" is out of view.
-  useCollapsible(anchorRef, open && isOverflowing && !searching, undefined, "Show less", collapse);
+  useCollapsible(anchorRef, open && isOverflowing && !hasMatches, undefined, "Show less", collapse);
 
   const toggle = () => {
     setOpen(!expanded);

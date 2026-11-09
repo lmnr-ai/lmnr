@@ -1,6 +1,7 @@
 import { memo } from "react";
 
 import { TextContentPart } from "@/components/traces/span-view/common";
+import { useSpanSearchHits } from "@/components/traces/span-view/span-search-context";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
@@ -38,25 +39,38 @@ interface PartOptions {
 }
 
 const Part = ({ part, expandReasoning, ...props }: PartProps & PartOptions & { part: TurnPart }) => {
+  // The row's search index counts per part, in this order.
+  const hasMatches = (useSpanSearchHits()?.[props.contentPartIndex] ?? 0) > 0;
   switch (part.kind) {
     case "text":
       return <TextContentPart content={part.text} {...props} />;
     case "reasoning":
       return (
-        <ToolRow icon="reasoning" name="Thinking" summary={preview(part.text)} defaultOpen={expandReasoning}>
+        <ToolRow
+          icon="reasoning"
+          name="Thinking"
+          summary={preview(part.text)}
+          defaultOpen={expandReasoning}
+          hasMatches={hasMatches}
+        >
           <Value value={part.text} {...props} />
         </ToolRow>
       );
     case "tool-call":
       return (
-        <ToolRow icon="call" name={part.name} summary={preview(part.args)}>
+        <ToolRow icon="call" name={part.name} summary={preview(part.args)} hasMatches={hasMatches}>
           <Value value={part.args} {...props} />
         </ToolRow>
       );
     case "tool-result":
       // The output only: the arguments are the call's, shown in its own message.
       return (
-        <ToolRow icon="result" name={part.name ?? part.id ?? "result"} summary={preview(part.output)}>
+        <ToolRow
+          icon="result"
+          name={part.name ?? part.id ?? "result"}
+          summary={preview(part.output)}
+          hasMatches={hasMatches}
+        >
           <Value value={part.output} {...props} />
         </ToolRow>
       );

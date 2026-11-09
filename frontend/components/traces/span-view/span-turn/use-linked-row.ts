@@ -23,18 +23,18 @@ export const useLinkedRow = (
   // Resolved once: copying a link later must not move the list.
   const [index] = useState(() => (linked ? findAnchorRow(rows, linked) : -1));
   const [holding, setHolding] = useState(index >= 0);
+  const release = useCallback(() => setHolding(false), []);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!holding || !el) return;
-    const release = () => setHolding(false);
     const timer = setTimeout(release, SETTLE_MS);
     USER_INPUT.forEach((event) => el.addEventListener(event, release, { passive: true }));
     return () => {
       clearTimeout(timer);
       USER_INPUT.forEach((event) => el.removeEventListener(event, release));
     };
-  }, [holding, scrollRef]);
+  }, [holding, scrollRef, release]);
 
   const onChange = useCallback(
     (virtualizer: Virtualizer<HTMLDivElement, Element>) => {
@@ -49,5 +49,5 @@ export const useLinkedRow = (
   const initialOffset = () =>
     Array.from({ length: Math.max(0, index) }, (_, i) => estimateSize(i)).reduce((a, b) => a + b, 0);
 
-  return { index, holding, onChange, initialOffset };
+  return { index, holding, onChange, initialOffset, release };
 };
