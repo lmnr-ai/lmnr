@@ -56,18 +56,17 @@ const SessionTimelineSpanContainerElement = ({
         />
       ))}
 
-      {/* Subagent groups: a solid box over the group's spans. Clicking one doesn't toggle the trace. */}
+      {/* Subagent groups: an outline around the group's spans; clicks pass through to them. */}
       {container.groupBoxes.map((box) => (
         <div
           key={box.groupId}
-          className="absolute z-10 rounded-xs border border-subagent/70 bg-subagent/70"
+          className="pointer-events-none absolute z-10 rounded-xs border border-subagent/70"
           style={{
             left: `${box.left}%`,
             width: `max(${box.width}%, 4px)`,
             top: box.topRow * ROW_HEIGHT + 1,
             height: box.rowSpan * ROW_HEIGHT - 2,
           }}
-          onClick={(e) => e.stopPropagation()}
         />
       ))}
     </div>

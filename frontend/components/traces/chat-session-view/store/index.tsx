@@ -63,11 +63,15 @@ export function ChatSessionProvider({ sessionId, children }: PropsWithChildren<{
     createChatSessionStore({
       sessionId,
       loadTraceSpans: async (trace) => {
-        // Padded by a second: span times can sit just outside the trace's rounded bounds.
-        const params = new URLSearchParams({
-          startDate: new Date(Date.parse(trace.startTime) - 1000).toISOString(),
-          endDate: new Date(Date.parse(trace.endTime) + 1000).toISOString(),
-        });
+        // Padded by a second: span times can sit just outside the trace's rounded bounds. A live
+        // turn can lack its times; the range is optional, so it's dropped then.
+        const start = Date.parse(trace.startTime);
+        const end = Date.parse(trace.endTime);
+        const params = new URLSearchParams(
+          Number.isFinite(start) && Number.isFinite(end)
+            ? { startDate: new Date(start - 1000).toISOString(), endDate: new Date(end + 1000).toISOString() }
+            : {}
+        );
         const { data, error } = await fetchApi<TraceViewSpan[]>(
           `/api/projects/${projectId}/traces/${trace.id}/spans?${params}`
         );

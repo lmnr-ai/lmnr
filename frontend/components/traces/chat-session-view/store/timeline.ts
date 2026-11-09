@@ -59,7 +59,10 @@ export const createTimelineSlice =
           traceSpansLoading: { ...traceSpansLoading, [trace.id]: true },
           traceSpansError: { ...get().traceSpansError, [trace.id]: undefined },
         });
-        const result = await loadTraceSpans(trace);
+        // A throw must still clear the loading flag, or later fetches for this trace no-op forever.
+        const result = await loadTraceSpans(trace).catch((e: unknown) => ({
+          error: e instanceof Error ? e.message : "Failed to load spans",
+        }));
         set({ traceSpansLoading: { ...get().traceSpansLoading, [trace.id]: false } });
         if ("error" in result) set({ traceSpansError: { ...get().traceSpansError, [trace.id]: result.error } });
         else
