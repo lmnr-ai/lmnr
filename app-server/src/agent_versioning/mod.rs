@@ -17,7 +17,12 @@
 
 use std::sync::Arc;
 
-use crate::{cache::Cache, db::DB, llm::LlmClient};
+use crate::{
+    cache::Cache,
+    db::DB,
+    features::{Feature, is_feature_enabled},
+    llm::{LlmClient, llm_client_available},
+};
 
 pub mod definition;
 mod detection;
@@ -29,6 +34,15 @@ pub mod normalize;
 mod prompts;
 mod releases;
 mod versions;
+
+/// Whether agent versioning runs. `Feature::AgentVersioning` only mirrors the
+/// env (and decides whether `main.rs` builds the LLM client at all), but the
+/// client can still fail to build. Without it detection never runs, so ingest
+/// would label spans only by definitions nothing writes: fall back to the
+/// first-sentence identity and write no `agent_prompts` rows instead.
+pub fn is_enabled() -> bool {
+    is_feature_enabled(Feature::AgentVersioning) && llm_client_available()
+}
 
 const NS: i64 = 1_000_000_000;
 /// Async inserts become readable shortly after `ingested_at`; reading only up

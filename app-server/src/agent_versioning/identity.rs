@@ -14,7 +14,6 @@ use crate::{
         DB,
         agent_versioning::{DefinedAgent, get_defined_agents},
     },
-    features::{Feature, is_feature_enabled},
 };
 
 /// Detection invalidates the entry when it saves, so this only bounds how long
@@ -42,7 +41,7 @@ impl<'a> AgentResolver<'a> {
 
     /// `None` when no defined agent matches.
     pub async fn agent_hash(&self, system_prompt: &str, first_sentence: String) -> Option<String> {
-        if !is_feature_enabled(Feature::AgentVersioning) {
+        if !super::is_enabled() {
             return Some(first_sentence);
         }
         let agents = self

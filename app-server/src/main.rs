@@ -1579,7 +1579,7 @@ fn main() -> anyhow::Result<()> {
             log::info!("Reports feature disabled - skipping reports scheduler");
         }
 
-        if is_feature_enabled(Feature::AgentVersioning) {
+        if agent_versioning::is_enabled() {
             log::info!("Agent versioning enabled - starting agent versioning job");
             let job = agent_versioning::Job {
                 db: db.clone(),
