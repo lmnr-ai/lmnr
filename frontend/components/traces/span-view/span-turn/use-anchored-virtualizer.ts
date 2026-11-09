@@ -7,9 +7,9 @@ import { usePremeasureAbove } from "./use-premeasure-above";
 import { bandInset } from "./use-sticky-band";
 
 const HEADER_ESTIMATE_SIZE = 40;
-// The opened context card (card + rail stub), exact: a linked context message lands below its copy in the sticky band,
+// The opened context card (34px + `pb-4`), exact: a linked context message lands below its copy in the sticky band,
 // so an estimate off by a few pixels would move the landing once the row is measured.
-const OPEN_CONTEXT_SIZE = 46;
+const OPEN_CONTEXT_SIZE = 50;
 const MESSAGE_ESTIMATE_SIZE = 240;
 const NEVER_ADJUST = () => false;
 

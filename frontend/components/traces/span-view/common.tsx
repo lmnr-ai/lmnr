@@ -279,7 +279,7 @@ export const MessageWrapper = ({
   const cardRef = useRef<HTMLDivElement>(null);
   return (
     // The tab sits outside the body's clip so, pinned, it can cover the body's side borders.
-    <div ref={cardRef} className={cn("group/span-message relative rounded-lg scroll-mt-16", highlighted && FLASH)}>
+    <div ref={cardRef} className="group/span-message relative rounded-lg scroll-mt-16">
       {role && <RoleTab role={role} action={headerAction} sticky />}
       {/* overflow-clip (not hidden): clips to radius without creating a scroll container, so sticky still pins. */}
       <ElevatedSurface
@@ -294,9 +294,11 @@ export const MessageWrapper = ({
           </MessageRole>
         </div>
       </ElevatedSurface>
+      {highlighted && <div className={FLASH} />}
     </div>
   );
 };
 
-// Drawn over the card's border, so the flash needs no layout or state.
-const FLASH = "outline outline-1 -outline-offset-1 outline-transparent animate-link-flash";
+// Its own layer over the card's border, above the sticky tab (z-10), which would otherwise paint over the outline.
+const FLASH =
+  "pointer-events-none absolute inset-0 z-20 rounded-lg outline outline-1 -outline-offset-1 outline-transparent animate-link-flash";
