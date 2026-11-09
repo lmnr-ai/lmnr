@@ -8,12 +8,13 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    cache::{Cache, CacheTrait, keys::TRACE_SESSION_ID_CACHE_KEY},
+    cache::Cache,
     ch::traces::TraceAggregation,
     db::{spans::Span, spans::SpanType, trace::TraceType},
     evaluations::realtime::lookup_trace_evaluation_id,
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
+    traces::dedup::session::hinted_session,
 };
 
 /// Standalone agent-input event — the stat delta can't carry it (extraction
@@ -23,8 +24,6 @@ const AGENT_INPUT_UPDATE_EVENT: &str = "trace_agent_input_update";
 const EVALUATION_TOP_SPAN_NAME: &str = "evaluation";
 const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
 const EVALUATION_ID_METADATA_KEY: &str = "evaluation_id";
-// Outlives a live session turn; the session view refetches anything older.
-const TRACE_SESSION_ID_TTL_SECONDS: u64 = 60 * 60;
 
 /// Realtime trace data for frontend consumption
 #[derive(Debug, Serialize)]
@@ -260,30 +259,17 @@ async fn channels_for_trace_fields(
     channels
 }
 
-/// The batch's session id, remembered per trace: only some spans carry it, and later batches without it must still
-/// reach the session channel.
+/// The batch's session id, else the one the ingest producer hinted for the trace: only some spans carry it, and
+/// batches without it must still reach the session channel.
 async fn resolve_session_id(
     cache: &Cache,
     project_id: &Uuid,
     trace_id: &Uuid,
     session_id: Option<&str>,
 ) -> Option<String> {
-    let key = format!("{TRACE_SESSION_ID_CACHE_KEY}:{project_id}:{trace_id}");
-    if let Some(session_id) = session_id.filter(|s| !s.is_empty()) {
-        if let Err(e) = cache
-            .insert_with_ttl(&key, session_id.to_string(), TRACE_SESSION_ID_TTL_SECONDS)
-            .await
-        {
-            log::warn!("Failed to cache session_id for {}: {:?}", key, e);
-        }
-        return Some(session_id.to_string());
-    }
-    match cache.get::<String>(&key).await {
-        Ok(found) => found,
-        Err(e) => {
-            log::warn!("Failed to read session_id cache for {}: {:?}", key, e);
-            None
-        }
+    match session_id.filter(|s| !s.is_empty()) {
+        Some(session_id) => Some(session_id.to_string()),
+        None => hinted_session(cache, *project_id, *trace_id).await,
     }
 }
 
