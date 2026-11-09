@@ -15,9 +15,11 @@ const instantTransition = { duration: 0 } as const;
 interface DynamicWidthLayoutProps {
   panels: TraceViewPanels;
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
+  /** Width kept free beside the panel for the page it sits over or next to. */
+  reservedWidth?: number;
 }
 
-export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidthLayoutProps) {
+export default function DynamicWidthLayout({ panels, sidePanelRef, reservedWidth = 80 }: DynamicWidthLayoutProps) {
   const { targets, maxWidth, layoutChangeSource, resizePanel, setMaxWidth } = useTraceViewStore(
     (state) => ({
       targets: state.targets,
@@ -38,12 +40,12 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) {
-        setMaxWidth(entry.contentRect.width - 80);
+        setMaxWidth(entry.contentRect.width - reservedWidth);
       }
     });
     observer.observe(measured);
     return () => observer.disconnect();
-  }, [sidePanelRef, setMaxWidth]);
+  }, [sidePanelRef, setMaxWidth, reservedWidth]);
 
   const visible = useMemo<Visible>(() => ({ span: panels.showSpan }), [panels.showSpan]);
 

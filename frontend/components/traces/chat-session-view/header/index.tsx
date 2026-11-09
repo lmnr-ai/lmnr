@@ -3,10 +3,9 @@ import useSWR from "swr";
 
 import { computeTraceStats, StatsShields } from "@/components/traces/stats-shields";
 import UsersPill from "@/components/traces/user-preview/users-pill";
-import { useProjectContext } from "@/contexts/project-context";
+import Header from "@/components/ui/header";
 import { type ModelTokens } from "@/lib/actions/sessions/model-tokens";
 import { swrFetcher } from "@/lib/api/fetch-api";
-import { cn } from "@/lib/utils";
 
 import { sessionModelTokensUrl } from "../session-api";
 import { useChatSession } from "../store";
@@ -17,36 +16,36 @@ const EMPTY: ModelTokens[] = [];
 const distinct = (values: (string | null | undefined)[]) =>
   [...new Set(values.filter((v): v is string => !!v && v !== "<null>"))].sort();
 
-/** Session stats, user and model pills, and the timeline toggle. */
-export default function ControlBar() {
+/** The page header over the thread column: breadcrumbs, then the session's stats, models, and users. */
+export default function SessionHeader({ projectId }: { projectId: string }) {
   const traces = useChatSession((s) => s.traces);
-  const timelineEnabled = useChatSession((s) => s.timelineEnabled);
-  const { project } = useProjectContext();
-  const projectId = project?.id ?? "";
+  const sessionId = useChatSession((s) => s.sessionId);
 
   const stats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
   const users = useMemo(() => distinct(traces.map((t) => t.userId)), [traces]);
-  const sessionId = useChatSession((s) => s.sessionId);
   // One grouped query over the session's LLM spans; on failure the optional pill just stays hidden.
   const { data: models = EMPTY } = useSWR<ModelTokens[]>(
     projectId && sessionId ? sessionModelTokensUrl(projectId, sessionId) : null,
     swrFetcher
   );
 
-  if (!stats) return null;
-
   return (
-    <div
-      className={cn(
-        // A narrow thread column scrolls the pills sideways rather than squeezing them into each other.
-        "no-scrollbar flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b pl-3 transition-[padding] duration-200 [&>*]:shrink-0",
-        // Closed: leave room for the floating Timeline toggle (see chat-session-view/index.tsx).
-        timelineEnabled ? "pr-3" : "pr-[96px]"
-      )}
+    <Header
+      path={[
+        { name: "sessions", href: `/project/${projectId}/traces?view=sessions` },
+        { name: sessionId, copyValue: sessionId },
+      ]}
+      // Nothing shrinks: a narrow thread column cuts the row off at its right edge.
+      className="overflow-hidden pr-0"
+      childrenContainerClassName="overflow-hidden [&>*]:shrink-0"
     >
-      <UsersPill projectId={projectId} userIds={users} />
-      <StatsShields stats={stats} />
-      <ModelsPill models={models} />
-    </div>
+      {stats && (
+        <div className="ml-2 flex items-center gap-2 [&>*]:shrink-0">
+          <StatsShields stats={stats} />
+          <ModelsPill models={models} />
+          <UsersPill projectId={projectId} userIds={users} />
+        </div>
+      )}
+    </Header>
   );
 }

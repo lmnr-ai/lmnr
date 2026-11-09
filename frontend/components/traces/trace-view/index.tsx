@@ -28,7 +28,6 @@ interface TraceViewProps {
   urlState?: boolean;
   // Separate persisted layout/toggles from the main trace view (e.g. when embedded elsewhere).
   storeKey?: string;
-  defaultTimelineEnabled?: boolean;
 }
 
 export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
@@ -40,7 +39,6 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
       initialSearch={props.initialSearch}
       urlState={props.urlState}
       storeKey={props.storeKey}
-      defaultTimelineEnabled={props.defaultTimelineEnabled}
     >
       <TraceAgentContext traceId={props.traceId} />
       <TraceViewContent {...props} />
@@ -48,24 +46,30 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
   );
 }
 
-export function TraceViewSidePanel({
-  className,
-  children,
-  ...props
-}: Omit<TraceViewProps, "isFillWidth"> & { className?: string; children?: React.ReactNode }) {
+interface TraceViewSidePanelProps extends Omit<TraceViewProps, "isFillWidth"> {
+  className?: string;
+  children?: React.ReactNode;
+  /** Sit beside the page in its flex row, which shrinks to fit, instead of floating over it. */
+  inline?: boolean;
+  /** Width the panel always leaves to the page beside it. */
+  reservedWidth?: number;
+}
+
+export function TraceViewSidePanel({ className, children, inline, reservedWidth, ...props }: TraceViewSidePanelProps) {
   const sidePanelRef = useRef<HTMLDivElement>(null);
   // Below STACK_THRESHOLD the drawer covers the page and stacks like the mobile trace view.
   const [narrow, setNarrow] = useState(false);
 
   useLayoutEffect(() => {
     const el = sidePanelRef.current?.parentElement;
-    if (!el) return;
+    // Inline, the page beside the panel keeps reservedWidth however narrow the row gets.
+    if (!el || inline) return;
     const measure = () => setNarrow(el.clientWidth < STACK_THRESHOLD);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [inline]);
 
   return (
     // The side panel wraps its content in an ElevatedSurface but does NOT raise the level for
@@ -74,7 +78,11 @@ export function TraceViewSidePanel({
     <ElevatedSurface
       ref={sidePanelRef}
       offset={0}
-      className={cn("absolute inset-y-0 right-0 z-50 flex", narrow ? "left-0" : "max-w-[calc(100%-80px)]", className)}
+      className={cn(
+        inline ? "relative flex h-full flex-shrink-0" : "absolute inset-y-0 right-0 z-50 flex",
+        !inline && (narrow ? "left-0" : "max-w-[calc(100%-80px)]"),
+        className
+      )}
     >
       <TraceViewStoreProvider
         key={props.traceId}
@@ -83,6 +91,7 @@ export function TraceViewSidePanel({
         initialSignalId={props.initialSignalId}
         initialSearch={props.initialSearch}
         urlState={props.urlState}
+        storeKey={props.storeKey}
       >
         <div className="relative w-full h-full flex flex-col">
           <TraceAgentContext traceId={props.traceId} />
@@ -92,7 +101,7 @@ export function TraceViewSidePanel({
                   intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
                   opens between the span view and the screen edge. */}
           {children && <div className="w-0 min-w-full">{children}</div>}
-          <TraceViewContent {...props} sidePanelRef={narrow ? undefined : sidePanelRef} />
+          <TraceViewContent {...props} sidePanelRef={narrow ? undefined : sidePanelRef} reservedWidth={reservedWidth} />
         </div>
       </TraceViewStoreProvider>
     </ElevatedSurface>

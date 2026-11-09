@@ -10,7 +10,6 @@ import { useChatSession } from "../store";
 import { useOpenTrace } from "../use-open-trace";
 import TimeDivider from "./time-divider";
 import Turn from "./turn";
-import { useReportVisibleTurns } from "./use-report-visible-turns";
 
 // Gaps shorter than this between turns aren't worth a divider.
 const MIN_GAP_MS = 10 * 60_000;
@@ -48,9 +47,8 @@ export default function Thread() {
     paddingEnd: 16,
   });
   const items = virtualizer.getVirtualItems();
-  useReportVisibleTurns(virtualizer, traces);
 
-  // A turn opened from the session timeline may be far off-screen. Runs when a turn opens (or the session first
+  // A turn opened from a link or the session preview may be far off-screen. Runs when a turn opens (or the session first
   // loads under a deep link), not on live updates, so reading another turn isn't interrupted.
   const ready = traces.length > 0;
   useEffect(() => {
