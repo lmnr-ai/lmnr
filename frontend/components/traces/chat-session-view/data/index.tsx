@@ -44,6 +44,8 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
   const patchesSinceFetch = useRef<TracesPatch[]>([]);
   const lagRetries = useRef(0);
   const scheduleRefresh = useRef<() => void>(undefined);
+  // The first fetch records the session.view audit event; later ones are refreshes.
+  const fetched = useRef(false);
 
   const load = useCallback(async () => {
     inFlight.current?.abort();
@@ -52,7 +54,9 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
     patchesSinceFetch.current = [];
     let result: Awaited<ReturnType<typeof fetchSessionTraces>>;
     try {
-      result = await fetchSessionTraces(projectId, sessionId, controller.signal);
+      const refresh = fetched.current;
+      fetched.current = true;
+      result = await fetchSessionTraces(projectId, sessionId, refresh, controller.signal);
     } catch (err) {
       // fetchApi rethrows aborts; a newer fetch or unmount superseded this one.
       if (controller.signal.aborted) return;
