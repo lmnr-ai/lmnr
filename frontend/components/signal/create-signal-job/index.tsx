@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -148,22 +147,17 @@ const CreateSignalJobContent = () => {
           />
         </CreateSignalJobTableContents>
       </div>
-      <AnimatePresence>
-        {traceId && (
-          <TraceViewSidePanel
-            urlState
-            className="z-60 pointer-events-auto"
-            spanId={spanId || undefined}
-            key="trace-side-panel"
-            onClose={() => {
-              navigate({ type: "close" });
-              setTraceId(null);
-              setSpanId(null);
-            }}
-            traceId={traceId}
-          />
-        )}
-      </AnimatePresence>
+      <TraceViewSidePanel
+        urlState
+        className="z-60 pointer-events-auto"
+        spanId={spanId || undefined}
+        onClose={() => {
+          navigate({ type: "close" });
+          setTraceId(null);
+          setSpanId(null);
+        }}
+        traceId={traceId}
+      />
     </>
   );
 };

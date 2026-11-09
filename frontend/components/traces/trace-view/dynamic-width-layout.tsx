@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useIsPresent } from "framer-motion";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
@@ -14,19 +14,13 @@ const instantTransition = { duration: 0 } as const;
 
 interface DynamicWidthLayoutProps {
   panels: TraceViewPanels;
-  sidePanelRef?: React.RefObject<HTMLDivElement | null>;
-  /** Width kept free beside the panel for the page it sits over or next to. */
-  reservedWidth?: number;
+  /** The side panel's width budget, from its page's width. */
+  maxWidth: number;
   /** Slide the trace in from zero width on mount (the panel opening, not a trace switch inside it). */
-  slideIn?: boolean;
+  slideIn: boolean;
 }
 
-export default function DynamicWidthLayout({
-  panels,
-  sidePanelRef,
-  reservedWidth = 80,
-  slideIn = false,
-}: DynamicWidthLayoutProps) {
+export default function DynamicWidthLayout({ panels, maxWidth: budget, slideIn }: DynamicWidthLayoutProps) {
   const { targets, maxWidth, layoutChangeSource, resizePanel, setMaxWidth } = useTraceViewStore(
     (state) => ({
       targets: state.targets,
@@ -38,21 +32,8 @@ export default function DynamicWidthLayout({
     shallow
   );
 
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const measured = sidePanelRef?.current?.parentElement ?? containerRef.current;
-    if (!measured) return;
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        setMaxWidth(entry.contentRect.width - reservedWidth);
-      }
-    });
-    observer.observe(measured);
-    return () => observer.disconnect();
-  }, [sidePanelRef, setMaxWidth, reservedWidth]);
+  // The store keeps the budget too, so drags clamp to it and resizes from it skip the animation.
+  useEffect(() => setMaxWidth(budget), [budget, setMaxWidth]);
 
   const visible = useMemo<Visible>(() => ({ span: panels.showSpan }), [panels.showSpan]);
 
@@ -77,7 +58,7 @@ export default function DynamicWidthLayout({
   const pinned = sliding || !isPresent;
 
   return (
-    <div ref={containerRef} className="h-full w-full overflow-hidden">
+    <div className="h-full w-full overflow-hidden">
       <div className="flex flex-row h-full">
         <motion.div
           className="relative flex h-full flex-shrink-0 overflow-hidden"

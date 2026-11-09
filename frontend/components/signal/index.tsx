@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence } from "framer-motion";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 
@@ -123,20 +122,15 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
         </TabsContent>
       </Tabs>
 
-      <AnimatePresence>
-        {traceId && (
-          <TraceViewSidePanel
-            urlState
-            spanId={spanId || undefined}
-            key="trace-side-panel"
-            onClose={() => {
-              navigate({ type: "close" }, (params) => params.delete("eventId"));
-            }}
-            traceId={traceId}
-            initialSignalId={signal.id}
-          />
-        )}
-      </AnimatePresence>
+      <TraceViewSidePanel
+        urlState
+        spanId={spanId || undefined}
+        onClose={() => {
+          navigate({ type: "close" }, (params) => params.delete("eventId"));
+        }}
+        traceId={traceId}
+        initialSignalId={signal.id}
+      />
     </>
   );
 }

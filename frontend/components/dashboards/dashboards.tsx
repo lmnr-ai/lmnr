@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence } from "framer-motion";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { useSWRConfig } from "swr";
@@ -112,17 +111,12 @@ function DashboardContent() {
           </ScrollArea>
         </div>
       </div>
-      <AnimatePresence>
-        {traceId && (
-          <TraceViewSidePanel
-            key="trace-side-panel"
-            traceId={traceId}
-            spanId={spanId ?? undefined}
-            initialSignalId={signalId ?? undefined}
-            onClose={closeTrace}
-          />
-        )}
-      </AnimatePresence>
+      <TraceViewSidePanel
+        traceId={traceId}
+        spanId={spanId ?? undefined}
+        initialSignalId={signalId ?? undefined}
+        onClose={closeTrace}
+      />
     </>
   );
 }
