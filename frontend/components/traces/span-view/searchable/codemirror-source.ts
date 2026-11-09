@@ -44,16 +44,9 @@ export const searchHighlight: Extension = StateField.define<DecorationSet>({
 interface CodeMirrorSearchSourceOptions {
   id: string;
   view: EditorView;
-  messageIndex: number;
-  contentPartIndex: number;
 }
 
-export function createCodeMirrorSearchSource({
-  id,
-  view,
-  messageIndex,
-  contentPartIndex,
-}: CodeMirrorSearchSourceOptions): SearchableSource {
+export function createCodeMirrorSearchSource({ id, view }: CodeMirrorSearchSourceOptions): SearchableSource {
   let matches: MatchOffset[] = [];
   let active = -1;
   let painted = false;
@@ -72,8 +65,6 @@ export function createCodeMirrorSearchSource({
 
   return {
     id,
-    messageIndex,
-    contentPartIndex,
     element: view.dom,
     apply(term: string) {
       const pattern = searchPattern(term);

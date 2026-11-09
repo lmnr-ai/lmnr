@@ -27,24 +27,10 @@ const AnthropicPartRenderer = ({
 }) => {
   switch (block.type) {
     case "text":
-      return (
-        <TextContentPart
-          content={block.text}
-          presetKey={presetKey}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
-        />
-      );
+      return <TextContentPart content={block.text} presetKey={presetKey} />;
 
     case "thinking":
-      return (
-        <ThinkingContentPart
-          content={block.thinking}
-          presetKey={presetKey}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
-        />
-      );
+      return <ThinkingContentPart content={block.thinking} presetKey={presetKey} />;
 
     case "tool_use":
     case "server_tool_use":
@@ -54,8 +40,6 @@ const AnthropicPartRenderer = ({
           toolCallId={block.id}
           content={block.input ?? {}}
           presetKey={presetKey}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
         />
       );
 
@@ -92,15 +76,7 @@ const AnthropicPartRenderer = ({
     }
 
     case "redacted_thinking":
-      return (
-        <ThinkingContentPart
-          content="[Redacted thinking]"
-          label="Thinking (redacted)"
-          presetKey={presetKey}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
-        />
-      );
+      return <ThinkingContentPart content="[Redacted thinking]" label="Thinking (redacted)" presetKey={presetKey} />;
 
     case "document": {
       if (
@@ -117,28 +93,14 @@ const AnthropicPartRenderer = ({
       }
 
       const docLabel = block.title ? `[Document: ${block.title}]` : "[Document]";
-      return (
-        <TextContentPart
-          content={docLabel}
-          presetKey={presetKey}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
-        />
-      );
+      return <TextContentPart content={docLabel} presetKey={presetKey} />;
     }
 
     case "search_result": {
       const searchText = `[Search result: ${block.title}]\nSource: ${block.source}\n${
         typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
       }`;
-      return (
-        <TextContentPart
-          content={searchText}
-          presetKey={presetKey}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
-        />
-      );
+      return <TextContentPart content={searchText} presetKey={presetKey} />;
     }
   }
 };
@@ -155,14 +117,7 @@ const PureAnthropicContentParts = ({
   toolNameMap?: Map<string, string>;
 }) => {
   if (typeof message.content === "string") {
-    return (
-      <TextContentPart
-        content={message.content}
-        presetKey={`${parentIndex}-text-0-${presetKey}`}
-        messageIndex={parentIndex}
-        contentPartIndex={0}
-      />
-    );
+    return <TextContentPart content={message.content} presetKey={`${parentIndex}-text-0-${presetKey}`} />;
   }
 
   return (

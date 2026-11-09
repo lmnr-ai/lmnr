@@ -56,11 +56,10 @@ const ConversationRowView = ({
   if (row.kind === "section") {
     return (
       <div data-index={index} ref={measureRef} className={ROW}>
-        <RowSearchScope hits={hits} active={activeMatch} claim={claimReveal}>
+        <RowSearchScope active={activeMatch} claim={claimReveal}>
           <SectionHeader
             title={SECTION_TITLES[row.section]}
             summary={row.summary}
-            messageIndex={index}
             first={index === 0}
             {...formats[row.section]}
           />
@@ -85,12 +84,13 @@ const ConversationRowView = ({
   return (
     <div data-index={index} ref={measureRef} className={ROW}>
       <div className={cn(row.grouped ? "pb-1.5" : "pb-4", isContextRow(row) && "ml-1.5 pl-3 border-l")}>
-        <RowSearchScope hits={hits} active={activeMatch} claim={claimReveal}>
+        <RowSearchScope active={activeMatch} claim={claimReveal}>
           <MessageWrapper
             role={role}
             maxHeight={row.maxHeight}
             defaultExpanded={row.defaultExpanded}
             highlighted={highlighted}
+            hasMatches={!!hits}
             headerAction={onLinkMessage && <MessageLinkButton onCopy={() => onLinkMessage(row.anchor)} />}
           >
             {row.normalized ? (
@@ -99,6 +99,7 @@ const ConversationRowView = ({
                 expandReasoning={row.source === "output"}
                 presetKey={presetKey}
                 messageIndex={index}
+                hits={hits}
               />
             ) : (
               renderMessageContent(row.segment, row.localIndex, index, presetKey, toolNameMap)

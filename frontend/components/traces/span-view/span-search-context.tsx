@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 
-import { type SearchableSource } from "@/components/traces/span-view/searchable";
+import { byDomOrder, type SearchableSource } from "@/components/traces/span-view/searchable";
 
 interface RegisteredSource {
   source: SearchableSource;
@@ -32,16 +32,12 @@ export interface SpanSearchRegistrationContextValue {
 
 const SpanSearchStateContext = createContext<SpanSearchStateContextValue | null>(null);
 const SpanSearchRegistrationContext = createContext<SpanSearchRegistrationContextValue | null>(null);
-/** Match counts per part of the enclosing message, from the span's search index; absent while not searching. */
-const SpanSearchHitsContext = createContext<readonly number[] | undefined>(undefined);
 
 export const useSpanSearchState = () => useContext(SpanSearchStateContext);
 export const useSpanSearchRegistration = () => useContext(SpanSearchRegistrationContext);
-export const useSpanSearchHits = () => useContext(SpanSearchHitsContext);
 
 /** Lets a virtualized list collect its mounted editors per row instead of registering each one here. */
 export const SpanSearchRegistrationScope = SpanSearchRegistrationContext.Provider;
-export const SpanSearchHitsProvider = SpanSearchHitsContext.Provider;
 
 export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChildren<{ initialSearchTerm?: string }>) {
   const sources = useRef<Map<string, RegisteredSource>>(new Map());
@@ -66,12 +62,7 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
     (): RegisteredSource[] =>
       Array.from(sources.current.values())
         .filter((e) => e.matchCount > 0)
-        .sort((a, b) => {
-          if (a.source.messageIndex !== b.source.messageIndex) {
-            return a.source.messageIndex - b.source.messageIndex;
-          }
-          return a.source.contentPartIndex - b.source.contentPartIndex;
-        }),
+        .sort((a, b) => byDomOrder(a.source, b.source)),
     []
   );
 

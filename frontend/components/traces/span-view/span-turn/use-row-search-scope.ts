@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
-import { type SearchableSource } from "@/components/traces/span-view/searchable";
+import { byDomOrder, type SearchableSource } from "@/components/traces/span-view/searchable";
 import { type SpanSearchRegistrationContextValue } from "@/components/traces/span-view/span-search-context";
 
 /** The current match, when it is in this row. */
@@ -18,12 +18,6 @@ interface Entry {
   source: SearchableSource;
   count: number;
 }
-
-const byDomOrder = (a: Entry, b: Entry) => {
-  const [x, y] = [a.source.element, b.source.element];
-  if (!x || !y || x === y) return a.source.contentPartIndex - b.source.contentPartIndex;
-  return x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
-};
 
 /**
  * Collects one row's mounted editors: applies the search term to them and puts the row's current match (the index
@@ -49,7 +43,7 @@ export const useRowSearchScope = (
       const { active, claim } = latest.current;
       let remaining = active?.local ?? -1;
       let target: { entry: Entry; local: number } | undefined;
-      for (const entry of [...sources.current.values()].sort(byDomOrder)) {
+      for (const entry of [...sources.current.values()].sort((a, b) => byDomOrder(a.source, b.source))) {
         if (!target && remaining >= 0 && remaining < entry.count) {
           target = { entry, local: remaining };
           continue;

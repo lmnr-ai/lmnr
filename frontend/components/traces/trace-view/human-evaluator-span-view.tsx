@@ -62,7 +62,6 @@ export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelec
                 title="Input"
                 data={span.input}
                 presetKey={`input-${spanPathKey(span)}`}
-                index={0}
               />
             </div>
           </TabsContent>

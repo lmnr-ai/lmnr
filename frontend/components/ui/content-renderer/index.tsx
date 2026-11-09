@@ -43,8 +43,6 @@ interface ContentRendererProps {
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
-  messageIndex?: number;
-  contentPartIndex?: number;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
    * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
@@ -79,8 +77,6 @@ const PureContentRenderer = ({
   codeEditorClassName,
   renderBase64Images = true,
   defaultShowLineNumbers = false,
-  messageIndex = 0,
-  contentPartIndex = 0,
   customTheme,
   extraExtensions,
 }: ContentRendererProps) => {
@@ -200,15 +196,13 @@ const PureContentRenderer = ({
       createCodeMirrorSearchSource({
         id: cmSourceIdRef.current,
         view: currentViewRef.current,
-        messageIndex,
-        contentPartIndex,
       })
     );
 
     return () => {
       searchRegistration.unregisterSource(cmSourceIdRef.current);
     };
-  }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, isCodeMode, renderedValue]);
+  }, [searchRegistration, editorMountKey, isCodeMode, renderedValue]);
 
   const actionButtons = (
     <>

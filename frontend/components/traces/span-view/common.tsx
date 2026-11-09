@@ -31,18 +31,9 @@ interface ToolCallContentPartProps {
   toolCallId?: string;
   content: unknown;
   presetKey: string;
-  messageIndex?: number;
-  contentPartIndex?: number;
 }
 
-const PureToolCallContentPart = ({
-  toolName,
-  toolCallId,
-  content,
-  presetKey,
-  messageIndex = 0,
-  contentPartIndex = 0,
-}: ToolCallContentPartProps) => {
+const PureToolCallContentPart = ({ toolName, toolCallId, content, presetKey }: ToolCallContentPartProps) => {
   const { mode, modes, value } = resolveContentMode(content);
   return (
     <div className="flex flex-col gap-2 p-2">
@@ -59,8 +50,6 @@ const PureToolCallContentPart = ({
         value={value}
         presetKey={`editor-${presetKey}`}
         className="border-0"
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
         customTheme={spanViewTheme}
       />
     </div>
@@ -73,8 +62,6 @@ interface ToolResultContentPartProps {
   content: string | any;
   presetKey: string;
   children?: ReactNode;
-  messageIndex?: number;
-  contentPartIndex?: number;
 }
 
 const PureToolResultContentPart = ({
@@ -83,8 +70,6 @@ const PureToolResultContentPart = ({
   content,
   presetKey,
   children,
-  messageIndex = 0,
-  contentPartIndex = 0,
 }: ToolResultContentPartProps) => {
   const { mode, modes, value } = resolveContentMode(content);
   return (
@@ -103,8 +88,6 @@ const PureToolResultContentPart = ({
           value={value}
           presetKey={`editor-${presetKey}`}
           className="border-0"
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
           customTheme={spanViewTheme}
         />
       )}
@@ -131,8 +114,6 @@ interface TextContentPartProps {
   presetKey: string;
   className?: string;
   codeEditorClassName?: string;
-  messageIndex?: number;
-  contentPartIndex?: number;
 }
 
 const PureTextContentPart = ({
@@ -140,8 +121,6 @@ const PureTextContentPart = ({
   presetKey,
   className = "border-0",
   codeEditorClassName,
-  messageIndex = 0,
-  contentPartIndex = 0,
 }: TextContentPartProps) => {
   const { mode, modes, value } = resolveContentMode(content);
   return (
@@ -154,8 +133,6 @@ const PureTextContentPart = ({
         presetKey={`editor-${presetKey}`}
         className={cn("border-0", className)}
         codeEditorClassName={codeEditorClassName}
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
         customTheme={spanViewTheme}
       />
     </div>
@@ -204,17 +181,9 @@ interface ThinkingContentPartProps {
   content: string;
   label?: string;
   presetKey: string;
-  messageIndex?: number;
-  contentPartIndex?: number;
 }
 
-const PureThinkingContentPart = ({
-  content,
-  label = "Thinking",
-  presetKey,
-  messageIndex = 0,
-  contentPartIndex = 0,
-}: ThinkingContentPartProps) => (
+const PureThinkingContentPart = ({ content, label = "Thinking", presetKey }: ThinkingContentPartProps) => (
   <div className="flex flex-col gap-2 p-2">
     <span className="flex items-center text-xs">
       <Lightbulb size={14} className="min-w-3.5 mr-2 text-muted-foreground" />
@@ -228,8 +197,6 @@ const PureThinkingContentPart = ({
       value={content}
       presetKey={`editor-${presetKey}`}
       className="border-0"
-      messageIndex={messageIndex}
-      contentPartIndex={contentPartIndex}
       customTheme={spanViewTheme}
     />
   </div>
@@ -249,6 +216,7 @@ export const MessageWrapper = ({
   role,
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
   defaultExpanded = false,
+  hasMatches = false,
   headerAction,
   highlighted = false,
 }: PropsWithChildren<{
@@ -259,6 +227,8 @@ export const MessageWrapper = ({
   highlighted?: boolean;
   maxHeight?: number;
   defaultExpanded?: boolean;
+  /** Holds search matches, so the clamp stays open. */
+  hasMatches?: boolean;
 }>) => {
   const cardRef = useRef<HTMLDivElement>(null);
   return (
@@ -272,7 +242,12 @@ export const MessageWrapper = ({
       <RoleHeader role={role} action={headerAction} />
       <div className="bg-emphasis-1 dark:bg-transparent">
         <MessageRole value={role}>
-          <HeightClamp maxHeight={maxHeight} defaultExpanded={defaultExpanded} anchorRef={cardRef}>
+          <HeightClamp
+            maxHeight={maxHeight}
+            defaultExpanded={defaultExpanded}
+            hasMatches={hasMatches}
+            anchorRef={cardRef}
+          >
             <div className="flex flex-col divide-y">{children}</div>
           </HeightClamp>
         </MessageRole>

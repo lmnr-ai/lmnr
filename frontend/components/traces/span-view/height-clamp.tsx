@@ -11,7 +11,6 @@ import {
 } from "react";
 
 import { useCollapsible } from "@/components/traces/span-view/collapsible";
-import { useSpanSearchHits } from "@/components/traces/span-view/span-search-context";
 
 const ExpandClamp = createContext<() => void>(() => {});
 
@@ -21,6 +20,8 @@ export const useExpandClamp = () => useContext(ExpandClamp);
 interface HeightClampProps {
   maxHeight: number;
   defaultExpanded?: boolean;
+  /** Holds search matches: kept open, since clipped content can't show them. */
+  hasMatches?: boolean;
   /** What the clamp stands for, e.g. its whole card: named by the sticky band, and scrolled to on collapse. */
   anchorRef: RefObject<HTMLElement | null>;
 }
@@ -29,14 +30,13 @@ interface HeightClampProps {
 const HeightClamp = ({
   maxHeight,
   defaultExpanded = false,
+  hasMatches = false,
   anchorRef,
   children,
 }: PropsWithChildren<HeightClampProps>) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [open, setOpen] = useState(defaultExpanded);
-  // Clipped content can't show its search matches.
-  const hasMatches = !!useSpanSearchHits();
   const expanded = open || hasMatches;
   // Clipped whether or not it overflows: content can grow after mount (editors render late), and a row that grew past
   // the clamp before re-clipping would shift everything below it under the virtualizer.

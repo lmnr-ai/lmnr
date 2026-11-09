@@ -1,8 +1,6 @@
 export interface SearchableSource {
   readonly id: string;
-  readonly messageIndex: number;
-  readonly contentPartIndex: number;
-  /** Where the source renders, for ordering sources within one message. */
+  /** Where the source renders; sources are ordered by it. */
   readonly element?: Element;
   /** Highlights `term`'s matches; returns how many there are. */
   apply(term: string): number;

@@ -11,7 +11,6 @@ interface SpanIOSectionProps {
   title: string;
   data: unknown;
   presetKey: string;
-  index: number;
 }
 
 /** Per-span-path key for remembered formats and templates. */
@@ -20,7 +19,7 @@ export const spanPathKey = (span: Span) => {
   return (typeof path === "string" ? path.split(".") : path).join(".");
 };
 
-export const SpanIOSection = ({ title, data, presetKey, index }: SpanIOSectionProps) => {
+export const SpanIOSection = ({ title, data, presetKey }: SpanIOSectionProps) => {
   const value = useMemo(() => JSON.stringify(normalizeSpanPayload(data)) ?? "null", [data]);
   return (
     <div className="flex flex-col">
@@ -37,7 +36,6 @@ export const SpanIOSection = ({ title, data, presetKey, index }: SpanIOSectionPr
         modes={MODES}
         presetKey={presetKey}
         customTheme={spanViewTheme}
-        messageIndex={index}
       />
     </div>
   );
@@ -47,8 +45,8 @@ const PureSpanIO = ({ span }: { span: Span }) => {
   const pathKey = spanPathKey(span);
   return (
     <div className="size-full overflow-y-auto styled-scrollbar scrollbar-gutter-stable divide-y">
-      <SpanIOSection title="Input" data={span.input} presetKey={`input-${pathKey}`} index={0} />
-      <SpanIOSection title="Output" data={span.output} presetKey={`output-${pathKey}`} index={1} />
+      <SpanIOSection title="Input" data={span.input} presetKey={`input-${pathKey}`} />
+      <SpanIOSection title="Output" data={span.output} presetKey={`output-${pathKey}`} />
     </div>
   );
 };

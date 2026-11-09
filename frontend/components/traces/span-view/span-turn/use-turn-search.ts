@@ -44,8 +44,6 @@ export const useTurnSearch = (allRows: ConversationRow[], sections: Record<Secti
     let current: TurnMatches | undefined;
     const source: SearchableSource = {
       id: SOURCE_ID,
-      messageIndex: 0,
-      contentPartIndex: 0,
       apply(term) {
         const pattern = searchPattern(term);
         current = pattern ? matchTurn(index(), pattern) : undefined;

@@ -1,7 +1,6 @@
 import { memo } from "react";
 
 import { TextContentPart } from "@/components/traces/span-view/common";
-import { useSpanSearchHits } from "@/components/traces/span-view/span-search-context";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { resolveContentMode } from "@/lib/spans/resolve-content-mode";
@@ -11,11 +10,9 @@ import ToolRow from "./tool-row";
 
 interface PartProps {
   presetKey: string;
-  messageIndex: number;
-  contentPartIndex: number;
 }
 
-const Value = ({ value, presetKey, messageIndex, contentPartIndex }: PartProps & { value: unknown }) => {
+const Value = ({ value, presetKey }: PartProps & { value: unknown }) => {
   const { mode, modes, value: rendered } = resolveContentMode(value);
   return (
     <ContentRenderer
@@ -26,8 +23,6 @@ const Value = ({ value, presetKey, messageIndex, contentPartIndex }: PartProps &
       value={rendered}
       presetKey={`editor-${presetKey}`}
       className="border-0"
-      messageIndex={messageIndex}
-      contentPartIndex={contentPartIndex}
       customTheme={spanViewTheme}
     />
   );
@@ -38,9 +33,13 @@ interface PartOptions {
   expandReasoning?: boolean;
 }
 
-const Part = ({ part, expandReasoning, ...props }: PartProps & PartOptions & { part: TurnPart }) => {
-  // The row's search index counts per part, in this order.
-  const hasMatches = (useSpanSearchHits()?.[props.contentPartIndex] ?? 0) > 0;
+interface PartViewProps extends PartProps, PartOptions {
+  part: TurnPart;
+  /** Collapsed rows don't mount the editor that would show the part's search matches. */
+  hasMatches: boolean;
+}
+
+const Part = ({ part, expandReasoning, hasMatches, ...props }: PartViewProps) => {
   switch (part.kind) {
     case "text":
       return <TextContentPart content={part.text} {...props} />;
@@ -81,18 +80,19 @@ interface NormalizedPartsProps extends PartOptions {
   parts: TurnPart[];
   presetKey: string;
   messageIndex: number;
+  /** Search match counts per part, from the row's search index. */
+  hits?: readonly number[];
 }
 
 /** Tool calls, results and reasoning as one-line rows; the card's clamp handles long text. */
-const NormalizedParts = ({ parts, presetKey, messageIndex, ...options }: NormalizedPartsProps) =>
+const NormalizedParts = ({ parts, presetKey, messageIndex, hits, ...options }: NormalizedPartsProps) =>
   parts.map((part, index) => (
     <Part
       key={index}
       part={part}
       {...options}
       presetKey={`${messageIndex}-${part.kind}-${index}-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={index}
+      hasMatches={(hits?.[index] ?? 0) > 0}
     />
   ));
 

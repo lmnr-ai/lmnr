@@ -29,7 +29,6 @@ interface SectionHeaderProps extends SectionFormat {
   title: string;
   /** What the section holds, e.g. "4 tool results". */
   summary?: string;
-  messageIndex: number;
   /** First row of the list, so no gap above it. */
   first?: boolean;
 }
@@ -50,7 +49,6 @@ const SectionHeader = ({
   value,
   templateKey,
   copyExtra,
-  messageIndex,
   first = false,
 }: SectionHeaderProps) => (
   // The picker and the custom preview must share one provider: it holds the selected template.
@@ -88,7 +86,6 @@ const SectionHeader = ({
               className="border-0"
               codeEditorClassName="rounded-none border-none"
               customTheme={spanViewTheme}
-              messageIndex={messageIndex}
             />
           )}
         </div>
