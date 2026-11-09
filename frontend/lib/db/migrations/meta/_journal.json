@@ -890,6 +890,13 @@
       "when": 1793811230839,
       "tag": "0126_agent_session_sandboxes",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1794004455783,
+      "tag": "0127_agent_definitions",
+      "breakpoints": true
     }
   ]
 }
