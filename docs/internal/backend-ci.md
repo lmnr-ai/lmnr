@@ -32,7 +32,8 @@ So the Dockerfile cooks dependencies **twice**: `cargo chef cook --release` then
 
 - Keep the plain cook **first and present**. Cooking only `--tests` would leave the binary's (no-`test-util`) variant missing and move the 71-crate rebuild into the uncached application layer, which is strictly worse.
 - `cargo chef prepare` preserves dev-dependency features in the recipe (`[dev-dependencies.tokio] features = ["test-util"]`), which is what makes `--tests` cook the right set. Simple dev-deps are emitted inline under `[dev-dependencies]` while featured ones get their own `[dev-dependencies.<name>]` table — grep for both before concluding a recipe dropped something.
-- This only moves the *dependency* rebuild into the cached layer. Compiling app-server's own test harness (~2-3 min) is not cacheable across commits; eliminating it means not building release artifacts on PRs at all.
+- This only moves the *dependency* rebuild into the cached layer. Compiling app-server's own test harness (~2m43s) is not cacheable across commits; eliminating it means not building release artifacts on PRs at all. Measured on run `42614337189`: the test step went 4m51s → 2m48s and the crates it recompiles went 71 → 1. If that count is ever back above 1, a profile or feature divergence has crept back in — diff the two `cargo tree` invocations above before touching anything else.
+- The second cook costs ~2.3 min on a cold build (12.1m → 14.4m), paid only on a `Cargo.lock` change and on the `dev` warming run.
 
 `cargo install cargo-chef` in the `chef` stage compiles from source and costs minutes whenever that layer invalidates (rust bump, apt change); the prebuilt `lukemathwalker/cargo-chef` image avoids it.
 
