@@ -7,8 +7,6 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
     protobuf-compiler \
-    libfontconfig1-dev \
-    libfontconfig \
     libclang-dev \
     && rm -rf /var/lib/apt/lists/* \
     && cargo install cargo-chef
@@ -34,7 +32,6 @@ WORKDIR /app-server
 
 # Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
-    libfontconfig1 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
