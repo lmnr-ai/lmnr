@@ -3,7 +3,7 @@
  * Ids already resolved, queued, or in flight are skipped. A chunk whose load fails stays
  * unresolved (and is reported to `onFailed`), so a later `request` for those ids retries.
  */
-export interface BatchedLoaderOptions<V> {
+interface BatchedLoaderOptions<V> {
   /** Loads one chunk; `undefined` marks the chunk as failed. */
   load: (ids: string[]) => Promise<Record<string, V> | undefined>;
   /** Receives each successfully loaded chunk. */
@@ -16,7 +16,7 @@ export interface BatchedLoaderOptions<V> {
   debounceMs?: number;
 }
 
-export interface BatchedLoader {
+interface BatchedLoader {
   request: (ids: string[]) => void;
 }
 

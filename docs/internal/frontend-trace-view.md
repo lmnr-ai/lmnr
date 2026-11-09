@@ -23,7 +23,7 @@
 
 ## Max-width centered content in scrollable panels
 
-- When capping content width inside a panel that also owns the scrollbar (e.g. the session view list at `frontend/components/traces/session-view/session-panel/list.tsx`), apply `max-w-*` + `mx-auto` to the INNER virtualizer/content element — NOT to a wrapper around the scroll container. Wrapping the `overflow-y-auto` element makes the scrollbar render at the content edge instead of the panel edge, which looks wrong on wide viewports. Keep the scroll element full-width (`w-full`) and center a narrower inner `<div>` inside it.
+- When capping content width inside a panel that also owns the scrollbar (e.g. the chat session view's thread, `frontend/components/traces/chat-session-view/thread/`), apply `max-w-*` + `mx-auto` to the INNER virtualizer/content element — NOT to a wrapper around the scroll container. Wrapping the `overflow-y-auto` element makes the scrollbar render at the content edge instead of the panel edge, which looks wrong on wide viewports. Keep the scroll element full-width (`w-full`) and center a narrower inner `<div>` inside it.
 
 ## ContentRenderer modes
 

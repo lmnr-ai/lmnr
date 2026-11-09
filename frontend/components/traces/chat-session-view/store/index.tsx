@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
-import { createStore, type StateCreator, type StoreApi } from "zustand";
+import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
@@ -10,36 +10,31 @@ import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { fetchApi } from "@/lib/api/fetch-api";
 
-import { createLayoutSlice } from "./layout";
-import { createTimelineSlice, type TimelineDeps } from "./timeline";
-import { type ChatSessionState } from "./types";
+import { createLayoutSlice, type LayoutSlice } from "./layout";
+import { createTimelineSlice, type TimelineDeps, type TimelineSlice } from "./timeline";
 
-export type { ChatSessionState };
+/** The chat session view's UI state: the session timeline and the trace panel layout. Data lives in SWR (`../data`). */
+type ChatSessionState = TimelineSlice & LayoutSlice & { sessionId: string };
 
-export interface ChatSessionDeps extends TimelineDeps {
-  sessionId: string;
-  /** Remember the timeline and trace panel preferences across visits (off in tests). */
-  persistPrefs?: boolean;
-}
-
-export const createChatSessionStore = ({ sessionId, persistPrefs, ...deps }: ChatSessionDeps) => {
-  const init: StateCreator<ChatSessionState> = (set, get) => ({
-    sessionId,
-    ...createTimelineSlice(deps)(set, get),
-    ...createLayoutSlice(set, get),
-  });
-  if (!persistPrefs) return createStore<ChatSessionState>()(init);
-  return createStore<ChatSessionState>()(
-    persist(init, {
-      name: "chat-session-view",
-      partialize: (s) => ({
-        timelineEnabled: s.timelineEnabled,
-        timelineZoom: s.timelineZoom,
-        traceWidth: s.traceWidth,
+const createChatSessionStore = ({ sessionId, ...deps }: TimelineDeps & { sessionId: string }) =>
+  createStore<ChatSessionState>()(
+    // Remembers the timeline and trace panel preferences across visits.
+    persist(
+      (set, get) => ({
+        sessionId,
+        ...createTimelineSlice(deps)(set, get),
+        ...createLayoutSlice(set, get),
       }),
-    })
+      {
+        name: "chat-session-view",
+        partialize: (s) => ({
+          timelineEnabled: s.timelineEnabled,
+          timelineZoom: s.timelineZoom,
+          traceWidth: s.traceWidth,
+        }),
+      }
+    )
   );
-};
 
 const ChatSessionContext = createContext<StoreApi<ChatSessionState> | null>(null);
 
@@ -49,7 +44,6 @@ export function ChatSessionProvider({ sessionId, children }: PropsWithChildren<{
   const [store] = useState(() =>
     createChatSessionStore({
       sessionId,
-      persistPrefs: true,
       loadTraceSpans: async (trace) => {
         // Padded by a second: span times can sit just outside the trace's rounded bounds.
         const params = new URLSearchParams({

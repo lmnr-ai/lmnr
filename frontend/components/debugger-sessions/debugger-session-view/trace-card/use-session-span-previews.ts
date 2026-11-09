@@ -11,7 +11,7 @@ interface SessionPreviewTrace {
   endTime: string;
 }
 
-export interface UseSessionSpanPreviewsInput {
+interface UseSessionSpanPreviewsInput {
   projectId: string | undefined;
   /** Traces in the session, used for URL + time-window lookup. */
   traces: SessionPreviewTrace[];
@@ -29,7 +29,7 @@ export interface UseSessionSpanPreviewsInput {
   };
 }
 
-export interface UseSessionSpanPreviewsResult {
+interface UseSessionSpanPreviewsResult {
   /** Flat map spanId → preview. Safe because span IDs are globally unique. */
   previews: Record<string, any>;
   /** Flat map spanId → user input. */

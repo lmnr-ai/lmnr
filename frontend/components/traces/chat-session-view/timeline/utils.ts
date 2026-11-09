@@ -82,7 +82,7 @@ type SessionTimelineSection =
   | { type: "segment"; segment: SessionTimelineSegmentData }
   | { type: "gap"; gap: SessionTimelineGapData };
 
-export interface SessionTimelineSections {
+interface SessionTimelineSections {
   sections: SessionTimelineSection[];
   totalActiveDurationMs: number;
   /** Epoch ms of the very first trace in the session — used as the global time origin. */

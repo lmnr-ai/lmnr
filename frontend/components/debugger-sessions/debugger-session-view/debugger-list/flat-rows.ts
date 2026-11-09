@@ -3,12 +3,15 @@ import {
   type TraceViewSpan,
   type TranscriptListGroup,
 } from "@/components/traces/trace-view/store/base";
-import { computePathInfoMap, transformSpansToTree } from "@/components/traces/trace-view/store/utils";
+import {
+  buildTranscriptListEntries,
+  computePathInfoMap,
+  transformSpansToTree,
+} from "@/components/traces/trace-view/store/utils";
 import { type CommandBlockContent, type SessionEvaluationRef } from "@/lib/actions/debugger-sessions";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 
 import { isRunTransparentBlock, type SessionBlockView, type TraceRowState } from "../store";
-import { computeTranscriptEntries } from "./transcript-entries";
 
 // The one inter-block spacing unit (px) — the single density knob for the whole
 // timeline. Spacing between top-level blocks is owned by dedicated seam rows (see
@@ -365,7 +368,8 @@ function appendSpanRows(
     return;
   }
 
-  const entries = computeTranscriptEntries(spans);
+  // No condensed-timeline selection here, so nothing is filtered out.
+  const entries = buildTranscriptListEntries(spans, new Set());
   for (const entry of entries) {
     if (entry.type === "span") {
       rows.push({ type: "span", blockId, traceId, span: entry.span });

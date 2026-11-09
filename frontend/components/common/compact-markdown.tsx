@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 export type MarkdownComponents = NonNullable<ComponentProps<typeof Response>["components"]>;
 
-export interface CompactMarkdownStyles {
+interface CompactMarkdownStyles {
   /** Per-tag classes that replace Streamdown's large defaults (h1 `text-3xl`, etc.). */
   elements: Partial<Record<keyof JSX.IntrinsicElements, string>>;
   /** Fenced/multi-line code container (`pre`). */

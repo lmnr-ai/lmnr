@@ -5,7 +5,6 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
-import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { fetchApi } from "@/lib/api/fetch-api";
 import { createBatchedLoader } from "@/lib/batched-loader";
 import { type TraceRow } from "@/lib/traces/types";
@@ -20,7 +19,7 @@ const ALL_PANELS: PanelDef[] = [
   { key: "spanPanelWidth", min: 400, default: 405 },
 ];
 
-export type SessionViewSelectedSpan = {
+type SessionViewSelectedSpan = {
   traceId: string;
   spanId: string;
 };
@@ -74,12 +73,6 @@ interface BaseSessionViewState {
   scrollStartTime?: number;
   scrollEndTime?: number;
 
-  // Search state — non-null searchResults means a search is active. STATE ONLY;
-  // the fetch action (searchSessionSpans) is session-concrete.
-  searchResults?: Record<string, SessionSpansTraceResult>;
-  isSearchLoading: boolean;
-  searchError?: string;
-
   // Selection & panel visibility
   selectedSpan?: SessionViewSelectedSpan;
   spanPanelOpen: boolean;
@@ -107,12 +100,8 @@ interface BaseSessionViewActions {
 
   toggleTraceExpanded: (traceId: string) => void;
   setTraceExpanded: (traceId: string, expanded: boolean) => void;
-  expandAllTraces: () => void;
 
   setTraceSpans: (traceId: string, spans: TraceViewSpan[]) => void;
-  upsertTraceSpan: (traceId: string, span: TraceViewSpan) => void;
-  setTraceSpansLoading: (traceId: string, loading: boolean) => void;
-  setTraceSpansError: (traceId: string, error?: string) => void;
 
   toggleTranscriptGroup: (traceId: string, groupId: string) => void;
   requestScrollToGroup: (traceId: string, groupId: string) => void;
@@ -259,10 +248,6 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     scrollStartTime: undefined,
     scrollEndTime: undefined,
 
-    searchResults: undefined,
-    isSearchLoading: false,
-    searchError: undefined,
-
     selectedSpan: undefined,
     spanPanelOpen: false,
 
@@ -363,27 +348,8 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
         if (trace) void get().fetchTraceSpans(trace);
       }
     },
-    // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.
-    expandAllTraces: () => {
-      const state = get();
-      const all = new Set(state.traces.map((t) => t.id));
-      set({ expandedTraceIds: all } as Partial<T>);
-      for (const trace of state.traces) {
-        void get().fetchTraceSpans(trace);
-      }
-    },
 
     setTraceSpans: (traceId, spans) => set({ traceSpans: { ...get().traceSpans, [traceId]: spans } } as Partial<T>),
-    upsertTraceSpan: (traceId, span) => {
-      const existing = get().traceSpans[traceId] ?? [];
-      const idx = existing.findIndex((s) => s.spanId === span.spanId);
-      const next = idx === -1 ? [...existing, span] : existing.map((s) => (s.spanId === span.spanId ? span : s));
-      set({ traceSpans: { ...get().traceSpans, [traceId]: next } } as Partial<T>);
-    },
-    setTraceSpansLoading: (traceId, loading) =>
-      set({ traceSpansLoading: { ...get().traceSpansLoading, [traceId]: loading } } as Partial<T>),
-    setTraceSpansError: (traceId, error) =>
-      set({ traceSpansError: { ...get().traceSpansError, [traceId]: error } } as Partial<T>),
 
     toggleTranscriptGroup: (traceId, groupId) => {
       const key = `${traceId}::${groupId}`;

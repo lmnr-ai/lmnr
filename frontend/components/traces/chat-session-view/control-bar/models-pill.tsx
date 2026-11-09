@@ -5,7 +5,7 @@ import { MetricBreakdownRow } from "@/components/traces/cells/metric-breakdown-r
 import { MODEL_PILL_CLS } from "@/components/traces/model-indicator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-export interface ModelShare {
+interface ModelShare {
   model: string;
   tokens: number;
 }
