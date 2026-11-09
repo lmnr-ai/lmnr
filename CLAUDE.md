@@ -173,6 +173,6 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
 | `docs/internal/frontend-dependencies.md` | Adding/bumping frontend deps, `pnpm-workspace.yaml` `allowBuilds` (build-script policy) |
-| `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs |
+| `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs, TLS/crypto-backend deps |
 | `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator |
 | `docs/internal/oss-release.md` | `.github/workflows/build-push.yml` (GHCR images, attestations, release-source gate) |
