@@ -6,7 +6,6 @@ WORKDIR /app-server
 RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
-    libssl-dev \
     protobuf-compiler \
     libfontconfig1-dev \
     libfontconfig \
@@ -35,7 +34,6 @@ WORKDIR /app-server
 
 # Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
-    libssl3 \
     libfontconfig1 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
