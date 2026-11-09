@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  applyAgentInput,
   applyTraceDeltas,
   mergeFetched,
   replyOf,
+  withLiveInputs,
 } from "@/components/traces/chat-session-view/data/live-traces";
 import { type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
@@ -59,11 +59,14 @@ describe("applyTraceDeltas", () => {
   });
 });
 
-describe("applyAgentInput", () => {
-  it("fills a known turn and ignores unknown ones", () => {
-    const rows = [row("a", T1)];
-    assert.equal(applyAgentInput(rows, "a", "hi")[0].agentInput, "hi");
-    assert.equal(applyAgentInput(rows, "x", "hi"), rows);
+describe("withLiveInputs", () => {
+  it("fills turns missing an input and keeps a row's own", () => {
+    const rows = [row("a", T1), { ...row("b", T1), agentInput: "server" }];
+    const filled = withLiveInputs(rows, { a: "hi", b: "live", x: "early" });
+    assert.deepEqual(
+      filled.map((t) => t.agentInput),
+      ["hi", "server"]
+    );
   });
 });
 

@@ -21,11 +21,14 @@ export const applyTraceDeltas = (rows: TraceRow[], deltas: RealtimeTracePayload[
   return next.sort(byStartTime);
 };
 
-/** The server sends a trace's input after its first delta, so an unknown trace has nothing to attach it to. */
-export const applyAgentInput = (rows: TraceRow[], traceId: string, agentInput: unknown): TraceRow[] =>
-  rows.some((t) => t.id === traceId)
-    ? rows.map((t) => (t.id === traceId ? applyTracePartial(t, { agentInput }) : t))
-    : rows;
+/**
+ * Fills in live agent inputs the rows don't carry: the input is its own message, so it can beat the turn's first
+ * delta, and a fetch can land before ClickHouse has it. A row's own input wins.
+ */
+export const withLiveInputs = (rows: TraceRow[], inputs: Readonly<Record<string, unknown>>): TraceRow[] =>
+  Object.keys(inputs).length === 0
+    ? rows
+    : rows.map((t) => (t.agentInput || !(t.id in inputs) ? t : applyTracePartial(t, { agentInput: inputs[t.id] })));
 
 export type TurnReply =
   | { status: "loading" }

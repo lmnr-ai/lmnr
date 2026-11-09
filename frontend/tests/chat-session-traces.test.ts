@@ -45,4 +45,18 @@ describe("chat session traces slice", () => {
       ["a", "b"]
     );
   });
+
+  it("keeps a live input that beat its turn, and through fetches until the server has it", () => {
+    const get = slice();
+    get().receiveAgentInput("a", "hi");
+    get().patchTraces((rows) => [...rows, row("a", "2026-01-01T00:00:00Z")], ["a"]);
+    assert.equal(get().traces[0].agentInput, "hi");
+
+    get().receiveTraces([row("a", "2026-01-01T00:00:00Z")], true, []);
+    assert.equal(get().traces[0].agentInput, "hi");
+
+    get().receiveTraces([{ ...row("a", "2026-01-01T00:00:00Z"), agentInput: "server" }], true, []);
+    assert.equal(get().traces[0].agentInput, "server");
+    assert.deepEqual(get().liveInputs, {});
+  });
 });

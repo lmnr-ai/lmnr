@@ -11,7 +11,7 @@ import { type RealtimeAgentInputPayload, type RealtimeTracePayload } from "@/lib
 import { fetchSessionTraces, sessionModelTokensUrl } from "../session-api";
 import { useChatSession } from "../store";
 import { type TracesPatch } from "../store/traces";
-import { applyAgentInput, applyTraceDeltas } from "./live-traces";
+import { applyTraceDeltas } from "./live-traces";
 
 // Refresh from the server once live updates pause this long; ClickHouse lags the realtime stream.
 const SETTLE_MS = 2000;
@@ -35,6 +35,7 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
   const { mutate } = useSWRConfig();
   const patchTraces = useChatSession((s) => s.patchTraces);
   const receiveTraces = useChatSession((s) => s.receiveTraces);
+  const receiveAgentInput = useChatSession((s) => s.receiveAgentInput);
   const failTraces = useChatSession((s) => s.failTraces);
   const hadLive = useRef(false);
   // Set while a refresh is scheduled: a fetch that lands then may predate the latest updates, so it doesn't settle.
@@ -54,9 +55,9 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
     patchesSinceFetch.current = [];
     let result: Awaited<ReturnType<typeof fetchSessionTraces>>;
     try {
-      const refresh = fetched.current;
+      const background = fetched.current;
       fetched.current = true;
-      result = await fetchSessionTraces(projectId, sessionId, refresh, controller.signal);
+      result = await fetchSessionTraces(projectId, sessionId, background, controller.signal);
     } catch (err) {
       // fetchApi rethrows aborts; a newer fetch or unmount superseded this one.
       if (controller.signal.aborted) return;
@@ -120,10 +121,10 @@ export function SessionTracesSync({ sessionId }: { sessionId: string }) {
       },
       trace_agent_input_update: (event: MessageEvent) => {
         const payload = parse<RealtimeAgentInputPayload>(event);
-        if (payload?.traceId) patch((rows) => applyAgentInput(rows, payload.traceId, payload.agentInput));
+        if (payload?.traceId) receiveAgentInput(payload.traceId, payload.agentInput);
       },
     };
-  }, [patchTraces, refresh]);
+  }, [patchTraces, receiveAgentInput, refresh]);
   useRealtime({ key: `session_${sessionId}`, projectId, eventHandlers, enabled: !!projectId });
 
   return null;

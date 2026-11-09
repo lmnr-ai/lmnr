@@ -1,7 +1,7 @@
 import { type TraceSpanCounts } from "@/lib/actions/traces/span-counts";
 import { type TraceRow } from "@/lib/traces/types";
 
-import { mergeFetched } from "../data/live-traces";
+import { mergeFetched, withLiveInputs } from "../data/live-traces";
 
 export type TracesPatch = (rows: TraceRow[]) => TraceRow[];
 
@@ -15,11 +15,15 @@ export interface TracesSlice extends TracesDeps {
   traces: TraceRow[];
   /** Turns with live updates no server fetch reflects yet. */
   live: ReadonlySet<string>;
+  /** Live agent inputs by trace id, kept until a fetched row carries its own. */
+  liveInputs: Readonly<Record<string, unknown>>;
   isLoading: boolean;
   error?: string;
 
   /** Patches the rows with a realtime update; `liveIds` mark the turns it touched as live. */
   patchTraces: (apply: TracesPatch, liveIds?: string[]) => void;
+  /** A turn's agent input, from realtime; held until its row exists and the server has it. */
+  receiveAgentInput: (traceId: string, agentInput: unknown) => void;
   /**
    * Replays the patches applied while the fetch was in flight on top of it, since it may predate them. A settled
    * fetch reflects every update, so it ends live turns, except ones it's missing (ClickHouse can lag). Returns how
@@ -38,14 +42,20 @@ export const createTracesSlice =
     ...deps,
     traces: [],
     live: NOT_LIVE,
+    liveInputs: {},
     isLoading: true,
 
     patchTraces: (apply, liveIds) => {
-      const { traces, live } = get();
+      const { traces, live, liveInputs } = get();
       set({
-        traces: apply(traces),
+        traces: withLiveInputs(apply(traces), liveInputs),
         ...(liveIds?.length ? { live: new Set([...live, ...liveIds]) } : {}),
       });
+    },
+
+    receiveAgentInput: (traceId, agentInput) => {
+      const liveInputs = { ...get().liveInputs, [traceId]: agentInput };
+      set({ liveInputs, traces: withLiveInputs(get().traces, liveInputs) });
     },
 
     receiveTraces: (fetched, settled, patchesSinceFetch) => {
@@ -53,7 +63,15 @@ export const createTracesSlice =
       const missing = [...get().live].filter((id) => !fetchedIds.has(id));
       const live = settled ? (missing.length ? new Set(missing) : NOT_LIVE) : get().live;
       const patched = patchesSinceFetch.reduce((rows, apply) => apply(rows), fetched);
-      set({ traces: mergeFetched(get().traces, patched, live), live, isLoading: false, error: undefined });
+      const caughtUp = new Set(fetched.filter((t) => t.agentInput).map((t) => t.id));
+      const liveInputs = Object.fromEntries(Object.entries(get().liveInputs).filter(([id]) => !caughtUp.has(id)));
+      set({
+        traces: withLiveInputs(mergeFetched(get().traces, patched, live), liveInputs),
+        live,
+        liveInputs,
+        isLoading: false,
+        error: undefined,
+      });
       return missing.length;
     },
 
