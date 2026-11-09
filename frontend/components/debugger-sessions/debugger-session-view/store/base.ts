@@ -6,7 +6,7 @@ import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { fetchApi } from "@/lib/api/fetch-api";
-import { createBatchedLoader } from "@/lib/batched-loader";
+import { createIdBatchLoader } from "@/lib/id-batch-loader";
 import { type TraceRow } from "@/lib/traces/types";
 
 type SessionResizablePanel = "session" | "span";
@@ -202,25 +202,25 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
   // No options needed today; keep the signature for parity with trace-view's base.
   _options?: Record<string, never>
 ): BaseSessionViewStore {
-  const outputLoader = createBatchedLoader<string | null>({
+  const setOutputs = (traceIds: string[], outputs: Record<string, string | null>) =>
+    set({
+      // Ids the server omits have no output.
+      agentOutputs: { ...get().agentOutputs, ...Object.fromEntries(traceIds.map((id) => [id, outputs[id] ?? null])) },
+    } as Partial<T>);
+  const loadOutputs = createIdBatchLoader<string | null>({
     load: async (traceIds) => {
       const projectId = get().projectId;
-      if (!projectId) return undefined;
-      const { data } = await fetchApi<Record<string, string | null>>(`/api/projects/${projectId}/traces/output`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ traceIds }),
-      });
-      // Ids the server omits have no output.
-      return data ? Object.fromEntries(traceIds.map((id) => [id, data[id] ?? null])) : undefined;
+      if (!projectId) throw new Error("No project");
+      const { data, error } = await fetchApi<Record<string, string | null>>(
+        `/api/projects/${projectId}/traces/output`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ traceIds }) }
+      );
+      if (error !== null) throw new Error(error);
+      return data;
     },
-    onLoaded: (outputs) => set({ agentOutputs: { ...get().agentOutputs, ...outputs } } as Partial<T>),
+    onLoaded: setOutputs,
     // A failed load reads as "no output" here, so list rows never wait on a skeleton forever.
-    onFailed: (traceIds) =>
-      set({
-        agentOutputs: { ...get().agentOutputs, ...Object.fromEntries(traceIds.map((id) => [id, null])) },
-      } as Partial<T>),
-    isResolved: (id) => id in get().agentOutputs,
+    onFailed: (traceIds) => setOutputs(traceIds, {}),
   });
 
   return {
@@ -312,7 +312,7 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
       }
     },
 
-    fetchAgentOutputs: outputLoader.request,
+    fetchAgentOutputs: (traceIds) => loadOutputs(traceIds.filter((id) => !(id in get().agentOutputs))),
 
     // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.
     // Any transition to `expanded=true` also kicks off span loading (idempotent

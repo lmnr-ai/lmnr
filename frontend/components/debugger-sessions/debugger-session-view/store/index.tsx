@@ -339,13 +339,10 @@ const createDebuggerSessionViewStore = (options: {
 
         // Lazy trace-row batching: the loader owns the pending set / debounce /
         // chunking; the store owns only the merge + state marks below.
-        const rowLoader = createIdBatchLoader<TraceRow>({
-          batchSize: 100, // server cap per request
-          debounceMs: 150,
-          getId: (row) => row.id,
-          fetchBatch: async (ids) => {
+        const loadRows = createIdBatchLoader<TraceRow>({
+          load: async (ids) => {
             const { projectId, sessionId } = options;
-            if (!projectId) return [];
+            if (!projectId) return {};
             // POST (not `?traceIds=`) so a full window of ids can't overflow the URL.
             const res = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/blocks`, {
               method: "POST",
@@ -354,32 +351,34 @@ const createDebuggerSessionViewStore = (options: {
             });
             if (!res.ok) throw new Error("Failed to load runs");
             const body = (await res.json()) as { traces: TraceRow[] };
-            return (body.traces ?? []).map((t) => ({ ...t, metadata: normalizeMetadata(t.metadata) }));
+            return Object.fromEntries(
+              (body.traces ?? []).map((t) => [t.id, { ...t, metadata: normalizeMetadata(t.metadata) }])
+            );
           },
-          onBatch: (requestedIds, rowsById) =>
+          onLoaded: (requestedIds, rowsById) =>
             set((s) => {
               // A realtime-seeded row CH doesn't have yet still counts as loaded
               // (deltas keep it current); truly absent ids are missing.
               const localIds = new Set(s.traces.map((t) => t.id));
               const nextStates = { ...s.traceRowStates };
               for (const id of requestedIds) {
-                nextStates[id] = rowsById.has(id) || localIds.has(id) ? "loaded" : "missing";
+                nextStates[id] = id in rowsById || localIds.has(id) ? "loaded" : "missing";
               }
               // A fetched row carries cumulative times, so it supersedes the
               // seed and its bounds are safe to fetch spans by again.
               let seeded: Set<string> | null = null;
-              for (const id of rowsById.keys()) {
+              for (const id of Object.keys(rowsById)) {
                 if (!s.realtimeSeededTraceIds.has(id)) continue;
                 if (!seeded) seeded = new Set(s.realtimeSeededTraceIds);
                 seeded.delete(id);
               }
               return {
                 traceRowStates: nextStates,
-                traces: upsertTraceRows(s.traces, [...rowsById.values()]),
+                traces: upsertTraceRows(s.traces, Object.values(rowsById)),
                 ...(seeded ? { realtimeSeededTraceIds: seeded } : {}),
               } as Partial<DebuggerSessionViewStore>;
             }),
-          onError: (requestedIds) =>
+          onFailed: (requestedIds) =>
             // Clear the marks so the next scroll-into-view retries the chunk.
             set((s) => {
               const nextStates = { ...s.traceRowStates };
@@ -517,7 +516,7 @@ const createDebuggerSessionViewStore = (options: {
               for (const id of missing) nextStates[id] = "loading";
               return { traceRowStates: nextStates } as Partial<DebuggerSessionViewStore>;
             });
-            rowLoader.load(missing);
+            loadRows(missing);
           },
 
           enforceLoadedTraceBound: (protectedIds) => {

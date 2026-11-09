@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { createIdBatcher } from "@/components/traces/chat-session-view/data/id-batcher";
 import { applyAgentInput, applyTraceDeltas, replyOf } from "@/components/traces/chat-session-view/data/live-traces";
 import { type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
@@ -70,26 +69,5 @@ describe("replyOf", () => {
     assert.deepEqual(replyOf(false, undefined, false), { status: "loading" });
     assert.deepEqual(replyOf(false, null, false), { status: "none" });
     assert.deepEqual(replyOf(false, "hi", false), { status: "text", text: "hi" });
-  });
-});
-
-describe("createIdBatcher", () => {
-  it("loads ids asked for together in one chunked request each", async () => {
-    const calls: string[][] = [];
-    const load = createIdBatcher(
-      async (ids) => {
-        calls.push(ids);
-        return Object.fromEntries(ids.filter((id) => id !== "c").map((id) => [id, id.toUpperCase()]));
-      },
-      { delayMs: 0, chunkSize: 2 }
-    );
-    const results = await Promise.all([load("a"), load("b"), load("c"), load("a")]);
-    assert.deepEqual(results, ["A", "B", undefined, "A"]);
-    assert.deepEqual(calls, [["a", "b"], ["c"]]);
-  });
-
-  it("rejects every id in a failed chunk", async () => {
-    const load = createIdBatcher(async () => Promise.reject(new Error("boom")), { delayMs: 0 });
-    await assert.rejects(load("a"), /boom/);
   });
 });

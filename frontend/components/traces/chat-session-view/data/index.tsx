@@ -7,10 +7,10 @@ import useSWR, { useSWRConfig } from "swr";
 import { type TraceSpanCounts } from "@/lib/actions/traces/span-counts";
 import { fetchApi } from "@/lib/api/fetch-api";
 import { useRealtime } from "@/lib/hooks/use-realtime";
+import { createIdBatchFetcher } from "@/lib/id-batch-loader";
 import { type RealtimeAgentInputPayload, type RealtimeTracePayload, type TraceRow } from "@/lib/traces/types";
 
 import { fetchSessionTraces, sessionModelTokensUrl } from "../session-api";
-import { createIdBatcher } from "./id-batcher";
 import { applyAgentInput, applyTraceDeltas } from "./live-traces";
 
 // Refresh from the server once live updates pause this long; ClickHouse lags the realtime stream.
@@ -108,11 +108,13 @@ export function SessionDataProvider({ sessionId, children }: PropsWithChildren<{
 
   const loaders = useMemo(
     () => ({
-      loadReply: createIdBatcher((ids) =>
-        postIds<Record<string, string | null>>(`/api/projects/${projectId}/traces/output`, ids)
+      loadReply: createIdBatchFetcher(
+        (ids) => postIds<Record<string, string | null>>(`/api/projects/${projectId}/traces/output`, ids),
+        { debounceMs: 50 }
       ),
-      loadCounts: createIdBatcher((ids) =>
-        postIds<Record<string, TraceSpanCounts>>(`/api/projects/${projectId}/traces/span-counts`, ids)
+      loadCounts: createIdBatchFetcher(
+        (ids) => postIds<Record<string, TraceSpanCounts>>(`/api/projects/${projectId}/traces/span-counts`, ids),
+        { debounceMs: 50 }
       ),
     }),
     [projectId]
