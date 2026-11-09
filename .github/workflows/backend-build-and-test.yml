@@ -58,12 +58,19 @@ jobs:
       # PR's own scope, where nothing else can ever read it, while still counting
       # against the repo's 10 GB quota and evicting the dev entry that PRs do
       # read. Only the dev push writes — see the save step below.
+      #
+      # The key covers the Dockerfile as well as Cargo.lock: both determine the
+      # cooked dependency layers, and a dev push skips the save on an exact hit.
+      # Keyed on Cargo.lock alone, a Dockerfile-only change would hit the old key
+      # on dev, discard the layers it just built, and leave every later PR
+      # rebuilding from the changed instruction until something touched
+      # Cargo.lock. Keep this key identical to the save step's.
       - name: Restore Docker layer cache
         id: layer-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-app-server-${{ hashFiles('app-server/Cargo.lock') }}
+          key: ${{ runner.os }}-buildx-app-server-${{ hashFiles('app-server/Cargo.lock', 'app-server/Dockerfile') }}
           restore-keys: |
             ${{ runner.os }}-buildx-app-server-
 
@@ -106,4 +113,4 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-app-server-${{ hashFiles('app-server/Cargo.lock') }}
+          key: ${{ runner.os }}-buildx-app-server-${{ hashFiles('app-server/Cargo.lock', 'app-server/Dockerfile') }}
