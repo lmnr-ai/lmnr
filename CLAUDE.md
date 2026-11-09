@@ -156,7 +156,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
 | `docs/internal/dedup-search.md` | `unique_content` group-scoped dedup (`traces/dedup/`), `spans_v0` reconstruction, Quickwit indexing/search |
 | `docs/internal/ingestion.md` | OTLP `/v1/traces`, GenAI semconv parsing, trace metadata patches, input/output extraction, system-prompt extraction, system-prompt / user-template versioning, agent versioning (`agent_versioning/`), 413s |
-| `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling |
+| `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling, frontend `@sentry/nextjs` config and its OTel coexistence with Laminar |
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
 | `docs/internal/audit.md` | Workspace audit log (`audit_events`), `handlerWithAudit`/`handlerNoAudit` route wrappers, `/v1` audit middleware, `sql.query` events, `SqlQuerySource` |
 | `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |

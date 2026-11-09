@@ -4,6 +4,8 @@
 import * as Sentry from "@sentry/nextjs";
 
 export async function register() {
+  // Sentry must init before Laminar below: OTel's global context manager is first-registration-wins, Sentry needs its
+  // own for scope isolation, and Laminar reuses any working one instead of registering.
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./sentry.server.config.ts");
   }

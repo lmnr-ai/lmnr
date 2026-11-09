@@ -6,6 +6,9 @@ import * as Sentry from "@sentry/nextjs";
 
 const DEFAULT_SAMPLE_RATE = 0.5;
 
+// Set by Laminar's span processor on every span it starts.
+const LAMINAR_SPAN_ATTRIBUTE = "lmnr.span.instrumentation_source";
+
 // Sentry bills by span volume, so only a fraction of transactions is sent.
 // Write EXTERNAL_TRACING_SAMPLE_RATE as a plain decimal (e.g. 0.5); anything
 // Number won't parse falls back to the default.
@@ -21,22 +24,34 @@ if (process.env.LAMINAR_CLOUD === "true" && process.env.FRONTEND_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.FRONTEND_SENTRY_DSN,
 
-    // Sampling is per-transaction, so every sampled trace stays internally complete.
+    // Sampling is decided once per trace at its root span, so every sampled trace stays internally complete.
     tracesSampleRate,
 
-    // Enable sending user PII (Personally Identifiable Information)
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-    sendDefaultPii: true,
+    // `dataCollection` stays at its defaults on purpose: we want full request context (user info, cookies, headers,
+    // HTTP bodies, gen-AI inputs/outputs) on events. Secrets are scrubbed by key name only.
 
-    beforeSendTransaction(event) {
-      if (
-        event.transaction &&
-        event.transaction.includes("/api/projects/") &&
-        event.transaction.includes("/realtime")
-      ) {
-        return null;
-      }
-      return event;
-    },
+    // Drop the long-lived realtime SSE request together with its child spans. `ignoreSpans` is matched when a span
+    // starts, before Next.js renames the root span to its route, so match the raw request target (may carry basePath).
+    ignoreSpans: [
+      {
+        attributes: {
+          "next.span_type": "BaseServer.handleRequest",
+          "http.target": /\/api\/projects\/[^/?]+\/realtime(?:[/?]|$)/,
+        },
+      },
+    ],
+  });
+
+  // Laminar makes its own span the active OTel span while an AI SDK tool runs. A Sentry span started there (a DB
+  // query, a fetch) would join Laminar's trace, inherit its always-on sampling and reach Sentry orphaned: drop it.
+  Sentry.getClient()?.on("prepareSpanScope", (spanScope) => {
+    const { parentSpan, scope } = spanScope;
+    if (!parentSpan || Sentry.spanToJSON(parentSpan).attributes?.[LAMINAR_SPAN_ATTRIBUTE] === undefined) {
+      return;
+    }
+    const unsampledScope = scope.clone();
+    unsampledScope.setPropagationContext({ ...scope.getPropagationContext(), sampled: false });
+    spanScope.scope = unsampledScope;
+    spanScope.parentSpan = undefined;
   });
 }

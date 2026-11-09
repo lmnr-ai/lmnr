@@ -89,7 +89,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-email/components": "^1.0.12",
     "@react-email/tailwind": "^2.0.7",
-    "@sentry/nextjs": "^10.70.0",
+    "@sentry/nextjs": "^11.11.0",
     "@shadcn/react": "^0.1.0",
     "@tanstack/charts": "1.1.0",
     "@tanstack/react-table": "^8.21.3",
