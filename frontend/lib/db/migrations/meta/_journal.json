@@ -897,6 +897,13 @@
       "when": 1794004455783,
       "tag": "0127_agent_definitions",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1794243512429,
+      "tag": "0128_signal_notes",
+      "breakpoints": true
     }
   ]
 }
