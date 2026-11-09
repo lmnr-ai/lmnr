@@ -22,12 +22,10 @@ export const spanPathKey = (span: Span) => {
 export const SpanIOSection = ({ title, data, presetKey }: SpanIOSectionProps) => {
   const value = useMemo(() => JSON.stringify(normalizeSpanPayload(data)) ?? "null", [data]);
   return (
-    <div className="flex flex-col">
-      <div className="px-3 pt-2">
-        <span className="text-base font-medium text-secondary-foreground">{title}</span>
-      </div>
+    <div className="flex flex-col pt-2">
       {/* No contain-strict: size containment would collapse the auto-height editor. */}
       <ContentRenderer
+        header={<span className="pl-1 text-base font-medium text-secondary-foreground">{title}</span>}
         className="rounded-none border-0"
         codeEditorClassName="rounded-none border-none"
         readOnly

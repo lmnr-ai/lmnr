@@ -28,7 +28,7 @@ describe("buildRows", () => {
 
     const [header, context] = rows;
     assert.equal(header.kind === "section" && header.summary, undefined);
-    assert.equal(context.kind === "context" && context.summary, "system prompt + 1 earlier step");
+    assert.equal(context.kind === "context" && context.summary, "1 earlier step");
   });
 
   it("opens Context to the system prompt, task and earlier steps", () => {

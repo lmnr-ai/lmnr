@@ -3,9 +3,8 @@ import { memo } from "react";
 import { MessageWrapper } from "@/components/traces/span-view/common";
 import { renderMessageContent } from "@/components/traces/span-view/messages";
 import { canonicalRole, segmentMessageRole } from "@/lib/spans/turn";
-import { cn } from "@/lib/utils";
 
-import { type ConversationRow, isContextRow, type MessageAnchor, type SectionKey } from "./build-rows";
+import { type ConversationRow, type MessageAnchor, type SectionKey } from "./build-rows";
 import ContextStack from "./context-stack";
 import MessageLinkButton from "./message-link-button";
 import NormalizedParts from "./normalized-parts";
@@ -83,7 +82,7 @@ const ConversationRowView = ({
   );
   return (
     <div data-index={index} ref={measureRef} className={ROW}>
-      <div className={cn(row.grouped ? "pb-1.5" : "pb-4", isContextRow(row) && "ml-1.5 pl-3 border-l")}>
+      <div className={row.grouped ? "pb-1.5" : "pb-4"}>
         <RowSearchScope active={activeMatch} claim={claimReveal}>
           <MessageWrapper
             role={role}
