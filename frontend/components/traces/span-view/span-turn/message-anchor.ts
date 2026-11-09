@@ -10,6 +10,11 @@ export const parseAnchorHash = (hash: string): MessageAnchor | undefined => {
   return match ? { section: match[1] as MessageAnchor["section"], index: Number(match[2]) } : undefined;
 };
 
+// The hash names no span, and not every span change rewrites the URL (nuqs keeps the hash, some selections skip the
+// URL), so it only counts while `?spanId` is that span.
+export const linkedAnchor = (search: string, hash: string, spanId: string): MessageAnchor | undefined =>
+  new URLSearchParams(search).get("spanId") === spanId ? parseAnchorHash(hash) : undefined;
+
 export const anchorHash = ({ section, index }: MessageAnchor) => `#${section}-${index}`;
 
 /** Input messages before this call's new input fold behind the history toggle. */

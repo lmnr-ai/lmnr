@@ -8,17 +8,19 @@ import { type Span } from "@/lib/traces/types";
 
 import { buildRows, type MessageAnchor } from "./build-rows";
 import ConversationList from "./conversation-list";
-import { anchorHash, isFoldedAnchor, parseAnchorHash } from "./message-anchor";
+import { anchorHash, isFoldedAnchor, linkedAnchor } from "./message-anchor";
 import { useSectionFormats } from "./use-section-formats";
 import { useTurnSearch } from "./use-turn-search";
 
-const readAnchorHash = () => (typeof window === "undefined" ? undefined : parseAnchorHash(window.location.hash));
+const readLinkedAnchor = (spanId: string) =>
+  typeof window === "undefined" ? undefined : linkedAnchor(window.location.search, window.location.hash, spanId);
 
 const PureSpanTurn = ({ span }: { span: Span }) => {
   // Message links only where the URL can reopen this span.
   const linkable = useUrlState();
   const turn = useMemo(() => buildSpanTurn(span.input, span.output), [span.input, span.output]);
-  const [linked, setLinked] = useState<MessageAnchor | undefined>(() => (linkable ? readAnchorHash() : undefined));
+  // Read once: copying a link later must not move the list.
+  const [linked] = useState(() => (linkable ? readLinkedAnchor(span.spanId) : undefined));
 
   // A link into the folded context opens it.
   const [contextOpen, setContextOpen] = useState(() => !!linked && isFoldedAnchor(turn, linked));
@@ -28,7 +30,6 @@ const PureSpanTurn = ({ span }: { span: Span }) => {
     (anchor: MessageAnchor) => {
       const url = messageLinkUrl(window.location.href, span.spanId, anchorHash(anchor));
       window.history.replaceState(null, "", url);
-      setLinked(anchor);
       return navigator.clipboard.writeText(url.toString());
     },
     [span.spanId]

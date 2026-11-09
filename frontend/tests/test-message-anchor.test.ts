@@ -6,6 +6,7 @@ import {
   anchorHash,
   findAnchorRow,
   isFoldedAnchor,
+  linkedAnchor,
   parseAnchorHash,
 } from "@/components/traces/span-view/span-turn/message-anchor";
 import { buildSpanTurn } from "@/lib/spans/turn";
@@ -26,6 +27,12 @@ const anchorsOf = (rows: ReturnType<typeof buildRows>) =>
   rows.flatMap((row) => (row.kind === "message" ? [anchorHash(row.anchor)] : []));
 
 describe("message anchors", () => {
+  it("ignores a hash left over from another span", () => {
+    assert.deepEqual(linkedAnchor("?traceId=t&spanId=a", "#output-0", "a"), { section: "output", index: 0 });
+    assert.equal(linkedAnchor("?traceId=t&spanId=a", "#output-0", "b"), undefined);
+    assert.equal(linkedAnchor("?traceId=t", "#output-0", "a"), undefined);
+  });
+
   it("round-trips the hash and rejects anything else", () => {
     assert.deepEqual(parseAnchorHash("#input-12"), { section: "input", index: 12 });
     assert.equal(anchorHash({ section: "output", index: 0 }), "#output-0");

@@ -32,7 +32,8 @@ const bandAt = (
   const top = virtualizer.getVirtualItemForOffset(scrollTop);
   if (!top || !rows[top.index] || !inOpenContext(rows[top.index])) return undefined;
 
-  const index = rows.slice(0, top.index + 1).findLastIndex((row) => row.kind === "context");
+  // At most one context row, and it leads the rows it opens into.
+  const index = rows.findIndex((row) => row.kind === "context");
   const header = rows[index];
   if (header?.kind !== "context" || (index === top.index && scrollTop <= top.start)) return undefined;
 
