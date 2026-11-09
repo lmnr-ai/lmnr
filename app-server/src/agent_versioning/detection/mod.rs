@@ -1,6 +1,6 @@
 //! Agent detection (`AGENT_DETECTION_ENABLED`). Each run, for every project
 //! with uncovered traces (no prompt of theirs matched a defined agent), an
-//! LLM sees a random sample of them plus the known agents, and defines the
+//! LLM sees the most recent of them plus the known agents, and defines the
 //! missing agents or extends the checks of agents whose prompt changed
 //! ([`agent`]). Ingest identifies agents by those definitions from then on
 //! ([`super::identity`]); traces ingested before stay unlabelled.
@@ -26,8 +26,9 @@ use crate::{
     llm::LlmClient,
 };
 
-/// Traces read per prompt shown to the model: uncovered traces include those
-/// stored before their agent was defined, which are filtered out after reading.
+/// Traces read per prompt shown to the model. When the newest uncovered traces
+/// run out, sampling reaches back to traces stored before their agent was
+/// defined, which are filtered out after reading.
 const CANDIDATES_PER_PROMPT: u64 = 3;
 
 impl Job {

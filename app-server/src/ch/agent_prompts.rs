@@ -101,11 +101,13 @@ pub struct PromptSpan {
     pub span_id: Uuid,
 }
 
-/// Up to `limit` random traces with prompts ingested after `since`, none of
-/// them labelled, each with the span of its largest prompt (most lines: system
-/// prompt plus tools), which is the main agent's rather than a helper's like a
-/// task summarizer. A trace with any labelled prompt is covered: its
-/// unlabelled ones are subagents of a known agent.
+/// Up to `limit` traces with prompts ingested after `since`, none of them
+/// labelled, newest first and at most one per minute (random within it), so
+/// one user's burst can't fill the sample and traces stored before their agent
+/// was defined come last. Each comes with the span of its largest prompt (most
+/// lines: system prompt plus tools), which is the main agent's rather than a
+/// helper's like a task summarizer. A trace with any labelled prompt is
+/// covered: its unlabelled ones are subagents of a known agent.
 pub async fn uncovered_traces(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
@@ -114,13 +116,18 @@ pub async fn uncovered_traces(
 ) -> Result<Vec<PromptSpan>> {
     let spans = clickhouse
         .query(
-            "SELECT trace_id, argMax(span_id, length(line_hashes)) AS span_id
-             FROM agent_prompts
-             WHERE project_id = {project_id:UUID}
-               AND ingested_at > fromUnixTimestamp64Nano({since:Int64})
-             GROUP BY trace_id
-             HAVING countIf(agent_hash != '') = 0
-             ORDER BY rand()
+            "SELECT trace_id, span_id
+             FROM (
+                 SELECT trace_id,
+                        argMax(span_id, length(line_hashes)) AS span_id,
+                        toStartOfMinute(min(start_time)) AS minute
+                 FROM agent_prompts
+                 WHERE project_id = {project_id:UUID}
+                   AND ingested_at > fromUnixTimestamp64Nano({since:Int64})
+                 GROUP BY trace_id
+                 HAVING countIf(agent_hash != '') = 0)
+             ORDER BY minute DESC, rand()
+             LIMIT 1 BY minute
              LIMIT {limit:UInt64}",
         )
         .param("project_id", project_id)
