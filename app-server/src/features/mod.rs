@@ -38,8 +38,10 @@ pub enum Feature {
     AgentVersioning,
     /// Agents are identified by detected definitions
     /// (`agent_versioning/detection`) instead of the system prompt's first
-    /// sentence. Detection runs inside the versioning job, so it needs BOTH
-    /// `AGENT_VERSIONING_ENABLED` and `AGENT_DETECTION_ENABLED`.
+    /// sentence. Detection runs inside the versioning job and calls an LLM, so
+    /// it needs `AGENT_VERSIONING_ENABLED` and an LLM backend as well as
+    /// `AGENT_DETECTION_ENABLED` (default on): without a backend, ingest would
+    /// wait for definitions nothing can write and label no span.
     AgentDetection,
     /// v2 static system-prompt extraction: per-agent prompt windows +
     /// line-level version detection replacing the skeleton-hash keying.
@@ -110,6 +112,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::AgentDetection => {
             is_feature_enabled(Feature::AgentVersioning)
                 && env::agent_versioning::DETECTION_ENABLED.get()
+                && has_llm_backend()
         }
         Feature::SystemPromptVersioning => env::static_sp::V2_ENABLED.get(),
         Feature::SignalsVersionedPrompts => {
