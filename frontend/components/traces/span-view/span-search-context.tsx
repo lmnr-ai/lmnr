@@ -14,6 +14,8 @@ import { byDomOrder, type SearchableSource } from "@/components/traces/span-view
 interface RegisteredSource {
   source: SearchableSource;
   matchCount: number;
+  /** The term `matchCount` is for. */
+  term: string;
 }
 
 interface SpanSearchStateContextValue {
@@ -134,8 +136,11 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
+      // Sources that registered with this term already have it: applying it again would clear the match jumped to.
       sources.current.forEach((entry) => {
+        if (entry.term === searchTerm) return;
         entry.matchCount = entry.source.apply(searchTerm);
+        entry.term = searchTerm;
       });
       syncTotals();
     });
@@ -152,8 +157,8 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
       // Applying the term clears the source's current match.
       if (active.current?.id === source.id) active.current = null;
 
-      const matchCount = source.apply(searchTermRef.current);
-      sources.current.set(source.id, { source, matchCount });
+      const term = searchTermRef.current;
+      sources.current.set(source.id, { source, matchCount: source.apply(term), term });
       requestAnimationFrame(() => syncTotals());
     },
     [syncTotals]
