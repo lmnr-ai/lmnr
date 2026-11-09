@@ -1,9 +1,10 @@
 import { z } from "zod/v4";
 
-import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
 import { extractAgentOutput } from "@/lib/traces/agent-output";
+
+const MAIN_AGENT_SEARCH_WINDOW = 5;
 
 const bodySchema = z.object({
   traceIds: z.array(z.guid()).min(1).max(100),
