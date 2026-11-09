@@ -95,7 +95,8 @@ export default function DynamicWidthLayout({
           </div>
         </motion.div>
 
-        <AnimatePresence initial={false}>
+        {/* propagate: when the whole panel closes, the span slides out with the trace instead of popping. */}
+        <AnimatePresence initial={false} propagate>
           {/* Span Panel */}
           {panels.showSpan && (
             <motion.div
@@ -103,7 +104,7 @@ export default function DynamicWidthLayout({
               className="relative h-full flex-shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0.5 }}
               animate={{ width: widths.span, opacity: 1 }}
-              exit={{ width: 0, opacity: 0.5 }}
+              exit={{ width: 0, opacity: 0.5, transition: isPresent ? transition : enterExitTransition }}
               transition={transition}
             >
               <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.span }}>

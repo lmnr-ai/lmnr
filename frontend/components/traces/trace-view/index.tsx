@@ -62,6 +62,8 @@ export function TraceViewSidePanel({ className, children, inline, reservedWidth,
   // Only the first trace slides in: switching traces remounts the content (keyed store) and mustn't replay it.
   const [shown, setShown] = useState({ traceId: props.traceId, first: true });
   if (shown.traceId !== props.traceId) setShown({ traceId: props.traceId, first: false });
+  // Stacking unmounts the layout; coming back wide must not replay the slide.
+  if (narrow && shown.first) setShown({ ...shown, first: false });
 
   useLayoutEffect(() => {
     const el = sidePanelRef.current?.parentElement;
