@@ -9,8 +9,8 @@ type ResolvedEditorMode = { mode: "visual"; structure: QueryStructure } | { mode
 
 type ConvertSql = (projectId: string, sql: string) => Promise<QueryStructure>;
 
-// The reverse parser is best-effort: it can return a structure while silently
-// dropping a CTE or JOIN. Never let the visual editor replace that raw SQL.
+// `/sql/to-json` already rejects SQL its structure can't regenerate; this skips the
+// round trip for clauses the builder never emits.
 const UNREPRESENTABLE_SQL = /^\s*WITH\b|\b(?:JOIN|HAVING|PREWHERE|QUALIFY|WINDOW|UNION|INTERSECT|EXCEPT)\b/i;
 
 /** The visual builder's structure for `query`, or null when the builder cannot represent it faithfully. */

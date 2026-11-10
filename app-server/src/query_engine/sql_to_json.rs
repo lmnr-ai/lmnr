@@ -9,16 +9,144 @@
 use sqlparser::ast::{
     BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr,
     LimitClause, ObjectName, ObjectNamePart, OrderByExpr, OrderByKind, Query, Select, SelectItem,
-    SetExpr, Statement, Value,
+    SetExpr, Statement, Value, VisitMut, VisitorMut,
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::ControlFlow};
 
-use super::types::{Filter, FilterValue, Metric, OrderBy, QueryStructure, TimeRange};
+use super::{
+    json_to_sql::convert_json_to_sql,
+    types::{Filter, FilterValue, Metric, OrderBy, QueryStructure, TimeRange},
+};
 
 const DEFAULT_START_TIME: &str = "{start_time:DateTime64}";
 const DEFAULT_END_TIME: &str = "{end_time:DateTime64}";
 
+/// Parse `sql` into the builder's structure, or fail if the builder would regenerate a
+/// different query: the editor shows (and re-saves) the regenerated SQL, so a structure
+/// that silently lost a clause would overwrite the chart's query.
 pub fn convert_sql_to_json(sql: &str) -> Result<QueryStructure, String> {
+    let structure = parse_query_structure(sql)?;
+    let regenerated = convert_json_to_sql(&structure)?;
+    if canonical_statement(sql)? != canonical_statement(&regenerated)? {
+        return Err("Query can't be represented in the visual builder".to_string());
+    }
+    Ok(structure)
+}
+
+/// Parsed statement with differences that don't change the query normalized away, so
+/// the user's SQL and the builder's regeneration of it compare equal.
+fn canonical_statement(sql: &str) -> Result<Statement, String> {
+    let mut statements = super::validator::parse_clickhouse_sql(sql)
+        .map_err(|e| format!("Failed to parse SQL: {e}"))?;
+    if statements.len() != 1 {
+        return Err("Only SELECT queries supported".to_string());
+    }
+    let mut statement = statements.remove(0);
+    let _ = statement.visit(&mut Canonicalizer);
+    Ok(statement)
+}
+
+struct Canonicalizer;
+
+impl VisitorMut for Canonicalizer {
+    type Break = ();
+
+    fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<()> {
+        match expr {
+            // The tree already encodes precedence, so explicit parens are redundant.
+            Expr::Nested(inner) => {
+                let inner = (**inner).clone();
+                *expr = inner;
+            }
+            Expr::Identifier(ident) => ident.quote_style = None,
+            Expr::CompoundIdentifier(parts) => {
+                parts.iter_mut().for_each(|part| part.quote_style = None);
+            }
+            Expr::Function(f) => {
+                // The builder lowercases aggregate names; ClickHouse resolves those case-insensitively.
+                for part in &mut f.name.0 {
+                    if let ObjectNamePart::Identifier(ident) = part {
+                        ident.quote_style = None;
+                        ident.value = ident.value.to_lowercase();
+                    }
+                }
+                let is_count = function_name(f) == "count";
+                if let FunctionArguments::List(list) = &mut f.args {
+                    if list.args.is_empty() && is_count {
+                        list.args
+                            .push(FunctionArg::Unnamed(FunctionArgExpr::Wildcard));
+                    }
+                }
+            }
+            _ => {}
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn post_visit_relation(&mut self, relation: &mut ObjectName) -> ControlFlow<()> {
+        for part in &mut relation.0 {
+            if let ObjectNamePart::Identifier(ident) = part {
+                ident.quote_style = None;
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn post_visit_select(&mut self, select: &mut Select) -> ControlFlow<()> {
+        for item in &mut select.projection {
+            if let SelectItem::ExprWithAlias { expr, alias } = item {
+                alias.quote_style = None;
+                // `col AS col` is just `col`.
+                if matches!(expr, Expr::Identifier(ident) if ident.value == alias.value) {
+                    *item = SelectItem::UnnamedExpr(expr.clone());
+                }
+            }
+        }
+        // AND-ed WHERE conditions and GROUP BY keys are order-insensitive.
+        if let Some(selection) = select.selection.take() {
+            let mut conditions = Vec::new();
+            split_conjunction(selection, &mut conditions);
+            conditions.sort_by_cached_key(ToString::to_string);
+            select.selection = conditions.into_iter().reduce(|left, right| Expr::BinaryOp {
+                left: Box::new(left),
+                op: BinaryOperator::And,
+                right: Box::new(right),
+            });
+        }
+        if let GroupByExpr::Expressions(exprs, _) = &mut select.group_by {
+            exprs.sort_by_cached_key(ToString::to_string);
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn post_visit_query(&mut self, query: &mut Query) -> ControlFlow<()> {
+        // The builder writes an explicit `ASC`.
+        if let Some(order_by) = &mut query.order_by {
+            if let OrderByKind::Expressions(exprs) = &mut order_by.kind {
+                for order in exprs {
+                    order.options.asc.get_or_insert(true);
+                }
+            }
+        }
+        ControlFlow::Continue(())
+    }
+}
+
+fn split_conjunction(expr: Expr, conditions: &mut Vec<Expr>) {
+    match expr {
+        Expr::BinaryOp {
+            left,
+            op: BinaryOperator::And,
+            right,
+        } => {
+            split_conjunction(*left, conditions);
+            split_conjunction(*right, conditions);
+        }
+        other => conditions.push(other),
+    }
+}
+
+fn parse_query_structure(sql: &str) -> Result<QueryStructure, String> {
     // Use the shared parse helper (not `Parser::parse_sql` directly) to work
     // around a sqlparser bug where a bare single-expression RHS after `IN`
     // (`col IN {placeholder}`, `col IN 5`, ...) is rejected without surrounding
@@ -44,8 +172,7 @@ pub fn convert_sql_to_json(sql: &str) -> Result<QueryStructure, String> {
     let grouped_columns = get_grouped_columns(select);
 
     let (metrics, dimensions, time_range) =
-        parse_select_expressions(select, &query, &grouped_columns)?;
-    check_grouping(select, &grouped_columns, &dimensions, time_range.is_some())?;
+        parse_select_expressions(select, &query, &grouped_columns);
     let filters = parse_where_clause(select, time_range.as_ref())?;
     let order_by = parse_order_by_clause(&query);
     let limit = parse_limit_clause(&query);
@@ -124,14 +251,11 @@ fn is_time_bucket(expr: &Expr) -> bool {
     matches!(expr, Expr::Function(f) if function_name(f).to_uppercase() == "TOSTARTOFINTERVAL")
 }
 
-/// The builder emits dimensions as bare columns, so a computed or renamed dimension
-/// (`if(empty(x), 'y', x) AS x`, `x AS y`) is an error: dropping it would show (and
-/// re-save) a different query.
 fn parse_select_expressions(
     select: &Select,
     query: &Query,
     grouped_columns: &HashSet<String>,
-) -> Result<(Vec<Metric>, Vec<String>, Option<TimeRange>), String> {
+) -> (Vec<Metric>, Vec<String>, Option<TimeRange>) {
     let mut metrics = Vec::new();
     let mut dimensions = Vec::new();
     let mut time_range = None;
@@ -145,49 +269,33 @@ fn parse_select_expressions(
                 } else if grouped_columns.contains(&alias_str)
                     || is_simple_column_ref(expr, grouped_columns)
                 {
-                    match column_name(expr) {
-                        Some(name) if name == alias_str => dimensions.push(name),
-                        _ => return Err(format!("Unsupported dimension: {item}")),
+                    if let Some(name) = column_name(expr) {
+                        dimensions.push(name);
                     }
                 } else {
                     metrics.push(extract_metric(expr, &alias_str));
                 }
             }
-            SelectItem::UnnamedExpr(expr) => match column_name(expr) {
-                Some(name) => dimensions.push(name),
-                None => return Err(format!("Unsupported select expression: {item}")),
-            },
-            _ => return Err(format!("Unsupported select expression: {item}")),
+            SelectItem::UnnamedExpr(expr) => {
+                if let Some(name) = column_name(expr) {
+                    // Ungrouped, a bare column is a table row value: the builder's raw metric.
+                    if grouped_columns.is_empty() {
+                        metrics.push(Metric {
+                            r#fn: "raw".to_string(),
+                            column: name.clone(),
+                            args: vec![],
+                            alias: Some(name),
+                        });
+                    } else {
+                        dimensions.push(name);
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
-    Ok((metrics, dimensions, time_range))
-}
-
-/// The builder groups by exactly its dimensions (plus `time`), so any other GROUP BY
-/// key, or a dimension outside an explicit GROUP BY, would change the regenerated query.
-/// `GROUP BY ALL` is rejected: with no explicit keys, computed dimensions parse as metrics.
-fn check_grouping(
-    select: &Select,
-    grouped_columns: &HashSet<String>,
-    dimensions: &[String],
-    has_time_bucket: bool,
-) -> Result<(), String> {
-    if matches!(select.group_by, GroupByExpr::All(_)) {
-        return Err("GROUP BY ALL is not supported".to_string());
-    }
-    let is_represented =
-        |key: &str| (has_time_bucket && key == "time") || dimensions.iter().any(|d| d == key);
-    if let Some(key) = grouped_columns.iter().find(|key| !is_represented(key)) {
-        return Err(format!("Unsupported GROUP BY key: {key}"));
-    }
-    if let Some(dim) = dimensions
-        .iter()
-        .find(|dim| !grouped_columns.contains(*dim))
-    {
-        return Err(format!("Column {dim} is selected without GROUP BY"));
-    }
-    Ok(())
+    (metrics, dimensions, time_range)
 }
 
 fn is_simple_column_ref(expr: &Expr, grouped_columns: &HashSet<String>) -> bool {
