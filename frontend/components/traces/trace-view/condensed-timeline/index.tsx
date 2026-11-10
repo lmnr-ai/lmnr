@@ -2,9 +2,10 @@ import { PlayIcon } from "@radix-ui/react-icons";
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useMemo, useRef } from "react";
 
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
+import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
+import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +17,7 @@ import SubagentGroupElement from "./subagent-group-element";
 import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "./use-dynamic-time-intervals";
 import { useHoverNeedle } from "./use-hover-needle";
 import { useScrollToSpan } from "./use-scroll-to-span";
-import { useWheelZoom } from "./use-wheel-zoom";
+import { useWheelZoom, zoomKeepingCenter } from "./use-wheel-zoom";
 
 function CondensedTimeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -42,7 +43,6 @@ function CondensedTimeline() {
     scrollEndTime,
     transcriptExpandedGroups,
     requestScrollToGroup,
-    tab,
     isCostHeatmapVisible,
     setIsCostHeatmapVisible,
   } = useTraceViewBaseStore((state) => ({
@@ -65,10 +65,10 @@ function CondensedTimeline() {
     scrollEndTime: state.scrollEndTime,
     transcriptExpandedGroups: state.transcriptExpandedGroups,
     requestScrollToGroup: state.requestScrollToGroup,
-    tab: state.tab,
     isCostHeatmapVisible: state.isCostHeatmapVisible,
     setIsCostHeatmapVisible: state.setIsCostHeatmapVisible,
   }));
+  const [tab] = useTraceViewTab();
 
   const {
     spans: condensedSpans,
@@ -151,24 +151,8 @@ function CondensedTimeline() {
 
   const handleZoom = useCallback(
     (direction: "in" | "out") => {
-      const container = scrollRef.current;
-      if (!container) return;
-
-      const newZoom =
-        direction === "in" ? condensedTimelineZoom + ZOOM_INCREMENT : condensedTimelineZoom - ZOOM_INCREMENT;
-      if (newZoom < MIN_ZOOM || newZoom > MAX_ZOOM) return;
-
-      const containerWidth = container.clientWidth;
-      const centerX = container.scrollLeft + containerWidth / 2;
-      const fraction = centerX / container.scrollWidth;
-
-      setCondensedTimelineZoom(newZoom);
-
-      requestAnimationFrame(() => {
-        const newScrollWidth = container.scrollWidth;
-        const newScrollLeft = fraction * newScrollWidth - containerWidth / 2;
-        container.scrollLeft = Math.max(0, Math.min(newScrollLeft, newScrollWidth - containerWidth));
-      });
+      if (scrollRef.current)
+        zoomKeepingCenter(scrollRef.current, condensedTimelineZoom, direction, setCondensedTimelineZoom);
     },
     [condensedTimelineZoom, setCondensedTimelineZoom]
   );
@@ -181,13 +165,15 @@ function CondensedTimeline() {
     [storeSpans, setCondensedTimelineVisibleSpanIds]
   );
 
+  const navigate = useTracePanelNavigate();
   const handleSpanClick = useCallback(
     (span: (typeof storeSpans)[0]) => {
       if (!span.pending) {
         setSelectedSpan(span);
+        navigate({ type: "selectSpan", spanId: span.spanId });
       }
     },
-    [setSelectedSpan]
+    [setSelectedSpan, navigate]
   );
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;

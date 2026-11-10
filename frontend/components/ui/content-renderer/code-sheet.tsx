@@ -24,14 +24,11 @@ interface CodeSheetProps {
 }
 
 const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, placeholder }: CodeSheetProps) => {
-  const sheetModes = useMemo(() => modes.filter((m) => m.toLowerCase() !== "messages"), [modes]);
-  const sheetMode = mode === "messages" ? "text" : mode;
-
   const {
     text: processedText,
     imageMap,
     hasImages,
-  } = useMemo(() => renderText(sheetMode, renderedValue, true), [sheetMode, renderedValue]);
+  } = useMemo(() => renderText(mode, renderedValue, true), [mode, renderedValue]);
 
   // Add image rendering extensions if images are found
   const combinedExtensions = useMemo(() => {
@@ -53,10 +50,8 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
           <DialogTitle className="hidden"></DialogTitle>
           <div className="flex-none items-center flex px-2 justify-between">
             <div className="flex items-center gap-1">
-              {sheetModes.length > 1 && (
-                <TemplatePickerView mode={sheetMode} onModeChange={onModeChange} modes={sheetModes} />
-              )}
-              {sheetMode === "custom" && <TemplatePickerActions />}
+              {modes.length > 1 && <TemplatePickerView mode={mode} onModeChange={onModeChange} modes={modes} />}
+              {mode === "custom" && <TemplatePickerActions />}
             </div>
             <div className="flex items-center">
               <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
@@ -69,7 +64,7 @@ const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, p
           </div>
           <ScrollArea className="grow">
             <div className="flex flex-col">
-              {sheetMode === "custom" ? (
+              {mode === "custom" ? (
                 <TemplatePickerPreview data={renderedValue} />
               ) : (
                 <CodeMirror

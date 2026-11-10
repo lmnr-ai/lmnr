@@ -32,6 +32,17 @@ fn hint_key(project_id: Uuid, trace_id: Uuid) -> String {
     )
 }
 
+/// The session a span of this trace published, if any; for readers that only route by it.
+pub async fn hinted_session(cache: &Cache, project_id: Uuid, trace_id: Uuid) -> Option<String> {
+    match cache.get::<String>(&hint_key(project_id, trace_id)).await {
+        Ok(found) => found,
+        Err(e) => {
+            log::warn!("Failed to read trace session hint for {trace_id}: {e:?}");
+            None
+        }
+    }
+}
+
 /// Settle the session the span's dedup group derives from. Must run before any
 /// dedup verdict is built for the span.
 pub async fn resolve_session(span: &mut Span, cache: &Cache) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
@@ -11,6 +11,7 @@ import {
 import { CreateSignalJobTableControls } from "@/components/signal/create-signal-job/table-controls";
 import { useSignalStoreContext } from "@/components/signal/store";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
 import { columns, defaultTracesColumnOrder } from "@/components/traces/traces-table/columns";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -19,9 +20,8 @@ import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const CreateSignalJobContent = () => {
-  const searchParams = useSearchParams();
-  const pathName = usePathname();
   const router = useRouter();
+  const navigate = useTracePanelNavigate();
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
 
@@ -147,22 +147,17 @@ const CreateSignalJobContent = () => {
           />
         </CreateSignalJobTableContents>
       </div>
-      {traceId && (
-        <TraceViewSidePanel
-          className="z-60 pointer-events-auto"
-          spanId={spanId || undefined}
-          key={traceId}
-          onClose={() => {
-            const params = new URLSearchParams(searchParams);
-            params.delete("traceId");
-            params.delete("spanId");
-            router.push(`${pathName}?${params.toString()}`);
-            setTraceId(null);
-            setSpanId(null);
-          }}
-          traceId={traceId}
-        />
-      )}
+      <TraceViewSidePanel
+        urlState
+        className="z-60 pointer-events-auto"
+        spanId={spanId || undefined}
+        onClose={() => {
+          navigate({ type: "close" });
+          setTraceId(null);
+          setSpanId(null);
+        }}
+        traceId={traceId}
+      />
     </>
   );
 };

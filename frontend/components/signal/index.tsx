@@ -10,6 +10,7 @@ import SignalRunsTable from "@/components/signal/runs-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +27,8 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
   const params = useParams<{ projectId: string }>();
   const { push, replace } = useRouter();
   const searchParams = useSearchParams();
-  const [{ traceId, spanId }, setTraceParams] = useSignalTraceParams();
+  const [{ traceId, spanId }] = useSignalTraceParams();
+  const navigate = useTracePanelNavigate();
 
   // Old bookmarks: ?tab=settings&section=activity, then ?tab=activity.
   const tabParam = searchParams.get("tab");
@@ -120,17 +122,15 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
         </TabsContent>
       </Tabs>
 
-      {traceId && (
-        <TraceViewSidePanel
-          spanId={spanId || undefined}
-          key={traceId}
-          onClose={() => {
-            void setTraceParams({ traceId: null, spanId: null, eventId: null });
-          }}
-          traceId={traceId}
-          initialSignalId={signal.id}
-        />
-      )}
+      <TraceViewSidePanel
+        urlState
+        spanId={spanId || undefined}
+        onClose={() => {
+          navigate({ type: "close" }, (params) => params.delete("eventId"));
+        }}
+        traceId={traceId}
+        initialSignalId={signal.id}
+      />
     </>
   );
 }

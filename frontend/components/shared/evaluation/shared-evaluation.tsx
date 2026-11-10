@@ -26,6 +26,7 @@ import {
 } from "@/components/evaluation/store";
 import { type EvaluationStatsPayload } from "@/components/evaluation/utils";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
+import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -47,6 +48,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const searchParams = useSearchParams();
   const { push } = useRouter();
   const pathName = usePathname();
+  const navigate = useTracePanelNavigate();
 
   // Shared (public) eval has no view layer; URL params are canonical.
   const { value: searchValue, onChange: onSearchChange } = useAdvancedSearchUrlValue();
@@ -133,12 +135,8 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const onClose = useCallback(() => {
     setTraceId(undefined);
     setTrialId(undefined);
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("traceId");
-    next.delete("trialId");
-    next.delete("spanId");
-    push(`${pathName}?${next}`);
-  }, [searchParams, pathName, push]);
+    navigate({ type: "close" }, (params) => params.delete("trialId"));
+  }, [navigate]);
 
   const taskRows = useMemo(() => (allTrials ? groupTrialsIntoTasks(allTrials) : undefined), [allTrials]);
 

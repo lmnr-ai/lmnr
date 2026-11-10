@@ -216,6 +216,18 @@
     }
   }
 
+  /* Span view: marks the message a link opened, then fades. */
+  --animate-link-flash: link-flash 2s ease-out;
+
+  @keyframes link-flash {
+    from {
+      outline-color: var(--color-primary);
+    }
+    to {
+      outline-color: transparent;
+    }
+  }
+
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
 
@@ -257,6 +269,7 @@
   --color-yellow-icon-background: var(--yellow-icon-background);
   --color-cyan-text: var(--cyan-text);
   --color-cyan-icon-background: var(--cyan-icon-background);
+  --color-subagent-icon-background: var(--subagent-icon-background);
   --color-green-text: var(--green-text);
   --color-green-icon-background: var(--green-icon-background);
   --color-pink-text: var(--pink-text);
@@ -746,6 +759,7 @@
     --yellow-icon-background: hsl(42 93% 46% / 0.9);
     --cyan-text: hsl(190 75% 60%);
     --cyan-icon-background: hsl(187 94% 43% / 0.7);
+    --subagent-icon-background: hsl(var(--subagent) / 0.7);
     --green-text: hsl(151 65% 54%);
     --green-icon-background: hsl(160 84% 39% / 0.7);
     --pink-text: hsl(327 100% 78%);
@@ -799,6 +813,8 @@
     --yellow-icon-background: hsl(42 93% 52%);
     --cyan-text: hsl(190 75% 60%);
     --cyan-icon-background: hsl(187 94% 43% / 0.7);
+    /* #2BBFC4: opaque like the tuned light chips, softer than the dark teal so the white icon reads. */
+    --subagent-icon-background: hsl(182 64% 47%);
     --green-text: hsl(151 65% 54%);
     --green-icon-background: hsl(160 84% 39% / 0.7);
     --pink-text: hsl(327 100% 78%);

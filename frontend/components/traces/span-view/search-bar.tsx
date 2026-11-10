@@ -5,7 +5,7 @@ import { useSpanSearchState } from "@/components/traces/span-view/span-search-co
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 
-const SEARCH_DEBOUNCE_MS = 300;
+const SEARCH_DEBOUNCE_MS = 200;
 
 interface SpanViewSearchBarProps {
   open: boolean;
@@ -98,14 +98,17 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
           onClick={handleClear}
         />
       </div>
-      {totalMatches > 0 && (
+      {totalMatches > 0 ? (
         <>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
             {currentIndex === 0 ? `${totalMatches} found` : `${currentIndex} of ${totalMatches}`}
           </span>
           <Button icon="chevronUp" variant="ghost" size="icon-xs" onClick={goToPrev} />
           <Button icon="chevronDown" variant="ghost" size="icon-xs" onClick={goToNext} />
         </>
+      ) : (
+        searchTerm.trim() &&
+        searchTerm === inputValue && <span className="text-xs text-muted-foreground whitespace-nowrap">No results</span>
       )}
     </div>
   );

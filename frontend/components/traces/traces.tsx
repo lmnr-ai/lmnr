@@ -1,10 +1,12 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 import { shallow } from "zustand/shallow";
 
+import { SessionPreviewSelectTraceProvider } from "@/components/traces/session-preview/select-trace-context";
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
+import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
@@ -28,8 +30,7 @@ type NavigationItem =
 
 function TracesContent() {
   const searchParams = useSearchParams();
-  const pathName = usePathname();
-  const router = useRouter();
+  const navigate = useTracePanelNavigate();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext(
@@ -42,16 +43,22 @@ function TracesContent() {
     shallow
   );
 
-  const resetUrlParams = (newView: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.delete("filter");
-    params.delete("textSearch");
-    params.delete("traceId");
-    params.delete("spanId");
-    params.set("view", newView);
-    setTraceId(null);
-    router.push(`${pathName}?${params.toString()}`);
-  };
+  // The URL is the source of truth; the store mirrors it so the table highlights the row instantly.
+  const pushOpenTrace = useCallback(
+    (id: string | null, edit?: (params: URLSearchParams) => void) => {
+      navigate(id ? { type: "open", traceId: id } : { type: "close" }, edit);
+      setSpanId(null);
+      setTraceId(id);
+    },
+    [navigate, setSpanId, setTraceId]
+  );
+
+  const resetUrlParams = (newView: string) =>
+    pushOpenTrace(null, (params) => {
+      params.delete("filter");
+      params.delete("textSearch");
+      params.set("view", newView);
+    });
 
   const handleNavigate = useCallback(
     (item: NavigationItem | null) => {
@@ -68,49 +75,46 @@ function TracesContent() {
     [setSpanId, setTraceId]
   );
 
+  const openTrace = useCallback((id: string) => pushOpenTrace(id), [pushOpenTrace]);
+
   return (
-    <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
-      <Tabs
-        className="flex flex-1 min-h-0 overflow-hidden gap-4"
-        value={tracesTab}
-        onValueChange={(value) => resetUrlParams(value)}
-      >
-        <TabsList className="mx-4 h-8">
-          <TabsTrigger className="text-xs" value="traces">
-            Traces
-          </TabsTrigger>
-          <TabsTrigger className="text-xs" value="spans">
-            Spans
-          </TabsTrigger>
-          <TabsTrigger className="text-xs" value="sessions">
-            Sessions
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="traces" asChild>
-          <TracesTable />
-        </TabsContent>
-        <TabsContent value="spans" asChild>
-          <SpansTable />
-        </TabsContent>
-        <TabsContent value="sessions" asChild>
-          <SessionsTable />
-        </TabsContent>
-      </Tabs>
-      {traceId && (
+    <SessionPreviewSelectTraceProvider value={openTrace}>
+      <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
+        <Tabs
+          className="flex flex-1 min-h-0 overflow-hidden gap-4"
+          value={tracesTab}
+          onValueChange={(value) => resetUrlParams(value)}
+        >
+          <TabsList className="mx-4 h-8">
+            <TabsTrigger className="text-xs" value="traces">
+              Traces
+            </TabsTrigger>
+            <TabsTrigger className="text-xs" value="spans">
+              Spans
+            </TabsTrigger>
+            <TabsTrigger className="text-xs" value="sessions">
+              Sessions
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="traces" asChild>
+            <TracesTable />
+          </TabsContent>
+          <TabsContent value="spans" asChild>
+            <SpansTable />
+          </TabsContent>
+          <TabsContent value="sessions" asChild>
+            <SessionsTable />
+          </TabsContent>
+        </Tabs>
         <TraceViewSidePanel
+          urlState
           spanId={spanId || undefined}
-          onClose={() => {
-            const params = new URLSearchParams(searchParams);
-            params.delete("traceId");
-            params.delete("spanId");
-            router.push(`${pathName}?${params.toString()}`);
-            setTraceId(null);
-          }}
+          onClose={() => pushOpenTrace(null)}
           traceId={traceId}
           initialSearch={searchParams.get("search") ?? undefined}
         />
-      )}
-    </TraceViewNavigationProvider>
+      </TraceViewNavigationProvider>
+    </SessionPreviewSelectTraceProvider>
   );
 }
 
