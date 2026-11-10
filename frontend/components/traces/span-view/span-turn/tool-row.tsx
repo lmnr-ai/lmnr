@@ -4,7 +4,6 @@ import { type PropsWithChildren, useCallback, useRef, useState } from "react";
 import { useCollapsible } from "@/components/traces/span-view/collapsible";
 import { getRoleTextColor } from "@/components/traces/span-view/common";
 import { useExpandClamp } from "@/components/traces/span-view/height-clamp";
-import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 
 const TOOL_ICON = <Bolt size={14} className="min-w-3.5" style={{ color: getRoleTextColor("tool") }} />;
 
@@ -20,18 +19,25 @@ interface ToolRowProps {
   name: string;
   summary: string;
   defaultOpen?: boolean;
+  /** Holds search matches: kept open, since a collapsed row doesn't mount the editor that shows them. */
+  hasMatches?: boolean;
 }
 
 /** A one-line, expandable tool call / tool result / reasoning row. */
-const ToolRow = ({ icon, name, summary, defaultOpen = false, children }: PropsWithChildren<ToolRowProps>) => {
-  // Collapsed rows don't mount their editors, so they can't be searched.
-  const searching = !!useSpanSearchState()?.searchTerm;
-  const [open, setOpen] = useState(defaultOpen || searching);
-  const expanded = open || searching;
+const ToolRow = ({
+  icon,
+  name,
+  summary,
+  defaultOpen = false,
+  hasMatches = false,
+  children,
+}: PropsWithChildren<ToolRowProps>) => {
+  const [open, setOpen] = useState(defaultOpen);
+  const expanded = open || hasMatches;
   const rootRef = useRef<HTMLDivElement>(null);
   const collapse = useCallback(() => setOpen(false), []);
   const expandClamp = useExpandClamp();
-  useCollapsible(rootRef, open && !searching, name, "Collapse", collapse);
+  useCollapsible(rootRef, open && !hasMatches, name, "Collapse", collapse);
 
   return (
     <div ref={rootRef} className="flex flex-col">

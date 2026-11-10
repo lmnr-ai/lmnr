@@ -121,17 +121,17 @@ export const filterColumns: ColumnFilter[] = [
     dataType: "string",
   },
   {
-    key: "latency",
-    name: "Latency",
+    key: "duration",
+    name: "Duration",
     dataType: "number",
   },
   {
-    key: "tokens",
+    key: "total_tokens",
     name: "Tokens",
     dataType: "number",
   },
   {
-    key: "cost",
+    key: "total_cost",
     name: "Cost",
     dataType: "number",
   },

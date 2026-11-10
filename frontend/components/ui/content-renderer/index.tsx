@@ -4,7 +4,7 @@ import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { createCodeMirrorSearchSource } from "@/components/traces/span-view/searchable";
+import { createCodeMirrorSearchSource, searchHighlight } from "@/components/traces/span-view/searchable";
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
@@ -43,8 +43,6 @@ interface ContentRendererProps {
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
-  messageIndex?: number;
-  contentPartIndex?: number;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
    * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
@@ -81,8 +79,6 @@ const PureContentRenderer = ({
   codeEditorClassName,
   renderBase64Images = true,
   defaultShowLineNumbers = false,
-  messageIndex = 0,
-  contentPartIndex = 0,
   customTheme,
   extraExtensions,
   header,
@@ -178,11 +174,14 @@ const PureContentRenderer = ({
     if (readOnly) {
       extensions.push(EditorView.editable.of(false));
     }
+    if (searchRegistration) {
+      extensions.push(searchHighlight);
+    }
     if (extraExtensions && extraExtensions.length > 0) {
       extensions.push(...extraExtensions);
     }
     return extensions;
-  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap, extraExtensions]);
+  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap, extraExtensions, searchRegistration]);
 
   const handleCreateEditor = useCallback((view: EditorView) => {
     currentViewRef.current = view;
@@ -192,6 +191,7 @@ const PureContentRenderer = ({
   const isCodeMode = mode !== "custom";
   const canPickMode = modes.length > 1;
 
+  // Re-registers on `renderedValue` too: a mode switch replaces the document, so its matches are counted again.
   useEffect(() => {
     if (!searchRegistration || !isCodeMode || !currentViewRef.current) return;
 
@@ -199,15 +199,13 @@ const PureContentRenderer = ({
       createCodeMirrorSearchSource({
         id: cmSourceIdRef.current,
         view: currentViewRef.current,
-        messageIndex,
-        contentPartIndex,
       })
     );
 
     return () => {
       searchRegistration.unregisterSource(cmSourceIdRef.current);
     };
-  }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, isCodeMode]);
+  }, [searchRegistration, editorMountKey, isCodeMode, renderedValue]);
 
   const actionButtons = (
     <>

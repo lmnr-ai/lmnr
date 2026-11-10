@@ -28,7 +28,7 @@ export const useAnchoredVirtualizer = ({
   rows: ConversationRow[];
   /** Read once, at mount. */
   linked: MessageAnchor | undefined;
-  /** Search needs every row mounted (wide overscan) and no hidden measuring rows. */
+  /** No hidden measuring rows while searching: their editors would take the current match. */
   searching: boolean;
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -54,7 +54,7 @@ export const useAnchoredVirtualizer = ({
     getScrollElement: () => scrollRef.current,
     estimateSize,
     getItemKey,
-    overscan: searching ? 100 : 10,
+    overscan: 10,
     initialOffset: linkedRow.initialOffset,
     onChange: linkedRow.onChange,
     // Grow the container before a size correction scrolls: near the end of the list the browser would otherwise clamp
@@ -89,5 +89,7 @@ export const useAnchoredVirtualizer = ({
     premeasure,
     setContainer,
     highlightedIndex: linkedRow.holding ? linkedRow.index : -1,
+    /** Stops holding the linked message, for a scroll elsewhere (going to a search match). */
+    releaseLinked: linkedRow.release,
   };
 };

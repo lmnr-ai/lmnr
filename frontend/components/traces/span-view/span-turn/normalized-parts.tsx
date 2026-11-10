@@ -10,11 +10,9 @@ import ToolRow from "./tool-row";
 
 interface PartProps {
   presetKey: string;
-  messageIndex: number;
-  contentPartIndex: number;
 }
 
-const Value = ({ value, presetKey, messageIndex, contentPartIndex }: PartProps & { value: unknown }) => {
+const Value = ({ value, presetKey }: PartProps & { value: unknown }) => {
   const { mode, modes, value: rendered } = resolveContentMode(value);
   return (
     <ContentRenderer
@@ -25,8 +23,6 @@ const Value = ({ value, presetKey, messageIndex, contentPartIndex }: PartProps &
       value={rendered}
       presetKey={`editor-${presetKey}`}
       className="border-0"
-      messageIndex={messageIndex}
-      contentPartIndex={contentPartIndex}
       customTheme={spanViewTheme}
     />
   );
@@ -37,26 +33,43 @@ interface PartOptions {
   expandReasoning?: boolean;
 }
 
-const Part = ({ part, expandReasoning, ...props }: PartProps & PartOptions & { part: TurnPart }) => {
+interface PartViewProps extends PartProps, PartOptions {
+  part: TurnPart;
+  /** Collapsed rows don't mount the editor that would show the part's search matches. */
+  hasMatches: boolean;
+}
+
+const Part = ({ part, expandReasoning, hasMatches, ...props }: PartViewProps) => {
   switch (part.kind) {
     case "text":
       return <TextContentPart content={part.text} {...props} />;
     case "reasoning":
       return (
-        <ToolRow icon="reasoning" name="Thinking" summary={preview(part.text)} defaultOpen={expandReasoning}>
+        <ToolRow
+          icon="reasoning"
+          name="Thinking"
+          summary={preview(part.text)}
+          defaultOpen={expandReasoning}
+          hasMatches={hasMatches}
+        >
           <Value value={part.text} {...props} />
         </ToolRow>
       );
     case "tool-call":
       return (
-        <ToolRow icon="call" name={part.name} summary={preview(part.args)}>
+        <ToolRow icon="call" name={part.name} summary={preview(part.args)} hasMatches={hasMatches}>
           <Value value={part.args} {...props} />
         </ToolRow>
       );
     case "tool-result":
       // The output only: the arguments are the call's, shown in its own message.
       return (
-        <ToolRow icon="result" name={part.name ?? part.id ?? "result"} summary={preview(part.output)}>
+        <ToolRow
+          icon="result"
+          name={part.name ?? part.id ?? "result"}
+          summary={preview(part.output)}
+          hasMatches={hasMatches}
+        >
           <Value value={part.output} {...props} />
         </ToolRow>
       );
@@ -67,18 +80,19 @@ interface NormalizedPartsProps extends PartOptions {
   parts: TurnPart[];
   presetKey: string;
   messageIndex: number;
+  /** Search match counts per part, from the row's search index. */
+  hits?: readonly number[];
 }
 
 /** Tool calls, results and reasoning as one-line rows; the card's clamp handles long text. */
-const NormalizedParts = ({ parts, presetKey, messageIndex, ...options }: NormalizedPartsProps) =>
+const NormalizedParts = ({ parts, presetKey, messageIndex, hits, ...options }: NormalizedPartsProps) =>
   parts.map((part, index) => (
     <Part
       key={index}
       part={part}
       {...options}
       presetKey={`${messageIndex}-${part.kind}-${index}-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={index}
+      hasMatches={(hits?.[index] ?? 0) > 0}
     />
   ));
 
