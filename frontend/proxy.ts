@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { isTracePublic } from "@/lib/actions/trace";
 import { auth } from "@/lib/auth";
 import { isUserMemberOfProject, isUserMemberOfWorkspace } from "@/lib/authorization";
-import { withBasePath } from "@/lib/utils";
+import { relativeRedirect } from "@/lib/relative-redirect";
 
 export default async function middleware(req: NextRequest) {
   if (req.nextUrl.pathname.startsWith("/uploads/")) {
@@ -72,11 +72,9 @@ export default async function middleware(req: NextRequest) {
   const isUploads = req.nextUrl.pathname.startsWith("/uploads/");
   if (!isApiRoute && !isUploads && !userId) {
     // Middleware sees the basePath-stripped pathname, so callbackUrl stays
-    // prefix-free (the sign-in page re-prefixes via router.push). The redirect
-    // target itself must carry the prefix — new URL(absolutePath, base) drops it.
-    const signInUrl = new URL(withBasePath("/sign-in"), req.url);
-    signInUrl.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search);
-    return NextResponse.redirect(signInUrl);
+    // prefix-free (the sign-in page re-prefixes via router.push).
+    const params = new URLSearchParams({ callbackUrl: req.nextUrl.pathname + req.nextUrl.search });
+    return relativeRedirect(`/sign-in?${params}`);
   }
 
   return NextResponse.next();

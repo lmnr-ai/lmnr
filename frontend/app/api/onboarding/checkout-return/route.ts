@@ -1,7 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 
 import { completeOnboardingCheckout } from "@/lib/actions/onboarding/commit";
-import { withBasePath } from "@/lib/utils";
+import { relativeRedirect } from "@/lib/relative-redirect";
 
 // Stripe success_url for onboarding checkouts: confirm and apply, then resume the wizard.
 export async function GET(request: NextRequest) {
@@ -14,5 +14,5 @@ export async function GET(request: NextRequest) {
       console.error("Failed to complete onboarding checkout", e);
     }
   }
-  return NextResponse.redirect(new URL(withBasePath("/onboarding"), request.url));
+  return relativeRedirect("/onboarding");
 }
