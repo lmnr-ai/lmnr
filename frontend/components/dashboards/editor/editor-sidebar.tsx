@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { type PropsWithChildren } from "react";
+import { type PropsWithChildren, type ReactNode } from "react";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
@@ -9,18 +9,31 @@ import ChartTypeField from "@/components/dashboards/editor/fields/ChartTypeField
 import DisplayValueField from "@/components/dashboards/editor/fields/DisplayValueField";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-/** Left half of the editor: fields shared by both modes; `children` are the mode's own query fields. */
-export default function EditorSidebar({ isLoading, children }: PropsWithChildren<{ isLoading?: boolean }>) {
+interface EditorSidebarProps {
+  isLoading?: boolean;
+  /** The mode's own fields that depend on the chart type, shown under the type picker. */
+  display?: ReactNode;
+}
+
+/**
+ * Left half of the editor: fields shared by both modes; `children` are the mode's own query fields.
+ * The mode comes first because it decides how the query is written; the chart type then picks how
+ * its result is drawn.
+ */
+export default function EditorSidebar({ isLoading, display, children }: PropsWithChildren<EditorSidebarProps>) {
   const chartType = useDashboardEditorStoreContext((state) => state.chart.settings.config.type);
 
   return (
     <ScrollArea className="relative border-r bg-secondary">
       <div className="flex flex-col gap-4 p-4">
-        <ChartNameField />
-        <ChartTypeField />
         <EditorModeTabs />
+        <ChartNameField />
         {children}
-        {chartType !== ChartType.Table && chartType !== ChartType.Value && <DisplayValueField />}
+        <div className="flex flex-col gap-4 border-t pt-4">
+          <ChartTypeField />
+          {display}
+          {chartType !== ChartType.Table && chartType !== ChartType.Value && <DisplayValueField />}
+        </div>
       </div>
       {isLoading && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/40 backdrop-blur-xs">

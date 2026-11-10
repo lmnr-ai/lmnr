@@ -41,12 +41,7 @@ const ChartTypeField = () => {
   return (
     <div className="grid gap-1">
       <Label className="font-semibold text-xs">Type</Label>
-      <div
-        role="radiogroup"
-        aria-label="Chart type"
-        // Same surfaces as the Standard/Advanced tabs below it.
-        className="grid grid-cols-5 gap-1 rounded-lg bg-surface-down-2 p-[3px] dark:bg-muted"
-      >
+      <div role="radiogroup" aria-label="Chart type" className="grid grid-cols-5 gap-2">
         {CHART_TYPES.map(({ type, label, title, icon: Icon }) => (
           <button
             key={type}
@@ -56,11 +51,12 @@ const ChartTypeField = () => {
             title={title}
             onClick={() => handleChartTypeChange(type)}
             className={cn(
-              "flex flex-col items-center gap-1 rounded-md py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-              chartType === type && "bg-surface-up text-foreground shadow-sm dark:bg-background"
+              "flex flex-col items-center gap-1.5 rounded-md border bg-background py-3 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              chartType === type &&
+                "border-primary bg-primary/10 text-primary-text hover:border-primary hover:text-primary-text"
             )}
           >
-            <Icon className="size-4" />
+            <Icon className="size-5" />
             {label}
           </button>
         ))}

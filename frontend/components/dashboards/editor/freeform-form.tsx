@@ -9,7 +9,8 @@ import ChartPreviewPane from "@/components/dashboards/editor/chart-preview-pane"
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import EditorFooter from "@/components/dashboards/editor/editor-footer";
 import EditorSidebar from "@/components/dashboards/editor/editor-sidebar";
-import FreeformFields from "@/components/dashboards/editor/freeform-fields";
+import FreeformAxes from "@/components/dashboards/editor/freeform-axes";
+import FreeformSqlField from "@/components/dashboards/editor/freeform-sql-field";
 import { toTimeParameters, useDashboardTimeRange } from "@/components/dashboards/time-range";
 import { BUILT_IN_PARAMETERS, deriveParameters } from "@/components/sql/parameters";
 
@@ -45,8 +46,8 @@ export default function FreeformForm() {
 
   return (
     <>
-      <EditorSidebar>
-        <FreeformFields onRun={runQuery} canRun={canRun} issue={issue} />
+      <EditorSidebar display={<FreeformAxes />}>
+        <FreeformSqlField onRun={runQuery} canRun={canRun} issue={issue} />
       </EditorSidebar>
       <ChartPreviewPane name={chart.name}>
         <ChartPreviewContent config={chart.settings.config} />
