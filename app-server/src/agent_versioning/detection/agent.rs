@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::prompt::{self, SUBMIT_TOOL, TEST_CHECK_TOOL};
 use crate::{
-    agent_versioning::definition::{Definition, OPENING_CHARS, Opening},
+    agent_versioning::definition::{Definition, OPENING_CHARS},
     db::agent_versioning::DefinedAgent,
     instrumentation::spans::{self, InternalSpan, SpanType},
     llm::{
@@ -33,7 +33,8 @@ pub struct UnlabelledPrompt {
     pub trace_id: Uuid,
     pub span_id: Uuid,
     pub system_prompt: String,
-    pub opening: Opening,
+    /// [`opening`](crate::agent_versioning::definition::opening) of `system_prompt`.
+    pub opening: String,
     /// The trace's start, ns.
     pub time: i64,
 }
@@ -47,7 +48,8 @@ pub struct KnownAgent {
 
 pub struct LatestPrompt {
     pub system_prompt: String,
-    pub opening: Opening,
+    /// [`opening`](crate::agent_versioning::definition::opening) of `system_prompt`.
+    pub opening: String,
     /// The span's start, ns.
     pub time: i64,
 }
@@ -481,9 +483,12 @@ mod tests {
     use sqlx::types::Json;
 
     use super::*;
-    use crate::llm::{
-        ProviderClient, ProviderFunctionCall,
-        mock::{MockProviderClient, function_call_response},
+    use crate::{
+        agent_versioning::definition,
+        llm::{
+            ProviderClient, ProviderFunctionCall,
+            mock::{MockProviderClient, function_call_response},
+        },
     };
 
     fn check(any_of: &[&[&str]]) -> Vec<Vec<String>> {
@@ -503,7 +508,7 @@ mod tests {
             },
             latest: Some(LatestPrompt {
                 system_prompt: latest_prompt.to_string(),
-                opening: Opening::new(latest_prompt),
+                opening: definition::opening(latest_prompt),
                 time: 0,
             }),
         }
@@ -514,7 +519,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             span_id: Uuid::new_v4(),
             system_prompt: system_prompt.to_string(),
-            opening: Opening::new(system_prompt),
+            opening: definition::opening(system_prompt),
             time: 0,
         }
     }

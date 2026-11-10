@@ -68,7 +68,7 @@ pub fn instructions(min_matches: usize) -> String {
 /// tools take and report. Lines shown once are elided after, so the many
 /// prompts of one agent, or a preset shared by several, cost little.
 pub fn context(prompts: &[UnlabelledPrompt], agents: &[KnownAgent]) -> String {
-    let mut shown = Shown::default();
+    let mut shown = HashMap::new();
     let agents: String = agents
         .iter()
         .enumerate()
@@ -78,7 +78,8 @@ pub fn context(prompts: &[UnlabelledPrompt], agents: &[KnownAgent]) -> String {
                 Some(latest) => format!(
                     "<latest_prompt time=\"{}\">\n{}\n</latest_prompt>",
                     format_time(latest.time),
-                    shown.render(
+                    elide_shown(
+                        &mut shown,
                         &format!("agent {}", index + 1),
                         &truncate_chars(&latest.system_prompt, OPENING_CHARS)
                     )
@@ -100,7 +101,8 @@ pub fn context(prompts: &[UnlabelledPrompt], agents: &[KnownAgent]) -> String {
                 "<prompt id=\"{}\" time=\"{}\">\n{}\n</prompt>\n",
                 index + 1,
                 format_time(prompt.time),
-                shown.render(
+                elide_shown(
+                    &mut shown,
                     &format!("prompt {}", index + 1),
                     &truncate_chars(&prompt.system_prompt, OPENING_CHARS)
                 )
@@ -113,67 +115,42 @@ pub fn context(prompts: &[UnlabelledPrompt], agents: &[KnownAgent]) -> String {
 /// Shorter runs of shown lines are repeated: a marker would save little.
 const MIN_ELIDED_CHARS: usize = 200;
 
-/// Lines already in the context, normalized like checks, each with the label
-/// of the opening that first showed it.
-#[derive(Default)]
-struct Shown {
-    lines: HashMap<String, String>,
-}
-
-/// Consecutive lines that were all shown before.
-#[derive(Default)]
-struct ShownRun<'a> {
-    lines: Vec<&'a str>,
-    non_blank: usize,
-    chars: usize,
-    /// Where the run's first line was shown.
-    source: Option<String>,
-}
-
-impl Shown {
-    /// The opening with each long enough run of shown lines replaced by a
-    /// marker naming where it was shown.
-    fn render(&mut self, label: &str, opening: &str) -> String {
-        let mut out = Vec::new();
-        let mut run = ShownRun::default();
-        for line in opening.split('\n') {
-            let key = normalize(line);
-            if key.is_empty() {
-                // A blank line neither starts nor breaks a run.
-                if run.lines.is_empty() {
-                    out.push(line.to_string());
-                } else {
-                    run.lines.push(line);
-                }
-                continue;
-            }
-            match self.lines.get(&key) {
-                Some(source) => {
-                    run.source.get_or_insert_with(|| source.clone());
-                    run.lines.push(line);
-                    run.non_blank += 1;
-                    run.chars += line.len();
-                }
-                None => {
-                    std::mem::take(&mut run).flush(&mut out);
-                    out.push(line.to_string());
-                    self.lines.insert(key, label.to_string());
-                }
-            }
+/// The opening with each long enough run of lines already in `shown` replaced
+/// by a marker naming where it was first shown. `shown` maps a line,
+/// normalized like checks, to the label of the opening that showed it, and
+/// gains this opening's new lines.
+fn elide_shown(shown: &mut HashMap<String, String>, label: &str, opening: &str) -> String {
+    let mut out = Vec::new();
+    // Consecutive shown lines; a blank line neither starts nor breaks a run.
+    let mut run = Vec::new();
+    let mut run_source = None;
+    for line in opening.split('\n') {
+        let key = normalize(line);
+        if key.is_empty() && run.is_empty() {
+            out.push(line.to_string());
+        } else if key.is_empty() {
+            run.push(line);
+        } else if let Some(source) = shown.get(&key) {
+            run_source.get_or_insert_with(|| source.clone());
+            run.push(line);
+        } else {
+            flush_run(&mut out, std::mem::take(&mut run), run_source.take());
+            out.push(line.to_string());
+            shown.insert(key, label.to_string());
         }
-        run.flush(&mut out);
-        out.join("\n")
     }
+    flush_run(&mut out, run, run_source);
+    out.join("\n")
 }
 
-impl ShownRun<'_> {
-    fn flush(self, out: &mut Vec<String>) {
-        match &self.source {
-            Some(source) if self.chars >= MIN_ELIDED_CHARS => {
-                out.push(format!("[… {} lines as in {source} …]", self.non_blank));
-            }
-            _ => out.extend(self.lines.into_iter().map(str::to_string)),
+fn flush_run(out: &mut Vec<String>, run: Vec<&str>, source: Option<String>) {
+    let chars: usize = run.iter().map(|line| line.len()).sum();
+    match source {
+        Some(source) if chars >= MIN_ELIDED_CHARS => {
+            let lines = run.iter().filter(|line| !line.trim().is_empty()).count();
+            out.push(format!("[… {lines} lines as in {source} …]"));
         }
+        _ => out.extend(run.into_iter().map(str::to_string)),
     }
 }
 
@@ -238,14 +215,14 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::agent_versioning::definition::Opening;
+    use crate::agent_versioning::definition;
 
     fn unlabelled(system_prompt: &str) -> UnlabelledPrompt {
         UnlabelledPrompt {
             trace_id: Uuid::new_v4(),
             span_id: Uuid::new_v4(),
             system_prompt: system_prompt.to_string(),
-            opening: Opening::new(system_prompt),
+            opening: definition::opening(system_prompt),
             time: 0,
         }
     }
@@ -258,21 +235,26 @@ mod tests {
 
     #[test]
     fn a_long_run_shown_before_becomes_a_marker() {
-        let mut shown = Shown::default();
+        let mut shown = HashMap::new();
         let first = format!("{}You are a GTM assistant.", preset());
-        assert_eq!(shown.render("prompt 1", &first), first);
+        assert_eq!(elide_shown(&mut shown, "prompt 1", &first), first);
         let second = format!("Today is Monday.\n{}You are a GTM assistant.", preset());
         assert_eq!(
-            shown.render("prompt 2", &second),
+            elide_shown(&mut shown, "prompt 2", &second),
             "Today is Monday.\n[… 41 lines as in prompt 1 …]"
         );
     }
 
     #[test]
     fn new_lines_split_runs_and_short_runs_are_repeated() {
-        let mut shown = Shown::default();
-        shown.render("agent 1", &format!("{}Rules:\nBe brief.", preset()));
-        let rendered = shown.render(
+        let mut shown = HashMap::new();
+        elide_shown(
+            &mut shown,
+            "agent 1",
+            &format!("{}Rules:\nBe brief.", preset()),
+        );
+        let rendered = elide_shown(
+            &mut shown,
             "prompt 1",
             &format!("{}You are a research analyst.\nRules:\nBe brief.", preset()),
         );

@@ -14,17 +14,13 @@ pub const OPENING_CHARS: usize = 10_000;
 
 /// A system prompt's first [`OPENING_CHARS`] characters, normalized like
 /// definitions. Built once per prompt, then matched against every definition.
-pub struct Opening(String);
-
-impl Opening {
-    pub fn new(system_prompt: &str) -> Self {
-        let opening: String = system_prompt.chars().take(OPENING_CHARS).collect();
-        Self(normalize(&opening))
-    }
+pub fn opening(system_prompt: &str) -> String {
+    let opening: String = system_prompt.chars().take(OPENING_CHARS).collect();
+    normalize(&opening)
 }
 
 /// Matches a system prompt when every substring of any one alternative occurs
-/// in its [`Opening`], ignoring case and whitespace. Substrings are normalized
+/// in its [`opening`], ignoring case and whitespace. Substrings are normalized
 /// on construction and again when read back, so a definition written to
 /// Postgres by hand still matches.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,11 +51,12 @@ impl Definition {
         (!any_of.is_empty()).then_some(Self { any_of })
     }
 
-    pub fn matches(&self, opening: &Opening) -> bool {
+    /// `opening` is the prompt's [`opening`].
+    pub fn matches(&self, opening: &str) -> bool {
         self.any_of.iter().any(|all_of| {
             all_of
                 .iter()
-                .all(|substring| opening.0.contains(substring.as_str()))
+                .all(|substring| opening.contains(substring.as_str()))
         })
     }
 
@@ -114,7 +111,7 @@ mod tests {
     }
 
     fn matches(check: &Definition, prompt: &str) -> bool {
-        check.matches(&Opening::new(prompt))
+        check.matches(&opening(prompt))
     }
 
     #[test]

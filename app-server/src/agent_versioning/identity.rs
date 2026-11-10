@@ -8,7 +8,7 @@
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
-use super::definition::Opening;
+use super::definition;
 use crate::{
     cache::{Cache, CacheTrait, keys::AGENT_DEFINITIONS_CACHE_KEY},
     db::{
@@ -54,7 +54,7 @@ impl<'a> AgentResolver<'a> {
 }
 
 fn first_match<'a>(agents: &'a [DefinedAgent], system_prompt: &str) -> Option<&'a DefinedAgent> {
-    let opening = Opening::new(system_prompt);
+    let opening = definition::opening(system_prompt);
     agents
         .iter()
         .find(|agent| agent.definition.matches(&opening))

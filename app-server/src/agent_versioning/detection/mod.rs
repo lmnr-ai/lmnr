@@ -14,7 +14,7 @@ use anyhow::Result;
 use uuid::Uuid;
 
 use self::agent::{Change, DetectionAgent, KnownAgent, LatestPrompt, UnlabelledPrompt};
-use super::{Job, NS, definition::Opening, identity::definitions_cache_key};
+use super::{Job, NS, definition, identity::definitions_cache_key};
 use crate::{
     cache::{CacheTrait, keys::AGENT_DETECTION_LOCK_CACHE_KEY},
     ch::{
@@ -181,7 +181,7 @@ fn unlabelled_prompts(
             Some(UnlabelledPrompt {
                 trace_id: span.trace_id,
                 span_id: span.span_id,
-                opening: Opening::new(&system_prompt),
+                opening: definition::opening(&system_prompt),
                 system_prompt,
                 time: span.time,
             })
@@ -204,7 +204,7 @@ fn known_agents(
                 .and_then(|span| {
                     let system_prompt = system_prompts.get(&span.span_id)?.clone();
                     Some(LatestPrompt {
-                        opening: Opening::new(&system_prompt),
+                        opening: definition::opening(&system_prompt),
                         system_prompt,
                         time: span.start_time,
                     })
@@ -214,7 +214,7 @@ fn known_agents(
         .collect()
 }
 
-fn is_defined(agents: &[KnownAgent], opening: &Opening) -> bool {
+fn is_defined(agents: &[KnownAgent], opening: &str) -> bool {
     agents
         .iter()
         .any(|known| known.agent.definition.matches(opening))
