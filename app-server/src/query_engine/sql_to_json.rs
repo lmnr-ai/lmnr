@@ -44,7 +44,8 @@ pub fn convert_sql_to_json(sql: &str) -> Result<QueryStructure, String> {
     let grouped_columns = get_grouped_columns(select);
 
     let (metrics, dimensions, time_range) =
-        parse_select_expressions(select, &query, &grouped_columns);
+        parse_select_expressions(select, &query, &grouped_columns)?;
+    check_grouping(select, &grouped_columns, &dimensions, time_range.is_some())?;
     let filters = parse_where_clause(select, time_range.as_ref())?;
     let order_by = parse_order_by_clause(&query);
     let limit = parse_limit_clause(&query);
@@ -123,11 +124,14 @@ fn is_time_bucket(expr: &Expr) -> bool {
     matches!(expr, Expr::Function(f) if function_name(f).to_uppercase() == "TOSTARTOFINTERVAL")
 }
 
+/// The builder emits dimensions as bare columns, so a computed or renamed dimension
+/// (`if(empty(x), 'y', x) AS x`, `x AS y`) is an error: dropping it would show (and
+/// re-save) a different query.
 fn parse_select_expressions(
     select: &Select,
     query: &Query,
     grouped_columns: &HashSet<String>,
-) -> (Vec<Metric>, Vec<String>, Option<TimeRange>) {
+) -> Result<(Vec<Metric>, Vec<String>, Option<TimeRange>), String> {
     let mut metrics = Vec::new();
     let mut dimensions = Vec::new();
     let mut time_range = None;
@@ -141,23 +145,48 @@ fn parse_select_expressions(
                 } else if grouped_columns.contains(&alias_str)
                     || is_simple_column_ref(expr, grouped_columns)
                 {
-                    if let Some(name) = column_name(expr) {
-                        dimensions.push(name);
+                    match column_name(expr) {
+                        Some(name) if name == alias_str => dimensions.push(name),
+                        _ => return Err(format!("Unsupported dimension: {item}")),
                     }
                 } else {
                     metrics.push(extract_metric(expr, &alias_str));
                 }
             }
-            SelectItem::UnnamedExpr(expr) => {
-                if let Some(name) = column_name(expr) {
-                    dimensions.push(name);
-                }
-            }
-            _ => {}
+            SelectItem::UnnamedExpr(expr) => match column_name(expr) {
+                Some(name) => dimensions.push(name),
+                None => return Err(format!("Unsupported select expression: {item}")),
+            },
+            _ => return Err(format!("Unsupported select expression: {item}")),
         }
     }
 
-    (metrics, dimensions, time_range)
+    Ok((metrics, dimensions, time_range))
+}
+
+/// The builder groups by exactly its dimensions (plus `time`), so any other GROUP BY
+/// key, or a dimension outside an explicit GROUP BY, would change the regenerated query.
+fn check_grouping(
+    select: &Select,
+    grouped_columns: &HashSet<String>,
+    dimensions: &[String],
+    has_time_bucket: bool,
+) -> Result<(), String> {
+    if matches!(select.group_by, GroupByExpr::All(_)) {
+        return Ok(());
+    }
+    let is_represented =
+        |key: &str| (has_time_bucket && key == "time") || dimensions.iter().any(|d| d == key);
+    if let Some(key) = grouped_columns.iter().find(|key| !is_represented(key)) {
+        return Err(format!("Unsupported GROUP BY key: {key}"));
+    }
+    if let Some(dim) = dimensions
+        .iter()
+        .find(|dim| !grouped_columns.contains(*dim))
+    {
+        return Err(format!("Column {dim} is selected without GROUP BY"));
+    }
+    Ok(())
 }
 
 fn is_simple_column_ref(expr: &Expr, grouped_columns: &HashSet<String>) -> bool {

@@ -237,3 +237,56 @@ fn test_time_series_query_roundtrip() {
     assert_eq!(rtr.column, otr.column);
     assert!(!result.metrics.is_empty());
 }
+
+// ---- Queries the visual builder cannot represent must fail, not lose clauses ----
+
+#[test]
+fn test_rejects_computed_dimension_aliased_as_column() {
+    // LAM-2523: the dimension was dropped, so the editor opened (and re-saved)
+    // `SELECT sum(total_cost) ...` without the per-user breakdown.
+    let sql = r#"
+SELECT
+    if(empty(user_id), 'scheduled_job', user_id) as user_id,
+    sum(total_cost) AS `sum_total_cost`
+FROM traces
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+GROUP BY
+    user_id
+ORDER BY
+    sum_total_cost DESC
+LIMIT
+    6
+"#;
+    assert!(convert_sql_to_json(sql).is_err());
+}
+
+#[test]
+fn test_rejects_unrepresentable_projection_and_grouping() {
+    for sql in [
+        // Renamed dimension: the builder can't carry the alias.
+        "SELECT user_id AS uid, count(*) AS value FROM traces GROUP BY uid",
+        "SELECT user_id AS uid, count(*) AS value FROM traces GROUP BY user_id",
+        // Unaliased computed dimension.
+        "SELECT lower(user_id), count(*) AS value FROM traces GROUP BY lower(user_id)",
+        // GROUP BY key that isn't selected.
+        "SELECT count(*) AS value FROM traces GROUP BY user_id",
+        // Bare column without GROUP BY would gain one on regeneration.
+        "SELECT user_id FROM traces LIMIT 10",
+        "SELECT * FROM traces",
+    ] {
+        assert!(
+            convert_sql_to_json(sql).is_err(),
+            "expected error for: {sql}"
+        );
+    }
+}
+
+#[test]
+fn test_accepts_plain_dimension_aliased_as_itself() {
+    let sql = "SELECT user_id AS user_id, sum(total_cost) AS cost FROM traces GROUP BY user_id";
+    let result = convert_sql_to_json(sql).unwrap();
+    assert_eq!(result.dimensions, vec!["user_id".to_string()]);
+    assert_eq!(result.metrics[0].r#fn, "sum");
+}
