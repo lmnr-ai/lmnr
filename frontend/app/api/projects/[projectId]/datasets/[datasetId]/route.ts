@@ -1,34 +1,30 @@
 import { and, eq } from "drizzle-orm";
-import { prettifyError, ZodError } from "zod/v4";
 
 import { updateDataset } from "@/lib/actions/dataset";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 
-export async function GET(
-  req: Request,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
-): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const datasetId = params.datasetId;
+export const GET = apiHandler<{ projectId: string; datasetId: string }>(async (req, ctx) => {
+  const { projectId, datasetId } = await ctx.params;
 
   const dataset = await db.query.datasets.findFirst({
     where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
   });
 
-  return new Response(JSON.stringify(dataset), { status: 200 });
-}
+  if (!dataset) {
+    return Response.json({ error: "Dataset not found" }, { status: 404 });
+  }
 
-export async function PATCH(
-  req: Request,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
-): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const datasetId = params.datasetId;
+  return Response.json(dataset);
+});
 
-  try {
+export const PATCH = handlerWithAudit<{ projectId: string; datasetId: string }>(
+  { resource: "dataset", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, datasetId } = await ctx.params;
+
     const body = await req.json();
     const { name } = body;
 
@@ -37,16 +33,8 @@ export async function PATCH(
       datasetId,
       name,
     });
+    await audit.target(datasetId);
 
-    return new Response(JSON.stringify(updatedDataset));
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update dataset. Please try again." },
-      { status: 500 }
-    );
+    return Response.json(updatedDataset);
   }
-}
+);

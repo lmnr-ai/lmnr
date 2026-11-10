@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { fetcherJSON } from "@/lib/utils";
+import { callAppServer, callAppServerWithResponseHeaders } from "@/lib/api/backend";
 
 import { resolveSqlActor, type SqlActor } from "./actor";
 import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, SqlToJsonResponseSchema } from "./types";
@@ -27,19 +27,22 @@ const ExecuteQuerySchema = z.object({
 export const executeQuery = async <T extends object>(
   input: z.infer<typeof ExecuteQuerySchema>,
   options?: { actor?: SqlActor }
+) => (await executeQueryWithTables<T>(input, options)).rows;
+
+/** `executeQuery` that also returns the tables the query read, for a route's `sql.query` audit event. */
+export const executeQueryWithTables = async <T extends object>(
+  input: z.infer<typeof ExecuteQuerySchema>,
+  options?: { actor?: SqlActor }
 ) => {
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
   const actor = await resolveSqlActor(options?.actor);
 
-  const res = (await fetcherJSON(`/projects/${projectId}/sql/query`, {
+  const { data, headers } = await callAppServerWithResponseHeaders<T[]>(`/projects/${projectId}/sql/query`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ query, parameters, actor }),
-  })) as T[];
+    body: { query, parameters, actor },
+  });
 
-  return res;
+  return { rows: data, tables: headers.get("x-laminar-sql-tables")?.split(",").filter(Boolean) ?? [] };
 };
 
 const SqlToJsonInputSchema = z.object({
@@ -50,13 +53,7 @@ const SqlToJsonInputSchema = z.object({
 export const sqlToJson = async (input: z.infer<typeof SqlToJsonInputSchema>): Promise<QueryStructure> => {
   const { sql, projectId } = SqlToJsonInputSchema.parse(input);
 
-  const res = await fetcherJSON(`/projects/${projectId}/sql/to-json`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ sql }),
-  });
+  const res = await callAppServer(`/projects/${projectId}/sql/to-json`, { method: "POST", body: { sql } });
 
   const parsed = SqlToJsonResponseSchema.parse(res);
 
@@ -75,13 +72,7 @@ const JsonToSqlInputSchema = z.object({
 export const jsonToSql = async (input: z.infer<typeof JsonToSqlInputSchema>): Promise<string> => {
   const { queryStructure, projectId } = JsonToSqlInputSchema.parse(input);
 
-  const res = await fetcherJSON(`/projects/${projectId}/sql/from-json`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ queryStructure }),
-  });
+  const res = await callAppServer(`/projects/${projectId}/sql/from-json`, { method: "POST", body: { queryStructure } });
 
   const parsed = JsonToSqlResponseSchema.parse(res);
 

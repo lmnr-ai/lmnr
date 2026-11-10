@@ -21,8 +21,9 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type LlmProfileOption } from "@/lib/actions/llm-profiles";
 import { PROVIDER_LABELS } from "@/lib/actions/llm-profiles/schema";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { Feature } from "@/lib/features/features";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import { type ManageSignalForm } from "./types";
 

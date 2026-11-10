@@ -1,0 +1,32 @@
+name: Frontend tests
+
+on:
+  pull_request:
+    types:
+      - synchronize
+      - opened
+      - reopened
+    paths:
+      - "frontend/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/setup@v3.1.2 # immutable tag
+        with:
+          version: 12.14.0
+          runtime: node@24
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        working-directory: ./frontend
+        run: pnpm test

@@ -1,57 +1,28 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { createDashboard, getDashboards, getOrCreateDefaultDashboard } from "@/lib/actions/dashboard/dashboards";
-import { AppServerError } from "@/lib/app-server";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
+type Params = { projectId: string };
 
-  try {
-    const dashboards = await getDashboards({ projectId });
+export const GET = apiHandler<Params>(async (_req, ctx) => {
+  const { projectId } = await ctx.params;
+  const dashboards = await getDashboards({ projectId });
 
-    if (dashboards.length > 0) {
-      return Response.json(dashboards);
-    }
-
-    // Callers outside the dashboards page (e.g. the SQL editor's export dialog)
-    // may be the first to touch a project that has never had a dashboard.
-    await getOrCreateDefaultDashboard({ projectId });
-
-    return Response.json(await getDashboards({ projectId }));
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to get dashboards. Please try again." },
-      { status: 500 }
-    );
+  if (dashboards.length > 0) {
+    return Response.json(dashboards);
   }
-}
 
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
+  // Callers outside the dashboards page (e.g. the SQL editor's export dialog)
+  // may be the first to touch a project that has never had a dashboard.
+  await getOrCreateDefaultDashboard({ projectId });
 
-  try {
-    const body = await req.json();
+  return Response.json(await getDashboards({ projectId }));
+});
 
-    const dashboard = await createDashboard({ ...body, projectId });
-
-    return Response.json(dashboard);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    if (error instanceof AppServerError) {
-      return Response.json({ error: error.message }, { status: error.status });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to create dashboard. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+export const POST = handlerWithAudit<Params>({ resource: "dashboard", action: "create" }, async (req, ctx, audit) => {
+  const { projectId } = await ctx.params;
+  const body = await req.json();
+  const dashboard = await createDashboard({ ...body, projectId });
+  await audit.target(dashboard.id, { name: dashboard.name });
+  return Response.json(dashboard);
+});

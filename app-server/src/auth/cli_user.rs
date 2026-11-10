@@ -90,15 +90,12 @@ impl JwksCache {
     /// var. The `http` arg is retained for call-site compatibility; `WebSource`
     /// manages its own client.
     pub fn from_env(_http: reqwest::Client) -> Self {
-        let base = std::env::var(crate::env::notifications::NEXT_INTERNAL_URL)
-            .or(std::env::var(crate::env::notifications::NEXT_PUBLIC_URL))
-            .map(|v| v.trim_end_matches('/').to_string())
-            .unwrap_or_else(|_| {
-                log::warn!(
-                    "NEXT_INTERNAL_URL/NEXT_PUBLIC_URL unset; CLI-auth JWKS defaults to https://laminar.sh"
-                );
-                "https://laminar.sh".to_string()
-            });
+        let base = crate::env::server::next_server_url().unwrap_or_else(|| {
+            log::warn!(
+                "NEXT_INTERNAL_URL/NEXT_PUBLIC_URL unset; CLI-auth JWKS defaults to https://laminar.sh"
+            );
+            "https://laminar.sh".to_string()
+        });
         let jwks_url = format!("{base}/api/auth/jwks");
         Self::from_url(&jwks_url)
     }
@@ -225,7 +222,6 @@ pub async fn cli_auth_validator(
 /// it can't be skipped.
 #[derive(Clone)]
 pub struct CliProjectAuth {
-    #[allow(dead_code)]
     pub user_id: Uuid,
     pub project_id: Uuid,
 }
@@ -245,6 +241,7 @@ impl FromRequest for CliProjectAuth {
             .map(|s| s.to_string());
         let db = req.app_data::<web::Data<DB>>().cloned();
         let cache = req.app_data::<web::Data<Cache>>().cloned();
+        let req = req.clone();
 
         Box::pin(async move {
             // AuthN result must be present (middleware ran). 401 → CLI re-logs in.
@@ -275,10 +272,15 @@ impl FromRequest for CliProjectAuth {
             // user without access must not be told to re-login). Infra failure
             // → 500 so the CLI retries rather than treating it as expired.
             match is_user_member_of_project(&db.pool, &cache, user.user_id, project_id).await {
-                Ok(true) => Ok(CliProjectAuth {
-                    user_id: user.user_id,
-                    project_id,
-                }),
+                Ok(true) => {
+                    let auth = CliProjectAuth {
+                        user_id: user.user_id,
+                        project_id,
+                    };
+                    // Read back by the audit middleware.
+                    req.extensions_mut().insert(auth.clone());
+                    Ok(auth)
+                }
                 Ok(false) => Err(actix_web::error::ErrorForbidden(
                     "User is not a member of this project",
                 )),

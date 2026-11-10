@@ -15,7 +15,6 @@ use crate::db::DB;
 use crate::env::notifications::ALERT_SEND_LOCK_TTL_SECONDS;
 use crate::mq::utils::mq_max_payload;
 use crate::mq::{MessageQueue, MessageQueueTrait};
-use crate::reports::NoteworthyEvent;
 use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;
@@ -187,8 +186,6 @@ pub enum NotificationKind {
         /// Per-signal chart and cluster data. Empty for legacy queued reports.
         #[serde(default)]
         signals: Vec<crate::reports::SignalReportData>,
-        ai_summary: String,
-        noteworthy_events: Vec<NoteworthyEvent>,
     },
     UsageWarning {
         workspace_name: String,
@@ -225,6 +222,9 @@ pub enum NotificationKind {
         usage_item: String,
         #[serde(default)]
         one_time_credit_exhausted: bool,
+        /// Starter trial allowance exhausted: lifting the cap means starting the paid subscription.
+        #[serde(default)]
+        trialing: bool,
     },
     /// A signal skipped a trace that had no LLM content to evaluate. Sent to
     /// workspace owners once per signal, so setup problems surface without
@@ -697,5 +697,34 @@ mod tests {
             format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, Uuid::from_u128(1))
         );
         assert_eq!(ttl_seconds, USAGE_WARNING_SEND_LOCK_TTL_SECONDS);
+    }
+
+    #[test]
+    fn queued_reports_with_dropped_fields_still_deserialize() {
+        let legacy = serde_json::json!({
+            "SignalsReport": {
+                "workspace_name": "WS",
+                "project_id": Uuid::from_u128(3),
+                "project_name": "proj",
+                "title": "Signals Report",
+                "period_label": "Daily",
+                "period_start": "Nov 01, 2026",
+                "period_end": "Nov 02, 2026",
+                "signal_event_counts": { "Failure Detector": 3 },
+                "ai_summary": "",
+                "noteworthy_events": [{
+                    "signal_name": "Failure Detector",
+                    "summary": "noteworthy",
+                    "timestamp": "Nov 01, 2026 10:00 UTC",
+                    "trace_id": Uuid::nil(),
+                    "severity": 2
+                }]
+            }
+        });
+        let kind: NotificationKind = serde_json::from_value(legacy).unwrap();
+        assert!(matches!(
+            kind,
+            NotificationKind::SignalsReport { signals, .. } if signals.is_empty()
+        ));
     }
 }

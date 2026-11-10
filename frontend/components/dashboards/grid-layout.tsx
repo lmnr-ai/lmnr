@@ -11,8 +11,8 @@ import { type DashboardChart, dragHandleKey, getChartsUrl, GRID_COLS } from "@/c
 import { useDragToDashboard } from "@/components/dashboards/use-drag-to-dashboard";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { swrFetcher } from "@/lib/utils";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 

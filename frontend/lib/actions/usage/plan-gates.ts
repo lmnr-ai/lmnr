@@ -36,3 +36,19 @@ export const assertWorkspaceHasSlack = async (workspaceId: string): Promise<void
     .limit(1);
   if (isFreeTierName(row?.tierName)) throw new Error(FREE_PLAN_SLACK_ERROR);
 };
+
+// The audit log is a Pro feature on Cloud. Raw names again: Free and Starter
+// (stored as "Hobby" or "Starter") are excluded, everything else — Pro, and
+// self-hosted tiers like "unlimited" — has it.
+const AUDIT_LOG_EXCLUDED_TIERS = new Set(["free", "hobby", "starter"]);
+
+export const workspaceHasAuditLog = async (workspaceId: string): Promise<boolean> => {
+  if (!isFeatureEnabled(Feature.SUBSCRIPTION)) return true;
+  const [row] = await db
+    .select({ tierName: subscriptionTiers.name })
+    .from(workspaces)
+    .innerJoin(subscriptionTiers, eq(subscriptionTiers.id, workspaces.tierId))
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+  return !!row && !AUDIT_LOG_EXCLUDED_TIERS.has(row.tierName.trim().toLowerCase());
+};

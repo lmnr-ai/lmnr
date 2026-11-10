@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, delete, get, patch, post, web};
+use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, web};
 
 use crate::{
     api::v1::datasets::{
         CreateDatapointsRequest, DatasetNameRequest, GetDatapointsRequestParams,
-        GetDatasetsRequest, create_datapoints_response, handlers,
+        GetDatasetsRequest, create_datapoints_response, handlers, target_datapoints,
     },
     auth::cli_user::CliProjectAuth,
     cache::Cache,
@@ -22,11 +22,12 @@ use crate::{
 
 #[post("/datasets")]
 pub async fn create_dataset(
+    req: HttpRequest,
     auth: CliProjectAuth,
-    req: web::Json<DatasetNameRequest>,
+    body: web::Json<DatasetNameRequest>,
     db: web::Data<DB>,
 ) -> actix_web::Result<HttpResponse> {
-    Ok(handlers::create(&db, auth.project_id, req.into_inner()).await)
+    Ok(handlers::create(&req, &db, auth.project_id, body.into_inner()).await)
 }
 
 #[get("/datasets/{dataset_id}")]
@@ -40,22 +41,31 @@ pub async fn get_dataset(
 
 #[patch("/datasets/{dataset_id}")]
 pub async fn update_dataset(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<uuid::Uuid>,
-    req: web::Json<DatasetNameRequest>,
+    body: web::Json<DatasetNameRequest>,
     db: web::Data<DB>,
 ) -> actix_web::Result<HttpResponse> {
-    Ok(handlers::update(&db, auth.project_id, path.into_inner(), req.into_inner()).await)
+    Ok(handlers::update(
+        &req,
+        &db,
+        auth.project_id,
+        path.into_inner(),
+        body.into_inner(),
+    )
+    .await)
 }
 
 #[delete("/datasets/{dataset_id}")]
 pub async fn delete_dataset(
+    req: HttpRequest,
     auth: CliProjectAuth,
     path: web::Path<uuid::Uuid>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> actix_web::Result<HttpResponse> {
-    Ok(handlers::delete(&db, &clickhouse, auth.project_id, path.into_inner()).await)
+    Ok(handlers::delete(&req, &db, &clickhouse, auth.project_id, path.into_inner()).await)
 }
 
 /// `GET /v1/cli/datasets`
@@ -126,12 +136,13 @@ pub async fn get_datapoints(
 /// `POST /v1/cli/datasets/datapoints`
 #[post("/datasets/datapoints")]
 pub async fn create_datapoints(
+    req: HttpRequest,
     auth: CliProjectAuth,
-    req: web::Json<CreateDatapointsRequest>,
+    body: web::Json<CreateDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
-    let request = req.into_inner();
+    let request = body.into_inner();
 
     let outcome = service::create_datapoints(
         auth.project_id,
@@ -143,5 +154,6 @@ pub async fn create_datapoints(
     )
     .await?;
 
+    target_datapoints(&req, &outcome).await;
     Ok(create_datapoints_response(outcome))
 }

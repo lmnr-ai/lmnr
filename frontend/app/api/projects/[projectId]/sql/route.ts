@@ -1,24 +1,18 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { executeQueryWithTables } from "@/lib/actions/sql";
+import { handlerWithAudit } from "@/lib/audit";
 
-import { executeQuery } from "@/lib/actions/sql";
-
-export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
-  try {
+// The SQL editor, dashboards and custom columns. app-server stores the query text
+// literal-stripped for hybrid workspaces.
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "sql", action: "query", noTarget: true },
+  async (request, ctx, audit) => {
     const body = await request.json();
-    const projectId = (await params).projectId;
+    const projectId = (await ctx.params).projectId;
+    audit.set({ metadata: { query: body?.query } });
 
-    const data = await executeQuery({ ...body, projectId });
+    const { rows, tables } = await executeQueryWithTables({ ...body, projectId });
+    audit.set({ metadata: { query: body?.query, tables } });
 
-    return Response.json(data);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to execute query." },
-      { status: 500 }
-    );
+    return Response.json(rows);
   }
-}
+);

@@ -9,6 +9,8 @@ import {
   DollarSign,
   FileBarChart,
   Key,
+  KeyRound,
+  ScrollText,
   type LucideIcon,
   Settings2,
   ShieldCheck,
@@ -43,8 +45,10 @@ import {
   SidebarProvider,
   SidebarSectionLabel,
 } from "@/components/ui/sidebar";
+import AuditLog from "@/components/workspace/audit-log";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
+import WorkspaceLicense from "@/components/workspace/license";
 import LlmProfiles from "@/components/workspace/llm-profiles";
 import WorkspaceReports from "@/components/workspace/reports";
 import WorkspaceUsage from "@/components/workspace/usage";
@@ -56,7 +60,9 @@ import { type SettingsSection } from "@/contexts/project-context";
 import { type SubscriptionDetails, type UpcomingInvoiceInfo, type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
+import { permissionsForRole } from "@/lib/authorization/permissions";
 import { Feature } from "@/lib/features/features";
+import { type LicenseStatus } from "@/lib/license/types";
 import {
   type WorkspaceInvitation,
   type WorkspaceRole,
@@ -80,6 +86,10 @@ interface SharedSettingsProps {
   slackClientId?: string;
   slackRedirectUri?: string;
   slackBrokerEnabled?: boolean;
+  // Null where instance licensing doesn't apply (OSS app-server, Laminar Cloud).
+  license: LicenseStatus | null;
+  // Plan gate only; the role gate is `permissionsForRole(currentUserRole).viewAuditLog`.
+  auditLogAvailable: boolean;
 }
 
 type Section = SettingsSection;
@@ -93,6 +103,8 @@ const VALID_SECTIONS = new Set<Section>([
   "billing",
   "workspace-general",
   "llm-profiles",
+  "license",
+  "audit-log",
   "general",
   "project-api-keys",
   "model-costs",
@@ -117,10 +129,13 @@ const SharedSettings = ({
   slackClientId,
   slackRedirectUri,
   slackBrokerEnabled,
+  license,
+  auditLogAvailable,
 }: SharedSettingsProps) => {
   const searchParams = useSearchParams();
   const featureFlags = useFeatureFlags();
   const workspaceId = workspace.id;
+  const canViewAuditLog = permissionsForRole(currentUserRole).viewAuditLog;
   const isFree = !!featureFlags[Feature.SUBSCRIPTION] && workspace.tierName === WorkspaceTier.FREE;
 
   // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
@@ -128,6 +143,8 @@ const SharedSettings = ({
   const isSectionEnabled = (section: Section): boolean => {
     if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
     if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
+    if (section === "license") return !!license;
+    if (section === "audit-log") return canViewAuditLog;
     return true;
   };
 
@@ -158,8 +175,14 @@ const SharedSettings = ({
     if (featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
     }
+    if (license) {
+      items.push({ label: "License", section: "license", icon: KeyRound });
+    }
+    if (canViewAuditLog) {
+      items.push({ label: "Audit log", section: "audit-log", icon: ScrollText });
+    }
     return items;
-  }, [featureFlags, isOwner]);
+  }, [featureFlags, isOwner, license, canViewAuditLog]);
 
   const projectMenus: { label: string; section: Section; icon: LucideIcon; badge?: string }[] = [
     { label: "General", section: "general", icon: Settings2 },
@@ -230,6 +253,10 @@ const SharedSettings = ({
         return <WorkspaceSettings workspace={workspace} isOwner={isOwner} />;
       case "llm-profiles":
         return <LlmProfiles workspaceId={workspaceId} />;
+      case "license":
+        return license && <WorkspaceLicense license={license} workspaceId={workspaceId} isOwner={isOwner} />;
+      case "audit-log":
+        return <AuditLog workspaceId={workspaceId} available={auditLogAvailable} />;
       // Project sections
       case "general":
         return (
@@ -282,11 +309,13 @@ const SharedSettings = ({
     }
   };
 
+  const fillsHeight = activeSection === "audit-log" && auditLogAvailable;
+
   return (
     <div className="flex flex-col h-full gap-2">
       {/* Header is OUTSIDE the nested provider so its SidebarTrigger toggles the main project sidebar. */}
       <Header path="settings" />
-      <SidebarProvider defaultOpen>
+      <SidebarProvider defaultOpen className="min-h-0 flex-1">
         <div className="flex flex-1 overflow-hidden">
           <Sidebar collapsible="none" className="w-72">
             <SidebarContent className="bg-background pl-2">
@@ -349,9 +378,16 @@ const SharedSettings = ({
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <ScrollArea className="flex-1">
-            <div className="flex flex-col gap-8 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-32">{renderSection()}</div>
-          </ScrollArea>
+          {fillsHeight ? (
+            // Fills the height so only its table scrolls, like the traces table.
+            <div className="flex flex-1 flex-col gap-8 min-w-0 min-h-0 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-4">
+              {renderSection()}
+            </div>
+          ) : (
+            <ScrollArea className="flex-1">
+              <div className="flex flex-col gap-8 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-32">{renderSection()}</div>
+            </ScrollArea>
+          )}
         </div>
       </SidebarProvider>
     </div>

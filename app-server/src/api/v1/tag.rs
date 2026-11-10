@@ -1,12 +1,7 @@
-use std::sync::Arc;
-
 use crate::{
-    cache::Cache,
-    ch::spans::append_tags_to_span,
-    db::{DB, project_api_keys::ProjectApiKey},
-    query_engine::QueryEngine,
+    ch::{spans::get_trace_id_by_span_id, trace_tags::add_trace_tags},
+    db::project_api_keys::ProjectApiKey,
     routes::types::ResponseResult,
-    sql::{self, ClickhouseReadonlyClient},
 };
 use actix_web::{
     HttpResponse, post,
@@ -43,65 +38,37 @@ pub enum TagRequest {
 pub async fn tag_trace(
     req: Json<TagRequest>,
     clickhouse: web::Data<clickhouse::Client>,
-    clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
-    query_engine: web::Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
-    http_client: web::Data<reqwest::Client>,
-    db: web::Data<DB>,
-    cache: web::Data<Cache>,
+) -> ResponseResult {
+    handle_tag_trace(project_api_key.project_id, req, clickhouse).await
+}
+
+/// Shared body of `/v1/tag` and its CLI twin `/v1/cli/tag`, which differ only
+/// in auth (project API key vs `CliProjectAuth`).
+pub async fn handle_tag_trace(
+    project_id: Uuid,
+    req: Json<TagRequest>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let req = req.into_inner();
-    let names = match &req {
-        TagRequest::WithTraceId(req) => &req.names,
-        TagRequest::WithSpanId(req) => &req.names,
+    let clickhouse = clickhouse.as_ref().clone();
+
+    let (trace_id, names) = match req {
+        TagRequest::WithTraceId(req) => (Some(req.trace_id), req.names),
+        TagRequest::WithSpanId(req) => (
+            get_trace_id_by_span_id(clickhouse.clone(), req.span_id, project_id).await?,
+            req.names,
+        ),
     };
     if names.is_empty() {
         return Ok(HttpResponse::BadRequest().body("No names provided"));
     }
-    let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
-    let query_engine = query_engine.as_ref().clone();
-    let clickhouse = clickhouse.as_ref().clone();
-    let http_client = http_client.into_inner();
-    let cache = cache.into_inner();
 
-    let span_id = match &req {
-        TagRequest::WithTraceId(req) => {
-            sql::queries::get_top_span_id(
-                clickhouse_ro,
-                query_engine,
-                req.trace_id,
-                project_api_key.project_id,
-                http_client,
-                db.into_inner(),
-                cache,
-            )
-            .await?
-        }
-        TagRequest::WithSpanId(req) => {
-            let exists = crate::ch::spans::is_span_in_project(
-                clickhouse.clone(),
-                req.span_id,
-                project_api_key.project_id,
-            )
-            .await?;
-            if !exists {
-                return Ok(HttpResponse::NotFound().body("No matching spans found"));
-            }
-            Some(req.span_id)
-        }
-    };
-
-    let Some(span_id) = span_id else {
+    let Some(trace_id) = trace_id else {
         return Ok(HttpResponse::NotFound().body("No matching spans found"));
     };
 
-    append_tags_to_span(
-        clickhouse.clone(),
-        span_id,
-        project_api_key.project_id,
-        names.clone(),
-    )
-    .await?;
+    add_trace_tags(clickhouse, project_id, trace_id, names).await?;
 
     Ok(HttpResponse::Ok().finish())
 }

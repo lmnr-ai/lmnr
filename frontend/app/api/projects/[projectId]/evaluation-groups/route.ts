@@ -1,12 +1,11 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { type NextRequest, NextResponse } from "next/server";
 
+import { apiHandler } from "@/lib/api/api-handler";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 
-export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
+  const { projectId } = await ctx.params;
   const lastEvaluationCreatedAt = sql<Date>`MAX(${evaluations.createdAt})`.as("lastEvaluationCreatedAt");
   const groups = await db
     .select({
@@ -19,5 +18,5 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
     .where(eq(evaluations.projectId, projectId))
     .groupBy(evaluations.groupId)
     .orderBy(desc(lastEvaluationCreatedAt));
-  return NextResponse.json(groups);
-}
+  return Response.json(groups);
+});

@@ -3,9 +3,9 @@ import { useCallback } from "react";
 import useSWR from "swr";
 
 import { type Dashboard, getDashboardsUrl } from "@/components/dashboards/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
 
 const readError = async (res: Response, fallback: string) =>
   (await res

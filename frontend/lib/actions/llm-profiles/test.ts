@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
-import { callAppServer } from "@/lib/app-server";
+import { callAppServer } from "@/lib/api/backend";
 import { type WorkspaceRole } from "@/lib/workspaces/types";
 
 import { LLM_PROFILE_PROVIDERS } from "./schema";

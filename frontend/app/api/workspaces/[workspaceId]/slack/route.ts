@@ -1,48 +1,20 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { deleteSlackIntegration, getSlackIntegration } from "@/lib/actions/slack";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function GET(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const params = await props.params;
-  const workspaceId = params.workspaceId;
+export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => {
+  const { workspaceId } = await ctx.params;
 
-  try {
-    const integration = await getSlackIntegration(workspaceId);
-    return NextResponse.json(integration);
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
+  const integration = await getSlackIntegration(workspaceId);
+  return Response.json(integration);
+});
 
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to retrieve Slack integration data. Please try again.",
-      },
-      { status: 500 }
-    );
-  }
-}
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "slack_integration", action: "delete", noTarget: true },
+  async (_request, ctx) => {
+    const { workspaceId } = await ctx.params;
 
-export async function DELETE(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const params = await props.params;
-  const workspaceId = params.workspaceId;
-
-  try {
     await deleteSlackIntegration({ workspaceId });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to remove Slack integration. Please try again.",
-      },
-      { status: 500 }
-    );
+    return Response.json({ success: true });
   }
-}
+);

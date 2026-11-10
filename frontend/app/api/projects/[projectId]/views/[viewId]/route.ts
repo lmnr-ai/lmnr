@@ -1,48 +1,26 @@
-import { NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { deleteView, updateView } from "@/lib/actions/view";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function PATCH(req: Request, props: { params: Promise<{ projectId: string; viewId: string }> }) {
-  try {
-    const { projectId, viewId } = await props.params;
-    const body = await req.json();
+type Params = { projectId: string; viewId: string };
 
-    const result = await updateView({
-      projectId,
-      viewId,
-      name: body.name,
-      config: body.config,
-    });
+export const PATCH = handlerWithAudit<Params>({ resource: "view", action: "update" }, async (req, ctx, audit) => {
+  const { projectId, viewId } = await ctx.params;
+  const body = await req.json();
 
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
+  const result = await updateView({
+    projectId,
+    viewId,
+    name: body.name,
+    config: body.config,
+  });
+  await audit.target(viewId);
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update view. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+  return Response.json(result);
+});
 
-export async function DELETE(_req: Request, props: { params: Promise<{ projectId: string; viewId: string }> }) {
-  try {
-    const { projectId, viewId } = await props.params;
-
-    await deleteView({ projectId, viewId });
-
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete view. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+export const DELETE = handlerWithAudit<Params>({ resource: "view", action: "delete" }, async (_req, ctx, audit) => {
+  const { projectId, viewId } = await ctx.params;
+  await audit.target(viewId);
+  await deleteView({ projectId, viewId });
+  return new Response(null, { status: 204 });
+});

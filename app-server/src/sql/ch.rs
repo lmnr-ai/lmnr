@@ -10,7 +10,7 @@ use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::sql::{ClickhouseReadonlyClient, SqlQueryError, SqlQuerySource};
+use crate::sql::{ClickhouseReadonlyClient, SqlQueryError, SqlQuerySource, query_span_attribute};
 use crate::{env, utils};
 
 #[derive(Deserialize)]
@@ -49,7 +49,9 @@ pub async fn query(
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("execute_sql_query");
 
-    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    if let Some(attribute) = query_span_attribute(&query) {
+        span.set_attribute(attribute);
+    }
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
     let mut clickhouse_query = clickhouse_ro
         .query(&query)

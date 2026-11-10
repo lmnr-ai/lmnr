@@ -1,53 +1,38 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { copyCustomModelCosts } from "@/lib/actions/custom-model-costs";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfProject } from "@/lib/authorization";
 
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-
-  try {
-    const body = await req.json();
-    const targetProjectId = body.targetProjectId;
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "custom_model_cost", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const { targetProjectId } = await req.json();
 
     if (!targetProjectId) {
-      return new Response("targetProjectId is required", { status: 400 });
+      return Response.json({ error: "targetProjectId is required" }, { status: 400 });
     }
 
-    // The source project (params.projectId) is implicitly authorized via DB filtering,
+    // The source project (projectId) is implicitly authorized via DB filtering,
     // consistent with other project routes. The target project needs an explicit check
     // because it comes from the request body and is not covered by the URL path.
     const session = await getServerSession();
     if (!session) {
-      return new Response("Unauthorized", { status: 401 });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
     if (!(await isUserMemberOfProject(targetProjectId, session.user.id))) {
-      return new Response("Forbidden: no access to target project", { status: 403 });
+      return Response.json({ error: "Forbidden: no access to target project" }, { status: 403 });
     }
+    // The costs are created in the target project, so that is whose log records it.
+    audit.set({ projectId: targetProjectId, metadata: { sourceProjectId: projectId } });
 
-    const result = await copyCustomModelCosts({
-      sourceProjectId: params.projectId,
-      targetProjectId,
-    });
+    const result = await copyCustomModelCosts({ sourceProjectId: projectId, targetProjectId });
 
     if (result.length === 0) {
-      return new Response("No custom model costs found in source project", { status: 400 });
+      return Response.json({ error: "No custom model costs found in source project" }, { status: 400 });
     }
+    await audit.target(result.map((cost) => cost.id));
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("Error copying custom model costs:", error);
-    if (error instanceof ZodError) {
-      return new Response(prettifyError(error), { status: 400 });
-    }
-    if (error instanceof Error) {
-      return new Response(error.message, { status: 500 });
-    }
-    return new Response("Internal Server Error", { status: 500 });
+    return Response.json(result);
   }
-}
+);

@@ -392,14 +392,19 @@ export async function register() {
       // start_time, and that record is absent on every boot when REDIS_URL is
       // unset, so reading it back would defer the copy forever.
       //
+      // The signal_events copy (migration 83) gates the clusters backfill, which
+      // INNER JOINs signal_events and would drop memberships of uncopied events.
+      //
       // The clusters rebuild (migration 69 table swap) goes last: the backfill
       // above reads signal_event_clusters, and the swap must not race it.
       void (async () => {
         const { startTracesAggBackfill } = await import("@/lib/clickhouse/scripts/backfill-traces-agg.ts");
+        const { startSignalEventsCopy } = await import("@/lib/clickhouse/scripts/copy-signal-events.ts");
         const { startSignalClustersBackfill } = await import("@/lib/clickhouse/scripts/backfill-signal-clusters.ts");
         const { startSignalClustersRebuild } = await import("@/lib/clickhouse/scripts/rebuild-signal-clusters.ts");
         const tracesAggComplete = await startTracesAggBackfill();
-        await startSignalClustersBackfill(tracesAggComplete);
+        const signalEventsCopied = await startSignalEventsCopy();
+        if (signalEventsCopied) await startSignalClustersBackfill(tracesAggComplete);
         await startSignalClustersRebuild();
       })().catch((error) => console.error("Failed to run ClickHouse backfills:", error));
 
@@ -485,6 +490,12 @@ export async function register() {
     // or fails boot.
     const { startTelemetry } = await import("@/lib/telemetry/index.ts");
     startTelemetry().catch((error) => console.error("Failed to start telemetry:", error));
+
+    // Laminar Agent runs live in this process: continue the ones a previous process left unfinished. After
+    // migrations, so the agent tables exist. Not gated on Feature.AGENT, which is the app's chat only: Slack runs
+    // without it. Fire-and-forget — never blocks or fails boot.
+    const { resumeAgentSessions } = await import("@/lib/agent/index.ts");
+    resumeAgentSessions().catch((error) => console.error("Failed to resume agent sessions:", error));
   }
 }
 

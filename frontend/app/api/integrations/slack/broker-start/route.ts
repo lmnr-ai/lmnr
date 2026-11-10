@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
+import { getBrokerLicenseKey } from "@/lib/license";
 import { BASE_PATH } from "@/lib/utils";
 
 // Brokered (self-hosted) Slack connect entrypoint. The connect button links the
@@ -16,7 +17,7 @@ import { BASE_PATH } from "@/lib/utils";
 // the way back — the instance must carry its own workspace context.
 export async function GET(request: NextRequest): Promise<Response> {
   const brokerUrl = process.env.SLACK_BROKER_URL;
-  const licenseKey = process.env.LMNR_LICENSE_KEY;
+  const licenseKey = await getBrokerLicenseKey();
   const baseUrl = process.env.NEXT_PUBLIC_URL;
 
   const workspaceId = request.nextUrl.searchParams.get("workspaceId");
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   };
 
   if (!brokerUrl || !licenseKey || !baseUrl) {
-    console.error("Slack broker connect attempted without SLACK_BROKER_URL / LMNR_LICENSE_KEY / NEXT_PUBLIC_URL");
+    console.error("Slack broker connect attempted without SLACK_BROKER_URL / license key / NEXT_PUBLIC_URL");
     return NextResponse.redirect(await buildErrorRedirect());
   }
   // Validate workspaceId as a UUID up front (matching the direct OAuth path's

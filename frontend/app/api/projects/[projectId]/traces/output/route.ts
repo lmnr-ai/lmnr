@@ -1,18 +1,13 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { getAgentOutputsBatch } from "@/lib/actions/traces/outputs";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerNoAudit } from "@/lib/audit";
 
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
-  try {
+export const POST = handlerNoAudit(
+  "traces table sub-request; the list route records trace.list",
+  apiHandler<{ projectId: string }>(async (req, ctx) => {
+    const { projectId } = await ctx.params;
     const body = await req.json();
     const result = await getAgentOutputsBatch({ ...body, projectId });
     return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
-  }
-}
+  })
+);

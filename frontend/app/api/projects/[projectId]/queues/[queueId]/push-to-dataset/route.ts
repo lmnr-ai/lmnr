@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 import { pushItemsToDataset } from "@/lib/actions/queue";
+import { handlerWithAudit } from "@/lib/audit";
 
 const BodySchema = z.object({
   datasetId: z.guid(),
@@ -8,15 +9,17 @@ const BodySchema = z.object({
   includeUnlabelled: z.boolean().optional(),
 });
 
-export async function POST(request: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
-  const { projectId, queueId } = await props.params;
-
-  try {
-    const body = await request.json();
-    const parsed = BodySchema.safeParse(body);
+export const POST = handlerWithAudit<{ projectId: string; queueId: string }>(
+  // The created datapoint ids aren't returned; the dataset and items are recorded instead.
+  { resource: "datapoint", action: "create", noTarget: true },
+  async (req, ctx, audit) => {
+    const { projectId, queueId } = await ctx.params;
+    const parsed = BodySchema.safeParse(await req.json());
     if (!parsed.success) {
       return Response.json({ error: "Invalid request body", details: parsed.error }, { status: 400 });
     }
+
+    audit.set({ metadata: { queueId, datasetId: parsed.data.datasetId, itemIds: parsed.data.itemIds } });
 
     const result = await pushItemsToDataset({
       projectId,
@@ -26,10 +29,9 @@ export async function POST(request: Request, props: { params: Promise<{ projectI
       includeUnlabelled: parsed.data.includeUnlabelled,
     });
 
+    audit.set({
+      metadata: { queueId, datasetId: parsed.data.datasetId, itemIds: parsed.data.itemIds, pushed: result.pushed },
+    });
     return Response.json(result);
-  } catch (error) {
-    console.error("Error pushing items to dataset:", { projectId, queueId, error });
-    const message = error instanceof Error ? error.message : "Internal server error";
-    return Response.json({ error: message }, { status: 500 });
   }
-}
+);

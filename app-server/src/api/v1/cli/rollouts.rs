@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, get, patch, post, web};
+use actix_web::{HttpRequest, HttpResponse, get, patch, post, web};
 use uuid::Uuid;
 
 use crate::{
     api::v1::debugger::{AddBlockRequest, handle_add_block, handle_list_blocks},
     api::v1::rollouts::RegisterSessionRequest,
+    audit,
     auth::cli_user::CliProjectAuth,
     db::{
         DB,
@@ -21,6 +22,7 @@ use crate::{
 /// JSON response; differs only in auth (`CliProjectAuth` user token).
 #[post("rollouts/{session_id}")]
 pub async fn register_session(
+    req: HttpRequest,
     path: web::Path<Uuid>,
     body: web::Json<RegisterSessionRequest>,
     auth: CliProjectAuth,
@@ -33,6 +35,7 @@ pub async fn register_session(
 
     let session =
         create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
+    audit::target_named(&req, session.id, session.name.clone());
 
     Ok(HttpResponse::Ok().json(session))
 }
@@ -79,6 +82,7 @@ struct UpdateNameRequest {
 /// the SDK names at register time). Update-only: unknown session id → 404.
 #[patch("rollouts/{session_id}/name")]
 pub async fn update_name(
+    req: HttpRequest,
     path: web::Path<Uuid>,
     body: web::Json<UpdateNameRequest>,
     auth: CliProjectAuth,
@@ -94,6 +98,7 @@ pub async fn update_name(
     if !updated {
         return Ok(HttpResponse::NotFound().json("Session not found"));
     }
+    audit::target_named(&req, session_id, name.clone());
 
     // Notify the frontend live so an open debugger session view updates its
     // title without a reload. Fire-and-forget (`send_to_key` swallows errors)

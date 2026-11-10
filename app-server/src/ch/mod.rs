@@ -1,4 +1,5 @@
 pub mod agent_prompts;
+pub mod audit_events;
 pub mod browser_events;
 pub mod cloud;
 pub mod data_plane;
@@ -16,6 +17,7 @@ pub mod service;
 pub mod signal_events;
 pub mod spans;
 pub mod system_prompt_versions;
+pub mod trace_tags;
 pub mod traces;
 pub mod traces_agg;
 pub mod traces_static;

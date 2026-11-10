@@ -22,6 +22,6 @@ Other notes:
 - Turning Privacy Mode back on stops use of your Signal runs going forward, and we remove them from any training dataset not yet used in a completed run. Already-trained models can't be reversed.
 - Only Signal runs generated on or after September 10, 2026 are ever used; anything older would require your separate consent.
 - AI-assisted features send the relevant data to a model provider (Google Cloud or AWS Bedrock) to generate a response at the time of use; these providers do not retain or train on your data (see [Google Cloud](https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance) and [AWS Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/data-protection.html) data policies).
-- Self-hosted Laminar sends us nothing. On your own infrastructure or your own data plane, we have no access to your data and it's never used for fine-tuning.
+- Self-hosted Laminar sends us no trace data. On your own infrastructure or your own data plane, we have no access to your data and it's never used for fine-tuning.
 
 See also our [Terms of Service](/policies/terms) and [Privacy Notice](/policies/privacy).

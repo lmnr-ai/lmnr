@@ -18,11 +18,10 @@ import {
   primaryKey,
   pgEnum,
   check,
+  json,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-export const agentMachineStatus = pgEnum("agent_machine_status", ["not_started", "running", "paused", "stopped"]);
-export const agentMessageType = pgEnum("agent_message_type", ["user", "assistant", "step", "error"]);
 export const spanType = pgEnum("span_type", [
   "DEFAULT",
   "LLM",
@@ -189,6 +188,53 @@ export const signalVersions = pgTable(
   ]
 );
 
+// Reviewer notes. Every write mints a signal version that snapshots the full list.
+export const signalNotes = pgTable(
+  "signal_notes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    content: text().notNull(),
+    createdBy: uuid("created_by"),
+    updatedBy: uuid("updated_by"),
+    // ClickHouse signal_events row the note responds to; no FK across stores.
+    sourceEventId: uuid("source_event_id"),
+    sourceTraceId: uuid("source_trace_id"),
+    sourceEventSnapshot: jsonb("source_event_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_notes_project_signal_created_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_notes_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_notes_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "signal_notes_created_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [users.id],
+      name: "signal_notes_updated_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
 export const tracesAgentMessages = pgTable(
   "traces_agent_messages",
   {
@@ -229,6 +275,112 @@ export const slackIntegrations = pgTable(
       name: "slack_integrations_workspace_id_fkey",
     }).onDelete("cascade"),
     unique("slack_integrations_workspace_id_key").on(table.workspaceId),
+  ]
+);
+
+export const githubIntegrations = pgTable(
+  "github_integrations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    installationId: bigint("installation_id", { mode: "number" }).notNull(),
+    accountId: bigint("account_id", { mode: "number" }).notNull(),
+    accountLogin: text("account_login").notNull(),
+    accountType: text("account_type").notNull(),
+    suspendedAt: timestamp("suspended_at", { withTimezone: true, mode: "string" }),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "github_integrations_workspace_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "github_integrations_created_by_fkey",
+    }).onDelete("set null"),
+    unique("github_integrations_workspace_id_key").on(table.workspaceId),
+    unique("github_integrations_installation_id_key").on(table.installationId),
+  ]
+);
+
+// One per project: what the Laminar Agent's sandbox is set up with.
+// `ingest_api_key` is the AEAD blob ({nonce, value} hex, AAD = environment id) of an ingest-only project key.
+export const projectEnvironments = pgTable(
+  "project_environments",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    ingestApiKeyId: uuid("ingest_api_key_id"),
+    ingestApiKey: jsonb("ingest_api_key"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "project_environments_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ingestApiKeyId],
+      foreignColumns: [projectApiKeys.id],
+      name: "project_environments_ingest_api_key_id_fkey",
+    }).onDelete("set null"),
+    unique("project_environments_project_id_key").on(table.projectId),
+  ]
+);
+
+export const projectEnvironmentRepos = pgTable(
+  "project_environment_repos",
+  {
+    environmentId: uuid("environment_id").notNull(),
+    integrationId: uuid("integration_id").notNull(),
+    repoId: bigint("repo_id", { mode: "number" }).notNull(),
+    repoFullName: text("repo_full_name").notNull(),
+    defaultRef: text("default_ref"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.environmentId, table.repoId], name: "project_environment_repos_pkey" }),
+    foreignKey({
+      columns: [table.environmentId],
+      foreignColumns: [projectEnvironments.id],
+      name: "project_environment_repos_environment_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [githubIntegrations.id],
+      name: "project_environment_repos_integration_id_fkey",
+    }).onDelete("cascade"),
+    index("project_environment_repos_repo_id_idx").using("btree", table.repoId.asc().nullsLast()),
+  ]
+);
+
+export const projectEnvironmentLlmProfiles = pgTable(
+  "project_environment_llm_profiles",
+  {
+    environmentId: uuid("environment_id").notNull(),
+    llmProfileId: uuid("llm_profile_id").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.environmentId, table.llmProfileId],
+      name: "project_environment_llm_profiles_pkey",
+    }),
+    foreignKey({
+      columns: [table.environmentId],
+      foreignColumns: [projectEnvironments.id],
+      name: "project_environment_llm_profiles_environment_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.llmProfileId],
+      foreignColumns: [llmProfiles.id],
+      name: "project_environment_llm_profiles_llm_profile_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 
@@ -336,6 +488,7 @@ export const agents = pgTable(
     ingestedUntil: bigint("ingested_until", { mode: "number" }),
     currentVersionId: uuid("current_version_id"),
     releaseMode: boolean("release_mode").default(false).notNull(),
+    definition: jsonb(),
   },
   (table) => [
     foreignKey({
@@ -1008,6 +1161,19 @@ export const slackBrokerInstances = pgTable(
   (table) => [unique("slack_broker_instances_key_hash_key").on(table.keyHash)]
 );
 
+export const instanceLicense = pgTable(
+  "instance_license",
+  {
+    id: smallint().default(1).primaryKey().notNull(),
+    trialStartedAt: timestamp("trial_started_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    licenseKey: text("license_key"),
+    licenseKeyNonce: text("license_key_nonce"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
+    updatedBy: uuid("updated_by"),
+  },
+  () => [check("instance_license_singleton", sql`id = 1`)]
+);
+
 export const projectApiKeys = pgTable(
   "project_api_keys",
   {
@@ -1436,7 +1602,236 @@ export const jwks = pgTable("jwks", {
   privateKey: text("private_key").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+  alg: text(),
+  crv: text(),
 });
+
+export const ssoProviders = pgTable(
+  "sso_providers",
+  {
+    id: text().primaryKey().notNull(),
+    issuer: text().notNull(),
+    oidcConfig: text("oidc_config"),
+    samlConfig: text("saml_config"),
+    userId: uuid("user_id"),
+    providerId: text("provider_id").notNull(),
+    organizationId: text("organization_id"),
+    domain: text().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "sso_providers_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("sso_providers_provider_id_key").on(table.providerId),
+  ]
+);
+
+export const scimConnectionBindings = pgTable(
+  "scim_connection_bindings",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    connectionKey: text("connection_key").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    decommissionedAt: timestamp("decommissioned_at", { withTimezone: true, mode: "date" }),
+    decommissionStatus: text("decommission_status").default("active").notNull(),
+    decommissionCursorUserId: text("decommission_cursor_user_id"),
+    decommissionReconciledUserCount: integer("decommission_reconciled_user_count").default(0).notNull(),
+    decommissionBatchCount: integer("decommission_batch_count").default(0).notNull(),
+    decommissionRevision: integer("decommission_revision").default(0).notNull(),
+    decommissionCompletedAt: timestamp("decommission_completed_at", { withTimezone: true, mode: "date" }),
+    decommissionLeaseId: text("decommission_lease_id"),
+    decommissionLeaseExpiresAt: timestamp("decommission_lease_expires_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    index("scim_connection_bindings_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    unique("scim_connection_bindings_connection_key_key").on(table.connectionKey),
+  ]
+);
+
+export const scimIdentityTombstones = pgTable(
+  "scim_identity_tombstones",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    externalId: text("external_id").notNull(),
+    externalIdKey: text("external_id_key").notNull(),
+    userId: uuid("user_id").notNull(),
+    profile: text().notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_identity_tombstones_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_identity_tombstones_provisioning_domain_id_idx").using(
+      "btree",
+      table.provisioningDomainId.asc().nullsLast()
+    ),
+    index("scim_identity_tombstones_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "scim_identity_tombstones_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_identity_tombstones_external_id_key_key").on(table.externalIdKey),
+  ]
+);
+
+export const scimSubjects = pgTable(
+  "scim_subjects",
+  {
+    id: text().primaryKey().notNull(),
+    userId: uuid("user_id").notNull(),
+    profileSourceId: text("profile_source_id"),
+    revision: integer().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_subjects_profile_source_id_idx").using("btree", table.profileSourceId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "scim_subjects_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_subjects_user_id_key").on(table.userId),
+  ]
+);
+
+export const scimUsers = pgTable(
+  "scim_users",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    connectionUserKey: text("connection_user_key").notNull(),
+    userName: text("user_name").notNull(),
+    userNameKey: text("user_name_key").notNull(),
+    primaryEmail: text("primary_email").notNull(),
+    workEmailValueIndex: text("work_email_value_index").notNull(),
+    emailValueIndex: text("email_value_index").notNull(),
+    displayName: text("display_name").notNull(),
+    formattedName: text("formatted_name").notNull(),
+    givenName: text("given_name"),
+    familyName: text("family_name"),
+    serializedEmails: text("serialized_emails").notNull(),
+    serializedAttributes: text("serialized_attributes"),
+    externalId: text("external_id"),
+    externalIdKey: text("external_id_key"),
+    active: boolean().notNull(),
+    orderKey: text("order_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_users_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_users_provisioning_domain_id_idx").using("btree", table.provisioningDomainId.asc().nullsLast()),
+    index("scim_users_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "scim_users_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_users_connection_user_key_key").on(table.connectionUserKey),
+    unique("scim_users_user_name_key_key").on(table.userNameKey),
+    unique("scim_users_external_id_key_key").on(table.externalIdKey),
+    unique("scim_users_order_key_key").on(table.orderKey),
+  ]
+);
+
+export const scimProjectionGrants = pgTable(
+  "scim_projection_grants",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    scimUserId: text("scim_user_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    sourceKind: text("source_kind").notNull(),
+    sourceId: text("source_id").notNull(),
+    sourceValue: text("source_value"),
+    role: text().notNull(),
+    grantKey: text("grant_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_projection_grants_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_projection_grants_provisioning_domain_id_idx").using(
+      "btree",
+      table.provisioningDomainId.asc().nullsLast()
+    ),
+    index("scim_projection_grants_scim_user_id_idx").using("btree", table.scimUserId.asc().nullsLast()),
+    index("scim_projection_grants_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.scimUserId],
+      foreignColumns: [scimUsers.id],
+      name: "scim_projection_grants_scim_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "scim_projection_grants_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_projection_grants_grant_key_key").on(table.grantKey),
+  ]
+);
+
+export const scimGroups = pgTable(
+  "scim_groups",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    provisioningDomainId: text("provisioning_domain_id").notNull(),
+    revision: integer().default(0).notNull(),
+    displayName: text("display_name").notNull(),
+    displayNameKey: text("display_name_key").notNull(),
+    externalId: text("external_id"),
+    externalIdKey: text("external_id_key"),
+    orderKey: text("order_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_groups_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_groups_provisioning_domain_id_idx").using("btree", table.provisioningDomainId.asc().nullsLast()),
+    unique("scim_groups_display_name_key_key").on(table.displayNameKey),
+    unique("scim_groups_external_id_key_key").on(table.externalIdKey),
+    unique("scim_groups_order_key_key").on(table.orderKey),
+  ]
+);
+
+export const scimGroupMembers = pgTable(
+  "scim_group_members",
+  {
+    id: text().primaryKey().notNull(),
+    connectionId: text("connection_id").notNull(),
+    groupId: text("group_id").notNull(),
+    scimUserId: text("scim_user_id").notNull(),
+    membershipKey: text("membership_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("scim_group_members_connection_id_idx").using("btree", table.connectionId.asc().nullsLast()),
+    index("scim_group_members_group_id_idx").using("btree", table.groupId.asc().nullsLast()),
+    index("scim_group_members_scim_user_id_idx").using("btree", table.scimUserId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.groupId],
+      foreignColumns: [scimGroups.id],
+      name: "scim_group_members_group_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.scimUserId],
+      foreignColumns: [scimUsers.id],
+      name: "scim_group_members_scim_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("scim_group_members_membership_key_key").on(table.membershipKey),
+  ]
+);
 
 export const debuggerSessions = pgTable(
   "debugger_sessions",
@@ -1539,34 +1934,6 @@ export const signalTriggers = pgTable(
   ]
 );
 
-export const chatMessages = pgTable(
-  "chat_messages",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    role: text().notNull(),
-    parts: jsonb().notNull(),
-    chatId: uuid("chat_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    // Source-surface dedup key (currently the Slack message ts). Null for live UI/CLI/MCP turns and
-    // the Slack mention echo / assistant reply; set only on backfilled Slack thread messages.
-    externalId: text("external_id"),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "chat_messages_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    // Upsert target for Slack thread backfill. Partial so live rows (external_id NULL) are exempt.
-    uniqueIndex("chat_messages_chat_external_key")
-      .on(table.chatId, table.externalId)
-      .where(sql`${table.externalId} is not null`),
-  ]
-);
-
 // Maps a Slack channel to the Laminar project an inbound @mention should route to. Set by an admin
 // in workspace integration settings; the app-server resolves it on each app_mention event.
 export const slackChannelProjects = pgTable(
@@ -1603,38 +1970,6 @@ export const slackChannelProjects = pgTable(
     // A Slack channel routes to at most one project across the whole instance, so an inbound @mention
     // never resolves to >1 binding (the app-server router relies on this).
     uniqueIndex("slack_channel_projects_channel_id_idx").on(table.channelId),
-  ]
-);
-
-export const chatSessions = pgTable(
-  "chat_sessions",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    projectId: uuid("project_id").notNull(),
-    channelType: text("channel_type").default("ui").notNull(),
-    workspaceId: uuid("workspace_id"),
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    userId: uuid("user_id"),
-    traceId: uuid("trace_id"),
-    name: text("name"),
-  },
-  (table) => [
-    uniqueIndex("chat_sessions_project_user_trace_key")
-      .using(
-        "btree",
-        table.projectId.asc().nullsLast().op("uuid_ops"),
-        table.userId.asc().nullsLast().op("uuid_ops"),
-        table.traceId.asc().nullsLast().op("uuid_ops")
-      )
-      .where(sql`(trace_id IS NOT NULL)`),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "chat_sessions_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
   ]
 );
 
@@ -1779,5 +2114,142 @@ export const traces = pgTable(
       to: ["anon", "authenticated"],
       using: sql`is_project_id_accessible_for_api_key(api_key(), project_id)`,
     }),
+  ]
+);
+
+export const agentSessions = pgTable(
+  "agent_sessions",
+  {
+    id: uuid().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    userId: uuid("user_id"),
+    source: text().default("ui").notNull(),
+    name: text(),
+    nextId: bigint("next_id", { mode: "number" }).default(2).notNull(),
+    nextSeq: bigint("next_seq", { mode: "number" }).default(1).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("agent_sessions_project_user_updated_idx").on(table.projectId, table.userId, table.updatedAt.desc()),
+    // Target of the records' (session_id, project_id) FK, so their project_id always matches the session's.
+    unique("agent_sessions_id_project_id_key").on(table.id, table.projectId),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "agent_sessions_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const agentSessionSandboxes = pgTable(
+  "agent_session_sandboxes",
+  {
+    sessionId: uuid("session_id").primaryKey().notNull(),
+    sandboxId: text("sandbox_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessions.id],
+      name: "agent_session_sandboxes_session_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+// One row per cloned repo in a session's sandbox, with that repo's PR branch progress.
+export const agentSessionSandboxRepos = pgTable(
+  "agent_session_sandbox_repos",
+  {
+    sessionId: uuid("session_id").notNull(),
+    repoId: bigint("repo_id", { mode: "number" }).notNull(),
+    repoFullName: text("repo_full_name").notNull(),
+    repoDir: text("repo_dir").notNull(),
+    baseSha: text("base_sha").notNull(),
+    baseBranch: text("base_branch"),
+    branchName: text("branch_name"),
+    branchLastPushedLocalSha: text("branch_last_pushed_local_sha"),
+    branchRemoteHeadSha: text("branch_remote_head_sha"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.repoId], name: "agent_session_sandbox_repos_pkey" }),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessionSandboxes.sessionId],
+      name: "agent_session_sandbox_repos_session_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const agentRecords = pgTable(
+  "agent_records",
+  {
+    sessionId: uuid("session_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    id: bigint({ mode: "number" }).notNull(),
+    type: text().notNull(),
+    conversationId: bigint("conversation_id", { mode: "number" }),
+    ownerConversationId: bigint("owner_conversation_id", { mode: "number" }),
+    ownerTaskId: bigint("owner_task_id", { mode: "number" }),
+    head: bigint({ mode: "number" }),
+    commitSeq: bigint("commit_seq", { mode: "number" }),
+    kind: text(),
+    status: text(),
+    abortRequested: boolean("abort_requested"),
+    background: boolean(),
+    requestId: text("request_id"),
+    hasKey: boolean("has_key"),
+    keyValue: text("key_value"),
+    scopeKind: text("scope_kind"),
+    scopeId: bigint("scope_id", { mode: "number" }),
+    createdSeq: bigint("created_seq", { mode: "number" }),
+    retiredSeq: bigint("retired_seq", { mode: "number" }),
+    record: json().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.id], name: "agent_records_pkey" }),
+    index("agent_records_entries_idx")
+      .on(table.sessionId, table.conversationId, table.id)
+      .where(sql`type = 'entry'`),
+    index("agent_records_tasks_idx").on(table.sessionId, table.status, table.id).where(sql`type = 'task'`),
+    index("agent_records_live_tasks_idx")
+      .on(table.sessionId)
+      .where(sql`type = 'task' AND status <> 'terminal'`),
+    index("agent_records_submissions_idx")
+      .on(table.sessionId, table.conversationId, table.requestId)
+      .where(sql`type = 'submission'`),
+    index("agent_records_documents_idx")
+      .on(table.sessionId, table.scopeKind, table.scopeId, table.kind, table.id)
+      .where(sql`type = 'document'`),
+    foreignKey({
+      columns: [table.sessionId, table.projectId],
+      foreignColumns: [agentSessions.id, agentSessions.projectId],
+      name: "agent_records_session_id_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const agentDocumentRevisions = pgTable(
+  "agent_document_revisions",
+  {
+    sessionId: uuid("session_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    documentId: bigint("document_id", { mode: "number" }).notNull(),
+    seq: bigint({ mode: "number" }).notNull(),
+    kind: text().notNull(),
+    version: integer().notNull(),
+    content: json().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.documentId, table.seq], name: "agent_document_revisions_pkey" }),
+    foreignKey({
+      columns: [table.sessionId, table.projectId],
+      foreignColumns: [agentSessions.id, agentSessions.projectId],
+      name: "agent_document_revisions_session_id_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );

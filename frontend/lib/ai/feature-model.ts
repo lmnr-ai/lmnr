@@ -28,7 +28,8 @@ export const getLanguageModel = async (feature: LlmFeature, projectId?: string):
   return envLanguageModel(LLM_FEATURE_ENV_TIER[feature]);
 };
 
-const resolveFeatureRoute = async (feature: LlmFeature, projectId?: string) => {
+/** The `llm_feature_routes` row that applies to `feature`, with its profile and decrypted secrets; null → env provider. */
+export const resolveFeatureRoute = async (feature: LlmFeature, projectId?: string) => {
   const scope = projectId
     ? or(
         isNull(llmFeatureRoutes.workspaceId),

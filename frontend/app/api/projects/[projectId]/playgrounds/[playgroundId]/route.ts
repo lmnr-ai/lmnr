@@ -1,23 +1,13 @@
-import { prettifyError, z } from "zod/v4";
-
 import { updatePlayground } from "@/lib/actions/playgrounds";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string; playgroundId: string }> }) {
-  try {
-    const params = await props.params;
+export const POST = handlerWithAudit<{ projectId: string; playgroundId: string }>(
+  { resource: "playground", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, playgroundId } = await ctx.params;
     const body = await req.json();
-
-    const result = await updatePlayground({
-      ...body,
-      projectId: params.projectId,
-      playgroundId: params.playgroundId,
-    });
-
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
+    const playground = await updatePlayground({ ...body, projectId, playgroundId });
+    await audit.target(playgroundId);
+    return Response.json(playground);
   }
-}
+);

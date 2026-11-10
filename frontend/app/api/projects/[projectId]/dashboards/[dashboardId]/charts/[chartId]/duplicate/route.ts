@@ -1,30 +1,16 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { duplicateChart } from "@/lib/actions/dashboard";
+import { NotFoundError } from "@/lib/api/errors";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function POST(
-  _req: NextRequest,
-  props: { params: Promise<{ projectId: string; dashboardId: string; chartId: string }> }
-): Promise<Response> {
-  const { projectId, dashboardId, chartId: id } = await props.params;
-
-  try {
+export const POST = handlerWithAudit<{ projectId: string; dashboardId: string; chartId: string }>(
+  { resource: "chart", action: "create" },
+  async (_req, ctx, audit) => {
+    const { projectId, dashboardId, chartId: id } = await ctx.params;
     const chart = await duplicateChart({ projectId, dashboardId, id });
-
-    if (!chart) {
-      return Response.json({ error: "Chart not found" }, { status: 404 });
-    }
-
+    if (!chart) throw new NotFoundError("Chart not found");
+    // The path's chartId is the source; the event records the copy.
+    audit.set({ metadata: { sourceChartId: id } });
+    await audit.target(chart.id, { name: chart.name, parent: { dashboardId } });
     return Response.json(chart);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to duplicate chart. Please try again." },
-      { status: 500 }
-    );
   }
-}
+);

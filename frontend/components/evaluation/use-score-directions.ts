@@ -5,8 +5,8 @@ import useSWR from "swr";
 
 import { useProjectContext } from "@/contexts/project-context";
 import { type ScoreDirectionDefaults } from "@/lib/actions/evaluation/score-directions";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
 
 const EMPTY: Record<string, boolean> = {};
 

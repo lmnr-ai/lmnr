@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { ApiError, NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { customModelCosts } from "@/lib/db/migrations/schema";
 
@@ -62,9 +63,9 @@ export async function getCustomModelCosts(
   return rows as CustomModelCost[];
 }
 
-export class DuplicateModelCostError extends Error {
+export class DuplicateModelCostError extends ApiError {
   constructor() {
-    super("A cost entry for this provider and model already exists");
+    super("A cost entry for this provider and model already exists", 409);
     this.name = "DuplicateModelCostError";
   }
 }
@@ -108,7 +109,7 @@ export async function upsertCustomModelCost(
       .returning();
 
     if (!row) {
-      throw new Error("Custom model cost not found");
+      throw new NotFoundError("Custom model cost not found");
     }
 
     result = row as CustomModelCost;
@@ -142,7 +143,7 @@ export async function deleteCustomModelCost(
     });
 
   if (!result || result.length === 0) {
-    throw new Error("Custom model cost not found");
+    throw new NotFoundError("Custom model cost not found");
   }
 
   await invalidateCustomModelCostsCache(projectId, result[0].provider, result[0].model);

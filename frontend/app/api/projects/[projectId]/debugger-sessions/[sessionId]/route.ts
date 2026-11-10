@@ -1,33 +1,13 @@
-import { prettifyError, ZodError } from "zod/v4";
-
 import { updateDebuggerSessionName } from "@/lib/actions/debugger-sessions";
-import { NotFoundError } from "@/lib/errors";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function PATCH(
-  req: Request,
-  props: { params: Promise<{ projectId: string; sessionId: string }> }
-): Promise<Response> {
-  const { projectId, sessionId } = await props.params;
-
-  try {
-    const body = await req.json();
-    const { name } = body;
-
+export const PATCH = handlerWithAudit<{ projectId: string; sessionId: string }>(
+  { resource: "debugger_session", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, sessionId } = await ctx.params;
+    const { name } = await req.json();
     const session = await updateDebuggerSessionName({ projectId, id: sessionId, name });
-
+    await audit.target(sessionId);
     return Response.json(session);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    if (error instanceof NotFoundError) {
-      return Response.json({ error: error.message }, { status: 404 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to rename session. Please try again." },
-      { status: 500 }
-    );
   }
-}
+);

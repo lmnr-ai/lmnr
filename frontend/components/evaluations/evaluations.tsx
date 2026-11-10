@@ -21,11 +21,12 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type ScoreRange } from "@/lib/colors";
 import { type Evaluation } from "@/lib/evaluation/types";
 import { track } from "@/lib/posthog";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { higherBetterMenuItem } from "../evaluation/columns/score-cell";

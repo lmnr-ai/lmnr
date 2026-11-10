@@ -17,7 +17,7 @@ import { getWorkspaceRole, invalidateWorkspaceMemberAccessCache } from "@/lib/au
 import { normalizeTier } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, users, workspaces } from "@/lib/db/migrations/schema";
-import { sendTrialEndingEmail } from "@/lib/emails/utils";
+import { sendTrialEndedEmail, sendTrialEndingEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import { TIER_CONFIG, TRIAL_DAYS, TRIAL_UPGRADE_PARAM } from "./types";
@@ -100,6 +100,14 @@ const getWorkspaceOwnerEmails = async (workspaceId: string): Promise<string[]> =
     .innerJoin(users, eq(users.id, membersOfWorkspaces.userId))
     .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.memberRole, "owner")));
   return owners.map((o) => o.email);
+};
+
+const getWorkspaceName = async (workspaceId: string): Promise<string> => {
+  const workspace = await db.query.workspaces.findFirst({
+    where: eq(workspaces.id, workspaceId),
+    columns: { name: true },
+  });
+  return workspace?.name ?? "Your workspace";
 };
 
 export const startStarterTrial = async (input: z.infer<typeof StartTrialSchema>): Promise<{ endsAt: string }> => {
@@ -330,6 +338,7 @@ export const handleTrialConversion = async (
 };
 
 // No-op unless this was a still-running trial (Stripe cancels card-less trials at the end).
+// Covers every trial that ends without converting, so the owners always hear about the move to Free.
 export const handleTrialDeleted = async (subscription: Stripe.Subscription) => {
   const workspaceId = subscription.metadata?.workspaceId;
   if (!workspaceId || !(await endTrial(workspaceId, "canceled"))) return;
@@ -339,6 +348,11 @@ export const handleTrialDeleted = async (subscription: Stripe.Subscription) => {
       ? "payment_failed"
       : "expired";
   captureTrialEvent(subscription, "ended", { reason });
+  await sendTrialEndedEmail({
+    to: await getWorkspaceOwnerEmails(workspaceId),
+    workspaceId,
+    workspaceName: await getWorkspaceName(workspaceId),
+  });
 };
 
 // Fires 3 days before the end, or right away when a trial is cut short. Only trials that won't
@@ -350,14 +364,10 @@ export const handleTrialWillEnd = async (subscription: Stripe.Subscription) => {
   if (trial?.subscriptionId !== subscription.id) return;
   if (!subscription.cancel_at_period_end && (await subscriptionHasPaymentMethod(subscription))) return;
 
-  const workspace = await db.query.workspaces.findFirst({
-    where: eq(workspaces.id, workspaceId),
-    columns: { name: true },
-  });
   await sendTrialEndingEmail({
     to: await getWorkspaceOwnerEmails(workspaceId),
     workspaceId,
-    workspaceName: workspace?.name ?? "Your workspace",
+    workspaceName: await getWorkspaceName(workspaceId),
     endsAt: new Date(subscription.trial_end * 1000),
   });
 };

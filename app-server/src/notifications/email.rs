@@ -63,6 +63,16 @@ fn email_document(title: &str, width: u16, body: &str) -> String {
 }
 
 fn banner(workspace: &str, title: &str, subtitle: Option<&str>) -> String {
+    banner_with_kicker(workspace, "", title, subtitle)
+}
+
+/// `kicker_html` sits above the title, e.g. the severity line of a signal event.
+fn banner_with_kicker(
+    workspace: &str,
+    kicker_html: &str,
+    title: &str,
+    subtitle: Option<&str>,
+) -> String {
     let (height, bottom) = if subtitle.is_some() {
         (200, 16)
     } else {
@@ -77,14 +87,46 @@ fn banner(workspace: &str, title: &str, subtitle: Option<&str>) -> String {
         })
         .unwrap_or_default();
     format!(
-        r#"<div style="background:#252525;background-image:linear-gradient(#252525,#252525);border-radius:8px;margin-bottom:12px"><table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">/</div></div></td><td width="8"></td><td style="font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{workspace}</div></div></td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px"><div class="gmail-blend-screen"><div class="gmail-blend-difference"><p style="margin:0 0 2px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p></div></div>{subtitle_html}</td></tr></table></div>"#,
+        r#"<div style="background:#252525;background-image:linear-gradient(#252525,#252525);border-radius:8px;margin-bottom:12px"><table width="100%" height="{height}" cellpadding="0" cellspacing="0" role="presentation" style="height:{height}px"><tr height="{half}"><td valign="top" style="padding:16px 20px 0"><table cellpadding="0" cellspacing="0" role="presentation"><tr height="15"><td width="76" height="15" style="line-height:0"><img src="cid:{cid}" alt="Laminar" width="76" height="13" style="display:block;border:0"></td><td width="8"></td><td style="padding-top:2px;font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">/</div></div></td><td width="8"></td><td style="padding-top:2px;font-size:14px;font-weight:400;color:#bfc1c7"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{workspace}</div></div></td></tr></table></td></tr><tr height="{half}"><td valign="bottom" style="padding:0 20px {bottom}px">{kicker_html}<div class="gmail-blend-screen"><div class="gmail-blend-difference"><p style="margin:0 0 2px;font-size:28px;font-weight:400;color:#fff;letter-spacing:-.56px">{title}</p></div></div>{subtitle_html}</td></tr></table></div>"#,
         height = height,
         half = height / 2,
         bottom = bottom,
         cid = LAMINAR_LOGO_CID,
         workspace = html_escape(workspace),
+        kicker_html = kicker_html,
         title = html_escape(title),
         subtitle_html = subtitle_html
+    )
+}
+
+// ── Severity icons ──
+//
+/// Lucide circle-alert / triangle-alert / info, sent as inline attachments like the logo:
+/// Gmail strips <svg> and data: images. PNGs are 3x (48px).
+pub(super) const SEVERITY_ICONS: [(&str, &[u8]); 3] = [
+    (
+        "severity-critical",
+        include_bytes!("../../data/email-icons/severity-critical.png"),
+    ),
+    (
+        "severity-warning",
+        include_bytes!("../../data/email-icons/severity-warning.png"),
+    ),
+    (
+        "severity-info",
+        include_bytes!("../../data/email-icons/severity-info.png"),
+    ),
+];
+
+fn severity_kicker(severity: u8) -> String {
+    let (color, cid) = match severity {
+        2 => ("#e25050", SEVERITY_ICONS[0].0),
+        1 => ("#e2a108", SEVERITY_ICONS[1].0),
+        _ => ("#c3c4c8", SEVERITY_ICONS[2].0),
+    };
+    format!(
+        r#"<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0"><tr><td width="16" height="19" valign="top" style="padding-top:2px;line-height:0;font-size:0"><img src="cid:{cid}" alt="" width="16" height="16" style="display:block;border:0"></td><td width="4"></td><td style="font-size:16px;font-weight:500;line-height:19px;letter-spacing:-.32px;color:{color}"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{label}</div></div></td></tr></table>"#,
+        label = severity_label(severity)
     )
 }
 
@@ -271,12 +313,20 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             formatted_limit,
             usage_item,
             one_time_credit_exhausted,
+            trialing,
         } => EmailContent {
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
-            subject: format!(
-                "Usage limit reached: {} \u{2013} {}",
-                usage_label, workspace_name
-            ),
+            subject: if *trialing {
+                format!(
+                    "You've used your Starter trial allowance \u{2013} {}",
+                    workspace_name
+                )
+            } else {
+                format!(
+                    "Usage limit reached: {} \u{2013} {}",
+                    usage_label, workspace_name
+                )
+            },
             body: EmailBody::Html(render_usage_hard_limit_email(
                 workspace_name,
                 *workspace_id,
@@ -284,6 +334,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 formatted_limit,
                 usage_label,
                 *one_time_credit_exhausted,
+                *trialing,
             )),
         },
         NotificationKind::SignalEmptyTrace {
@@ -457,9 +508,10 @@ fn render_alert_email(
     };
     let body = format!(
         "{}{}{}",
-        banner(
+        banner_with_kicker(
             project_name,
-            &format!("{} signal event", severity_label(severity)),
+            &severity_kicker(severity),
+            "Signal event",
             None
         ),
         card,
@@ -654,23 +706,56 @@ fn render_usage_hard_limit_email(
     formatted_limit: &str,
     usage_label: &str,
     one_time_credit_exhausted: bool,
+    trialing: bool,
 ) -> String {
     let (blocked, meter) = match usage_item {
         "bytes" => ("Data ingestion", "data ingested"),
         "signal_cost" | "signal_credit" => ("Signal runs", "signals cost"),
         _ => ("Usage", "usage"),
     };
+    // Trials stay capped even with a card on file, so the trial CTA points at
+    // billing, where the owner adds a card and starts the subscription.
+    let (tab, campaign, cta, footer_cta, title, limit_label) = if trialing {
+        (
+            "billing",
+            "start_subscription",
+            "Start subscription",
+            "Manage billing",
+            "Trial allowance used up",
+            "Trial allowance",
+        )
+    } else {
+        (
+            "usage",
+            "manage_limits",
+            "Manage limit",
+            "Manage usage limits",
+            "Usage limit reached",
+            "Hard limit",
+        )
+    };
     let link = with_utm(
         &format!(
-            "{}/workspace/{}?tab=usage",
+            "{}/workspace/{}?tab={}",
             frontend_url_email(),
-            workspace_id
+            workspace_id,
+            tab
         ),
         "email",
         "usage_hard_limit",
-        "manage_limits",
+        campaign,
     );
-    let copy = if one_time_credit_exhausted {
+    let copy = if trialing {
+        let allowance = if usage_item == "bytes" {
+            "data"
+        } else {
+            "Signals credit"
+        };
+        format!(
+            "Your workspace has used all {} included in the Starter trial. Add a payment method and start your Starter subscription to continue.",
+            allowance
+        )
+    } else if one_time_credit_exhausted {
         "Your workspace has used its one-time Signals credit. Upgrade to continue running Signals."
             .to_string()
     } else {
@@ -680,7 +765,7 @@ fn render_usage_hard_limit_email(
         )
     };
     let rows = vec![
-        ("Hard limit".to_string(), html_escape(formatted_limit)),
+        (limit_label.to_string(), html_escape(formatted_limit)),
         ("Usage".to_string(), html_escape(usage_label)),
         ("Status".to_string(), "Paused".to_string()),
     ];
@@ -689,17 +774,17 @@ fn render_usage_hard_limit_email(
         TEXT,
         html_escape(&copy),
         data_rows(&rows),
-        action(&link, "Manage limit")
+        action(&link, cta)
     );
-    let subtitle = format!("{} has paused", blocked);
+    let subtitle = (!trialing).then(|| format!("{} has paused", blocked));
     let body = format!(
         "{}{}{}",
-        banner(workspace_name, "Usage limit reached", Some(&subtitle)),
+        banner(workspace_name, title, subtitle.as_deref()),
         card,
         footer(
             "This notification was generated automatically by Laminar.",
             &link,
-            "Manage usage limits"
+            footer_cta
         )
     );
     email_document(
@@ -712,15 +797,8 @@ fn render_usage_hard_limit_email(
 /// Render an HTML email for a signals report notification.
 fn render_report_email(data: &ReportData) -> String {
     let base = frontend_url_email();
-    let mut signals: Vec<_> = data
-        .projects
-        .iter()
-        .flat_map(|project| project.signals.iter().map(move |signal| (project, signal)))
-        .collect();
-    signals.sort_by(|(_, a), (_, b)| b.current_count.cmp(&a.current_count));
-
     let mut cards = String::new();
-    for (project, signal) in signals {
+    for (project, signal) in data.signals_by_volume() {
         cards.push_str(&render_signal_card(project, signal, &base));
     }
     let cards = if cards.is_empty() {
@@ -769,45 +847,29 @@ fn render_signal_card(
         "signals_report",
         "view_signal",
     );
-    let mut clusters: Vec<_> = signal
-        .clusters
-        .iter()
-        .filter(|row| row.count + row.previous_count >= 5)
-        .collect();
-    clusters.sort_by(
-        |a, b| match (a.previous_count == 0, b.previous_count == 0) {
-            (true, false) => std::cmp::Ordering::Greater,
-            (false, true) => std::cmp::Ordering::Less,
-            _ => cluster_score(b)
-                .partial_cmp(&cluster_score(a))
-                .unwrap_or(std::cmp::Ordering::Equal),
-        },
-    );
-    clusters.truncate(5);
+    let clusters = signal.notable_clusters();
     let max_count = clusters
         .iter()
         .map(|row| row.count)
         .max()
         .unwrap_or(1)
         .max(1);
+    // The whole section is dropped when the signal has no clusters worth listing.
     let clusters_html = if clusters.is_empty() {
-        r#"<p style="margin:0;color:#92949c;font-size:14px">No notable clusters in this period.</p>"#.to_string()
+        String::new()
     } else {
-        clusters
+        let rows: String = clusters
             .into_iter()
             .map(|row| cluster_row(project.project_id, signal.signal_id, row, max_count, base))
-            .collect()
-    };
-    let summary = if signal.summary.is_empty() {
+            .collect();
         format!(
-            "{} events were detected during this period.",
-            signal.current_count
+            r#"<div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Clusters</p>{}</div>"#,
+            TEXT, rows
         )
-    } else {
-        signal.summary.clone()
     };
+    let summary = signal.summary_or_default();
     format!(
-        r#"<div class="email-report-card" style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:12px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div><div style="margin-top:24px"><p style="margin:0 0 12px;font-size:14px;color:{}">Notable clusters</p>{}</div></div>"#,
+        r#"<div class="email-report-card" style="background:#fff;border-radius:8px;padding:16px 20px;margin-bottom:12px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;color:{}">Events</p><table cellpadding="0" cellspacing="0"><tr><td valign="baseline" style="font-size:30px;line-height:30px;color:{};padding-right:6px">{}</td><td valign="baseline" style="white-space:nowrap">{} <span style="font-size:12px;color:#92949c">vs previous period</span></td></tr></table><div style="margin-top:12px">{}</div></div>{}</div>"#,
         breadcrumb(&[&project.project_name, &signal.signal_name], &signal_link),
         TEXT,
         html_escape(&summary),
@@ -816,15 +878,8 @@ fn render_signal_card(
         signal.current_count,
         delta(signal.current_count, signal.previous_count),
         chart(&signal.buckets),
-        TEXT,
         clusters_html
     )
-}
-
-fn cluster_score(row: &&crate::reports::ReportClusterData) -> f64 {
-    ((row.count as f64 - row.previous_count as f64)
-        / ((row.count + row.previous_count) as f64).sqrt())
-    .abs()
 }
 
 fn delta(current: u64, previous: u64) -> String {
@@ -835,13 +890,10 @@ fn delta(current: u64, previous: u64) -> String {
     if pct == 0.0 {
         return r#"<span style="font-size:14px;color:#92949c">0.0%</span>"#.to_string();
     }
-    let (glyph, color) = if pct > 0.0 {
-        ("&#9650;", "#e05252")
-    } else {
-        ("&#9660;", "#2f9e67")
-    };
+    // Neutral color: more events isn't inherently bad, since some signals fire on every trace.
+    let glyph = if pct > 0.0 { "&#9650;" } else { "&#9660;" };
     format!(
-        r#"<span style="font-size:12px;color:{color}">{glyph}</span><span style="display:inline-block;width:2px">&nbsp;</span><span style="font-size:14px;color:{color}">{:.1}%</span>"#,
+        r#"<span style="font-size:12px;color:{MUTED}">{glyph}</span><span style="display:inline-block;width:2px">&nbsp;</span><span style="font-size:14px;color:{MUTED}">{:.1}%</span>"#,
         pct.abs()
     )
 }
@@ -994,6 +1046,17 @@ mod tests {
     use std::collections::BTreeMap;
 
     #[test]
+    fn report_delta_uses_neutral_color() {
+        for (current, previous, glyph, pct) in
+            [(15, 10, "&#9650;", "50.0%"), (5, 10, "&#9660;", "50.0%")]
+        {
+            let html = delta(current, previous);
+            assert!(html.contains(&format!(r#"color:{MUTED}">{glyph}</span>"#)));
+            assert!(html.contains(&format!(r#"color:{MUTED}">{pct}</span>"#)));
+        }
+    }
+
+    #[test]
     fn cluster_color_matches_frontend_golden_vectors() {
         let vectors = [
             ("abc", 2_654_589_193, "#f2416a"),
@@ -1053,8 +1116,6 @@ mod tests {
             project_id: id(5),
             signal_event_counts: BTreeMap::new(),
             signals: vec![],
-            ai_summary: String::new(),
-            noteworthy_events: vec![],
         };
         let html = render_signal_card(&project, &signal, "https://example.com");
         assert!(html.find("existing").unwrap() < html.find("new").unwrap());
@@ -1064,6 +1125,36 @@ mod tests {
         assert!(html.contains(r#"<span style="color:#92949c">Project</span>"#));
         assert!(html.contains(r#"<span style="color:#252525">Signal</span>"#));
         assert!(html.contains(r#"<td valign="baseline" style="white-space:nowrap">"#));
+        assert!(html.contains(">Clusters</p>"));
+    }
+
+    #[test]
+    fn signal_card_without_notable_clusters_drops_the_clusters_section() {
+        let id = |n| Uuid::from_u128(n);
+        let signal = SignalReportData {
+            signal_id: id(1),
+            signal_name: "Signal".into(),
+            current_count: 3,
+            previous_count: 1,
+            summary: "Summary".into(),
+            buckets: vec![],
+            // below the 5-event threshold, so no cluster is notable
+            clusters: vec![ReportClusterData {
+                id: id(2),
+                name: "small".into(),
+                count: 2,
+                previous_count: 2,
+            }],
+        };
+        let project = ProjectReportData {
+            project_name: "Project".into(),
+            project_id: id(5),
+            signal_event_counts: BTreeMap::new(),
+            signals: vec![],
+        };
+        let html = render_signal_card(&project, &signal, "https://example.com");
+        assert!(!html.contains("Clusters"));
+        assert!(!html.contains("small"));
     }
 
     #[test]
@@ -1198,12 +1289,33 @@ mod tests {
             "3 GiB",
             "3 GiB",
             false,
+            false,
         );
 
         assert!(warning_html.contains(EMAIL_PRIMARY_50));
         assert!(warning_html.contains("View usage"));
         assert!(hard_limit_html.contains(EMAIL_PRIMARY_50));
         assert!(hard_limit_html.contains("Manage limit"));
+    }
+
+    #[test]
+    fn trial_hard_limit_asks_to_start_subscription() {
+        let html = render_usage_hard_limit_email(
+            "Workspace",
+            Uuid::nil(),
+            "bytes",
+            "10 GiB",
+            "10 GiB",
+            false,
+            true,
+        );
+
+        assert!(html.contains("Trial allowance used up"));
+        assert!(!html.contains("has paused"));
+        assert!(html.contains("included in the Starter trial"));
+        assert!(html.contains("Start subscription"));
+        assert!(html.contains("tab=billing"));
+        assert!(!html.contains("billing cycle resets"));
     }
 
     #[test]
@@ -1215,12 +1327,40 @@ mod tests {
             "$5.00",
             "$5.00",
             true,
+            false,
         );
 
         assert!(html.contains("Signal runs has paused"));
         assert!(html.contains("used its one-time Signals credit"));
         assert!(html.contains("Upgrade to continue"));
         assert!(!html.contains("billing cycle resets"));
+    }
+
+    #[test]
+    fn signal_event_banner_shows_severity_kicker() {
+        for (severity, label, color, cid) in [
+            (2, "Critical", "#e25050", "severity-critical"),
+            (1, "Warning", "#e2a108", "severity-warning"),
+            (0, "Info", "#c3c4c8", "severity-info"),
+        ] {
+            let html = render_alert_email(
+                "Failure Detector",
+                "acme-production",
+                &serde_json::json!({}),
+                &Uuid::nil(),
+                &Uuid::nil(),
+                &Uuid::nil(),
+                severity,
+                "Alert",
+                None,
+            );
+            assert!(html.contains(&format!(
+                "color:{color}\"><div class=\"gmail-blend-screen\"><div class=\"gmail-blend-difference\">{label}</div>"
+            )));
+            assert!(html.contains(">Signal event</p>"));
+            assert!(html.contains(&format!("src=\"cid:{cid}\"")));
+            assert!(!html.contains("<svg"));
+        }
     }
 
     #[test]
@@ -1339,8 +1479,6 @@ mod tests {
                 project_id: id(project_id),
                 signal_event_counts: BTreeMap::new(),
                 signals,
-                ai_summary: String::new(),
-                noteworthy_events: vec![],
             };
         let report = ReportData {
             workspace_id: Uuid::nil(),

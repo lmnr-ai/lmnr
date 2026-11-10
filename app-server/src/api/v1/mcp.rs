@@ -14,14 +14,17 @@ use rmcp::{
     tool, tool_handler, tool_router,
     transport::OneshotTransport,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
     access_policy::{self, AccessPolicy, Actor},
+    audit::{
+        self, AuditAction, AuditActor, AuditEventInput, AuditOutcome, AuditResource, AuditSource,
+    },
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
-    llm::LlmClient,
+    mq::MessageQueue,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
@@ -49,7 +52,17 @@ pub struct QuerySqlParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GetTraceContextParams {
-    /// The trace ID to retrieve (UUID format, e.g., '123e4567-e89b-12d3-a456-426614174000')
+    /// The trace ID to retrieve: 32 hex digits, either as a hyphenated GUID (e.g.,
+    /// '123e4567-e89b-12d3-a456-426614174000') or unhyphenated as in OpenTelemetry
+    /// (e.g., '123e4567e89b12d3a456426614174000')
+    // Not advertised as `format: uuid`: zod maps that to the RFC-strict `z.uuid()`, which rejects
+    // valid OTel trace ids. The pattern mirrors the two forms OTel/Laminar emit; `Uuid` parses both.
+    #[schemars(
+        with = "String",
+        regex(
+            pattern = r"^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})$"
+        )
+    )]
     pub trace_id: Uuid,
 }
 
@@ -130,8 +143,7 @@ pub struct LaminarMcpServer {
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    llm_client: Option<Arc<LlmClient>>,
+    queue: Arc<MessageQueue>,
 }
 
 #[tool_router]
@@ -143,7 +155,7 @@ impl LaminarMcpServer {
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
         cache: Arc<Cache>,
-        llm_client: Option<Arc<LlmClient>>,
+        queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
             tool_router: Self::tool_router_with_descriptions(),
@@ -153,7 +165,7 @@ impl LaminarMcpServer {
             http_client,
             db,
             cache,
-            llm_client,
+            queue,
         }
     }
 
@@ -193,7 +205,8 @@ impl LaminarMcpServer {
             McpError::internal_error("ClickHouse read-only client not configured", None)
         })?;
 
-        match sql::execute_sql_query(
+        let query = params.query.clone();
+        let result = sql::run_sql_query(
             params.query,
             project_id,
             params.parameters,
@@ -205,10 +218,20 @@ impl LaminarMcpServer {
             self.db.clone(),
             self.cache.clone(),
         )
-        .await
-        {
-            Ok(result) => Ok(CallToolResult::success(vec![ContentBlock::text(
-                serde_json::to_string_pretty(&result).unwrap_or_default(),
+        .await;
+        let tables = result.as_ref().map(|output| output.tables.clone());
+        self.audit(
+            &context,
+            AuditResource::Sql,
+            AuditAction::Query,
+            result.is_ok(),
+            None,
+            Some(json!({ "query": query, "tables": tables.unwrap_or_default() })),
+        )
+        .await;
+        match result {
+            Ok(output) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                serde_json::to_string_pretty(&output.rows).unwrap_or_default(),
             )])
             .into()),
             Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(e.to_string())]).into()),
@@ -241,10 +264,19 @@ impl LaminarMcpServer {
             .ok_or_else(|| McpError::internal_error("Missing project context", None))?
             .0;
 
-        match self
+        let result = self
             .get_trace_context_for_mcp(project_id, params.trace_id)
-            .await
-        {
+            .await;
+        self.audit(
+            &context,
+            AuditResource::Trace,
+            AuditAction::View,
+            result.is_ok(),
+            Some(params.trace_id.to_string()),
+            None,
+        )
+        .await;
+        match result {
             Ok(trace_str) => {
                 Ok(CallToolResult::success(vec![ContentBlock::text(trace_str)]).into())
             }
@@ -268,10 +300,19 @@ impl LaminarMcpServer {
             .ok_or_else(|| McpError::internal_error("Missing project context", None))?
             .0;
 
-        match self
+        let result = self
             .run_agent_for_mcp(project_id, params.prompt, params.conversation_id)
-            .await
-        {
+            .await;
+        self.audit(
+            &context,
+            AuditResource::Agent,
+            AuditAction::Run,
+            result.is_ok(),
+            result.as_ref().ok().map(|(_, id)| id.to_string()),
+            None,
+        )
+        .await;
+        match result {
             Ok((answer, conversation_id)) => {
                 Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{answer}\n\n---\nconversationId: {conversation_id}\n(Pass this `conversationId` to the next `ask_agent` call to continue this conversation.)"
@@ -297,7 +338,45 @@ impl LaminarMcpServer {
         )
         .await
     }
+
+    /// Record a tool call made with the request's API key.
+    async fn audit(
+        &self,
+        context: &RequestContext<RoleServer>,
+        resource: AuditResource,
+        action: AuditAction,
+        success: bool,
+        resource_id: Option<String>,
+        metadata: Option<Value>,
+    ) {
+        let (Some(key), Some(ProjectId(project_id))) = (
+            context.extensions.get::<ProjectApiKey>(),
+            context.extensions.get::<ProjectId>(),
+        ) else {
+            return;
+        };
+        let outcome = if success {
+            AuditOutcome::Success
+        } else {
+            AuditOutcome::Error
+        };
+        let mut input = AuditEventInput::new(
+            AuditActor::api_key(key),
+            AuditSource::Mcp,
+            resource,
+            action,
+            outcome,
+        );
+        input.project_id = Some(*project_id);
+        input.resource_id = resource_id;
+        input.metadata = metadata;
+        audit::emit_detached(self.db.clone(), self.cache.clone(), self.queue.clone(), input);
+    }
 }
+
+#[cfg(feature = "signals")]
+const LICENSE_REQUIRED_MESSAGE: &str =
+    "This tool requires a Laminar enterprise license. Add a license key in Settings → License.";
 
 #[cfg(feature = "signals")]
 impl LaminarMcpServer {
@@ -311,6 +390,10 @@ impl LaminarMcpServer {
         };
         use crate::signals::private::spans::get_trace_ch_spans;
         use crate::traces::previews::PreviewExtractor;
+
+        if !crate::license::is_ee_enabled(&self.db, &self.cache).await {
+            anyhow::bail!(LICENSE_REQUIRED_MESSAGE);
+        }
 
         let spans = get_trace_ch_spans(
             self.clickhouse.clone(),
@@ -339,102 +422,59 @@ impl LaminarMcpServer {
         Ok(render(&compressed))
     }
 
-    /// Run the agent for one question, returning `(answer, conversation_id)`. An existing
-    /// `conversation_id` appends to that session; otherwise a fresh `mcp` session is minted.
+    /// Run the agent for one question, returning `(answer, conversation_id)`. The turn runs in the
+    /// frontend (`/api/internal/projects/{id}/agent/chat`), which continues `conversation_id` when it
+    /// is an MCP conversation of this project and starts a fresh one otherwise.
     async fn run_agent_for_mcp(
         &self,
         project_id: Uuid,
         prompt: String,
         conversation_id: Option<String>,
     ) -> anyhow::Result<(String, String)> {
-        use crate::agent::agent::{AgentContext, AgentSource, finalize, run_agent};
-        use crate::agent::persist;
-        use crate::agent::stream::AgentEvent;
-        use tokio::sync::mpsc;
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct AgentReply {
+            #[serde(default)]
+            answer: String,
+            #[serde(default)]
+            conversation_id: String,
+            #[serde(default)]
+            error: Option<String>,
+        }
 
-        let llm_client = self.llm_client.clone().ok_or_else(|| {
-            anyhow::anyhow!(
-                "LLM client unavailable; configure LLM_PROVIDER + credentials to use ask_agent"
-            )
-        })?;
-        let clickhouse_ro = self.clickhouse_ro.clone().ok_or_else(|| {
-            anyhow::anyhow!(
-                "Read-only ClickHouse client not configured; ask_agent needs it for query_sql"
-            )
-        })?;
+        if !crate::license::is_ee_enabled(&self.db, &self.cache).await {
+            anyhow::bail!(LICENSE_REQUIRED_MESSAGE);
+        }
 
-        let internal_project_id =
-            std::env::var(crate::env::private::agent::TRACE_CHAT_INTERNAL_PROJECT_ID)
-                .ok()
-                .and_then(|s| s.parse().ok());
-
-        // Continue the supplied conversation only if it's a user-less (MCP/shared) session; otherwise
-        // mint a fresh `mcp` key. The `userless_session_exists` guard stops a project-API caller from
-        // continuing another member's user-owned UI/CLI conversation by passing its uuid.
-        let conversation_id = match conversation_id {
-            Some(key)
-                if persist::userless_session_exists(&self.db.pool, &key, project_id).await? =>
-            {
-                key
-            }
-            _ => {
-                let key = Uuid::now_v7().to_string();
-                // MCP is project-key authed — the conversation has no owning user.
-                persist::ensure_chat_session(
-                    &self.db.pool,
-                    &key,
-                    project_id,
-                    AgentSource::Mcp.as_channel_type(),
-                    None,
-                )
-                .await?;
-                key
-            }
-        };
-
-        let ctx = AgentContext {
-            db: self.db.clone(),
-            clickhouse: self.clickhouse.clone(),
+        // MCP is project-key authed: the conversation has no owning user.
+        let response = crate::next_api::open(
+            &self.http_client,
             project_id,
-            llm_client,
-            cache: self.cache.clone(),
-            query_engine: self.query_engine.clone(),
-            clickhouse_ro,
-            http_client: self.http_client.clone(),
-            pubsub: None,
-            internal_project_id,
-            // Persist so a follow-up `ask_agent` with the same conversationId sees this turn.
-            persist: Some(conversation_id.clone()),
-            // MCP names any target entity inline in the prompt; no separate first-turn note.
-            system_note: None,
-            source: AgentSource::Mcp,
-            user_external_id: None,
-            policy: self.policy(project_id).await,
-        };
-
-        // Persistence mode: the agent loop loads prior history; send only the new user turn. `_rx` is
-        // unread (MCP is buffered, not streamed); the `message` frames `finalize` emits are no-ops.
-        let (tx, _rx) = mpsc::unbounded_channel::<AgentEvent>();
-        let run = run_agent(&ctx, &tx, prompt, conversation_id.clone())
+            None,
+            "agent/chat",
+            serde_json::json!({
+                "source": "mcp",
+                "message": prompt,
+                "conversationId": conversation_id,
+            }),
+            "application/json",
+        )
+        .await?;
+        let status = response.status();
+        let reply: AgentReply = response
+            .json()
             .await
-            .map_err(|e| anyhow::anyhow!("Agent run failed: {e:#}"))?;
-
-        // Persist the terminal assistant row so a follow-up `ask_agent` sees this turn.
-        finalize(&ctx, &tx, run.final_parts, None, false)
-            .await
-            .map_err(|e| anyhow::anyhow!("Persisting the agent reply failed: {e:#}"))?;
-
-        let final_text = run.final_text;
-        if final_text.is_empty() {
+            .map_err(|e| anyhow::anyhow!("unexpected agent response ({status}): {e}"))?;
+        if let Some(error) = reply.error {
+            anyhow::bail!("{error}");
+        }
+        if !status.is_success() {
+            anyhow::bail!("the agent responded with {status}");
+        }
+        if reply.answer.trim().is_empty() {
             anyhow::bail!("Agent finished without producing a textual answer.");
         }
-
-        // Keep the conversation off a future GC sweep. Best-effort — never fail an answered turn.
-        if let Err(e) = persist::touch_chat_session(&self.db.pool, &conversation_id).await {
-            log::warn!("Failed to touch chat session {conversation_id}: {e:#}");
-        }
-
-        Ok((final_text, conversation_id))
+        Ok((reply.answer, reply.conversation_id))
     }
 }
 
@@ -487,7 +527,7 @@ impl McpState {
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
         cache: Arc<Cache>,
-        llm_client: Option<Arc<LlmClient>>,
+        queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
             server: LaminarMcpServer::new(
@@ -497,7 +537,7 @@ impl McpState {
                 http_client,
                 db,
                 cache,
-                llm_client,
+                queue,
             ),
         }
     }
@@ -538,10 +578,9 @@ pub async fn mcp_handler(
         ClientJsonRpcMessage::Request(mut request) => {
             // Inject project_id from auth middleware into rmcp extensions
             if let Some(api_key) = req.extensions().get::<ProjectApiKey>() {
-                request
-                    .request
-                    .extensions_mut()
-                    .insert(ProjectId(api_key.project_id));
+                let extensions = request.request.extensions_mut();
+                extensions.insert(ProjectId(api_key.project_id));
+                extensions.insert(api_key.clone());
             }
 
             // Use rmcp's OneshotTransport + serve_directly (same pattern as the

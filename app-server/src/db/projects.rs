@@ -128,6 +128,8 @@ pub enum WorkspaceTierName {
     Free,
     Pro,
     Hobby,
+    // Default on self-hosted instances, id = 1
+    Unlimited,
     #[default]
     Other,
 }
@@ -138,6 +140,7 @@ impl WorkspaceTierName {
             "free" => Self::Free,
             "hobby" => Self::Hobby,
             "pro" => Self::Pro,
+            "unlimited" => Self::Unlimited,
             x => {
                 log::warn!("Unknown workspace tier name: {}", x);
                 Self::Other
@@ -160,7 +163,7 @@ impl WorkspaceTierName {
             Self::Free => Some(1024i64.pow(3)),
             Self::Hobby => Some(3 * 1024i64.pow(3)),
             Self::Pro => Some(10 * 1024i64.pow(3)),
-            Self::Other => None,
+            Self::Unlimited | Self::Other => None,
         }
     }
 
@@ -169,6 +172,7 @@ impl WorkspaceTierName {
             Self::Free => "Free",
             Self::Hobby => "Hobby",
             Self::Pro => "Pro",
+            Self::Unlimited => "Unlimited",
             Self::Other => "your",
         }
     }
@@ -294,44 +298,6 @@ pub async fn get_projects_for_workspace(
             .bind(workspace_id)
             .fetch_all(pool)
             .await?;
-
-    Ok(projects)
-}
-
-/// A project plus its owning workspace — used by the in-Slack project picker, which spans EVERY
-/// workspace a Slack team is connected to (so the binding write knows which workspace to scope to).
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-#[derive(FromRow, Debug, Clone)]
-pub struct ProjectForTeam {
-    pub id: Uuid,
-    pub name: String,
-    // Selected for the binding write (frontend interaction handler); app-server doesn't read it.
-    #[allow(dead_code)]
-    pub workspace_id: Uuid,
-}
-
-/// Every project across ALL Laminar workspaces a given Slack `team_id` is connected to. A team can be
-/// connected to many workspaces (`slack_integrations` is unique on `workspace_id`, not `team_id`), so
-/// the picker enumerates them all. Each row carries its `workspace_id` so the chosen project can be
-/// bound to the right workspace.
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub async fn get_projects_for_team(
-    pool: &PgPool,
-    team_id: &str,
-) -> anyhow::Result<Vec<ProjectForTeam>> {
-    let projects = sqlx::query_as::<_, ProjectForTeam>(
-        r#"
-        SELECT p.id, p.name, p.workspace_id
-        FROM projects p
-        JOIN slack_integrations si ON si.workspace_id = p.workspace_id
-        WHERE si.team_id = $1
-        -- lower() first: a C-collation database sorts every capital ahead of every lowercase.
-        ORDER BY lower(p.name), p.name
-        "#,
-    )
-    .bind(team_id)
-    .fetch_all(pool)
-    .await?;
 
     Ok(projects)
 }

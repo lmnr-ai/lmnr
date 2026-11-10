@@ -17,9 +17,9 @@ use super::{
     ContentHash, SharedContentBatch, content_hash, is_seen, span_group_id, storage_seen_key,
 };
 use crate::{
+    agent_versioning,
     cache::Cache,
     db::spans::Span,
-    features::{Feature, is_feature_enabled},
     traces::sp_versioning::tool_text,
     utils::{estimate_json_size, sanitize_string},
 };
@@ -134,8 +134,7 @@ pub async fn build_tool_dedup(span: &mut Span, cache: &Cache) -> Option<ToolDedu
         return None;
     }
     let tools = extract_tool_definitions(&mut span.attributes.raw_attributes)?;
-    let versioning_text =
-        is_feature_enabled(Feature::AgentVersioning).then(|| tool_text::render(&tools));
+    let versioning_text = agent_versioning::is_enabled().then(|| tool_text::render(&tools));
     let tools = Value::Array(tools);
     let hash = content_hash(&tools);
     let key = storage_seen_key(span.project_id, &span_group_id(span), &hash);

@@ -16,6 +16,8 @@ export type SettingsSection =
   | "billing"
   | "workspace-general"
   | "llm-profiles"
+  | "license"
+  | "audit-log"
   | "general"
   | "project-api-keys"
   | "model-costs"

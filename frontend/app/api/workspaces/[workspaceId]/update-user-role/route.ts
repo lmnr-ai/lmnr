@@ -1,27 +1,22 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { updateRole } from "@/lib/actions/workspace";
+import { handlerWithAudit } from "@/lib/audit";
+import { getUserEmail } from "@/lib/audit/labels";
 
-export async function PATCH(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
+export const PATCH = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "member", action: "role_update" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
     const body = await req.json();
+    if (typeof body.userId === "string") {
+      audit.set({ metadata: { role: body.role } });
+      await audit.target(body.userId, { name: await getUserEmail(body.userId) });
+    }
 
     await updateRole({
-      workspaceId: params.workspaceId,
+      workspaceId,
       ...body,
     });
 
     return Response.json({ success: true, message: "User role updated successfully" });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update role. Please try again." },
-      { status: 500 }
-    );
   }
-}
+);

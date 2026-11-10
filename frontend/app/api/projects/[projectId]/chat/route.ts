@@ -1,43 +1,23 @@
-import { NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { handleChatGeneration } from "@/lib/actions/chat";
-import { NotFoundError } from "@/lib/errors";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerNoAudit } from "@/lib/audit";
 import { parseSystemMessages } from "@/lib/playground/utils";
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
-  try {
+export const POST = handlerNoAudit(
+  "LLM generation over messages the client sends (playground); reads no stored data",
+  apiHandler<{ projectId: string }>(async (req, ctx) => {
     const body = await req.json();
-    const { projectId } = await props.params;
+    const { projectId } = await ctx.params;
 
     const convertedMessages = body.messages ? parseSystemMessages(body.messages) : [];
 
-    const params = {
+    const result = await handleChatGeneration({
       ...body,
       messages: convertedMessages,
       projectId,
-    };
-
-    const result = await handleChatGeneration({
-      ...params,
       abortSignal: req.signal,
     });
 
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    if (error instanceof NotFoundError) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
-    }
-
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Internal server error.",
-      },
-      { status: 500 }
-    );
-  }
-}
+    return Response.json(result);
+  })
+);

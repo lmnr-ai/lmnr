@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use super::ReportTriggerMessage;
 use super::report_data::{
-    NoteworthyEvent, ProjectReportData, ReportChartBucket, ReportClusterData, SignalReportData,
+    ProjectReportData, ReportChartBucket, ReportClusterData, SignalReportData,
 };
 use super::self_tracing::{SpanBuilder, SpanScope};
 use crate::ch::signal_events::{
@@ -147,8 +147,6 @@ async fn process_report_trigger(
         };
 
         let signal_ids: Vec<Uuid> = signals.iter().map(|s| s.id).collect();
-        let signal_name_map: HashMap<Uuid, String> =
-            signals.iter().map(|s| (s.id, s.name.clone())).collect();
 
         // Query ClickHouse for event counts per signal
         let counts =
@@ -213,8 +211,6 @@ async fn process_report_trigger(
         let root = SpanBuilder::root(&project_scope);
         let traced_project_scope = project_scope
             .with_parent(crate::instrumentation::spans::SpanContextCarrier::from_span(&root));
-        let mut noteworthy_event_ids = Vec::new();
-        let mut summary_context_events = Vec::new();
         let mut signal_summaries = HashMap::new();
 
         if let Some(ref client) = llm_client {
@@ -247,9 +243,8 @@ async fn process_report_trigger(
                     )
                     .await
                     {
-                        Ok((summary, event_ids)) => {
+                        Ok(summary) => {
                             signal_summaries.insert(signal.id, summary);
-                            noteworthy_event_ids.extend(event_ids);
                         }
                         Err(error) => log::warn!(
                             "[Reports Generator] Failed to generate AI summary for signal {} in project {}: {:?}",
@@ -258,7 +253,6 @@ async fn process_report_trigger(
                             error
                         ),
                     }
-                    summary_context_events.extend(events);
                 }
                 Ok::<(), HandlerError>(())
             }
@@ -271,12 +265,6 @@ async fn process_report_trigger(
                 workspace_id
             );
         }
-
-        let noteworthy_events = build_noteworthy_events(
-            &noteworthy_event_ids,
-            &summary_context_events,
-            &signal_name_map,
-        );
 
         let signals_report = signals
             .iter()
@@ -330,8 +318,6 @@ async fn process_report_trigger(
             project_id: project.id,
             signal_event_counts,
             signals: signals_report,
-            ai_summary: String::new(),
-            noteworthy_events,
         });
     }
 
@@ -363,8 +349,6 @@ async fn process_report_trigger(
             period_end: period_end_str.clone(),
             signal_event_counts: project_report.signal_event_counts,
             signals: project_report.signals,
-            ai_summary: project_report.ai_summary,
-            noteworthy_events: project_report.noteworthy_events,
         })
         .collect();
 
@@ -424,14 +408,9 @@ fn build_summary_tool() -> ProviderTool {
                     "summary": {
                         "type": "string",
                         "description": "A concise 2-4 sentence summary of this signal's events. Highlight important trends, notable spikes, and actionable insights. Do not use markdown formatting. Write in plain text only."
-                    },
-                    "event_ids": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "Array of event IDs (UUIDs from [Event ID: ...]) that are particularly interesting or worth investigating. These events will be highlighted in the email report with links to their traces. Select the most noteworthy events that the recipient should review."
                     }
                 },
-                "required": ["summary", "event_ids"]
+                "required": ["summary"]
             }),
         }],
     }
@@ -445,7 +424,7 @@ fn build_summary_context(
     events: &[&crate::ch::signal_events::SignalEventContextRow],
 ) -> String {
     let mut context = format!(
-        "Project: {project_name}\nSignal: {signal_name}\nEvent count: {event_count}\n\nRecent signal events (id, summary, payload):\n"
+        "Project: {project_name}\nSignal: {signal_name}\nEvent count: {event_count}\n\nRecent signal events (summary, payload):\n"
     );
 
     for event in events {
@@ -456,8 +435,8 @@ fn build_summary_context(
         };
 
         context.push_str(&format!(
-            "\n[Event ID: {}]\nSummary: {}\nPayload: {}\n",
-            event.id, event.summary, payload_display,
+            "\nSummary: {}\nPayload: {}\n",
+            event.summary, payload_display,
         ));
     }
 
@@ -465,7 +444,6 @@ fn build_summary_context(
 }
 
 /// Generate a per-signal AI summary using the LLM with tool calling.
-/// Returns (summary_text, noteworthy_signal_event_ids).
 async fn generate_signal_summary(
     llm_client: &LlmClient,
     project_id: Uuid,
@@ -474,7 +452,7 @@ async fn generate_signal_summary(
     event_count: u64,
     events: &[&crate::ch::signal_events::SignalEventContextRow],
     tracing_scope: &SpanScope,
-) -> anyhow::Result<(String, Vec<Uuid>)> {
+) -> anyhow::Result<String> {
     let context = build_summary_context(project_name, signal_name, event_count, events);
 
     let system_instruction = ProviderContent {
@@ -482,11 +460,9 @@ async fn generate_signal_summary(
         parts: Some(vec![ProviderPart {
             text: Some(
                 "You are an expert at analyzing observability data from LLM-powered applications. \
-                 You will be given event data for one signal. Your job is to:\n\
-                 1. Write a concise 2-4 sentence summary highlighting the most important trends, \
-                    notable spikes, and actionable insights.\n\
-                 2. Select the most interesting/noteworthy signal event IDs that are worth \
-                    investigating further.\n\n\
+                 You will be given event data for one signal. Write a concise 2-4 sentence \
+                 summary highlighting the most important trends, notable spikes, and \
+                 actionable insights.\n\n\
                  You MUST respond by calling the submit_report_summary tool. \
                  NEVER respond with plain text. Only function calls are accepted."
                     .to_string(),
@@ -500,8 +476,7 @@ async fn generate_signal_summary(
         parts: Some(vec![ProviderPart {
             text: Some(format!(
                 "Analyze the following signal events and produce a summary. \
-                 Call the submit_report_summary tool with your summary and the IDs of \
-                 noteworthy events.\n\n{context}"
+                 Call the submit_report_summary tool with your summary.\n\n{context}"
             )),
             ..Default::default()
         }]),
@@ -571,69 +546,19 @@ async fn generate_signal_summary(
                         .trim()
                         .to_string();
 
-                    let event_ids: Vec<Uuid> = args
-                        .get("event_ids")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| v.as_str())
-                                .filter_map(|s| Uuid::parse_str(s).ok())
-                                .collect()
-                        })
-                        .unwrap_or_default();
-
-                    return Ok((summary, event_ids));
+                    return Ok(summary);
                 }
             }
         }
     }
 
     // Fallback: try to extract plain text if the LLM didn't use the tool
-    let text = parts
+    Ok(parts
         .into_iter()
         .find_map(|p| p.text)
         .unwrap_or_default()
         .trim()
-        .to_string();
-
-    if text.is_empty() {
-        Ok((String::new(), Vec::new()))
-    } else {
-        Ok((text, Vec::new()))
-    }
-}
-
-/// Build NoteworthyEvent structs from the event IDs returned by the LLM.
-fn build_noteworthy_events(
-    noteworthy_ids: &[Uuid],
-    all_events: &[crate::ch::signal_events::SignalEventContextRow],
-    signal_name_map: &HashMap<Uuid, String>,
-) -> Vec<NoteworthyEvent> {
-    let mut result = Vec::new();
-
-    for id in noteworthy_ids {
-        if let Some(event) = all_events.iter().find(|e| &e.id == id) {
-            let signal_name = signal_name_map
-                .get(&event.signal_id)
-                .cloned()
-                .unwrap_or_else(|| "Unknown Signal".to_string());
-
-            let timestamp_secs = event.timestamp / 1_000_000_000;
-            let timestamp_str = chrono::DateTime::from_timestamp(timestamp_secs, 0)
-                .map(|dt| dt.format("%b %d, %Y %H:%M UTC").to_string())
-                .unwrap_or_else(|| "Unknown time".to_string());
-
-            result.push(NoteworthyEvent {
-                signal_name,
-                summary: event.summary.clone(),
-                timestamp: timestamp_str,
-                trace_id: event.trace_id.to_string(),
-                severity: event.severity,
-            });
-        }
-    }
-
-    result
+        .to_string())
 }
 
 /// Compute the report period from the schedule's weekdays and hour.

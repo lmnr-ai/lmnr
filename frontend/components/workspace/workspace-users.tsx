@@ -18,11 +18,13 @@ import TransferOwnershipDialog from "@/components/workspace/transfer-ownership-d
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 import {
+  SSO_MANAGED_MEMBERSHIP_MESSAGE,
   type WorkspaceInvitation,
   type WorkspaceRole,
   WorkspaceTier,
@@ -65,7 +67,9 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
     track("team", "page_viewed");
   }, []);
 
+  const ssoManaged = !!featureFlags[Feature.SSO_MANAGED_MEMBERSHIP];
   const canManageUsers = currentUserRole === "owner" || currentUserRole === "admin";
+  const canEditMembers = canManageUsers && !ssoManaged;
   const isFreeTier = workspace.tierName === WorkspaceTier.FREE;
 
   const isCurrentUser = useCallback((u: WorkspaceUser) => u.email === user.email, [user.email]);
@@ -113,7 +117,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
 
   const renderRoleCell = useCallback(
     (user: WorkspaceUser) => {
-      if (canManageUsers && user.role !== "owner" && !isCurrentUser(user)) {
+      if (canEditMembers && user.role !== "owner" && !isCurrentUser(user)) {
         return (
           <Select
             value={user.role}
@@ -133,11 +137,15 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
 
       return <span className="text-sm">{user.role}</span>;
     },
-    [canManageUsers, handleRoleChange, isCurrentUser, updatingRoleUserId]
+    [canEditMembers, handleRoleChange, isCurrentUser, updatingRoleUserId]
   );
 
   const renderActionCell = useCallback(
     (user: WorkspaceUser) => {
+      if (ssoManaged) {
+        return <TableCell />;
+      }
+
       if (isOwner && !isCurrentUser(user)) {
         return (
           <TableCell>
@@ -170,7 +178,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
 
       return <TableCell />;
     },
-    [currentUserRole, isCurrentUser, isOwner, openDialog]
+    [currentUserRole, isCurrentUser, isOwner, openDialog, ssoManaged]
   );
   if (isLoading) {
     return (
@@ -204,7 +212,22 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
             description={`${users.length} member${users.length > 1 ? "s" : ""} in this workspace`}
           />
           {canManageUsers &&
-            (featureFlags[Feature.SUBSCRIPTION] && isFreeTier ? (
+            (ssoManaged ? (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <Button icon="plus" variant="outline" disabled>
+                        Invite member
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="p-2">
+                    <p className="text-xs">{SSO_MANAGED_MEMBERSHIP_MESSAGE}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : featureFlags[Feature.SUBSCRIPTION] && isFreeTier ? (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -262,7 +285,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
           </Table>
         </div>
       </SettingsSection>
-      {isOwner && (
+      {isOwner && !ssoManaged && (
         <SettingsSection>
           <div className={"flex items-center justify-end"}>
             <TransferOwnershipDialog

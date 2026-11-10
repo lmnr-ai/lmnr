@@ -7,7 +7,7 @@ import useSWR from "swr";
 import Header from "@/components/ui/header";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { type AgentListItem, type AgentVersionsResult } from "@/lib/actions/agents";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import AgentVersionsList from "./agent-versions-list";
 import AgentsSidebar from "./agents-sidebar";

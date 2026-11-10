@@ -1,15 +1,10 @@
-import { type NextRequest, NextResponse } from "next/server";
-
 import { ExportSpanSchema, exportSpanToDataset } from "@/lib/actions/span";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function POST(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; spanId: string }> }
-): Promise<Response> {
-  try {
-    const params = await props.params;
-    const { projectId, spanId } = params;
-
+export const POST = handlerWithAudit<{ projectId: string; spanId: string }>(
+  { resource: "datapoint", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId, spanId } = await ctx.params;
     const body = await req.json();
 
     const result = ExportSpanSchema.safeParse({
@@ -19,24 +14,13 @@ export async function POST(
     });
 
     if (!result.success) {
-      return NextResponse.json(
-        {
-          error: "Invalid request body",
-          details: result.error.issues,
-        },
-        { status: 400 }
-      );
+      return Response.json({ error: "Invalid request body", details: result.error.issues }, { status: 400 });
     }
 
-    await exportSpanToDataset(result.data);
+    const { datapointId, traceId } = await exportSpanToDataset(result.data);
+    audit.set({ metadata: { spanId, traceId } });
+    await audit.target(datapointId, { parent: { datasetId: result.data.datasetId } });
 
-    return NextResponse.json("Span exported to dataset successfully");
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(error);
-      return NextResponse.json({ error: error.message }, { status: 404 });
-    }
-
-    return NextResponse.json({ error: "Failed to export span" }, { status: 500 });
+    return Response.json("Span exported to dataset successfully");
   }
-}
+);

@@ -855,6 +855,55 @@
       "when": 1792943286744,
       "tag": "0121_agent_releases",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1793294904859,
+      "tag": "0122_instance_license",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1793634787679,
+      "tag": "0123_agent_durable_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1793726183172,
+      "tag": "0124_scim_sso",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1793726670955,
+      "tag": "0125_jwks_alg_crv",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1793811230839,
+      "tag": "0126_agent_session_sandboxes",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1794004455783,
+      "tag": "0127_agent_definitions",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1794243512429,
+      "tag": "0128_signal_notes",
+      "breakpoints": true
     }
   ]
 }

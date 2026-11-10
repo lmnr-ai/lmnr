@@ -1,13 +1,12 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { getSharedSpanPreviews } from "@/lib/actions/shared/spans/previews.ts";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerNoAudit } from "@/lib/audit";
 
-export async function POST(req: NextRequest, props: { params: Promise<{ traceId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const { traceId } = params;
+export const POST = handlerNoAudit(
+  "anonymous public-trace views are not audited",
+  apiHandler<{ traceId: string }>(async (req, ctx) => {
+    const { traceId } = await ctx.params;
 
-  try {
     const body = await req.json();
     const { spanIds, spanTypes, startDate, endDate, inputSpanIds, promptHashes } = body;
 
@@ -21,14 +20,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ traceId:
       promptHashes,
     });
 
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate span previews." },
-      { status: 500 }
-    );
-  }
-}
+    return Response.json(result);
+  })
+);

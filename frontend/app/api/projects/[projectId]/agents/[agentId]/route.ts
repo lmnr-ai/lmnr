@@ -1,23 +1,15 @@
-import { prettifyError, ZodError } from "zod/v4";
-
 import { renameAgent } from "@/lib/actions/agents";
+import { NotFoundError } from "@/lib/api/errors";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function PATCH(req: Request, props: { params: Promise<{ projectId: string; agentId: string }> }) {
-  const { projectId, agentId } = await props.params;
-
-  try {
+export const PATCH = handlerWithAudit<{ projectId: string; agentId: string }>(
+  { resource: "agent", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, agentId } = await ctx.params;
     const body = await req.json();
     const agent = await renameAgent({ projectId, agentId, name: body?.name });
-
-    if (!agent) {
-      return Response.json({ error: "Agent not found" }, { status: 404 });
-    }
-
+    if (!agent) throw new NotFoundError("Agent not found");
+    await audit.target(agentId, { name: agent.name ?? undefined });
     return Response.json(agent);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
-}
+);

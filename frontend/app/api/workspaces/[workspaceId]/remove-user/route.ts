@@ -1,24 +1,19 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { removeUserFromWorkspace } from "@/lib/actions/workspace";
+import { handlerWithAudit } from "@/lib/audit";
+import { getUserEmail } from "@/lib/audit/labels";
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const userId = req.nextUrl.searchParams.get("id");
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "member", action: "remove" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
+    const userId = req.nextUrl.searchParams.get("id");
 
-  if (!userId) {
-    return new Response("No user id was provided", { status: 400 });
-  }
-
-  try {
-    await removeUserFromWorkspace({ workspaceId: params.workspaceId, userId });
-    return new Response("User removed successfully.", { status: 200 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return new Response(prettifyError(error), { status: 400 });
+    if (!userId) {
+      return Response.json({ error: "No user id was provided" }, { status: 400 });
     }
+    await audit.target(userId, { name: await getUserEmail(userId) });
 
-    return new Response(error instanceof Error ? error.message : "Failed to remove user", { status: 500 });
+    await removeUserFromWorkspace({ workspaceId, userId });
+    return new Response("User removed successfully.", { status: 200 });
   }
-}
+);

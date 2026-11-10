@@ -1,40 +1,27 @@
-import { NextResponse } from "next/server";
-
 import { pushDatapointsToQueue, PushDatapointsToQueueSchema } from "@/lib/actions/datapoints";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function POST(
-  req: Request,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
-): Promise<Response> {
-  const params = await props.params;
-
-  try {
+export const POST = handlerWithAudit<{ projectId: string; datasetId: string }>(
+  { resource: "labeling_queue", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, datasetId } = await ctx.params;
     const body = await req.json();
 
     const result = PushDatapointsToQueueSchema.omit({ projectId: true, datasetId: true }).safeParse(body);
     if (!result.success) {
-      return NextResponse.json({ error: "Invalid request body", details: result.error.issues }, { status: 400 });
+      return Response.json({ error: "Invalid request body", details: result.error.issues }, { status: 400 });
     }
 
     const { datapointIds, queueId } = result.data;
+    audit.set({ metadata: { datasetId, datapointIds } });
+    await audit.target(queueId);
 
-    const queueItems = await pushDatapointsToQueue({
-      datapointIds,
-      projectId: params.projectId,
-      datasetId: params.datasetId,
-      queueId,
-    });
+    const queueItems = await pushDatapointsToQueue({ datapointIds, projectId, datasetId, queueId });
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message: `Successfully pushed ${datapointIds.length} datapoints to queue`,
       queueItems,
     });
-  } catch (error) {
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+);

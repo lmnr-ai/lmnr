@@ -19,6 +19,10 @@ pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_s
 pub const HOSTED_EVALS_LAYER_CACHE_KEY: &str = "hosted_evals_layer";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
+/// `license_state` → the instance's license inputs (`license::Inputs`). Written on
+/// a miss and whenever a key is saved; expires after a minute.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const LICENSE_STATE_CACHE_KEY: &str = "license_state";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 /// `llm_profile:{workspace_id}:{profile_id}` → full profile row (encrypted secrets included).
@@ -75,12 +79,16 @@ pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
 /// `agent_versioning_lock:{project_id}:{agent_hash}`: one versioning run per
 /// agent per interval across replicas. Expires instead of being released.
 pub const AGENT_VERSIONING_LOCK_CACHE_KEY: &str = "agent_versioning_lock";
-/// `agent_versioning_known:{project_id}:{agent_hash}` claim: the consumer has
-/// created the `agents` row (`agent_versioning/registry.rs`).
-pub const AGENT_VERSIONING_KNOWN_CACHE_KEY: &str = "agent_versioning_known";
 /// `agent_versioning_release:{project_id}:{agent_hash}:{release}`: the
 /// release's decided `version_hash`, or empty while undecided (short TTL).
 pub const AGENT_VERSIONING_RELEASE_CACHE_KEY: &str = "agent_versioning_release";
+/// `agent_definitions:{project_id}`: the project's defined agents, read by
+/// ingest on every LLM span (`agent_versioning/identity.rs`). Removed by
+/// detection on every save; the 5-minute TTL is only a backstop.
+pub const AGENT_DEFINITIONS_CACHE_KEY: &str = "agent_definitions";
+/// `agent_detection_lock:{project_id}`: one detection run per project per
+/// interval across replicas. Expires instead of being released.
+pub const AGENT_DETECTION_LOCK_CACHE_KEY: &str = "agent_detection_lock";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
 pub const WORKSPACE_DEPLOYMENTS_CACHE_KEY: &str = "workspace_deployment_config";

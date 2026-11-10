@@ -1,26 +1,18 @@
-import { prettifyError, ZodError } from "zod/v4";
-
 import { inviteUserToWorkspace } from "@/lib/actions/workspace/invite";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function POST(req: Request, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
+export const POST = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "member", action: "invite" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
     const body = (await req.json()) as { email: string };
+    await audit.target(null, { name: body.email });
 
     await inviteUserToWorkspace({
-      workspaceId: params.workspaceId,
+      workspaceId,
       ...body,
     });
 
     return Response.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to send invitation. Please try again." },
-      { status: 500 }
-    );
   }
-}
+);

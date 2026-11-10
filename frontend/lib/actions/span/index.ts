@@ -5,6 +5,7 @@ import { createDatapoints } from "@/lib/actions/datapoints";
 import { pushQueueItems } from "@/lib/actions/queue";
 import { resolveSpanTokenDetails, spanTokenDetailColumns } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
+import { NotFoundError } from "@/lib/api/errors";
 import { normalizeSpanForExport } from "@/lib/spans/utils";
 import { type Span, type SpanType } from "@/lib/traces/types.ts";
 
@@ -88,7 +89,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   });
 
   if (!span) {
-    throw new Error("Span not found");
+    throw new NotFoundError("Span not found");
   }
 
   const parsedAttributes = tryParseJson(span.attributes) || {};
@@ -113,7 +114,7 @@ export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema
   const span = await getSpan({ spanId, projectId });
   const processedInput = normalizeSpanForExport(span.input);
 
-  await createDatapoints({
+  const [datapoint] = await createDatapoints({
     projectId,
     datasetId,
     datapoints: [
@@ -125,6 +126,7 @@ export async function exportSpanToDataset(input: z.infer<typeof ExportSpanSchema
     ],
     sourceSpanId: spanId,
   });
+  return { datapointId: datapoint.id, traceId: span.traceId };
 }
 
 export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSchema>) {

@@ -32,9 +32,10 @@ import {
 import { type FilterDataType } from "@/lib/actions/common/filters";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import AlertFiltersSection from "../alert-filters-section";
 import SlackChannelPicker from "../slack-channel-picker";

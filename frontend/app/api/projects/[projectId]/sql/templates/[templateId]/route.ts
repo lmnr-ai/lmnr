@@ -1,14 +1,10 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, z } from "zod/v4";
-
 import { deleteSqlTemplate, updateSqlTemplate } from "@/lib/actions/sql/templates";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function PUT(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; templateId: string }> }
-): Promise<Response> {
-  try {
-    const { projectId, templateId } = await props.params;
+export const PUT = handlerWithAudit<{ projectId: string; templateId: string }>(
+  { resource: "sql_template", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, templateId } = await ctx.params;
 
     const body = await req.json();
 
@@ -17,22 +13,17 @@ export async function PUT(
       templateId,
       ...body,
     });
+    await audit.target(templateId);
 
     return Response.json(updatedTemplate);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return Response.json({ error: prettifyError(error), details: error.issues }, { status: 400 });
-    }
-    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
-}
+);
 
-export async function DELETE(
-  _req: NextRequest,
-  props: { params: Promise<{ projectId: string; templateId: string }> }
-): Promise<Response> {
-  try {
-    const { projectId, templateId } = await props.params;
+export const DELETE = handlerWithAudit<{ projectId: string; templateId: string }>(
+  { resource: "sql_template", action: "delete" },
+  async (_req, ctx, audit) => {
+    const { projectId, templateId } = await ctx.params;
+    await audit.target(templateId);
 
     await deleteSqlTemplate({
       projectId,
@@ -40,10 +31,5 @@ export async function DELETE(
     });
 
     return Response.json({ message: "SQL template deleted successfully" });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return Response.json({ error: prettifyError(error), details: error.issues }, { status: 400 });
-    }
-    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
-}
+);

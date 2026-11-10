@@ -1,58 +1,50 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteSessions, getSessions, GetSessionsSchema } from "@/lib/actions/sessions";
 import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const GET = handlerWithAudit<{ projectId: string }>(
+  { resource: "trace", action: "list", read: true },
+  async (req, ctx, audit) => {
+    const params = await ctx.params;
+    const projectId = params.projectId;
+    // One event per table load; later pages of the same scroll add nothing.
+    if (Number(req.nextUrl.searchParams.get("pageNumber") ?? 0) > 0) {
+      audit.skip();
+    }
+    audit.set({ metadata: { view: "sessions" } });
 
-  const parseResult = parseUrlParams(req.nextUrl.searchParams, GetSessionsSchema.omit({ projectId: true }));
+    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetSessionsSchema.omit({ projectId: true }));
 
-  if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-  }
+    if (!parseResult.success) {
+      return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
 
-  const retentionError = await checkDataRetentionAccess(projectId, {
-    pastHours: parseResult.data.pastHours,
-    startDate: parseResult.data.startDate,
-  });
-  if (retentionError) {
-    return retentionError;
-  }
+    const retentionError = await checkDataRetentionAccess(projectId, {
+      pastHours: parseResult.data.pastHours,
+      startDate: parseResult.data.startDate,
+    });
+    if (retentionError) {
+      return retentionError;
+    }
 
-  try {
     const result = await getSessions({ ...parseResult.data, projectId });
     return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch sessions." },
-      { status: 500 }
-    );
   }
-}
+);
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const DELETE = handlerWithAudit<{ projectId: string }>(
+  { resource: "trace", action: "delete" },
+  async (req, ctx, audit) => {
+    const params = await ctx.params;
+    const projectId = params.projectId;
 
-  const sessionIds = req.nextUrl.searchParams.getAll("id");
+    const sessionIds = req.nextUrl.searchParams.getAll("id");
 
-  try {
+    await audit.target(sessionIds);
     await deleteSessions({ projectId, sessionIds });
     return Response.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to delete sessions." },
-      { status: 500 }
-    );
   }
-}
+);

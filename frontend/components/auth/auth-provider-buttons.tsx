@@ -8,10 +8,15 @@ import { ProviderButton } from "@/components/auth/provider-button";
 import { IconGitHub, IconGoogleMono, IconKeycloak, IconMicrosoft, IconOkta } from "@/components/ui/icons";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type AuthProvider, signInWithProvider } from "@/lib/auth-client";
+import { OKTA_NOT_PROVISIONED_ERROR } from "@/lib/auth-okta/constants";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 
 const defaultErrorMessage = `Failed to sign in. Please try again.`;
+
+const errorMessages: Record<string, string> = {
+  [OKTA_NOT_PROVISIONED_ERROR]: "Your Okta account doesn't have access to Laminar. Ask your Okta admin to assign you.",
+};
 
 interface Props {
   callbackUrl: string;
@@ -106,7 +111,9 @@ export function AuthProviderButtons({ callbackUrl, trackAction, errorPath }: Pro
           isDisabled={!!isLoading}
         />
       )}
-      {error && <span className="text-destructive-text text-xs mt-4">{defaultErrorMessage}</span>}
+      {error && (
+        <span className="text-destructive-text text-xs mt-4">{errorMessages[error] ?? defaultErrorMessage}</span>
+      )}
     </>
   );
 }

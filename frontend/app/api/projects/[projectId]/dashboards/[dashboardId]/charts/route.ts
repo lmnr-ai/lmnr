@@ -1,83 +1,28 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { createChart, getCharts, updateChartsLayout } from "@/lib/actions/dashboard";
-import { AppServerError } from "@/lib/app-server";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function GET(
-  _req: NextRequest,
-  props: { params: Promise<{ projectId: string; dashboardId: string }> }
-): Promise<Response> {
-  const { projectId, dashboardId } = await props.params;
+type Params = { projectId: string; dashboardId: string };
 
-  try {
-    const charts = await getCharts({ projectId, dashboardId });
+export const GET = apiHandler<Params>(async (_req, ctx) => {
+  const { projectId, dashboardId } = await ctx.params;
+  return Response.json(await getCharts({ projectId, dashboardId }));
+});
 
-    return Response.json(charts);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
+export const PATCH = handlerWithAudit<Params>({ resource: "chart", action: "update" }, async (req, ctx, audit) => {
+  const { projectId, dashboardId } = await ctx.params;
+  const body = await req.json();
+  await updateChartsLayout({ ...body, projectId, dashboardId });
+  const chartIds: string[] = Array.isArray(body?.updates) ? body.updates.map((u: { id: string }) => u.id) : [];
+  audit.set({ metadata: { change: "layout" } });
+  await audit.target(chartIds, { parent: { dashboardId } });
+  return Response.json({ success: true });
+});
 
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to get chart layouts. Please try again." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PATCH(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; dashboardId: string }> }
-): Promise<Response> {
-  const { projectId, dashboardId } = await props.params;
-
-  try {
-    const body = await req.json();
-
-    await updateChartsLayout({ ...body, projectId, dashboardId });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update chart layouts. Please try again." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; dashboardId: string }> }
-): Promise<Response> {
-  const { projectId, dashboardId } = await props.params;
-
-  try {
-    const body = await req.json();
-
-    const chart = await createChart({
-      ...body,
-      projectId,
-      dashboardId,
-    });
-
-    return Response.json(chart);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    if (error instanceof AppServerError) {
-      return Response.json({ error: error.message }, { status: error.status });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to create chart. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+export const POST = handlerWithAudit<Params>({ resource: "chart", action: "create" }, async (req, ctx, audit) => {
+  const { projectId, dashboardId } = await ctx.params;
+  const body = await req.json();
+  const chart = await createChart({ ...body, projectId, dashboardId });
+  await audit.target(chart.id, { name: chart.name, parent: { dashboardId } });
+  return Response.json(chart);
+});

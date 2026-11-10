@@ -1,30 +1,22 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { transferOwnership } from "@/lib/actions/workspace";
+import { handlerWithAudit } from "@/lib/audit";
+import { getUserEmail } from "@/lib/audit/labels";
 
-export async function POST(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
+export const POST = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "member", action: "transfer_ownership" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
     const body = await req.json();
+    if (typeof body.newOwnerId === "string") {
+      await audit.target(body.newOwnerId, { name: await getUserEmail(body.newOwnerId) });
+    }
 
     await transferOwnership({
-      workspaceId: params.workspaceId,
+      workspaceId,
       currentOwnerId: body.currentOwnerId,
       newOwnerId: body.newOwnerId,
     });
 
     return Response.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to transfer ownership.",
-      },
-      { status: 500 }
-    );
   }
-}
+);

@@ -1,6 +1,5 @@
 pub mod ch;
 pub mod data_plane;
-pub mod queries;
 
 use bytes::Bytes;
 use opentelemetry::{
@@ -22,7 +21,7 @@ use crate::{
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, workspaces::DeploymentMode},
-    query_engine::{QueryEngine, QueryEngineValidationResult},
+    query_engine::{QueryEngine, QueryEngineValidationResult, validator::strip_literals},
 };
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
@@ -35,8 +34,15 @@ pub struct ClickhouseReadonlyClient(clickhouse::Client);
 pub enum SqlQuerySource {
     /// Trusted internal frontend (`/api/v1/projects/{id}/sql/query`) or other internal use.
     Internal,
-    /// Public internet-facing (`/v1/sql/query`) and CLI (`/v1/cli/sql/query`).
+    /// Public internet-facing (`/v1/sql/query`), CLI (`/v1/cli/sql/query`) and MCP.
     Public,
+}
+
+/// Rows of a query, and the allowlisted tables it read, which the routes put on
+/// their `sql.query` audit events.
+pub struct SqlQueryOutput {
+    pub rows: Vec<Value>,
+    pub tables: Vec<String>,
 }
 
 #[derive(Debug, thiserror::Error, Deserialize)]
@@ -113,18 +119,41 @@ pub async fn execute_sql_query(
     db: Arc<DB>,
     cache: Arc<Cache>,
 ) -> Result<Vec<Value>, SqlQueryError> {
+    run_sql_query(
+        query,
+        project_id,
+        parameters,
+        source,
+        policy,
+        clickhouse_ro,
+        query_engine,
+        http_client,
+        db,
+        cache,
+    )
+    .await
+    .map(|output| output.rows)
+}
+
+/// [`execute_sql_query`] that also returns the tables the query read.
+pub async fn run_sql_query(
+    query: String,
+    project_id: Uuid,
+    parameters: HashMap<String, Value>,
+    source: SqlQuerySource,
+    policy: AccessPolicy,
+    clickhouse_ro: Arc<ClickhouseReadonlyClient>,
+    query_engine: Arc<QueryEngine>,
+    http_client: Arc<reqwest::Client>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+) -> Result<SqlQueryOutput, SqlQueryError> {
     let tracer = global::tracer("app-server");
 
-    // Validate query first
-    let validated_query = match validate_query(query, project_id, &policy, query_engine).await {
-        Ok(validated_query) => validated_query,
-        Err(e) => {
-            return Err(e);
-        }
-    };
+    let (validated_query, tables) =
+        validate_query(query, project_id, &policy, query_engine).await?;
 
-    // Execute query
-    let res = route_and_run_query(
+    let data = route_and_run_query(
         &db.pool,
         cache,
         clickhouse_ro,
@@ -134,14 +163,7 @@ pub async fn execute_sql_query(
         parameters,
         source,
     )
-    .await;
-
-    let data = match res {
-        Ok(data) => data,
-        Err(e) => {
-            return Err(e);
-        }
-    };
+    .await?;
 
     // Process query response
     let mut processing_span = tracer.start("process_query_response");
@@ -171,7 +193,10 @@ pub async fn execute_sql_query(
 
     processing_span.end();
 
-    Ok(data_array.clone())
+    Ok(SqlQueryOutput {
+        rows: data_array.clone(),
+        tables,
+    })
 }
 
 fn find_query_start_idx(error_message: &str) -> Option<usize> {
@@ -206,23 +231,36 @@ fn remove_query_from_error_message(error_message: &str) -> String {
     VERSION_REGEX.replace_all(&without_settings, "").to_string()
 }
 
-// Validates the query using the query engine.
+/// The `sql.query` span attribute with literals stripped: they can hold
+/// customer data, which must not reach our own traces. `None` if the query
+/// doesn't parse.
+pub fn query_span_attribute(query: &str) -> Option<KeyValue> {
+    strip_literals(query).map(|stripped| KeyValue::new("sql.query", stripped))
+}
+
+/// Validates the query using the query engine. Returns the rewritten query and
+/// the tables it reads.
 pub async fn validate_query(
     query: String,
     project_id: Uuid,
     policy: &AccessPolicy,
     query_engine: Arc<QueryEngine>,
-) -> Result<String, SqlQueryError> {
+) -> Result<(String, Vec<String>), SqlQueryError> {
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("validate_sql_query");
-    span.set_attribute(KeyValue::new("sql.query", query.clone()));
+    if let Some(attribute) = query_span_attribute(&query) {
+        span.set_attribute(attribute);
+    }
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
     span.set_attribute(KeyValue::new("sql.policy", policy.to_view_arg()));
 
     let validation_result = query_engine.validate_query(query, project_id, policy).await;
 
-    let validated_query = match validation_result {
-        Ok(QueryEngineValidationResult::Success { validated_query }) => validated_query,
+    let validated = match validation_result {
+        Ok(QueryEngineValidationResult::Success {
+            validated_query,
+            tables,
+        }) => (validated_query, tables),
         Ok(QueryEngineValidationResult::Error { error }) => {
             span.record_error(&std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -242,7 +280,7 @@ pub async fn validate_query(
     };
     span.end();
 
-    Ok(validated_query)
+    Ok(validated)
 }
 
 // Routes the query to the appropriate backend and runs it.

@@ -9,10 +9,10 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 import { type UsageBreakdown, type WorkspaceStats } from "@/lib/actions/usage/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { TIERS } from "@/lib/billing/tiers";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 import LimitsSettings from "./limits";

@@ -20,6 +20,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use api::v1::browser_sessions::{
     BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
 };
+use audit::{AUDIT_EXCHANGE, AUDIT_QUEUE, AUDIT_ROUTING_KEY, consumer::AuditEventHandler};
 use aws_config::BehaviorVersion;
 use browser_events::BrowserEventHandler;
 #[cfg(feature = "signals")]
@@ -30,16 +31,11 @@ use clustering::private::{
     handler::ClusteringHandler,
 };
 use features::{Feature, is_feature_enabled};
-use lapin::{
-    Connection, ConnectionProperties, ExchangeKind,
-    options::{ExchangeDeclareOptions, QueueDeclareOptions},
-    types::FieldTable,
-};
 use logs::{
     LOGS_EXCHANGE, LOGS_QUEUE, LOGS_ROUTING_KEY, consumer::LogsHandler,
     grpc_service::ProcessLogsService,
 };
-use mq::MessageQueue;
+use mq::{MessageQueue, rabbitmq::ResilientRabbitConnection};
 use names::NameGenerator;
 use notifications::{
     NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
@@ -59,17 +55,11 @@ use signals::private::{
     admission::SignalAdmissionHandler,
     queue::{
         SIGNALS_ADMISSION_EXCHANGE, SIGNALS_ADMISSION_QUEUE, SIGNALS_ADMISSION_RETRY_EXCHANGE,
-        SIGNALS_ADMISSION_RETRY_QUEUE, SIGNALS_ADMISSION_RETRY_ROUTING_KEY,
-        SIGNALS_ADMISSION_ROUTING_KEY, SIGNALS_ADMISSION_WAITING_EXCHANGE,
-        SIGNALS_ADMISSION_WAITING_QUEUE, SIGNALS_ADMISSION_WAITING_ROUTING_KEY,
+        SIGNALS_ADMISSION_RETRY_ROUTING_KEY, SIGNALS_ADMISSION_ROUTING_KEY,
         SIGNALS_BACKFILL_EXCHANGE, SIGNALS_BACKFILL_QUEUE, SIGNALS_BACKFILL_RETRY_EXCHANGE,
-        SIGNALS_BACKFILL_RETRY_QUEUE, SIGNALS_BACKFILL_RETRY_ROUTING_KEY,
-        SIGNALS_BACKFILL_ROUTING_KEY, SIGNALS_BACKFILL_WAITING_EXCHANGE,
-        SIGNALS_BACKFILL_WAITING_QUEUE, SIGNALS_BACKFILL_WAITING_ROUTING_KEY,
+        SIGNALS_BACKFILL_RETRY_ROUTING_KEY, SIGNALS_BACKFILL_ROUTING_KEY,
         SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_RETRY_EXCHANGE,
-        SIGNALS_REALTIME_RETRY_QUEUE, SIGNALS_REALTIME_RETRY_ROUTING_KEY,
-        SIGNALS_REALTIME_ROUTING_KEY, SIGNALS_REALTIME_WAITING_EXCHANGE,
-        SIGNALS_REALTIME_WAITING_QUEUE, SIGNALS_REALTIME_WAITING_ROUTING_KEY,
+        SIGNALS_REALTIME_RETRY_ROUTING_KEY, SIGNALS_REALTIME_ROUTING_KEY,
     },
     realtime::SignalJobRealtimeHandler,
 };
@@ -135,7 +125,9 @@ mod access_policy;
 #[cfg(feature = "signals")]
 mod agent;
 mod agent_versioning;
+mod alerts;
 mod api;
+mod audit;
 mod auth;
 mod batch_worker;
 mod browser_events;
@@ -153,10 +145,13 @@ mod features;
 mod hosted_evals;
 mod instrumentation;
 mod language_model;
+#[cfg(feature = "signals")]
+mod license;
 mod llm;
 mod logs;
 mod mq;
 mod names;
+mod next_api;
 mod notifications;
 mod opentelemetry_proto;
 mod pii_redactor;
@@ -184,7 +179,7 @@ fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
 }
 
 fn main() -> anyhow::Result<()> {
-    rustls::crypto::ring::default_provider()
+    rustls::crypto::aws_lc_rs::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
@@ -339,28 +334,32 @@ fn main() -> anyhow::Result<()> {
     let inner_db = runtime_handle.block_on(db::DB::connect_from_env())?;
     let db = Arc::new(inner_db);
 
+    #[cfg(feature = "signals")]
+    runtime_handle.block_on(license::init(&db));
+
     // === 3. Message queues ===
     let (publisher_connection, consumer_connection) =
         if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
             let rabbitmq_url = std::env::var(env::mq::URL).expect("RABBITMQ_URL must be set");
-            let auto_reconnect = env::mq::AUTO_RECONNECT.get();
-            let mut props = ConnectionProperties::default();
-            if auto_reconnect {
-                props = props.enable_auto_recover();
-            }
             runtime_handle.block_on(async {
-                let publisher_conn = Arc::new(
-                    Connection::connect(&rabbitmq_url, props.clone())
-                        .await
-                        .unwrap(),
-                );
+                // Topology is declared on the publisher connection only: it
+                // exists in every pod role, and once per reconnect is enough.
+                let publisher_conn = ResilientRabbitConnection::connect(
+                    rabbitmq_url.clone(),
+                    "publisher",
+                    Some(mq::rabbitmq::declare_topology),
+                )
+                .await
+                .unwrap();
 
                 // Only create consumer connection if consumer mode is enabled
                 let consumer_conn = if enable_consumer() {
                     log::info!("Consumer mode enabled - creating consumer connection");
-                    Some(Arc::new(
-                        Connection::connect(&rabbitmq_url, props).await.unwrap(),
-                    ))
+                    Some(
+                        ResilientRabbitConnection::connect(rabbitmq_url, "consumer", None)
+                            .await
+                            .unwrap(),
+                    )
                 } else {
                     log::info!("Producer-only mode - skipping consumer connection");
                     None
@@ -373,772 +372,16 @@ fn main() -> anyhow::Result<()> {
         };
 
     let queue: Arc<MessageQueue> = if let Some(publisher_conn) = publisher_connection.as_ref() {
-        runtime_handle.block_on(async {
-            let channel = publisher_conn.create_channel().await.unwrap();
+        let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
-            // Create quorum queue arguments (reused for all queues)
-            let mut quorum_queue_args = FieldTable::default();
-            quorum_queue_args.insert(
-                "x-queue-type".into(),
-                lapin::types::AMQPValue::LongString("quorum".into()),
-            );
+        log::info!("RabbitMQ channels: {}", max_channel_pool_size);
 
-            // Register queues
-            // ==== 3.1 Spans message queue ====
-            channel
-                .exchange_declare(
-                    OBSERVATIONS_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    OBSERVATIONS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.1a Spans data plane message queue ====
-            channel
-                .exchange_declare(
-                    SPANS_DATA_PLANE_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    SPANS_DATA_PLANE_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.1b Spans indexer message queue ====
-            channel
-                .exchange_declare(
-                    SPANS_INDEXER_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    SPANS_INDEXER_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.2 Browser events message queue ====
-            channel
-                .exchange_declare(
-                    BROWSER_SESSIONS_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    BROWSER_SESSIONS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.5b Input extraction message queue ====
-            channel
-                .exchange_declare(
-                    INPUT_EXTRACTION_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    INPUT_EXTRACTION_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.5c User-task regex agent queue ====
-            // Separate from the extraction queue: an agent run takes minutes
-            // while a per-trace extraction takes seconds. Failures drop and the
-            // cohort accumulator's retry interval spaces the next attempt, so
-            // there is no delay/retry topology.
-            channel
-                .exchange_declare(
-                    USER_TASK_REGEX_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    USER_TASK_REGEX_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.6 Notifications message queue ====
-            channel
-                .exchange_declare(
-                    NOTIFICATIONS_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    NOTIFICATIONS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.6b Notification Deliveries message queue ====
-            channel
-                .exchange_declare(
-                    NOTIFICATION_DELIVERIES_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    NOTIFICATION_DELIVERIES_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.7 Event Clustering message queue ====
-            #[cfg(feature = "signals")]
-            {
-                channel
-                    .exchange_declare(
-                        EVENT_CLUSTERING_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        EVENT_CLUSTERING_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-
-                // ==== 3.7b Event Clustering Batch message queue ====
-                channel
-                    .exchange_declare(
-                        EVENT_CLUSTERING_BATCH_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        EVENT_CLUSTERING_BATCH_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-            }
-
-            // ==== 3.8 Signals agent message queues (realtime + backfill) ====
-            #[cfg(feature = "signals")]
-            {
-                // The agent's two lanes, declared identically: realtime for
-                // trigger runs, backfill for job runs, so a large backfill
-                // scales on its own workers and never queues realtime traffic
-                // behind it.
-                for (
-                    exchange,
-                    queue,
-                    routing_key,
-                    waiting_exchange,
-                    waiting_queue,
-                    waiting_routing_key,
-                    retry_exchange,
-                    retry_queue,
-                    retry_routing_key,
-                ) in [
-                    (
-                        SIGNALS_REALTIME_EXCHANGE,
-                        SIGNALS_REALTIME_QUEUE,
-                        SIGNALS_REALTIME_ROUTING_KEY,
-                        SIGNALS_REALTIME_WAITING_EXCHANGE,
-                        SIGNALS_REALTIME_WAITING_QUEUE,
-                        SIGNALS_REALTIME_WAITING_ROUTING_KEY,
-                        SIGNALS_REALTIME_RETRY_EXCHANGE,
-                        SIGNALS_REALTIME_RETRY_QUEUE,
-                        SIGNALS_REALTIME_RETRY_ROUTING_KEY,
-                    ),
-                    (
-                        SIGNALS_BACKFILL_EXCHANGE,
-                        SIGNALS_BACKFILL_QUEUE,
-                        SIGNALS_BACKFILL_ROUTING_KEY,
-                        SIGNALS_BACKFILL_WAITING_EXCHANGE,
-                        SIGNALS_BACKFILL_WAITING_QUEUE,
-                        SIGNALS_BACKFILL_WAITING_ROUTING_KEY,
-                        SIGNALS_BACKFILL_RETRY_EXCHANGE,
-                        SIGNALS_BACKFILL_RETRY_QUEUE,
-                        SIGNALS_BACKFILL_RETRY_ROUTING_KEY,
-                    ),
-                ] {
-                    channel
-                        .exchange_declare(
-                            exchange.into(),
-                            ExchangeKind::Fanout,
-                            ExchangeDeclareOptions {
-                                durable: true,
-                                ..Default::default()
-                            },
-                            FieldTable::default(),
-                        )
-                        .await
-                        .unwrap();
-
-                    channel
-                        .queue_declare(
-                            queue.into(),
-                            QueueDeclareOptions {
-                                durable: true,
-                                ..Default::default()
-                            },
-                            quorum_queue_args.clone(),
-                        )
-                        .await
-                        .unwrap();
-
-                    // Parking lot for runs waiting on a sibling to warm the
-                    // trace's prefix cache. No consumer — messages expire via
-                    // their per-message TTL and dead-letter back into the lane's
-                    // exchange. (The lane's queue itself is bound to that
-                    // exchange by `get_receiver` when a consumer subscribes.)
-                    channel
-                        .exchange_declare(
-                            waiting_exchange.into(),
-                            ExchangeKind::Fanout,
-                            ExchangeDeclareOptions {
-                                durable: true,
-                                ..Default::default()
-                            },
-                            FieldTable::default(),
-                        )
-                        .await
-                        .unwrap();
-
-                    let mut waiting_args = quorum_queue_args.clone();
-                    waiting_args.insert(
-                        "x-dead-letter-exchange".into(),
-                        lapin::types::AMQPValue::LongString(exchange.into()),
-                    );
-
-                    channel
-                        .queue_declare(
-                            waiting_queue.into(),
-                            QueueDeclareOptions {
-                                durable: true,
-                                ..Default::default()
-                            },
-                            waiting_args,
-                        )
-                        .await
-                        .unwrap();
-
-                    channel
-                        .queue_bind(
-                            waiting_queue.into(),
-                            waiting_exchange.into(),
-                            waiting_routing_key.into(),
-                            lapin::options::QueueBindOptions::default(),
-                            FieldTable::default(),
-                        )
-                        .await
-                        .unwrap();
-
-                    // Holding pen for transiently-failed steps. Same shape as
-                    // the waiting queue above — no consumer, messages
-                    // dead-letter back into the lane's exchange once their TTL
-                    // expires — but separate so the retry delay and the park
-                    // delay stay independent knobs.
-                    channel
-                        .exchange_declare(
-                            retry_exchange.into(),
-                            ExchangeKind::Fanout,
-                            ExchangeDeclareOptions {
-                                durable: true,
-                                ..Default::default()
-                            },
-                            FieldTable::default(),
-                        )
-                        .await
-                        .unwrap();
-
-                    let mut retry_args = quorum_queue_args.clone();
-                    retry_args.insert(
-                        "x-dead-letter-exchange".into(),
-                        lapin::types::AMQPValue::LongString(exchange.into()),
-                    );
-                    // The target is a fanout exchange, which ignores routing
-                    // keys — set explicitly so the return path doesn't silently
-                    // depend on that if the exchange kind ever changes.
-                    retry_args.insert(
-                        "x-dead-letter-routing-key".into(),
-                        lapin::types::AMQPValue::LongString(routing_key.into()),
-                    );
-
-                    channel
-                        .queue_declare(
-                            retry_queue.into(),
-                            QueueDeclareOptions {
-                                durable: true,
-                                ..Default::default()
-                            },
-                            retry_args,
-                        )
-                        .await
-                        .unwrap();
-
-                    channel
-                        .queue_bind(
-                            retry_queue.into(),
-                            retry_exchange.into(),
-                            retry_routing_key.into(),
-                            lapin::options::QueueBindOptions::default(),
-                            FieldTable::default(),
-                        )
-                        .await
-                        .unwrap();
-                }
-
-                // Admission gate in front of the realtime queue: claim, settle
-                // and filter trigger-based runs, then publish the survivors on.
-                // Same three-queue shape as the agent lanes (main + park +
-                // retry), because the gate parks and retries for its own
-                // reasons and must not push that churn onto the agent's queue.
-                channel
-                    .exchange_declare(
-                        SIGNALS_ADMISSION_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        SIGNALS_ADMISSION_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-
-                // Parking lot for runs waiting on their trace to settle. No
-                // consumer — messages expire via their per-message TTL and
-                // dead-letter back into the admission exchange. (The admission
-                // queue itself is bound to that exchange by `get_receiver` when
-                // a consumer subscribes.)
-                channel
-                    .exchange_declare(
-                        SIGNALS_ADMISSION_WAITING_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                let mut admission_waiting_args = quorum_queue_args.clone();
-                admission_waiting_args.insert(
-                    "x-dead-letter-exchange".into(),
-                    lapin::types::AMQPValue::LongString(SIGNALS_ADMISSION_EXCHANGE.into()),
-                );
-
-                channel
-                    .queue_declare(
-                        SIGNALS_ADMISSION_WAITING_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        admission_waiting_args,
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_bind(
-                        SIGNALS_ADMISSION_WAITING_QUEUE.into(),
-                        SIGNALS_ADMISSION_WAITING_EXCHANGE.into(),
-                        SIGNALS_ADMISSION_WAITING_ROUTING_KEY.into(),
-                        lapin::options::QueueBindOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                // Holding pen for transiently-failed admission checks.
-                channel
-                    .exchange_declare(
-                        SIGNALS_ADMISSION_RETRY_EXCHANGE.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                let mut admission_retry_args = quorum_queue_args.clone();
-                admission_retry_args.insert(
-                    "x-dead-letter-exchange".into(),
-                    lapin::types::AMQPValue::LongString(SIGNALS_ADMISSION_EXCHANGE.into()),
-                );
-                // The target is a fanout exchange, which ignores routing keys —
-                // set explicitly so the return path doesn't silently depend on
-                // that if the exchange kind ever changes.
-                admission_retry_args.insert(
-                    "x-dead-letter-routing-key".into(),
-                    lapin::types::AMQPValue::LongString(SIGNALS_ADMISSION_ROUTING_KEY.into()),
-                );
-
-                channel
-                    .queue_declare(
-                        SIGNALS_ADMISSION_RETRY_QUEUE.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        admission_retry_args,
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_bind(
-                        SIGNALS_ADMISSION_RETRY_QUEUE.into(),
-                        SIGNALS_ADMISSION_RETRY_EXCHANGE.into(),
-                        SIGNALS_ADMISSION_RETRY_ROUTING_KEY.into(),
-                        lapin::options::QueueBindOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-            }
-
-            // ==== 3.11 Logs message queue ====
-            channel
-                .exchange_declare(
-                    LOGS_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    LOGS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.12 Reports message queue ====
-            channel
-                .exchange_declare(
-                    REPORT_TRIGGERS_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    REPORT_TRIGGERS_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.14 Static prompt message queue ====
-            channel
-                .exchange_declare(
-                    STATIC_PROMPT_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    STATIC_PROMPT_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.15 Versioning queues (one set per VersionKind) ====
-            for kind in VersionKind::ALL {
-                let queues = kind.queues();
-                channel
-                    .exchange_declare(
-                        queues.exchange.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_declare(
-                        queues.queue.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        quorum_queue_args.clone(),
-                    )
-                    .await
-                    .unwrap();
-
-                // Delay queue for messages that can't resolve yet. No consumer
-                // — messages expire via their per-message TTL and dead-letter
-                // back into the kind's exchange for a re-check.
-                channel
-                    .exchange_declare(
-                        queues.delay_exchange.into(),
-                        ExchangeKind::Fanout,
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-
-                let mut delay_args = quorum_queue_args.clone();
-                delay_args.insert(
-                    "x-dead-letter-exchange".into(),
-                    lapin::types::AMQPValue::LongString(queues.exchange.into()),
-                );
-
-                channel
-                    .queue_declare(
-                        queues.delay_queue.into(),
-                        QueueDeclareOptions {
-                            durable: true,
-                            ..Default::default()
-                        },
-                        delay_args,
-                    )
-                    .await
-                    .unwrap();
-
-                channel
-                    .queue_bind(
-                        queues.delay_queue.into(),
-                        queues.delay_exchange.into(),
-                        queues.delay_routing_key.into(),
-                        lapin::options::QueueBindOptions::default(),
-                        FieldTable::default(),
-                    )
-                    .await
-                    .unwrap();
-            }
-
-            // ==== 3.16 SP regex extraction (demand-driven) queue ====
-            // Fed by consumers that hit a version regex-miss (the signals
-            // summarizer); failures drop and the next demand retries, so no
-            // delay/retry topology.
-            channel
-                .exchange_declare(
-                    SP_REGEX_EXTRACTION_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    SP_REGEX_EXTRACTION_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
-
-            log::info!("RabbitMQ channels: {}", max_channel_pool_size);
-
-            let rabbit_mq = mq::rabbit::RabbitMQ::new(
-                publisher_conn.clone(),
-                consumer_connection.clone(),
-                max_channel_pool_size,
-            );
-            Arc::new(rabbit_mq.into())
-        })
+        let rabbit_mq = mq::rabbitmq::RabbitMQ::new(
+            publisher_conn.clone(),
+            consumer_connection.clone(),
+            max_channel_pool_size,
+        );
+        Arc::new(rabbit_mq.into())
     } else {
         let queue = mq::tokio_mpsc::TokioMpscQueue::new();
         // register queues
@@ -1150,6 +393,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
+        // ==== 3.2a Audit events message queue ====
+        queue.register_queue(AUDIT_EXCHANGE, AUDIT_QUEUE);
         // ==== 3.5b Input extraction message queue ====
         queue.register_queue(INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE);
         // ==== 3.5c User-task regex agent queue ====
@@ -1542,7 +787,7 @@ fn main() -> anyhow::Result<()> {
             log::info!("Reports feature disabled - skipping reports scheduler");
         }
 
-        if is_feature_enabled(Feature::AgentVersioning) {
+        if agent_versioning::is_enabled() {
             log::info!("Agent versioning enabled - starting agent versioning job");
             let job = agent_versioning::Job {
                 db: db.clone(),
@@ -1619,7 +864,6 @@ fn main() -> anyhow::Result<()> {
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
         let pii_redactor_for_consumer = pii_redactor.clone();
-        let llm_client_for_consumer = llm_provider_client.clone();
         let worker_pool_clone = worker_pool.clone();
         let batch_worker_pool_clone = batch_worker_pool.clone();
         let stream_runtime_for_consumer = stream_runtime.clone();
@@ -1645,7 +889,6 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
                         let pii_redactor = pii_redactor_for_consumer.clone();
-                        let llm_client = llm_client_for_consumer.clone();
                         let indexer_stream_publisher =
                             indexer_stream_publisher_for_consumer.clone();
 
@@ -1662,7 +905,6 @@ fn main() -> anyhow::Result<()> {
                                 ch: ch_cloud.clone(),
                                 pubsub: pubsub.clone(),
                                 pii_redactor: pii_redactor.clone(),
-                                llm_client: llm_client.clone(),
                                 indexer_stream_publisher: indexer_stream_publisher.clone(),
                                 quickwit_indexing_enabled: quickwit_indexing_enabled_for_consumer,
                                 config: BatchingConfig {
@@ -1772,7 +1014,6 @@ fn main() -> anyhow::Result<()> {
                                     ch: ch_cloud,
                                     pubsub,
                                     pii_redactor,
-                                    llm_client: llm_client_for_consumer.clone(),
                                     indexer_stream_publisher:
                                         indexer_stream_publisher_for_consumer.clone(),
                                     quickwit_indexing_enabled:
@@ -1849,6 +1090,26 @@ fn main() -> anyhow::Result<()> {
 
                             log::info!("Stream readers started");
                         }
+                    }
+
+                    // Spawn audit event workers
+                    {
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let size = env::audit::BATCH_SIZE.get();
+                        let flush_interval =
+                            Duration::from_millis(env::audit::FLUSH_INTERVAL_MS.get());
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::AuditEvents,
+                            env::audit::NUM_WORKERS.get(),
+                            move || AuditEventHandler {
+                                clickhouse: clickhouse.clone(),
+                                config: BatchingConfig {
+                                    size,
+                                    flush_interval,
+                                },
+                            },
+                            QueueConfig::new(AUDIT_QUEUE, AUDIT_EXCHANGE, AUDIT_ROUTING_KEY),
+                        );
                     }
 
                     // Spawn browser events workers
@@ -2470,7 +1731,7 @@ fn main() -> anyhow::Result<()> {
                         Arc::new(http_client_for_http.clone()),
                         db_for_http.clone(),
                         cache_for_http.clone(),
-                        llm_provider_client_for_http.clone(),
+                        mq_for_http.clone(),
                     ));
 
                     // Shared in-process JWKS cache for the CLI user-token surface.
@@ -2545,6 +1806,7 @@ fn main() -> anyhow::Result<()> {
                                         },
                                     ),
                             )
+                            .wrap(actix_web::middleware::from_fn(audit::middleware::audit_v1))
                             .wrap(Logger::default().exclude("/health").exclude("/ready"))
                             .wrap(NormalizePath::trim())
                             .app_data(JsonConfig::default().limit(http_payload_limit))
@@ -2582,6 +1844,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::cli::sql::execute_sql_query)
                                     .service(api::v1::cli::sql::get_sql_schema),
                             )
+                            .service(web::scope("/tag").service(api::v1::cli::tag::tag_trace))
                             .service(api::v1::cli::datasets::create_dataset)
                             .service(api::v1::cli::datasets::get_datasets)
                             .service(api::v1::cli::datasets::get_datapoints)
@@ -2611,7 +1874,15 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::llm_profiles::create_llm_profile)
                             .service(api::v1::cli::llm_profiles::get_llm_profile)
                             .service(api::v1::cli::llm_profiles::update_llm_profile)
-                            .service(api::v1::cli::llm_profiles::delete_llm_profile);
+                            .service(api::v1::cli::llm_profiles::delete_llm_profile)
+                            .service(api::v1::cli::alerts::create_alert)
+                            .service(api::v1::cli::alerts::update_alert)
+                            .service(api::v1::cli::alerts::delete_alert)
+                            .service(api::v1::cli::dashboards::create_dashboard)
+                            .service(api::v1::cli::dashboards::rename_dashboard)
+                            .service(api::v1::cli::dashboards::delete_dashboard)
+                            .service(api::v1::cli::dashboards::upsert_charts)
+                            .service(api::v1::cli::dashboards::delete_charts);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -2748,29 +2019,23 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
                                     .service(routes::rollouts::update_session_name)
-                                    .service(routes::static_sp::extract_system_prompt)
-                                    .service(routes::dashboards::create_dashboard)
-                                    .service(routes::dashboards::rename_dashboard)
-                                    .service(routes::dashboards::delete_dashboard)
-                                    .service(routes::dashboards::upsert_charts)
-                                    .service(routes::dashboards::delete_chart);
+                                    .service(routes::static_sp::extract_system_prompt);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)
                                     .service(crate::signals::private::routes::test_signal)
                                     .service(crate::signals::private::routes::eval_signal)
                                     .service(crate::signals::private::routes::eval_signal_prewarm)
-                                    .service(crate::agent::routes::post_agent_chat);
+                                    .service(crate::agent::toolkit_routes::get_agent_toolkit)
+                                    .service(crate::agent::toolkit_routes::call_agent_tool);
                                 scope
                             });
-                        // Internal Slack-event receiver — the frontend verifies the Slack signature
-                        // and forwards verified events here. No HTTP auth (cluster-internal), same as
-                        // agent/chat. Signals-gated: it drives the agent.
+                        let app = app.service(audit::routes::create_audit_event);
+                        // Instance license; the Next.js route checks workspace ownership.
                         #[cfg(feature = "signals")]
-                        let app = app.service(
-                            web::scope("/api/v1/slack")
-                                .service(crate::agent::slack_events::slack_process),
-                        );
+                        let app = app
+                            .service(license::routes::get_license)
+                            .service(license::routes::put_license);
                         // Workspace-scoped internal routes; like projects/{project_id}, the
                         // Next.js route checks the caller's workspace membership.
                         let app = app.service(

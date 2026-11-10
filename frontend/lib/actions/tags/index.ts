@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { sample } from "lodash";
 import { z } from "zod/v4";
 
@@ -47,6 +48,8 @@ const CreateOrUpdateTagClassSchema = z.object({
 const CreateOrUpdateTagClassReturnSchema = z.object({
   name: z.string(),
   color: z.string(),
+  /** False when the class existed and only its color changed. */
+  created: z.boolean(),
 });
 
 export const createOrUpdateTagClass = async (
@@ -70,10 +73,12 @@ export const createOrUpdateTagClass = async (
         color: newColor,
       },
     })
-    .returning();
+    // `xmax = 0` only on a freshly inserted row.
+    .returning({ name: tagClasses.name, color: tagClasses.color, created: sql<boolean>`(xmax = 0)` });
 
   return {
     name: result[0].name,
     color: result[0].color,
+    created: result[0].created,
   };
 };

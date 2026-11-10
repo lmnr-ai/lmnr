@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getPaymentMethodPortalUrl } from "@/lib/actions/checkout";
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
+import { recordAuditEvent } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
@@ -43,5 +44,6 @@ export default async function CheckoutPortalPage(props: {
     redirect(workspaceBillingUrl);
   }
 
+  await recordAuditEvent({ resource: "subscription", action: "view", workspaceId });
   redirect(portalUrl);
 }

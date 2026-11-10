@@ -1,103 +1,78 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { getReports, optInReport, optOutReport, setEmailSubscriptions } from "@/lib/actions/reports";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
-export async function GET(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
+export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => {
+  const { workspaceId } = await ctx.params;
 
-  try {
-    const session = await getServerSession();
-    const userEmail = session?.user?.email ?? undefined;
-    const result = await getReports(workspaceId, userEmail);
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch reports." },
-      { status: 500 }
-    );
-  }
-}
+  const session = await getServerSession();
+  const userEmail = session?.user?.email ?? undefined;
+  const result = await getReports(workspaceId, userEmail);
+  return Response.json(result);
+});
 
-export async function POST(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
+// Subscribing and unsubscribing change only the caller's delivery, never the report itself.
+export const POST = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "report", action: "update" },
+  async (request, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
 
-  try {
     const session = await getServerSession();
     const email = session?.user?.email;
     if (!email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
     if (body.email && body.email !== email) {
-      return NextResponse.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
+      return Response.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
     }
     const result = await optInReport({ ...body, workspaceId, email });
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    if (result.alreadySubscribed) {
+      audit.skip();
+    } else {
+      audit.set({ metadata: { emailSubscription: "subscribed" } });
+      await audit.target(body.reportId);
     }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to opt in to report." },
-      { status: 500 }
-    );
+    return Response.json(result);
   }
-}
+);
 
-export async function PUT(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
+export const PUT = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "report", action: "update" },
+  async (request, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
 
-  try {
     const session = await getServerSession();
     const email = session?.user?.email;
     if (!email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
     const result = await setEmailSubscriptions({ workspaceId, email, subscribedReportIds: body.subscribedReportIds });
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update report subscriptions." },
-      { status: 500 }
-    );
+    audit.set({ metadata: { emailSubscription: "set" } });
+    await audit.target(body.subscribedReportIds);
+    return Response.json(result);
   }
-}
+);
 
-export async function DELETE(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
+export const DELETE = handlerWithAudit<{ workspaceId: string }>(
+  { resource: "report", action: "update" },
+  async (request, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
 
-  try {
     const session = await getServerSession();
     const email = session?.user?.email;
     if (!email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
     if (body.email && body.email !== email) {
-      return NextResponse.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
+      return Response.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
     }
+    audit.set({ metadata: { emailSubscription: "unsubscribed" } });
+    await audit.target(body.reportId);
     const result = await optOutReport({ ...body, workspaceId, email });
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to opt out of report." },
-      { status: 500 }
-    );
+    return Response.json(result);
   }
-}
+);

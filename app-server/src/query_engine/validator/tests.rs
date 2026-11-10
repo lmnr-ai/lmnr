@@ -23,7 +23,9 @@ fn contains_ws(haystack: &str, needle: &str) -> bool {
 }
 
 fn validate(query: &str) -> Result<String, String> {
-    QueryValidator::new().validate_and_secure_query(query, SAMPLE_PROJECT_ID, "{}")
+    QueryValidator::new()
+        .validate_and_secure_query(query, SAMPLE_PROJECT_ID, "{}")
+        .map(|validated| validated.query)
 }
 
 fn validate_ok(query: &str) -> String {
@@ -53,6 +55,9 @@ fn test_default_tables_registered() {
     assert!(reg.is_table_allowed("datasets"));
     assert!(reg.is_table_allowed("dashboards"));
     assert!(reg.is_table_allowed("dashboard_charts"));
+    assert!(reg.is_table_allowed("alerts"));
+    assert!(reg.is_table_allowed("alert_targets"));
+    assert!(reg.is_table_allowed("alert_filters"));
     // The PostgreSQL engine mirrors the whole schema — never allowlist it.
     assert!(!reg.is_table_allowed("pg"));
     assert!(!reg.is_table_allowed("users"));
@@ -2405,6 +2410,7 @@ fn validate_with_policy(query: &str, policy: &str) -> String {
     QueryValidator::new()
         .validate_and_secure_query(query, SAMPLE_PROJECT_ID, policy)
         .unwrap_or_else(|e| panic!("expected query to validate, got error: {e}\nquery: {query}"))
+        .query
 }
 
 #[test]
@@ -2617,4 +2623,40 @@ fn test_identifier_placeholders_are_rejected() {
             "{query}: {err}"
         );
     }
+}
+
+#[test]
+fn test_validated_query_reports_tables_read() {
+    let validated = QueryValidator::new()
+        .validate_and_secure_query(
+            "WITH t AS (SELECT id FROM traces) SELECT name FROM spans s \
+             JOIN default.spans p ON s.parent_span_id = p.span_id WHERE s.trace_id IN t",
+            SAMPLE_PROJECT_ID,
+            "{}",
+        )
+        .unwrap();
+    assert_eq!(validated.tables, vec!["spans", "traces"]);
+}
+
+#[test]
+fn test_strip_literals() {
+    let stripped = super::strip_literals(
+        "SELECT name FROM spans WHERE input LIKE '%ssn 123%' AND cost > 1.5 \
+         AND trace_id = {id:UUID} AND output IS NOT NULL LIMIT 10",
+    )
+    .unwrap();
+    assert!(!stripped.contains("ssn"), "got: {stripped}");
+    assert!(!stripped.contains("1.5"), "got: {stripped}");
+    assert!(contains_ws(&stripped, "LIKE ?"), "got: {stripped}");
+    assert!(contains_ws(&stripped, "{id: UUID}"), "got: {stripped}");
+    assert!(super::strip_literals("SELECT FROM WHERE (").is_none());
+}
+
+#[test]
+fn test_strip_literals_parses_rewritten_queries() {
+    // The executed (rewritten) SQL is what the ClickHouse span records.
+    let rewritten = validate_ok("SELECT name FROM spans WHERE input LIKE '%secret%' LIMIT 5");
+    let stripped = super::strip_literals(&rewritten).expect("rewritten query must parse");
+    assert!(!stripped.contains("secret"), "got: {stripped}");
+    assert!(!stripped.contains(SAMPLE_PROJECT_ID), "got: {stripped}");
 }

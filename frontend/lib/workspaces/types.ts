@@ -7,6 +7,14 @@ export type Project = {
 export const WORKSPACE_ROLES = ["member", "admin", "owner"] as const;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
+export const SSO_MANAGED_MEMBERSHIP_MESSAGE = "Workspace membership and roles are managed through Okta groups.";
+export const SSO_MANAGED_WORKSPACE_CREATION_MESSAGE =
+  "Workspaces are created from Okta groups. Ask your Okta admin for access.";
+export const SSO_MANAGED_WORKSPACE_NAME_MESSAGE =
+  "Workspace names are matched to Okta group names, so they can't be changed here.";
+export const SSO_MANAGED_WORKSPACE_DELETION_MESSAGE =
+  "Workspaces are managed through Okta groups, so they can't be deleted here.";
+
 export interface WorkspaceUser {
   id: string;
   name: string;

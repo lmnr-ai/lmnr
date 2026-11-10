@@ -27,6 +27,7 @@ use std::env;
 use std::str::FromStr;
 
 pub mod agent_versioning;
+pub mod audit;
 pub mod batching;
 pub mod clickhouse;
 pub mod connections;

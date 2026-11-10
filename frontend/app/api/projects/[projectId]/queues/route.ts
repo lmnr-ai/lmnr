@@ -1,68 +1,46 @@
-import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createQueue, deleteQueues, getQueues, GetQueuesSchema } from "@/lib/actions/queues";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
-
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "labeling_queue", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
     const body = await req.json();
-
-    const queue = await createQueue({
-      projectId,
-      name: body.name,
-    });
-
-    return NextResponse.json(queue);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const queue = await createQueue({ projectId, name: body.name });
+    await audit.target(queue.id, { name: queue.name });
+    return Response.json(queue);
   }
-}
+);
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
+export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
+  const { projectId } = await ctx.params;
 
-    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetQueuesSchema.omit({ projectId: true }));
+  const parseResult = parseUrlParams(req.nextUrl.searchParams, GetQueuesSchema.omit({ projectId: true }));
 
-    if (!parseResult.success) {
-      return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-    }
-
-    const queuesData = await getQueues({
-      ...parseResult.data,
-      projectId,
-    });
-
-    return NextResponse.json(queuesData);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!parseResult.success) {
+    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
-}
 
-export async function DELETE(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
+  return Response.json(await getQueues({ ...parseResult.data, projectId }));
+});
 
-    const { searchParams } = new URL(req.url);
-    const queueIds = searchParams.get("queueIds")?.split(",");
+export const DELETE = handlerWithAudit<{ projectId: string }>(
+  { resource: "labeling_queue", action: "delete" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const queueIds = req.nextUrl.searchParams.get("queueIds")?.split(",");
 
     if (!queueIds) {
-      return NextResponse.json({ error: "At least one Queue ID is required" }, { status: 400 });
+      return Response.json({ error: "At least one Queue ID is required" }, { status: 400 });
     }
 
-    await deleteQueues({
-      projectId,
-      queueIds,
-    });
+    await audit.target(queueIds);
+    await deleteQueues({ projectId, queueIds });
 
-    return NextResponse.json({ message: "Queues deleted successfully" });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return Response.json({ message: "Queues deleted successfully" });
   }
-}
+);

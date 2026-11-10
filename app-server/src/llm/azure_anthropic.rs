@@ -6,20 +6,17 @@
 //! Claude deployment — so the wire format here is Bedrock's InvokeModel body,
 //! which is the Anthropic Messages body, sent over plain HTTP.
 
-use std::convert::Infallible;
 use std::time::Duration;
 
 use serde_json::Value;
 use thiserror::Error;
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::env;
 use crate::llm::{
     LanguageModelClient, ProviderError, ProviderResult, azure,
-    bedrock::{accumulator::BedrockStreamAccumulator, build_request_body, parse_response_body},
+    bedrock::{build_request_body, parse_response_body},
     default_headers_from_env,
-    models::{ProviderRequest, ProviderResponse, ProviderStreamChunk},
-    sse::{StreamAccumulator, accumulate_sse},
+    models::{ProviderRequest, ProviderResponse},
 };
 
 /// Azure pins the Anthropic API version with a header; the `anthropic_version`
@@ -44,12 +41,6 @@ pub enum AzureAnthropicError {
     ConfigError(String),
     #[error("Azure Anthropic API error ({status_code}): {message}")]
     ApiError { status_code: u16, message: String },
-}
-
-impl From<Infallible> for AzureAnthropicError {
-    fn from(never: Infallible) -> Self {
-        match never {}
-    }
 }
 
 impl From<AzureAnthropicError> for ProviderError {
@@ -152,19 +143,11 @@ impl AzureAnthropicClient {
         &self.api_base_url
     }
 
-    fn body_for(
-        &self,
-        model: &str,
-        request: &ProviderRequest,
-        stream: bool,
-    ) -> ProviderResult<Value> {
+    fn body_for(&self, model: &str, request: &ProviderRequest) -> ProviderResult<Value> {
         let mut body = build_request_body(model, request)?;
         if let Some(obj) = body.as_object_mut() {
             obj.remove("anthropic_version");
             obj.insert("model".to_string(), Value::String(model.to_string()));
-            if stream {
-                obj.insert("stream".to_string(), Value::Bool(true));
-            }
         }
         Ok(body)
     }
@@ -208,47 +191,11 @@ impl LanguageModelClient for AzureAnthropicClient {
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
-        let body = self.body_for(model, request, false)?;
+        let body = self.body_for(model, request)?;
         let response = self.send(&body).await.map_err(ProviderError::from)?;
         let response_json: Value = response.json().await.map_err(AzureAnthropicError::from)?;
 
         Ok(parse_response_body(model, &response_json))
-    }
-
-    async fn generate_content_stream(
-        &self,
-        model: &str,
-        request: &ProviderRequest,
-        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
-    ) -> ProviderResult<ProviderResponse> {
-        let body = self.body_for(model, request, true)?;
-        let response = self.send(&body).await.map_err(ProviderError::from)?;
-
-        accumulate_sse::<AzureAnthropicStreamAccumulator, AzureAnthropicError>(
-            response.bytes_stream(),
-            model,
-            chunk_tx,
-        )
-        .await
-        .map_err(Into::into)
-    }
-}
-
-/// Azure streams the same Anthropic events Bedrock does, framed as SSE instead of
-/// an AWS event stream.
-#[derive(Default)]
-struct AzureAnthropicStreamAccumulator(BedrockStreamAccumulator);
-
-impl StreamAccumulator for AzureAnthropicStreamAccumulator {
-    type Chunk = Value;
-    type Error = Infallible;
-
-    fn ingest(&mut self, chunk: Value, tx: &UnboundedSender<ProviderStreamChunk>) {
-        self.0.ingest(&chunk, tx);
-    }
-
-    fn try_into_response(self, model: &str) -> Result<ProviderResponse, Infallible> {
-        Ok(self.0.into_response(model))
     }
 }
 
@@ -348,76 +295,6 @@ mod tests {
             "the bedrock-only body field must not reach Azure"
         );
         assert_eq!(body["messages"][0]["content"][0]["text"], "ping");
-        assert_eq!(
-            response.candidates.unwrap()[0]
-                .content
-                .as_ref()
-                .unwrap()
-                .parts
-                .as_ref()
-                .unwrap()[0]
-                .text
-                .as_deref(),
-            Some("pong")
-        );
-    }
-
-    /// Azure frames Anthropic events as SSE where Bedrock uses an AWS event
-    /// stream, so the shared accumulator has to survive the reframing.
-    #[tokio::test]
-    async fn streams_anthropic_sse_events_into_text_chunks() {
-        let sse = concat!(
-            "event: message_start\n",
-            "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":3}}}\n\n",
-            "event: content_block_start\n",
-            "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
-            "event: content_block_delta\n",
-            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"po\"}}\n\n",
-            "event: content_block_delta\n",
-            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ng\"}}\n\n",
-            "event: message_delta\n",
-            "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":2}}\n\n",
-            "event: message_stop\n",
-            "data: {\"type\":\"message_stop\"}\n\n",
-        );
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/anthropic/v1/messages"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-type", "text/event-stream")
-                    .set_body_string(sse),
-            )
-            .mount(&server)
-            .await;
-
-        let client = crate::llm::with_env_vars(
-            &[
-                (env::llm::API_KEY, "azure-test-key"),
-                (env::llm::AZURE_BASE_URL, &server.uri()),
-            ],
-            || AzureAnthropicClient::new().unwrap(),
-        );
-
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let response = client
-            .generate_content_stream("my-deployment", &text_request("ping"), &tx)
-            .await
-            .unwrap();
-        drop(tx);
-
-        let mut streamed = String::new();
-        while let Some(chunk) = rx.recv().await {
-            if let ProviderStreamChunk::Text(text) = chunk {
-                streamed.push_str(&text);
-            }
-        }
-        assert_eq!(streamed, "pong");
-
-        let body: Value = server.received_requests().await.unwrap()[0]
-            .body_json()
-            .unwrap();
-        assert_eq!(body["stream"], true);
         assert_eq!(
             response.candidates.unwrap()[0]
                 .content

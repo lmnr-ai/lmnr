@@ -1,69 +1,47 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import {
   deleteChannelProjectBinding,
   getChannelProjectBindings,
   upsertChannelProjectBinding,
 } from "@/lib/actions/slack/channel-projects";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
 // Auth: proxy.ts gates /api/workspaces/:workspaceId/* via isUserMemberOfWorkspace, so a non-member
 // never reaches these handlers — no in-handler authz needed.
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
-  try {
-    const bindings = await getChannelProjectBindings(workspaceId);
-    return NextResponse.json(bindings);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to load channel bindings." },
-      { status: 500 }
-    );
-  }
-}
+type Params = { workspaceId: string };
 
-export async function PUT(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
-  try {
+export const GET = apiHandler<Params>(async (_req, ctx) => {
+  const { workspaceId } = await ctx.params;
+  return Response.json(await getChannelProjectBindings(workspaceId));
+});
+
+export const PUT = handlerWithAudit<Params>(
+  { resource: "slack_integration", action: "update" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
     const body = await req.json();
+    await audit.target(body.channelId, { name: body.channelName });
     await upsertChannelProjectBinding({
       workspaceId,
       channelId: body.channelId,
       channelName: body.channelName,
       projectId: body.projectId,
     });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to save channel binding." },
-      { status: 500 }
-    );
+    return Response.json({ success: true });
   }
-}
+);
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await props.params;
-  const channelId = req.nextUrl.searchParams.get("channelId");
-  try {
+export const DELETE = handlerWithAudit<Params>(
+  { resource: "slack_integration", action: "update" },
+  async (req, ctx, audit) => {
+    const { workspaceId } = await ctx.params;
+    const channelId = req.nextUrl.searchParams.get("channelId");
     if (!channelId) {
-      return NextResponse.json({ error: "channelId query param is required" }, { status: 400 });
+      return Response.json({ error: "channelId query param is required" }, { status: 400 });
     }
+    await audit.target(channelId);
     await deleteChannelProjectBinding({ workspaceId, channelId });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to remove channel binding." },
-      { status: 500 }
-    );
+    return Response.json({ success: true });
   }
-}
+);

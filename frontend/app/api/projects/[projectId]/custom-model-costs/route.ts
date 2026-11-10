@@ -1,93 +1,42 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { deleteCustomModelCost, getCustomModelCosts, upsertCustomModelCost } from "@/lib/actions/custom-model-costs";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-import {
-  deleteCustomModelCost,
-  DuplicateModelCostError,
-  getCustomModelCosts,
-  upsertCustomModelCost,
-} from "@/lib/actions/custom-model-costs";
+export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
+  const { projectId } = await ctx.params;
+  return Response.json(await getCustomModelCosts({ projectId }));
+});
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-
-  try {
-    const costs = await getCustomModelCosts({
-      projectId: params.projectId,
-    });
-
-    return new Response(JSON.stringify(costs), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("Error fetching custom model costs:", error);
-    if (error instanceof ZodError) {
-      return new Response(prettifyError(error), { status: 400 });
-    }
-    if (error instanceof Error) {
-      return new Response(error.message, { status: 500 });
-    }
-    return new Response("Internal Server Error", { status: 500 });
-  }
-}
-
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-
-  try {
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "custom_model_cost", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
     const body = await req.json();
+    // The cost dialog edits through this route too, sending the row's id.
+    if (body.id) audit.set({ action: "update" });
 
     const { result } = await upsertCustomModelCost({
       id: body.id,
-      projectId: params.projectId,
+      projectId,
       provider: body.provider,
       model: body.model,
       costs: body.costs,
       previousModel: body.previousModel,
       previousProvider: body.previousProvider,
     });
+    await audit.target(result.id, { name: result.model });
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("Error upserting custom model cost:", error);
-    if (error instanceof DuplicateModelCostError) {
-      return Response.json({ error: error.message }, { status: 409 });
-    }
-    if (error instanceof ZodError) {
-      return new Response(prettifyError(error), { status: 400 });
-    }
-    if (error instanceof Error) {
-      return new Response(error.message, { status: 500 });
-    }
-    return new Response("Internal Server Error", { status: 500 });
+    return Response.json(result);
   }
-}
+);
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-
-  try {
+export const DELETE = handlerWithAudit<{ projectId: string }>(
+  { resource: "custom_model_cost", action: "delete" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
     const id = req.nextUrl.searchParams.get("id") ?? "";
-
-    await deleteCustomModelCost({
-      projectId: params.projectId,
-      id,
-    });
-
+    await audit.target(id);
+    await deleteCustomModelCost({ projectId, id });
     return new Response(null, { status: 200 });
-  } catch (error) {
-    console.error("Error deleting custom model cost:", error);
-    if (error instanceof ZodError) {
-      return new Response(prettifyError(error), { status: 400 });
-    }
-    if (error instanceof Error) {
-      const status = error.message === "Custom model cost not found" ? 404 : 500;
-      return new Response(error.message, { status });
-    }
-    return new Response("Internal Server Error", { status: 500 });
   }
-}
+);

@@ -1,31 +1,19 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { createSqlTemplate, getSqlTemplates } from "@/lib/actions/sql/templates";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const { projectId } = params;
+export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
+  const { projectId } = await ctx.params;
 
-    const result = await getSqlTemplates({ projectId });
+  const result = await getSqlTemplates({ projectId });
 
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
+  return Response.json(result);
+});
 
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to get SQL templates" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const { projectId } = await props.params;
+export const POST = handlerWithAudit<{ projectId: string }>(
+  { resource: "sql_template", action: "create" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
 
     const body = await req.json();
 
@@ -33,16 +21,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       ...body,
       projectId,
     });
+    await audit.target(template.id, { name: template.name });
 
     return Response.json(template);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to create SQL template." },
-      { status: 500 }
-    );
   }
-}
+);

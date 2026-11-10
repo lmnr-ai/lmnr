@@ -15,6 +15,7 @@ import {
 import { sendInvitationEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { BASE_PATH } from "@/lib/utils";
+import { SSO_MANAGED_MEMBERSHIP_MESSAGE } from "@/lib/workspaces/types";
 
 const InviteUserSchema = z.object({
   workspaceId: z.guid(),
@@ -72,6 +73,10 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
   const { workspaceId, email } = InviteUserSchema.parse(input);
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["admin", "owner"] });
+
+  if (isFeatureEnabled(Feature.SSO_MANAGED_MEMBERSHIP)) {
+    throw new Error(SSO_MANAGED_MEMBERSHIP_MESSAGE);
+  }
 
   if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
     return createSelfHostedInvitation(workspaceId, email);

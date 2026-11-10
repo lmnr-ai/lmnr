@@ -1,60 +1,54 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteTraces, DeleteTracesSchema, getTraces, GetTracesSchema } from "@/lib/actions/traces";
 import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const GET = handlerWithAudit<{ projectId: string }>(
+  { resource: "trace", action: "list", read: true },
+  async (req, ctx, audit) => {
+    const params = await ctx.params;
+    const projectId = params.projectId;
+    // One event per table load; later pages of the same scroll add nothing.
+    if (Number(req.nextUrl.searchParams.get("pageNumber") ?? 0) > 0) {
+      audit.skip();
+    }
+    audit.set({ metadata: { view: "traces" } });
 
-  const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTracesSchema.omit({ projectId: true }));
+    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTracesSchema.omit({ projectId: true }));
 
-  if (!parseResult.success) {
-    return Response.json({ items: [] });
-  }
+    if (!parseResult.success) {
+      return Response.json({ items: [] });
+    }
 
-  const retentionError = await checkDataRetentionAccess(projectId, {
-    pastHours: parseResult.data.pastHours,
-    startDate: parseResult.data.startDate,
-  });
-  if (retentionError) {
-    return retentionError;
-  }
+    const retentionError = await checkDataRetentionAccess(projectId, {
+      pastHours: parseResult.data.pastHours,
+      startDate: parseResult.data.startDate,
+    });
+    if (retentionError) {
+      return retentionError;
+    }
 
-  try {
     const result = await getTraces({ ...parseResult.data, projectId });
     return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
+  }
+);
+
+export const DELETE = handlerWithAudit<{ projectId: string }>(
+  { resource: "trace", action: "delete" },
+  async (req, ctx, audit) => {
+    const { projectId } = await ctx.params;
+    const traceIds = req.nextUrl.searchParams.getAll("traceId");
+
+    const parseResult = DeleteTracesSchema.safeParse({ projectId, traceIds });
+
+    if (!parseResult.success) {
+      return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
     }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch traces." },
-      { status: 500 }
-    );
-  }
-}
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const traceIds = req.nextUrl.searchParams.getAll("traceId");
-
-  const parseResult = DeleteTracesSchema.safeParse({ projectId, traceIds });
-
-  if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-  }
-
-  try {
+    await audit.target(parseResult.data.traceIds);
     await deleteTraces(parseResult.data);
     return new Response("Traces deleted successfully.", { status: 200 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return new Response(error instanceof Error ? error.message : "Error deleting traces.", { status: 500 });
   }
-}
+);

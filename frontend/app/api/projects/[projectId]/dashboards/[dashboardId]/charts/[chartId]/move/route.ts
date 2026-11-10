@@ -1,31 +1,16 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { moveChart } from "@/lib/actions/dashboard";
+import { NotFoundError } from "@/lib/api/errors";
+import { handlerWithAudit } from "@/lib/audit";
 
-export async function POST(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; dashboardId: string; chartId: string }> }
-): Promise<Response> {
-  const { projectId, dashboardId, chartId: id } = await props.params;
-
-  try {
+export const POST = handlerWithAudit<{ projectId: string; dashboardId: string; chartId: string }>(
+  { resource: "chart", action: "update" },
+  async (req, ctx, audit) => {
+    const { projectId, dashboardId, chartId: id } = await ctx.params;
     const body = await req.json();
     const chart = await moveChart({ projectId, dashboardId, id, targetDashboardId: body?.targetDashboardId });
-
-    if (!chart) {
-      return Response.json({ error: "Chart or dashboard not found" }, { status: 404 });
-    }
-
+    if (!chart) throw new NotFoundError("Chart or dashboard not found");
+    audit.set({ metadata: { fromDashboardId: dashboardId } });
+    await audit.target(id, { parent: { dashboardId: body?.targetDashboardId } });
     return Response.json(chart);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to move chart. Please try again." },
-      { status: 500 }
-    );
   }
-}
+);

@@ -8,7 +8,7 @@
 //! functions (`_v0`, or `_v1` for the views that also take an access policy).
 
 use std::any::TypeId;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::ControlFlow;
 
 use sqlparser::ast::{
@@ -713,6 +713,17 @@ impl TableRegistry {
         let evaluations_columns = ["id", "name", "group_id", "metadata", "created_at"];
         let datasets_columns = ["id", "name", "indexed_on", "created_at"];
         let dashboards_columns = ["id", "name", "created_at"];
+        let alerts_columns = ["id", "name", "type", "signal_id", "metadata", "created_at"];
+        let alert_targets_columns = [
+            "id",
+            "alert_id",
+            "type",
+            "channel_id",
+            "channel_name",
+            "email",
+            "created_at",
+        ];
+        let alert_filters_columns = ["id", "alert_id", "value", "created_at"];
         let dashboard_charts_columns = [
             "id",
             "dashboard_id",
@@ -755,6 +766,9 @@ impl TableRegistry {
         tables.insert("evaluations", schema(&evaluations_columns));
         tables.insert("datasets", schema(&datasets_columns));
         tables.insert("dashboards", schema(&dashboards_columns));
+        tables.insert("alerts", schema(&alerts_columns));
+        tables.insert("alert_targets", schema(&alert_targets_columns));
+        tables.insert("alert_filters", schema(&alert_filters_columns));
         tables.insert("dashboard_charts", schema(&dashboard_charts_columns));
 
         Self { tables }
@@ -767,6 +781,14 @@ impl TableRegistry {
     pub fn get_table_schema(&self, table_name: &str) -> Option<&TableSchema> {
         self.tables.get(table_name.to_lowercase().as_str())
     }
+}
+
+/// A query that passed validation, rewritten to its scoped views.
+#[derive(Debug, Clone)]
+pub struct ValidatedQuery {
+    pub query: String,
+    /// Allowlisted tables the query reads, sorted.
+    pub tables: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -788,15 +810,15 @@ impl QueryValidator {
     }
 
     /// Validates and secures a SQL query using virtual views. Returns the
-    /// rewritten query or an error message describing why it was rejected.
-    /// `policy` is the JSON `AccessPolicy` literal passed to every `_v1` view
-    /// (`{}` = unrestricted).
+    /// rewritten query and the tables it reads, or an error message describing
+    /// why it was rejected. `policy` is the JSON `AccessPolicy` literal passed
+    /// to every `_v1` view (`{}` = unrestricted).
     pub fn validate_and_secure_query(
         &self,
         sql_query: &str,
         project_id: &str,
         policy: &str,
-    ) -> Result<String, String> {
+    ) -> Result<ValidatedQuery, String> {
         let mut statements =
             parse_clickhouse_sql(sql_query).map_err(|e| format!("Query validation failed: {e}"))?;
 
@@ -823,7 +845,7 @@ impl QueryValidator {
         // `validate_cte_names` because it relies on that invariant.
         let array_join_operands = collect_array_join_operands(&statement, &self.registry)?;
 
-        self.validate_tables_and_columns(&statement, &array_join_operands)?;
+        let tables = self.validate_tables_and_columns(&statement, &array_join_operands)?;
 
         let cte_names = collect_cte_names(&statement);
         let mut rewriter = ViewRewriter {
@@ -849,7 +871,10 @@ impl QueryValidator {
         // unscoped SQL to ClickHouse.
         self.validate_post_rewrite(&statement, &array_join_operands)?;
 
-        Ok(statement.to_string())
+        Ok(ValidatedQuery {
+            query: statement.to_string(),
+            tables: tables.into_iter().collect(),
+        })
     }
 
     /// Reject any CTE whose name collides with an allowlisted physical table.
@@ -918,19 +943,20 @@ impl QueryValidator {
         &self,
         statement: &Statement,
         array_join_operands: &HashSet<Span>,
-    ) -> Result<(), String> {
+    ) -> Result<BTreeSet<String>, String> {
         let cte_names = collect_cte_names(statement);
         let mut checker = TableColumnChecker {
             registry: &self.registry,
             cte_names: &cte_names,
             array_join_operands,
+            tables: BTreeSet::new(),
             error: None,
         };
         let _ = statement.visit(&mut checker);
         if let Some(e) = checker.error {
             return Err(e);
         }
-        Ok(())
+        Ok(checker.tables)
     }
 }
 
@@ -1318,6 +1344,7 @@ struct TableColumnChecker<'a> {
     registry: &'a TableRegistry,
     cte_names: &'a HashSet<String>,
     array_join_operands: &'a HashSet<Span>,
+    tables: BTreeSet<String>,
     error: Option<String>,
 }
 
@@ -1346,6 +1373,7 @@ impl Visitor for TableColumnChecker<'_> {
             self.error = Some(format!("Table '{name}' is not allowed"));
             return ControlFlow::Break(());
         }
+        self.tables.insert(table);
         ControlFlow::Continue(())
     }
 
@@ -2086,6 +2114,36 @@ fn strip_settings(statement: &mut Statement) {
         }
     }
     let _ = VisitMut::visit(statement, &mut SettingsStripper);
+}
+
+/// The query with every string and number literal replaced by `?`, for
+/// logging SQL whose literals may hold customer data. `None` when the query
+/// doesn't parse, so the caller can drop it rather than log it raw.
+pub fn strip_literals(sql_query: &str) -> Option<String> {
+    struct LiteralStripper;
+    impl VisitorMut for LiteralStripper {
+        type Break = ();
+        fn pre_visit_value(&mut self, value: &mut ValueWithSpan) -> ControlFlow<()> {
+            if !matches!(
+                value.value,
+                Value::Null | Value::Boolean(_) | Value::Placeholder(_)
+            ) {
+                value.value = Value::Placeholder("?".to_string());
+            }
+            ControlFlow::Continue(())
+        }
+    }
+    let mut statements = parse_clickhouse_sql(sql_query).ok()?;
+    for statement in &mut statements {
+        let _ = VisitMut::visit(statement, &mut LiteralStripper);
+    }
+    Some(
+        statements
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("; "),
+    )
 }
 
 #[cfg(test)]

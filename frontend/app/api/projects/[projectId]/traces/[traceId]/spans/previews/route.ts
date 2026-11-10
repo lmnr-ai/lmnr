@@ -1,16 +1,13 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { getSpanPreviews } from "@/lib/actions/spans/previews";
+import { apiHandler } from "@/lib/api/api-handler";
+import { handlerNoAudit } from "@/lib/audit";
 
-export async function POST(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; traceId: string }> }
-): Promise<Response> {
-  const params = await props.params;
-  const { projectId, traceId } = params;
+export const POST = handlerNoAudit(
+  "trace view sub-request; the trace route records trace.view",
+  apiHandler<{ projectId: string; traceId: string }>(async (req, ctx) => {
+    const params = await ctx.params;
+    const { projectId, traceId } = params;
 
-  try {
     const body = await req.json();
     const { spanIds, spanTypes, startDate, endDate, inputSpanIds, promptHashes } = body;
 
@@ -25,14 +22,6 @@ export async function POST(
       promptHashes,
     });
 
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate span previews." },
-      { status: 500 }
-    );
-  }
-}
+    return Response.json(result);
+  })
+);
