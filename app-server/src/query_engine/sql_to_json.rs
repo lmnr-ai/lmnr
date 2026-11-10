@@ -166,6 +166,7 @@ fn parse_select_expressions(
 
 /// The builder groups by exactly its dimensions (plus `time`), so any other GROUP BY
 /// key, or a dimension outside an explicit GROUP BY, would change the regenerated query.
+/// `GROUP BY ALL` is rejected: with no explicit keys, computed dimensions parse as metrics.
 fn check_grouping(
     select: &Select,
     grouped_columns: &HashSet<String>,
@@ -173,7 +174,7 @@ fn check_grouping(
     has_time_bucket: bool,
 ) -> Result<(), String> {
     if matches!(select.group_by, GroupByExpr::All(_)) {
-        return Ok(());
+        return Err("GROUP BY ALL is not supported".to_string());
     }
     let is_represented =
         |key: &str| (has_time_bucket && key == "time") || dimensions.iter().any(|d| d == key);

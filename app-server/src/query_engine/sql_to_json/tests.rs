@@ -275,6 +275,8 @@ fn test_rejects_unrepresentable_projection_and_grouping() {
         // Bare column without GROUP BY would gain one on regeneration.
         "SELECT user_id FROM traces LIMIT 10",
         "SELECT * FROM traces",
+        // No explicit keys, so the computed dimension would parse as a raw metric.
+        "SELECT if(empty(user_id), 'x', user_id) AS user_id, count(*) AS value FROM traces GROUP BY ALL",
     ] {
         assert!(
             convert_sql_to_json(sql).is_err(),
