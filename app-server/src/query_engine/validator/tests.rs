@@ -127,7 +127,7 @@ fn test_validate_basic_traces_select() {
         contains_ws(
             &result,
             &format!(
-                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS traces"
+                "FROM traces_v2(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', with_signal_events = 0, min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS traces"
             )
         ),
         "got: {result}"
@@ -792,7 +792,7 @@ fn test_join_with_allowed_tables() {
         contains_ws(
             &result,
             &format!(
-                "JOIN traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+                "JOIN traces_v2(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', with_signal_events = 0, min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
             )
         ),
         "got: {result}"
@@ -919,7 +919,7 @@ fn test_traces_time_range_query() {
         contains_ws(
             &result,
             &format!(
-                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+                "traces_v2(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', with_signal_events = 0, min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
             )
         ),
         "got: {result}"
@@ -942,7 +942,7 @@ fn test_traces_time_range_query_between() {
         contains_ws(
             &result,
             &format!(
-                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+                "traces_v2(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', with_signal_events = 0, min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
             )
         ),
         "got: {result}"
@@ -958,6 +958,7 @@ fn test_multiple_tables_in_join() {
         LEFT JOIN signal_events se ON s.span_id = se.span_id
         "#;
     let result = validate_ok(query);
+    // Naming the `signal_events` table also turns the traces join on (over-match).
     assert!(
         contains_ws(
             &result,
@@ -969,7 +970,7 @@ fn test_multiple_tables_in_join() {
         contains_ws(
             &result,
             &format!(
-                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+                "traces_v2(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', with_signal_events = 1, min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
             )
         ),
         "got: {result}"
@@ -1082,6 +1083,7 @@ FROM trace_pivot
 LEFT JOIN spans_pivot USING (user_id)
 "#;
     let result = validate_ok(query);
+    // The outer `SELECT *` could expand to `signal_events`, so the join is on.
 
     // The traces CTE's WHERE (`start_time >= .. AND start_time < ..`) is pushed
     // into the view bounds, padded ±3h; the `<` upper bound has no bucket so it's
@@ -1090,7 +1092,7 @@ LEFT JOIN spans_pivot USING (user_id)
         contains_ws(
             &result,
             &format!(
-                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64(toDateTime('2025-08-06 00:00:00'), 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64(toDateTime('2025-08-09 00:00:00'), 9) + INTERVAL 3 HOUR) AS traces"
+                "FROM traces_v2(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', with_signal_events = 1, min_start_time = toDateTime64(toDateTime('2025-08-06 00:00:00'), 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64(toDateTime('2025-08-09 00:00:00'), 9) + INTERVAL 3 HOUR) AS traces"
             )
         ),
         "got: {result}"
@@ -1925,17 +1927,17 @@ fn test_backtick_quoted_identifiers_still_parse() {
 }
 
 // ----------------------------------------------------------------------------
-// traces_v1 start_time bound extraction (LAM-1876)
+// traces_v2 start_time bound extraction (LAM-1876)
 // ----------------------------------------------------------------------------
 
 /// Extract the `min_start_time = ..., max_start_time = ...` fragment of the
-/// first `traces_v1(...)` call in the rewritten SQL, whitespace-normalized.
+/// first `traces_v2(...)` call in the rewritten SQL, whitespace-normalized.
 fn traces_bounds(query: &str) -> String {
     let sql = validate_ok(query);
     let n = norm(&sql);
-    let start = n.find("traces_v1(").expect("no traces_v1 in output");
+    let start = n.find("traces_v2(").expect("no traces_v2 in output");
     // Find the matching close paren for the view-arg list.
-    let after = &n[start + "traces_v1(".len()..];
+    let after = &n[start + "traces_v2(".len()..];
     let mut depth = 1usize;
     let mut end = 0usize;
     for (i, c) in after.char_indices() {
@@ -2438,7 +2440,7 @@ fn test_policy_reaches_every_spans_and_traces_reference() {
         contains_ws(
             &result,
             &format!(
-                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{\"maskPii\":true}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+                "traces_v2(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{\"maskPii\":true}}', with_signal_events = 0, min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
             )
         ),
         "got: {result}"
@@ -2659,4 +2661,49 @@ fn test_strip_literals_parses_rewritten_queries() {
     let stripped = super::strip_literals(&rewritten).expect("rewritten query must parse");
     assert!(!stripped.contains("secret"), "got: {stripped}");
     assert!(!stripped.contains(SAMPLE_PROJECT_ID), "got: {stripped}");
+}
+
+// ----------------------------------------------------------------------------
+// traces_v2 `with_signal_events` gate (LAM-2522)
+// ----------------------------------------------------------------------------
+
+fn with_signal_events_arg(query: &str) -> String {
+    let n = norm(&validate_ok(query));
+    let start = n
+        .find("with_signal_events = ")
+        .unwrap_or_else(|| panic!("no with_signal_events arg in: {n}"))
+        + "with_signal_events = ".len();
+    n[start..start + 1].to_string()
+}
+
+#[test]
+fn test_with_signal_events_off_when_column_unused() {
+    for query in [
+        "SELECT id, total_cost FROM traces WHERE start_time > now() - INTERVAL 1 DAY",
+        "SELECT count(*) FROM traces",
+        "SELECT total_cost * 1000 AS millicents FROM traces ORDER BY start_time DESC LIMIT 10",
+        "SELECT t.id, s.name FROM traces t JOIN spans s ON s.trace_id = t.id",
+        "SELECT c.name, count() FROM traces ARRAY JOIN clusters AS c GROUP BY c.name",
+    ] {
+        assert_eq!(with_signal_events_arg(query), "0", "query: {query}");
+    }
+}
+
+#[test]
+fn test_with_signal_events_on_when_column_can_be_read() {
+    for query in [
+        "SELECT e.payload FROM traces ARRAY JOIN signal_events AS e WHERE id = '00000000-0000-0000-0000-000000000001'",
+        "SELECT length(traces.signal_events) FROM traces",
+        "SELECT id FROM traces WHERE notEmpty(SIGNAL_EVENTS)",
+        "SELECT \"signal_events\" FROM traces",
+        "SELECT * FROM traces",
+        "SELECT t.* FROM traces t",
+        "SELECT tuple(*) FROM traces",
+        "SELECT COLUMNS('signal') FROM traces",
+        "WITH recent AS (SELECT * FROM traces WHERE start_time > now() - INTERVAL 1 DAY) SELECT id FROM recent",
+        // A mention of the `signal_events` table over-matches, which only costs the join.
+        "SELECT t.id FROM traces t JOIN signal_events e ON e.trace_id = t.id",
+    ] {
+        assert_eq!(with_signal_events_arg(query), "1", "query: {query}");
+    }
 }
