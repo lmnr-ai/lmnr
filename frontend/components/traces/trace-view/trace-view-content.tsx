@@ -1,4 +1,4 @@
-import { get, isNil } from "lodash";
+import { get } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import { useQueryState } from "nuqs";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,11 +19,13 @@ import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
 import { useTracePanelNavigate } from "./trace-panel-url";
-import { type TraceViewPanels } from "./trace-view-panels";
+import { type TraceViewLayout, type TraceViewPanels } from "./trace-view-panels";
 
 // The span tab holding a search hit, so selecting a hit lands on it.
 const snippetTabOf = (span?: TraceViewSpan): SpanViewTab | undefined =>
   span?.inputSnippet || span?.outputSnippet ? "content" : span?.attributesSnippet ? "attributes" : undefined;
+
+const FILL: TraceViewLayout = { type: "fill" };
 
 export interface TraceViewContentProps {
   traceId: string;
@@ -32,8 +34,7 @@ export interface TraceViewContentProps {
   // Omit to hide the close button entirely (e.g. an always-open panel).
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
-  // Presence controls the layout type
-  sidePanelRef?: React.RefObject<HTMLDivElement | null>;
+  layout?: TraceViewLayout;
 }
 
 export default function TraceViewContent({
@@ -42,7 +43,7 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
-  sidePanelRef,
+  layout = FILL,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
   const { projectId } = useParams();
@@ -343,9 +344,9 @@ export default function TraceViewContent({
     showSpan: spanPanelOpen,
   };
 
-  return isNil(sidePanelRef) ? (
+  return layout.type === "fill" ? (
     <FillWidthLayout panels={panels} />
   ) : (
-    <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
+    <DynamicWidthLayout panels={panels} maxWidth={layout.maxWidth} slideIn={layout.slideIn} />
   );
 }

@@ -122,18 +122,15 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
         </TabsContent>
       </Tabs>
 
-      {traceId && (
-        <TraceViewSidePanel
-          urlState
-          spanId={spanId || undefined}
-          key={traceId}
-          onClose={() => {
-            navigate({ type: "close" }, (params) => params.delete("eventId"));
-          }}
-          traceId={traceId}
-          initialSignalId={signal.id}
-        />
-      )}
+      <TraceViewSidePanel
+        urlState
+        spanId={spanId || undefined}
+        onClose={() => {
+          navigate({ type: "close" }, (params) => params.delete("eventId"));
+        }}
+        traceId={traceId}
+        initialSignalId={signal.id}
+      />
     </>
   );
 }

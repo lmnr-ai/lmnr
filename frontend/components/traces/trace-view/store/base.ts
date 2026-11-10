@@ -27,7 +27,6 @@ export type {
   TraceViewSpan,
   TranscriptGroupInput,
   TranscriptGroupSpan,
-  TranscriptListEntry,
   TranscriptListGroup,
 } from "./types";
 

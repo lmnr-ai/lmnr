@@ -24,28 +24,33 @@ export default function Controls({
     <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]">
       <TooltipProvider delayDuration={300}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              className={cn(
-                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md bg-muted text-xs text-muted-foreground hover:overlay-hover transition-colors border",
-                isCostHeatmapVisible && "border-primary/50 text-primary-text bg-muted"
-              )}
-              onClick={() => onToggleCostHeatmap(!isCostHeatmapVisible)}
-            >
-              <DollarSign className="size-3" />
-              <span>Cost heatmap</span>
-            </button>
-          </TooltipTrigger>
+          {/* Opaque surface under an emphasis tint, matching the timeline toggle; the tint alone shows rows through. */}
+          <div className="h-[24px] rounded-md bg-surface">
+            <TooltipTrigger asChild>
+              <button
+                className={cn(
+                  "flex h-full items-center gap-0.5 rounded-md border bg-emphasis-2 px-1.5 text-xs text-muted-foreground transition-colors hover:overlay-hover",
+                  isCostHeatmapVisible && "border-primary/50 text-primary-text"
+                )}
+                onClick={() => onToggleCostHeatmap(!isCostHeatmapVisible)}
+              >
+                <DollarSign className="size-3" />
+                <span>Cost heatmap</span>
+              </button>
+            </TooltipTrigger>
+          </div>
           <TooltipContent>Toggle cost heatmap</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">
-        <Button disabled={zoom >= MAX_ZOOM} className="min-w-5" variant="ghost" size="icon-xs" onClick={onZoomIn}>
-          <Plus className="size-3" />
-        </Button>
-        <Button disabled={zoom <= MIN_ZOOM} className="min-w-5" variant="ghost" size="icon-xs" onClick={onZoomOut}>
-          <Minus className="size-3" />
-        </Button>
+      <div className="h-[24px] overflow-hidden rounded-md border bg-surface">
+        <div className="flex h-full items-center bg-emphasis-2 px-0.5">
+          <Button disabled={zoom >= MAX_ZOOM} className="min-w-5" variant="ghost" size="icon-xs" onClick={onZoomIn}>
+            <Plus className="size-3" />
+          </Button>
+          <Button disabled={zoom <= MIN_ZOOM} className="min-w-5" variant="ghost" size="icon-xs" onClick={onZoomOut}>
+            <Minus className="size-3" />
+          </Button>
+        </div>
       </div>
     </div>
   );

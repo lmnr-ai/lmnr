@@ -272,7 +272,8 @@ pub const DEDUP_STORAGE_SEEN_CACHE_KEY: &str = "s2";
 /// in the trace (`spans.*_new_message_indices`).
 pub const DEDUP_TRACE_NEW_CACHE_KEY: &str = "tn";
 /// `trace_session:{project}:{trace} → session_id` — lets an LLM span without
-/// its own session join the trace's session group. Written by the ingest
+/// its own session join the trace's session group, and lets realtime route a
+/// batch without a session id to the session channel. Written by the ingest
 /// producer, the one producer-side Redis write in the dedup path.
 pub const TRACE_SESSION_HINT_CACHE_KEY: &str = "trace_session";
 

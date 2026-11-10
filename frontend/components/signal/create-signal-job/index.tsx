@@ -147,20 +147,17 @@ const CreateSignalJobContent = () => {
           />
         </CreateSignalJobTableContents>
       </div>
-      {traceId && (
-        <TraceViewSidePanel
-          urlState
-          className="z-60 pointer-events-auto"
-          spanId={spanId || undefined}
-          key={traceId}
-          onClose={() => {
-            navigate({ type: "close" });
-            setTraceId(null);
-            setSpanId(null);
-          }}
-          traceId={traceId}
-        />
-      )}
+      <TraceViewSidePanel
+        urlState
+        className="z-60 pointer-events-auto"
+        spanId={spanId || undefined}
+        onClose={() => {
+          navigate({ type: "close" });
+          setTraceId(null);
+          setSpanId(null);
+        }}
+        traceId={traceId}
+      />
     </>
   );
 };
