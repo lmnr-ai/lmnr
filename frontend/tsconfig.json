@@ -19,12 +19,11 @@
         "name": "next"
       }
     ],
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     },
-    "downlevelIteration": true,
-    "target": "ES2017"
+    "target": "ES2017",
+    "types": ["node"]
   },
   "include": [
     "next-env.d.ts",
