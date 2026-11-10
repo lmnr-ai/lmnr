@@ -67,8 +67,10 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
 
   if (isFeatureEnabled(Feature.SSO_MANAGED_MEMBERSHIP)) {
     if ((await countWorkspaceMemberships(user.id)) > 0) {
-      // Clears any onboarding cookie, which the app layout would otherwise bounce back here.
-      return redirect("/api/onboarding?to=/projects");
+      // The app layout bounces a user with their own onboarding cookie back here, and a page
+      // can't delete cookies, so only a leftover pre-SSO cookie needs the route-handler hop.
+      const saved = await getOnboardingState();
+      return redirect(saved?.userId === user.id ? "/api/onboarding?to=/projects" : "/projects");
     }
     return (
       <div className="flex flex-col min-h-screen w-full bg-surface-350">
