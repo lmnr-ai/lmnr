@@ -25,8 +25,9 @@ impl InMemoryPubSub {
     fn matches_pattern(pattern: &str, channel: &str) -> bool {
         // Simple pattern matching: supports * wildcard
         // e.g., "sse:*:*" matches "sse:123:trace_456"
+        // The last segment takes the rest, so keys containing ':' still match (as in Redis).
         let pattern_parts: Vec<&str> = pattern.split(':').collect();
-        let channel_parts: Vec<&str> = channel.split(':').collect();
+        let channel_parts: Vec<&str> = channel.splitn(pattern_parts.len(), ':').collect();
 
         if pattern_parts.len() != channel_parts.len() {
             return false;
@@ -82,5 +83,21 @@ impl PubSubTrait for InMemoryPubSub {
 
         log::warn!("In-memory Pub/Sub stream ended for pattern: {}", pattern);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wildcard_tail_matches_keys_with_colons() {
+        assert!(InMemoryPubSub::matches_pattern("sse:*:*", "sse:p:traces"));
+        assert!(InMemoryPubSub::matches_pattern(
+            "sse:*:*",
+            "sse:p:session_a/b:c:d"
+        ));
+        assert!(!InMemoryPubSub::matches_pattern("sse:*:*", "sse:p"));
+        assert!(!InMemoryPubSub::matches_pattern("sse:*:*", "foo:p:traces"));
     }
 }

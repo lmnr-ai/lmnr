@@ -261,3 +261,46 @@ pub async fn start_redis_subscriber(
         .await
         .map_err(|e| anyhow::anyhow!("Redis subscriber failed: {:?}", e))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pubsub::in_memory::InMemoryPubSub;
+
+    #[tokio::test]
+    async fn delivers_to_subscription_keys_with_colons() {
+        let pubsub = Arc::new(PubSub::InMemory(InMemoryPubSub::new()));
+        let connections: SseConnectionMap = Arc::new(DashMap::new());
+        let project_id = Uuid::new_v4();
+        let key = "session_user/worker:cron:job".to_string();
+
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        connections.insert(
+            (project_id, key.clone()),
+            vec![SseConnection {
+                id: Uuid::new_v4(),
+                sender,
+            }],
+        );
+        tokio::spawn(start_redis_subscriber(pubsub.clone(), connections));
+
+        // Republish until the spawned subscriber has registered its pattern.
+        let received = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                let message = SseMessage {
+                    event_type: "trace_update".to_string(),
+                    data: serde_json::json!({}),
+                };
+                send_to_key(&pubsub, &project_id, &key, message).await;
+                tokio::select! {
+                    msg = receiver.recv() => return msg,
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+                }
+            }
+        })
+        .await
+        .expect("message was not delivered");
+
+        assert_eq!(received.unwrap().event_type, "trace_update");
+    }
+}
