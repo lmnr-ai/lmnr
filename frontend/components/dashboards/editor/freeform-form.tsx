@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import { ChartType } from "@/components/chart-builder/types";
 import ChartPreviewContent from "@/components/dashboards/editor/chart-preview-content";
 import ChartPreviewPane from "@/components/dashboards/editor/chart-preview-pane";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
@@ -46,7 +47,7 @@ export default function FreeformForm() {
 
   return (
     <>
-      <EditorSidebar display={<FreeformAxes />}>
+      <EditorSidebar display={chart.settings.config.type !== ChartType.Table && <FreeformAxes />}>
         <FreeformSqlField onRun={runQuery} canRun={canRun} issue={issue} />
       </EditorSidebar>
       <ChartPreviewPane name={chart.name}>
