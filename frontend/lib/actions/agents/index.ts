@@ -65,8 +65,20 @@ export interface AgentVersionTracesPoint {
   [versionId: string]: number | string;
 }
 
+/** app-server `agent_versioning::Definition`: any alternative matches when all its substrings do. */
+const AgentDefinitionSchema = z.object({ any_of: z.array(z.array(z.string())) });
+
+export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>;
+
 export interface AgentVersionsResult {
-  agent: { id: string; name: string | null; agentHash: string; createdAt: string };
+  agent: {
+    id: string;
+    name: string | null;
+    agentHash: string;
+    createdAt: string;
+    /** `null` for agents identified by the system prompt's first sentence. */
+    definition: AgentDefinition | null;
+  };
   versions: AgentVersionItem[];
 }
 
@@ -75,13 +87,21 @@ export async function getAgentVersions(
 ): Promise<AgentVersionsResult | null> {
   const { projectId, agentId } = GetAgentVersionsSchema.parse(input);
 
-  const [agent] = await db
-    .select({ id: agents.id, name: agents.name, agentHash: agents.agentHash, createdAt: agents.createdAt })
+  const [row] = await db
+    .select({
+      id: agents.id,
+      name: agents.name,
+      agentHash: agents.agentHash,
+      createdAt: agents.createdAt,
+      definition: agents.definition,
+    })
     .from(agents)
     .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
     .limit(1);
 
-  if (!agent) return null;
+  if (!row) return null;
+
+  const agent = { ...row, definition: AgentDefinitionSchema.safeParse(row.definition).data ?? null };
 
   const versions = await db
     .select({

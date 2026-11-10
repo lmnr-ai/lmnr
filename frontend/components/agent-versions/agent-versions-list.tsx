@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type AgentVersionsResult } from "@/lib/actions/agents";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
+import AgentDefinition from "./agent-definition";
 import RenameAgentDialog from "./rename-agent-dialog";
 import { agentDisplayName } from "./utils";
 import VersionCard from "./version-card";
@@ -50,6 +51,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
           />
         )}
       </div>
+      {data && <AgentDefinition definition={data.agent.definition} />}
       {isLoading ? (
         <div className="flex flex-col gap-2">
           {times(3, (i) => (
