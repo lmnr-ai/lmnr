@@ -165,7 +165,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     title: "Security & compliance",
     rows: [
       { label: "OAuth sign-in", values: { free: true, hobby: true, pro: true, enterprise: true } },
-      { label: "Role-based access control", values: { free: false, hobby: false, pro: true, enterprise: true } },
+      { label: "Role-based access control", values: { free: false, hobby: true, pro: true, enterprise: true } },
       { label: "Audit logs", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "SOC 2 Type II", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "HIPAA", values: { free: false, hobby: false, pro: true, enterprise: true } },
@@ -210,6 +210,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
     { label: retentionLabel("hobby") },
     { label: formatProjects("hobby") },
     { label: formatSeats("hobby") },
+    ...TIERS.hobby.securityFeatures.map((label) => ({ label })),
     { label: formatSupport("hobby") },
   ],
   pro: [

@@ -18,6 +18,8 @@
 
 - **The Usage tab's bill is an estimate, not the invoice** (`lib/billing/usage-estimate.ts`): Stripe charges what meters-job reports. Totals come from `getWorkspaceStats`, and the Signals bill line is only uncredited runs (`signalCostOverLimit`), not total Signals usage; daily charts from `GET /api/workspaces/[id]/usage-breakdown` (ClickHouse, priced server-side, uncached).
 
+- **Pricing feature claims must match the real plan gates.** `TIERS[*].securityFeatures` (cards on landing + workspace billing) and the comparison table in `components/landing/pricing/tier-data.ts` are marketing copy with no enforcement behind them, so check each claim against the gate: member roles/invites are blocked only on Free (`lib/actions/workspace/invite.ts`), so RBAC is a Pro-and-up feature; the audit log is Scale-and-up (`AUDIT_LOG_EXCLUDED_TIERS` in `lib/actions/usage/plan-gates.ts`); PII redaction, including role-based PII masking, is Scale-and-up (`PRO_TIER_GATES` in `lib/actions/project/settings.ts`).
+
 ## Free trial (of the `hobby` tier, shown as "Pro")
 
 - **A trial is a real Stripe subscription in `trialing` status**, created by `startStarterTrial` (`lib/actions/checkout/trial.ts`) with `trial_period_days: 14`, no card, and `trial_settings.end_behavior.missing_payment_method: "cancel"`. No card by day 14 → Stripe cancels → the existing `subscription.deleted` path moves the workspace to Free. Available wherever `Feature.SUBSCRIPTION` is on.
