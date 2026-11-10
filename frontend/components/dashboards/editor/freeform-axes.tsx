@@ -25,9 +25,9 @@ export default function FreeformAxes() {
         <ColumnSelect
           label="Value"
           columns={columns}
-          value={config.y}
+          // Unset or missing from the result, the renderer shows the first column; show that one picked.
+          value={columns.some((column) => column.name === config.y) ? config.y : columns[0]?.name}
           onChange={setAxis("y")}
-          noneLabel="First column"
           info="Shown from the first row. A number gets formatted; text is shown as written."
         />
       )}

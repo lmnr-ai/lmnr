@@ -10,7 +10,7 @@ import { type ColumnInfo, transformDataToColumns } from "@/components/chart-buil
 import ChartPreviewContent from "@/components/dashboards/editor/chart-preview-content";
 import ChartPreviewPane from "@/components/dashboards/editor/chart-preview-pane";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
-import EditorFooter from "@/components/dashboards/editor/editor-footer";
+import EditorLayout from "@/components/dashboards/editor/editor-layout";
 import EditorSidebar from "@/components/dashboards/editor/editor-sidebar";
 import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
 import FreeformForm from "@/components/dashboards/editor/freeform-form";
@@ -27,12 +27,7 @@ import { type QueryStructure } from "@/lib/actions/sql/types.ts";
 export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const editorMode = useDashboardEditorStoreContext((state) => state.editorMode);
 
-  // Each mode renders the three grid items: settings, preview and the footer spanning both.
-  return (
-    <div className="grid h-full grid-cols-2 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-lg border">
-      {editorMode === "sql" ? <FreeformForm /> : <VisualForm isLoadingChart={isLoadingChart} />}
-    </div>
-  );
+  return editorMode === "sql" ? <FreeformForm /> : <VisualForm isLoadingChart={isLoadingChart} />;
 };
 
 const VisualForm = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
@@ -259,14 +254,17 @@ const VisualForm = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart]);
 
   return (
-    <>
-      <EditorSidebar isLoading={isLoadingChart}>
-        <QueryBuilderFields />
-      </EditorSidebar>
-      <ChartPreviewPane name={chart.name}>
-        <ChartPreviewContent config={chartConfigForRendering} hiddenColumns={hiddenColumns} />
-      </ChartPreviewPane>
-      <EditorFooter saveDisabled={!formState.isValid || !chartConfig} />
-    </>
+    <EditorLayout
+      sidebar={
+        <EditorSidebar isLoading={isLoadingChart} saveDisabled={!formState.isValid || !chartConfig}>
+          <QueryBuilderFields />
+        </EditorSidebar>
+      }
+      preview={
+        <ChartPreviewPane name={chart.name}>
+          <ChartPreviewContent config={chartConfigForRendering} hiddenColumns={hiddenColumns} />
+        </ChartPreviewPane>
+      }
+    />
   );
 };

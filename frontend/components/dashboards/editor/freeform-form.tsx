@@ -8,7 +8,7 @@ import { ChartType } from "@/components/chart-builder/types";
 import ChartPreviewContent from "@/components/dashboards/editor/chart-preview-content";
 import ChartPreviewPane from "@/components/dashboards/editor/chart-preview-pane";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
-import EditorFooter from "@/components/dashboards/editor/editor-footer";
+import EditorLayout from "@/components/dashboards/editor/editor-layout";
 import EditorSidebar from "@/components/dashboards/editor/editor-sidebar";
 import FreeformAxes from "@/components/dashboards/editor/freeform-axes";
 import FreeformSqlField from "@/components/dashboards/editor/freeform-sql-field";
@@ -46,14 +46,20 @@ export default function FreeformForm() {
   useHotkeys("meta+enter,ctrl+enter", runQuery, { enableOnFormTags: ["input"], enableOnContentEditable: true });
 
   return (
-    <>
-      <EditorSidebar display={chart.settings.config.type !== ChartType.Table && <FreeformAxes />}>
-        <FreeformSqlField onRun={runQuery} canRun={canRun} issue={issue} />
-      </EditorSidebar>
-      <ChartPreviewPane name={chart.name}>
-        <ChartPreviewContent config={chart.settings.config} />
-      </ChartPreviewPane>
-      <EditorFooter saveDisabled={!chart.settings.config.type} />
-    </>
+    <EditorLayout
+      sidebar={
+        <EditorSidebar
+          saveDisabled={!chart.settings.config.type}
+          display={chart.settings.config.type !== ChartType.Table && <FreeformAxes />}
+        >
+          <FreeformSqlField onRun={runQuery} canRun={canRun} issue={issue} />
+        </EditorSidebar>
+      }
+      preview={
+        <ChartPreviewPane name={chart.name}>
+          <ChartPreviewContent config={chart.settings.config} />
+        </ChartPreviewPane>
+      }
+    />
   );
 }
