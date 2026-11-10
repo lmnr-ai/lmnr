@@ -308,14 +308,11 @@ export const githubIntegrations = pgTable(
 );
 
 // One per project: what the Laminar Agent's sandbox is set up with.
-// `ingest_api_key` is the AEAD blob ({nonce, value} hex, AAD = environment id) of an ingest-only project key.
 export const projectEnvironments = pgTable(
   "project_environments",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
-    ingestApiKeyId: uuid("ingest_api_key_id"),
-    ingestApiKey: jsonb("ingest_api_key"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
@@ -325,11 +322,6 @@ export const projectEnvironments = pgTable(
       foreignColumns: [projects.id],
       name: "project_environments_project_id_fkey",
     }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.ingestApiKeyId],
-      foreignColumns: [projectApiKeys.id],
-      name: "project_environments_ingest_api_key_id_fkey",
-    }).onDelete("set null"),
     unique("project_environments_project_id_key").on(table.projectId),
   ]
 );
