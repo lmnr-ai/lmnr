@@ -74,7 +74,7 @@ export default function TrialActions({
         return;
       }
       if (action === "start") {
-        await request(`${trialUrl}/end`, { method: "POST" }, "Failed to start Starter");
+        await request(`${trialUrl}/end`, { method: "POST" }, "Failed to start the Pro plan");
       } else {
         await setContinues(action === "keep");
       }
@@ -110,8 +110,8 @@ export default function TrialActions({
     <div className="flex flex-col gap-3">
       <p className="text-sm text-secondary-foreground">
         {hasPaymentMethod
-          ? `Your card is on file. Starter starts on ${endsOn}.`
-          : `Your trial ends on ${endsOn}. Add a payment method to keep Starter, otherwise the workspace moves to Free.`}
+          ? `Your card is on file. Pro starts on ${endsOn}.`
+          : `Your trial ends on ${endsOn}. Add a payment method to keep Pro, otherwise the workspace moves to Free.`}
       </p>
       <div className="flex gap-2">
         {hasPaymentMethod ? (

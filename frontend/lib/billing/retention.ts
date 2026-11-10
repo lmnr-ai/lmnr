@@ -13,8 +13,8 @@ export const TIER_RETENTION: Record<
   { duration: string; durationPlural: string; window: RetentionWindow | null }
 > = {
   free: { duration: "7 day", durationPlural: "7 days", window: { unit: "day", value: 7 } },
-  hobby: { duration: "30 day", durationPlural: "30 days", window: { unit: "day", value: 30 } },
-  pro: { duration: "6 month", durationPlural: "6 months", window: { unit: "month", value: 6 } },
+  hobby: { duration: "3 month", durationPlural: "3 months", window: { unit: "month", value: 3 } },
+  pro: { duration: "1 year", durationPlural: "1 year", window: { unit: "month", value: 12 } },
   enterprise: { duration: "Custom", durationPlural: "Custom", window: null },
 };
 
@@ -22,7 +22,7 @@ export const retentionLabel = (tier: RetentionTier) => `${TIER_RETENTION[tier].d
 
 // Earliest timestamp a tier may query back to, null = no enforcement. Matches
 // the raw tier name directly (not `normalizeTier`, which would fold unknown
-// tiers like self-hosted `unlimited` to `free`), except "Starter" — the
+// tiers like self-hosted `unlimited` to `free`), except "Starter" — an earlier
 // display name DB rows may carry for the internal "hobby" tier.
 export const retentionCutoff = (tierName: string, now: Date = new Date()): Date | null => {
   const key = tierName.trim().toLowerCase();

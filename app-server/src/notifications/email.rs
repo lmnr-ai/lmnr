@@ -318,7 +318,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
             subject: if *trialing {
                 format!(
-                    "You've used your Starter trial allowance \u{2013} {}",
+                    "You've used your Pro trial allowance \u{2013} {}",
                     workspace_name
                 )
             } else {
@@ -752,7 +752,7 @@ fn render_usage_hard_limit_email(
             "Signals credit"
         };
         format!(
-            "Your workspace has used all {} included in the Starter trial. Add a payment method and start your Starter subscription to continue.",
+            "Your workspace has used all {} included in the Pro trial. Add a payment method and start your Pro subscription to continue.",
             allowance
         )
     } else if one_time_credit_exhausted {
@@ -1312,7 +1312,7 @@ mod tests {
 
         assert!(html.contains("Trial allowance used up"));
         assert!(!html.contains("has paused"));
-        assert!(html.contains("included in the Starter trial"));
+        assert!(html.contains("included in the Pro trial"));
         assert!(html.contains("Start subscription"));
         assert!(html.contains("tab=billing"));
         assert!(!html.contains("billing cycle resets"));

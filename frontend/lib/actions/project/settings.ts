@@ -108,7 +108,7 @@ export async function updateProjectSettings(input: z.infer<typeof UpdateProjectS
     }
     const tierName = rows[0].tierName?.toLowerCase().trim();
     if (!tierName || !PRO_LIKE_TIERS.has(tierName)) {
-      throw new ApiError("This setting requires the Pro tier", 403);
+      throw new ApiError("This setting requires the Scale plan", 403);
     }
   }
 

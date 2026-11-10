@@ -26,7 +26,7 @@ export default function WelcomeEmail({ trial }: WelcomeEmailProps = {}) {
       </Head>
       <Preview>
         {trial
-          ? `Welcome to Laminar. Your Starter trial runs until ${trial.endsOn}.`
+          ? `Welcome to Laminar. Your Pro trial runs until ${trial.endsOn}.`
           : "Welcome to Laminar - observability purpose-built for AI agents"}
       </Preview>
       <div className="welcome-page" style={page}>
@@ -45,7 +45,7 @@ export default function WelcomeEmail({ trial }: WelcomeEmailProps = {}) {
             <Text style={greeting}>Hey there, it{"'"}s Robert from Laminar. Excited for you to try it out!</Text>
             {trial && (
               <Section style={trialNote}>
-                <Text style={trialNoteTitle}>Your free 14-day Starter trial is on</Text>
+                <Text style={trialNoteTitle}>Your free 14-day Pro trial is on</Text>
                 <Text style={trialNoteText}>No card needed. It runs until {trial.endsOn} and includes:</Text>
                 <table role="presentation" cellPadding="0" cellSpacing="0" style={trialNoteList}>
                   <tbody>
@@ -61,7 +61,7 @@ export default function WelcomeEmail({ trial }: WelcomeEmailProps = {}) {
                   <Link style={link} href={trial.addPaymentUrl} target="_blank">
                     Add a payment method
                   </Link>{" "}
-                  any time to keep Starter after the trial.
+                  any time to keep Pro after the trial.
                 </Text>
               </Section>
             )}

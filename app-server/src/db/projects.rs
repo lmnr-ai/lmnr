@@ -170,8 +170,8 @@ impl WorkspaceTierName {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Free => "Free",
-            Self::Hobby => "Hobby",
-            Self::Pro => "Pro",
+            Self::Hobby => "Pro",
+            Self::Pro => "Scale",
             Self::Unlimited => "Unlimited",
             Self::Other => "your",
         }
@@ -194,7 +194,7 @@ pub struct ProjectWithWorkspaceBillingInfo {
     /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub signal_cost_hard_limit_micro_usd: Option<i64>,
-    /// Card-less Starter trial: capped like Free, since overage could never be billed.
+    /// Card-less trial: capped like Free, since overage could never be billed.
     #[serde(default)]
     pub trialing: bool,
     /// Typed view of `projects.settings`. Unknown keys are tolerated;

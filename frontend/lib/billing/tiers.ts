@@ -12,8 +12,9 @@ export type Tier = RetentionTier; // "free" | "hobby" | "pro" | "enterprise"
 // Map an arbitrary tier-name string (as stored on `subscription_tiers.name`)
 // to the `Tier` union, defaulting unknown values to the standard-rate "free".
 // Used by the metering path to select the per-tier signal token rate.
-// "Starter" is the display name of the internal "hobby" tier (renamed 2026-07);
-// DB rows may carry either name during the rollout.
+// Display names differ from the internal keys: "hobby" shows as "Pro" and
+// "pro" shows as "Scale". DB rows may carry "Hobby" or "Starter" (an earlier
+// display name) for the internal "hobby" tier.
 export const normalizeTier = (name: string): Tier => {
   const key = name.trim().toLowerCase();
   if (key === "starter") return "hobby";
@@ -21,7 +22,8 @@ export const normalizeTier = (name: string): Tier => {
 };
 
 // Display name for an arbitrary tier-name string as stored in the DB. Maps
-// known tiers through `TIERS` (so a "Hobby" DB row renders as "Starter");
+// known tiers through `TIERS` (so a "Hobby" DB row renders as "Pro" and a
+// "Pro" row as "Scale");
 // unknown names (e.g. custom enterprise tier rows like "unlimited") pass
 // through unchanged.
 export const tierDisplayName = (name: string): string => {
@@ -107,21 +109,22 @@ export const TIERS: Record<Tier, TierData> = {
   hobby: {
     // Display name only — the internal key stays "hobby" everywhere (Tier
     // union, Stripe lookup keys, subscription_tiers rows, Rust enum).
-    name: "Starter",
+    name: "Pro",
     basePriceMonthly: 30,
     includedBytesGB: 3,
     includedSignalCostUsd: 0,
-    dataOverageRatePerGB: 2,
+    dataOverageRatePerGB: 1.45,
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Email",
   },
   pro: {
-    name: "Pro",
+    // Display name only — the internal key stays "pro".
+    name: "Scale",
     basePriceMonthly: 150,
     includedBytesGB: 10,
     includedSignalCostUsd: 0,
-    dataOverageRatePerGB: 1.5,
+    dataOverageRatePerGB: 0.45,
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Slack",
@@ -150,7 +153,7 @@ export const signalOutputRate = (): number => SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILL
 
 export const formatSignalTokenRate = (rate: number): string => `$${rate.toFixed(2)}`;
 
-// `$2` for whole-number rates, `$1.50` for one-decimal rates. Centralised so
+// `$2` for whole-number rates, `$1.45` / `$1.50` otherwise. Centralised so
 // every pricing surface uses the same currency formatting (no drift between
 // "$2/GB" on landing and "$2.00/GB" in workspace billing).
 const formatGBRate = (rate: number): string => (rate % 1 === 0 ? `$${rate}` : `$${rate.toFixed(2)}`);

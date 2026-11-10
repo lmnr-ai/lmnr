@@ -71,13 +71,14 @@ export const METER_EVENT_NAMES = {
 } as const;
 
 export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
-  // Base tiers. "Starter" is the display name of the internal "hobby" tier;
-  // the Stripe lookup keys are immutable identifiers and keep the old name.
-  hobby_monthly_2026_02: "Starter plan",
-  pro_monthly_2026_02: "Pro plan",
-  hobby_monthly_2025_04: "Starter plan",
-  hobby_monthly_2026_02_legacy: "Starter plan",
-  pro_monthly_2025_04: "Pro plan",
+  // Base tiers. "Pro" is the display name of the internal "hobby" tier and
+  // "Scale" of the internal "pro" tier; the Stripe lookup keys are immutable
+  // identifiers and keep the old names.
+  hobby_monthly_2026_02: "Pro plan",
+  pro_monthly_2026_02: "Scale plan",
+  hobby_monthly_2025_04: "Pro plan",
+  hobby_monthly_2026_02_legacy: "Pro plan",
+  pro_monthly_2025_04: "Scale plan",
   // Overage - bytes
   hobby_monthly_2026_03_overage_megabytes: "Data overage",
   pro_monthly_2026_03_overage_megabytes: "Data overage",
@@ -106,7 +107,7 @@ export interface SubscriptionDetails {
   currentPeriodEnd: number;
   cancelAtPeriodEnd: boolean;
   stripeCustomerId: string;
-  // Set only while the subscription is a Starter trial (unix seconds).
+  // Set only while the subscription is a trial (unix seconds).
   trialEnd: number | null;
   hasPaymentMethod: boolean;
 }
