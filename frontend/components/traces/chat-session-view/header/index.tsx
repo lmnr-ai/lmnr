@@ -37,7 +37,7 @@ export default function SessionHeader({ projectId }: { projectId: string }) {
         // fit beside them; the name then grows to its full text (no further) or truncates.
         { name: sessionId, copyValue: sessionId, className: "min-w-0 basis-[200px] grow max-w-fit" },
       ]}
-      className="h-auto min-h-12 py-2 pr-2.5"
+      className="h-auto min-h-12 border-b py-2.5 pr-2.5"
       childrenContainerClassName="flex-wrap gap-y-2"
     >
       {stats && (
