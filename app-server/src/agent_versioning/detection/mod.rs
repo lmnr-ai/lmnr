@@ -8,18 +8,24 @@
 mod agent;
 mod prompt;
 
+use std::collections::HashMap;
+
 use anyhow::Result;
-use futures_util::future::try_join_all;
 use uuid::Uuid;
 
 use self::agent::{Change, DetectionAgent, KnownAgent, LatestPrompt, UnlabelledPrompt};
-use super::{Job, NS, identity::definitions_cache_key, prompts::span_system_prompt};
+use super::{Job, NS, definition::Opening, identity::definitions_cache_key};
 use crate::{
     cache::{CacheTrait, keys::AGENT_DETECTION_LOCK_CACHE_KEY},
-    ch::agent_prompts::{
-        PromptSpan, latest_agent_spans, projects_with_unlabelled, uncovered_traces,
+    ch::{
+        agent_prompts::{
+            AgentSpan, PromptSpan, latest_agent_spans, projects_with_unlabelled, uncovered_traces,
+        },
+        spans::fetch_system_prompts,
     },
-    db::agent_versioning::{get_defined_agents, insert_defined_agent, set_agent_definition},
+    db::agent_versioning::{
+        DefinedAgent, get_defined_agents, insert_defined_agent, set_agent_definition,
+    },
     env::{
         agent_versioning::{
             ACTIVE_WINDOW_SECONDS, DETECTION_MIN_MATCHES, DETECTION_SAMPLES, INTERVAL_SECONDS,
@@ -81,14 +87,22 @@ impl Job {
         if spans.len() < min_matches {
             return Ok(());
         }
-        let agents = self.known_agents(project_id, since).await?;
+        let defined = get_defined_agents(&self.db.pool, project_id).await?;
+        let agent_hashes: Vec<&str> = defined.iter().map(|a| a.agent_hash.as_str()).collect();
+        let latest = latest_agent_spans(&self.clickhouse, project_id, &agent_hashes, since).await?;
+        // One read for every prompt this run needs.
+        let refs: Vec<(Uuid, Uuid)> = spans
+            .iter()
+            .map(|span| (span.trace_id, span.span_id))
+            .chain(latest.iter().map(|span| (span.trace_id, span.span_id)))
+            .collect();
+        let system_prompts = fetch_system_prompts(&self.clickhouse, project_id, &refs).await?;
+        let agents = known_agents(defined, &latest, &system_prompts);
         // A trace stored before its agent was defined stays unlabelled; it
         // needs no new agent and would only crowd out the ones that do.
-        let prompts: Vec<UnlabelledPrompt> = self
-            .read_prompts(project_id, &spans)
-            .await?
+        let prompts: Vec<UnlabelledPrompt> = unlabelled_prompts(&spans, &system_prompts)
             .into_iter()
-            .filter(|prompt| !is_defined(&agents, &prompt.system_prompt))
+            .filter(|prompt| !is_defined(&agents, &prompt.opening))
             .collect();
         if prompts.len() < min_matches {
             return Ok(());
@@ -104,56 +118,6 @@ impl Job {
         .run()
         .await;
         self.save_changes(project_id, &changes).await
-    }
-
-    /// The spans' system prompts; spans no longer stored are skipped.
-    async fn read_prompts(
-        &self,
-        project_id: Uuid,
-        spans: &[PromptSpan],
-    ) -> Result<Vec<UnlabelledPrompt>> {
-        let prompts = try_join_all(spans.iter().map(|span| async {
-            let system_prompt =
-                span_system_prompt(&self.clickhouse, project_id, span.trace_id, span.span_id)
-                    .await?;
-            anyhow::Ok(system_prompt.map(|system_prompt| UnlabelledPrompt {
-                trace_id: span.trace_id,
-                span_id: span.span_id,
-                system_prompt,
-                time: span.time,
-            }))
-        }))
-        .await?;
-        Ok(prompts.into_iter().flatten().collect())
-    }
-
-    /// The project's defined agents, each with its latest prompt ingested
-    /// after `since`.
-    async fn known_agents(&self, project_id: Uuid, since: i64) -> Result<Vec<KnownAgent>> {
-        let agents = get_defined_agents(&self.db.pool, project_id).await?;
-        let agent_hashes: Vec<&str> = agents.iter().map(|a| a.agent_hash.as_str()).collect();
-        let latest = latest_agent_spans(&self.clickhouse, project_id, &agent_hashes, since).await?;
-        let latest_prompts = try_join_all(agents.iter().map(|agent| async {
-            let Some(span) = latest
-                .iter()
-                .find(|span| span.agent_hash == agent.agent_hash)
-            else {
-                return Ok(None);
-            };
-            let system_prompt =
-                span_system_prompt(&self.clickhouse, project_id, span.trace_id, span.span_id)
-                    .await?;
-            anyhow::Ok(system_prompt.map(|system_prompt| LatestPrompt {
-                system_prompt,
-                time: span.start_time,
-            }))
-        }))
-        .await?;
-        Ok(agents
-            .into_iter()
-            .zip(latest_prompts)
-            .map(|(agent, latest)| KnownAgent { agent, latest })
-            .collect())
     }
 
     async fn save_changes(&self, project_id: Uuid, changes: &[Change]) -> Result<()> {
@@ -205,8 +169,53 @@ fn internal_project_id() -> Option<Uuid> {
         .and_then(|value| Uuid::parse_str(&value).ok())
 }
 
-fn is_defined(agents: &[KnownAgent], prompt: &str) -> bool {
+/// The sampled spans' prompts; spans no longer stored are skipped.
+fn unlabelled_prompts(
+    spans: &[PromptSpan],
+    system_prompts: &HashMap<Uuid, String>,
+) -> Vec<UnlabelledPrompt> {
+    spans
+        .iter()
+        .filter_map(|span| {
+            let system_prompt = system_prompts.get(&span.span_id)?.clone();
+            Some(UnlabelledPrompt {
+                trace_id: span.trace_id,
+                span_id: span.span_id,
+                opening: Opening::new(&system_prompt),
+                system_prompt,
+                time: span.time,
+            })
+        })
+        .collect()
+}
+
+/// The defined agents, each with its latest prompt when one was read.
+fn known_agents(
+    defined: Vec<DefinedAgent>,
+    latest: &[AgentSpan],
+    system_prompts: &HashMap<Uuid, String>,
+) -> Vec<KnownAgent> {
+    defined
+        .into_iter()
+        .map(|agent| {
+            let latest = latest
+                .iter()
+                .find(|span| span.agent_hash == agent.agent_hash)
+                .and_then(|span| {
+                    let system_prompt = system_prompts.get(&span.span_id)?.clone();
+                    Some(LatestPrompt {
+                        opening: Opening::new(&system_prompt),
+                        system_prompt,
+                        time: span.start_time,
+                    })
+                });
+            KnownAgent { agent, latest }
+        })
+        .collect()
+}
+
+fn is_defined(agents: &[KnownAgent], opening: &Opening) -> bool {
     agents
         .iter()
-        .any(|known| known.agent.definition.matches(prompt))
+        .any(|known| known.agent.definition.matches(opening))
 }

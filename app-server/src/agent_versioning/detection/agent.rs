@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::prompt::{self, SUBMIT_TOOL, TEST_CHECK_TOOL};
 use crate::{
-    agent_versioning::definition::{Definition, OPENING_CHARS},
+    agent_versioning::definition::{Definition, OPENING_CHARS, Opening},
     db::agent_versioning::DefinedAgent,
     instrumentation::spans::{self, InternalSpan, SpanType},
     llm::{
@@ -33,6 +33,7 @@ pub struct UnlabelledPrompt {
     pub trace_id: Uuid,
     pub span_id: Uuid,
     pub system_prompt: String,
+    pub opening: Opening,
     /// The trace's start, ns.
     pub time: i64,
 }
@@ -46,6 +47,7 @@ pub struct KnownAgent {
 
 pub struct LatestPrompt {
     pub system_prompt: String,
+    pub opening: Opening,
     /// The span's start, ns.
     pub time: i64,
 }
@@ -408,7 +410,7 @@ impl<'a> DetectionAgent<'a> {
 
     fn matched_prompts(&self, definition: &Definition) -> Vec<usize> {
         numbered(&self.prompts)
-            .filter(|(_, prompt)| definition.matches(&prompt.system_prompt))
+            .filter(|(_, prompt)| definition.matches(&prompt.opening))
             .map(|(id, _)| id)
             .collect()
     }
@@ -420,7 +422,7 @@ impl<'a> DetectionAgent<'a> {
                 known
                     .latest
                     .as_ref()
-                    .is_some_and(|latest| definition.matches(&latest.system_prompt))
+                    .is_some_and(|latest| definition.matches(&latest.opening))
             })
             .map(|(id, _)| id)
             .collect()
@@ -501,6 +503,7 @@ mod tests {
             },
             latest: Some(LatestPrompt {
                 system_prompt: latest_prompt.to_string(),
+                opening: Opening::new(latest_prompt),
                 time: 0,
             }),
         }
@@ -511,6 +514,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             span_id: Uuid::new_v4(),
             system_prompt: system_prompt.to_string(),
+            opening: Opening::new(system_prompt),
             time: 0,
         }
     }

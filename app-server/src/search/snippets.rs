@@ -3,6 +3,8 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::ch::spans::content_lookup;
+
 pub const SNIPPET_CONTEXT_CHARS: usize = 50;
 const DEFAULT_SEARCH_MAX_TRACES: usize = 50;
 
@@ -195,23 +197,6 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
         .map(|(trace_id, span_id)| format!("('{trace_id}', '{span_id}')"))
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-/// Dictionary lookup for one content hash, mirroring `spans_v0`: the
-/// group-scoped `unique_content_dict` first, the legacy project-scoped
-/// `deduped_content_dict` only when `unique_content` has no row. `if` rather
-/// than `coalesce`/`ifNull`, which evaluate every branch eagerly: both dicts
-/// are `COMPLEX_KEY_CACHE`, so a `deduped_content_dict` lookup for a hash that
-/// only `unique_content` has (the common case post-migration) is a cache miss
-/// that queries the legacy table. `dedup_group` is the query's `WITH` alias.
-fn content_lookup(hash_expr: &str) -> String {
-    format!(
-        "if(
-            isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, {hash_expr}))),
-            dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, {hash_expr}), 'null'),
-            dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, {hash_expr}), 'null')
-        )"
-    )
 }
 
 fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
