@@ -1,12 +1,12 @@
 "use client";
 
-import ChartBuilder from "components/chart-builder";
 import { AlertCircle, ChartArea, FileJson2, Loader2, TableProperties } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useDefaultLayout } from "react-resizable-panels";
 
+import ChartBuilder from "@/components/chart-builder";
 import { isParameterUnset } from "@/components/sql/parameters";
 import ParametersBar from "@/components/sql/parameters-bar";
 import QueryActions from "@/components/sql/query-actions";

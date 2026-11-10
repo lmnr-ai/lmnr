@@ -163,7 +163,7 @@ const csvLine = (values: readonly string[]) => values.map(csvField).join(",") + 
 /** The matching events as CSV (header row first), newest first, capped at `AUDIT_EXPORT_MAX_ROWS`. */
 export const exportAuditEventsCsv = async (
   input: z.input<typeof AuditEventsQuerySchema>
-): Promise<ReadableStream<Uint8Array>> => {
+): Promise<ReadableStream<Uint8Array<ArrayBuffer>>> => {
   const { where, params } = buildWhere(AuditEventsQuerySchema.parse(input));
   let cursor: { ts: string; id: string } | undefined;
   let sent = 0;
@@ -210,7 +210,7 @@ export const exportAuditEventsCsv = async (
   // Fetched up front so a failing query is an error response rather than a broken download.
   let page = await fetchPage();
   // `pull` runs only when the client has read what was sent, so a slow download holds one page.
-  return new ReadableStream<Uint8Array>({
+  return new ReadableStream<Uint8Array<ArrayBuffer>>({
     start(controller) {
       controller.enqueue(encoder.encode(csvLine(EXPORT_COLUMNS)));
     },
