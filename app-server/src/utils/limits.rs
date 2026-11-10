@@ -331,7 +331,23 @@ pub async fn update_workspace_bytes_ingested(
         Ok(Some(_)) => {
             // Cache exists - atomically increment it
             match cache.increment(&cache_key, bytes as i64).await {
-                Ok(new_val) => new_val,
+                Ok(new_val) => {
+                    // INCRBY recreates a key that expired after get() with no TTL; a result equal
+                    // to this batch means it was missing or 0, so expire it soon to re-read it.
+                    if bytes > 0
+                        && new_val == bytes as i64
+                        && let Err(e) = cache
+                            .set_ttl(&cache_key, WORKSPACE_USAGE_QUERY_FAILED_TTL_SECONDS)
+                            .await
+                    {
+                        log::error!(
+                            "Failed to set workspace bytes ingested cache TTL for project [{}]: {:?}",
+                            project_id,
+                            e
+                        );
+                    }
+                    new_val
+                }
                 Err(e) => {
                     log::error!(
                         "Failed to increment workspace bytes ingested cache for project [{}]: {:?}",
@@ -1018,6 +1034,28 @@ mod tests {
         assert_eq!(f.cache.get::<i64>(&f.usage_key).await.unwrap(), Some(0));
 
         // A later batch counts up from the placeholder but must not extend its life.
+        update_workspace_bytes_ingested(
+            f.db.clone(),
+            unreachable_clickhouse(),
+            f.cache.clone(),
+            f.queue.clone(),
+            f.project_id,
+            100,
+        )
+        .await
+        .unwrap();
+        assert_eq!(f.cache.get::<i64>(&f.usage_key).await.unwrap(), Some(100));
+
+        advance_one_hour().await;
+        assert_eq!(f.cache.get::<i64>(&f.usage_key).await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn usage_update_expires_a_recreated_usage_key() {
+        let f = fixture().await;
+        // State left when the entry expires between get() and increment(): no TTL.
+        f.cache.insert::<i64>(&f.usage_key, 0).await.unwrap();
+
         update_workspace_bytes_ingested(
             f.db.clone(),
             unreachable_clickhouse(),
