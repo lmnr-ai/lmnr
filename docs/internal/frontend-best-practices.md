@@ -25,6 +25,10 @@ Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/
 
 No CSS rule matches `[data-icon]` and `buttonVariants` has no `gap`, so an icon+label `<Button>` needs `className="gap-2"` (or a margin on the icon) at the call site. Only the `icon={…}` prop form spaces itself. Sizes: `sm` `h-[22px]`, `default` `h-7`, `md` `h-8`, `lg` `h-10`.
 
+### Large page headers use `tracking-tight`
+
+An `<h1>` styled `text-2xl font-semibold` also gets `tracking-tight`; at that size the default letter spacing reads loose. Settings-style pages should reuse `SettingsSectionHeader` (`components/settings/settings-section.tsx`), which already applies it (Signal settings tabs in `lmnr-private` render through it too).
+
 ### One component per file
 
 Related components should be in a folder named by the parent component (`my-list/`) and the parent component should follow the index.tsx pattern (`my-list/index.tsx`) and all related components should be in the folder (`my-list/my-list-item.tsx`).
