@@ -120,8 +120,7 @@ export const TIERS: Record<Tier, TierData> = {
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Email",
-    // Member roles are gated only on Free (one seat); Pro invites and assigns them.
-    securityFeatures: ["Role-based access control"],
+    securityFeatures: [],
   },
   pro: {
     // Display name only — the internal key stays "pro".
