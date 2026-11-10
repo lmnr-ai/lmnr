@@ -31,7 +31,7 @@ interface BillingInfo {
   resetTime: string;
   workspaceProjectIds: string[];
   signalCostHardLimitMicroUsd: number | null;
-  // A card-less Starter trial is capped like Free: no billable overage.
+  // A card-less trial is capped like Free: no billable overage.
   trialing: boolean;
 }
 
@@ -133,7 +133,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     const credit = await getSignalCreditState(workspaceId, 0);
     if (credit.remainingMicroUsd === 0) {
       throw new Error(
-        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Start Starter from Billing to keep Signals running.`
+        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Start your Pro plan from Billing to keep Signals running.`
       );
     }
     return;

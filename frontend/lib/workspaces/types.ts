@@ -36,10 +36,12 @@ export interface WorkspaceDeploymentSettings {
   dataPlaneUrl?: string;
 }
 
+// Raw `subscription_tiers.name` values, not display names: render them via
+// `tierDisplayName` ("Pro" shows as "Scale").
 export enum WorkspaceTier {
   FREE = "Free",
   PRO = "Pro",
-  // Display name for the internal "hobby" tier (renamed from "Hobby").
+  // An earlier display name some DB rows carry for the internal "hobby" tier.
   HOBBY = "Starter",
   ENTERPRISE = "Enterprise",
 }

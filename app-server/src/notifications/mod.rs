@@ -206,7 +206,7 @@ pub enum NotificationKind {
         /// copy about the included allowance being consumed.
         #[serde(default)]
         at_tier_included_allowance: bool,
-        /// Tier display name ("Free", "Hobby", "Pro", or "your" for unknown tiers).
+        /// Tier display name ("Free", "Pro" for `Hobby`, "Scale" for `Pro`, or "your" for unknown tiers).
         /// Defaults to empty string only when the field is absent in a legacy queued
         /// message (backward-compat via `#[serde(default)]`); the email template's
         /// `is_empty()` guard handles that case.
@@ -230,7 +230,7 @@ pub enum NotificationKind {
         usage_item: String,
         #[serde(default)]
         one_time_credit_exhausted: bool,
-        /// Starter trial allowance exhausted: lifting the cap means starting the paid subscription.
+        /// Trial allowance exhausted: lifting the cap means starting the paid subscription.
         #[serde(default)]
         trialing: bool,
     },
