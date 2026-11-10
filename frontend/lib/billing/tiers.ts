@@ -47,6 +47,8 @@ interface TierData {
   projects: "1" | "Unlimited";
   seats: "1" | "Unlimited";
   support: "Community" | "Email" | "Slack" | "Dedicated";
+  // Security and compliance features called out on this tier's cards.
+  securityFeatures: string[];
 }
 
 // Published per-million-token rates for signal cost overage, in USD. Every
@@ -105,6 +107,7 @@ export const TIERS: Record<Tier, TierData> = {
     projects: "1",
     seats: "1",
     support: "Community",
+    securityFeatures: [],
   },
   hobby: {
     // Display name only — the internal key stays "hobby" everywhere (Tier
@@ -117,6 +120,7 @@ export const TIERS: Record<Tier, TierData> = {
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Email",
+    securityFeatures: [],
   },
   pro: {
     // Display name only — the internal key stays "pro".
@@ -128,6 +132,7 @@ export const TIERS: Record<Tier, TierData> = {
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Slack",
+    securityFeatures: ["Role-based access control", "Audit logs", "SOC 2 Type II & HIPAA"],
   },
   enterprise: {
     name: "Enterprise",
@@ -138,6 +143,7 @@ export const TIERS: Record<Tier, TierData> = {
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Dedicated",
+    securityFeatures: [],
   },
 };
 

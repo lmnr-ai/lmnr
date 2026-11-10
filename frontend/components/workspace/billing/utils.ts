@@ -49,6 +49,7 @@ const buildInfo = (tier: TierKey): TierInfo => {
     ...(tierIncludesSignals(tier) ? [[formatSignalsCreditLabel(tier), null] as [string, null]] : []),
     [retentionLabel(tier), null],
     [formatProjectsAndSeats(tier), null],
+    ...CENTRAL_TIERS[tier].securityFeatures.map((feature): [string, null] => [feature, null]),
     [formatSupport(tier), null],
   ];
   return {

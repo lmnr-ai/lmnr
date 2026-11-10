@@ -1,3 +1,4 @@
+import { TRIAL_DAYS } from "@/lib/actions/checkout/types";
 import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
 import {
   formatDataIncluded,
@@ -37,7 +38,8 @@ const PRICING_COLUMNS: PricingColumnConfig[] = [
     id: "hobby",
     priceSuffix: "/ month",
     blurb: "For small teams shipping their first production agent.",
-    ctaLabel: "Get Started",
+    // New sign-ups start the trial in onboarding, so the CTA can promise it.
+    ctaLabel: `Start ${TRIAL_DAYS}-day free trial`,
     ctaHref: "/sign-up",
   },
   {
@@ -163,6 +165,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     title: "Security & compliance",
     rows: [
       { label: "OAuth sign-in", values: { free: true, hobby: true, pro: true, enterprise: true } },
+      { label: "Role-based access control", values: { free: false, hobby: false, pro: true, enterprise: true } },
+      { label: "Audit logs", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "SOC 2 Type II", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "HIPAA", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "Server-side PII Removal", values: { free: false, hobby: false, pro: true, enterprise: true } },
@@ -214,6 +218,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },
+    ...TIERS.pro.securityFeatures.map((label) => ({ label })),
     { label: formatSupport("pro") },
   ],
   enterprise: [
