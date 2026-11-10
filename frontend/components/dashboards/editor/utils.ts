@@ -91,7 +91,7 @@ const isTimeBound = (filter: Filter): boolean =>
 // Form state for a saved or reverse-parsed structure.
 export const toFormValues = (structure: QueryStructure, chartType: ChartType | undefined): QueryStructure => {
   // Strip the dashboard's own time bounds. The editor re-appends them at execute time for
-  // Table/HorizontalBar charts (see Form.tsx), and SQL reverse-parsed by convertSqlToJson still
+  // Table/HorizontalBar/Value charts (see Form.tsx), and SQL reverse-parsed by convertSqlToJson still
   // carries them, so keeping them would duplicate. A user's own filter on that column stays.
   const timeColumn = getTimeColumn(structure.table);
   return {
@@ -111,6 +111,7 @@ export const toFormValues = (structure: QueryStructure, chartType: ChartType | u
 //   - Table rows are bare columns, no aggregation, no limit
 //   - Non-Table charts need an aggregate metric by default
 //   - Line/Bar order by timeRange, not explicit orderBy
+//   - Value is one aggregate over the whole range: no group by, order or limit
 export const transformFormForChartType = (
   current: QueryStructure,
   newType: ChartType,
@@ -128,13 +129,16 @@ export const transformFormForChartType = (
     };
   }
 
-  if (previousType === ChartType.Table) {
-    return {
-      ...current,
-      metrics: [{ fn: "count", column: "*", alias: "count", args: [] }],
-      orderBy: [],
-    };
+  const base =
+    previousType === ChartType.Table
+      ? { ...current, metrics: [{ fn: "count" as const, column: "*", alias: "count", args: [] }], orderBy: [] }
+      : current;
+
+  if (newType === ChartType.Value) {
+    return { ...base, dimensions: [], orderBy: [], limit: undefined };
   }
+
+  if (previousType === ChartType.Table) return base;
 
   if (newType === ChartType.LineChart || newType === ChartType.BarChart) {
     return { ...current, orderBy: [] };

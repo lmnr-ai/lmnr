@@ -29,7 +29,17 @@ export default function FreeformFields({ onRun, canRun, issue }: FreeformFieldsP
   return (
     <>
       <FreeformSqlField onRun={onRun} canRun={canRun} issue={issue} />
-      {config.type !== ChartType.Table && (
+      {config.type === ChartType.Value && (
+        <ColumnSelect
+          label="Value"
+          columns={columns}
+          value={config.y}
+          onChange={setAxis("y")}
+          noneLabel="First column"
+          info="Shown from the first row. A number gets formatted; text is shown as written."
+        />
+      )}
+      {config.type !== ChartType.Table && config.type !== ChartType.Value && (
         <>
           <ColumnSelect
             label={isHorizontal ? "Value" : "X axis"}

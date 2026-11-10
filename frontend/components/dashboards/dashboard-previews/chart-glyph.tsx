@@ -29,7 +29,7 @@ interface ChartGlyphProps {
   height: number;
 }
 
-/** A data-free sketch of a chart type: jittery line, fake bars, or a two-column table. */
+/** A data-free sketch of a chart type: jittery line, fake bars, digit blocks, or a two-column table. */
 const ChartGlyph = ({ type, seed, width, height }: ChartGlyphProps) => {
   const random = seededRandom(seed);
   const w = width - NOMINAL_PADDING * 2;
@@ -68,6 +68,24 @@ const ChartGlyph = ({ type, seed, width, height }: ChartGlyphProps) => {
       barWidth *= 0.6 + random() * 0.4;
       return <rect key={i} x={0} y={i * ROW_PITCH} width={w * barWidth} height={ROW_PITCH - 2} fill={INK} />;
     });
+  } else if (type === ChartType.Value) {
+    // A few digit-sized blocks, centred like a big number.
+    const digitHeight = Math.min(h * 0.5, w / 4);
+    const digitWidth = digitHeight * 0.6;
+    const count = 2 + Math.floor(random() * 3);
+    const gap = digitWidth * 0.25;
+    const left = (w - count * digitWidth - (count - 1) * gap) / 2;
+    marks = Array.from({ length: count }, (_, i) => (
+      <rect
+        key={i}
+        x={left + i * (digitWidth + gap)}
+        y={(h - digitHeight) / 2}
+        width={digitWidth}
+        height={digitHeight}
+        rx={digitWidth * 0.2}
+        fill={INK}
+      />
+    ));
   } else {
     const rule = { stroke: INK, strokeWidth: TABLE_WIDTH, vectorEffect: "non-scaling-stroke" as const };
     marks = (

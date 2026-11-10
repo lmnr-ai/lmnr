@@ -7,11 +7,11 @@ import { useHotkeys } from "react-hotkeys-hook";
 import ChartPreviewContent from "@/components/dashboards/editor/chart-preview-content";
 import ChartPreviewPane from "@/components/dashboards/editor/chart-preview-pane";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
+import EditorFooter from "@/components/dashboards/editor/editor-footer";
 import EditorSidebar from "@/components/dashboards/editor/editor-sidebar";
 import FreeformFields from "@/components/dashboards/editor/freeform-fields";
 import { toTimeParameters, useDashboardTimeRange } from "@/components/dashboards/time-range";
 import { BUILT_IN_PARAMETERS, deriveParameters } from "@/components/sql/parameters";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function FreeformForm() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -45,14 +45,13 @@ export default function FreeformForm() {
 
   return (
     <>
-      <ScrollArea className="rounded border bg-secondary">
-        <EditorSidebar saveDisabled={!chart.settings.config.type}>
-          <FreeformFields onRun={runQuery} canRun={canRun} issue={issue} />
-        </EditorSidebar>
-      </ScrollArea>
+      <EditorSidebar>
+        <FreeformFields onRun={runQuery} canRun={canRun} issue={issue} />
+      </EditorSidebar>
       <ChartPreviewPane name={chart.name}>
         <ChartPreviewContent config={chart.settings.config} />
       </ChartPreviewPane>
+      <EditorFooter saveDisabled={!chart.settings.config.type} />
     </>
   );
 }
