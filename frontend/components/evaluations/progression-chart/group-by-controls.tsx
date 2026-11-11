@@ -45,7 +45,7 @@ export default function GroupByControls({
       <div className="flex items-center h-7 rounded-md border bg-background">
         <Select value={groupBy ?? ""} onValueChange={onGroupByChange} disabled={metadataKeys.length === 0}>
           <SelectTrigger className={cn("w-fit h-full border-0 gap-1.5", selectTriggerWithIconClassName)}>
-            <span className="text-muted-foreground">Group by</span>
+            <span>Group by</span>
             {groupBy && <span className="font-medium">{groupBy}</span>}
           </SelectTrigger>
           <SelectContent>
@@ -92,9 +92,7 @@ function KeyGroup({ label, keys, disabled }: { label: string; keys: MetadataKeyI
   if (keys.length === 0) return null;
   return (
     <SelectGroup>
-      <SelectLabel className="text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
-        {label}
-      </SelectLabel>
+      <SelectLabel className="text-[10px] font-medium text-muted-foreground">{label}</SelectLabel>
       {keys.map((k) => (
         <SelectItem key={k.key} value={k.key} disabled={disabled}>
           <span className="flex items-center gap-3 w-full">
