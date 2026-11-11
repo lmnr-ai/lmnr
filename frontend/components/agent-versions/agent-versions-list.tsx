@@ -51,7 +51,14 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
           />
         )}
       </div>
-      {data && <AgentDefinition definition={data.agent.definition} />}
+      {data && (
+        <AgentDefinition
+          projectId={projectId}
+          agentId={agentId}
+          definition={data.agent.definition}
+          onChange={() => mutate()}
+        />
+      )}
       {isLoading ? (
         <div className="flex flex-col gap-2">
           {times(3, (i) => (

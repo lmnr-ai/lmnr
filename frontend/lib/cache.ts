@@ -253,6 +253,8 @@ export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
+// Must stay in sync with `AGENT_DEFINITIONS_CACHE_KEY` in `app-server/src/cache/keys.rs`.
+export const AGENT_DEFINITIONS_CACHE_KEY = "agent_definitions";
 export const ALERT_FILTERS_CACHE_KEY = "alert_filters";
 export const WORKSPACE_DEPLOYMENTS_CACHE_KEY = "workspace_deployment_config";
 export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deployment_config_by_ws";

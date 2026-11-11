@@ -114,18 +114,33 @@ pub async fn insert_defined_agent(
     Ok(())
 }
 
-pub async fn set_agent_definition(
+/// Appends `added`'s alternatives the definition lacks. One statement, so
+/// alternatives users add or remove concurrently are kept.
+pub async fn extend_agent_definition(
     pool: &PgPool,
     project_id: Uuid,
     agent_id: Uuid,
-    definition: &Definition,
+    added: &Definition,
 ) -> Result<()> {
-    sqlx::query("UPDATE agents SET definition = $3 WHERE project_id = $1 AND id = $2")
-        .bind(project_id)
-        .bind(agent_id)
-        .bind(Json(definition))
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "UPDATE agents SET definition = jsonb_set(
+            COALESCE(definition, '{}'::jsonb),
+            '{any_of}',
+            COALESCE(definition -> 'any_of', '[]'::jsonb) || COALESCE((
+                SELECT jsonb_agg(alternative)
+                FROM jsonb_array_elements($3::jsonb -> 'any_of') AS alternative
+                WHERE alternative NOT IN (
+                    SELECT jsonb_array_elements(COALESCE(definition -> 'any_of', '[]'::jsonb))
+                )
+            ), '[]'::jsonb)
+         )
+         WHERE project_id = $1 AND id = $2",
+    )
+    .bind(project_id)
+    .bind(agent_id)
+    .bind(Json(added))
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

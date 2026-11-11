@@ -4,6 +4,10 @@ import { z } from "zod/v4";
 import { db } from "@/lib/db/drizzle";
 import { agentReleases, agents, agentVersionModels, agentVersions } from "@/lib/db/migrations/schema";
 
+import { type AgentDefinition, AgentDefinitionSchema } from "./definition";
+
+export type { AgentDefinition } from "./definition";
+
 const VERSIONS_LIMIT = 50;
 
 export const GetAgentsSchema = z.object({
@@ -64,11 +68,6 @@ export interface AgentVersionTracesPoint {
   /** Trace count per version id. */
   [versionId: string]: number | string;
 }
-
-/** app-server `agent_versioning::Definition`: any alternative matches when all its substrings do. */
-const AgentDefinitionSchema = z.object({ any_of: z.array(z.array(z.string())) });
-
-export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>;
 
 export interface AgentVersionsResult {
   agent: {
