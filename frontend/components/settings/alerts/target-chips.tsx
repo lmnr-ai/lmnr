@@ -11,6 +11,7 @@ export interface TargetChipItem {
   channelId?: string | null;
   channelName?: string | null;
   email?: string | null;
+  hidden?: boolean;
 }
 
 function TargetIcon({ type }: { type: string }) {
@@ -35,6 +36,7 @@ function groupTargetsByType(targets: TargetChipItem[]): Map<string, TargetChipIt
 
 function getTargetLabel(target: TargetChipItem): string {
   if (target.type === "SLACK") {
+    if (target.hidden) return "Private channel";
     return target.channelName ? `#${target.channelName}` : (target.channelId ?? "unknown");
   }
   if (target.type === "EMAIL") {

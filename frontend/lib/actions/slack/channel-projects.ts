@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { getVisibleSlackChannels, redactSlackChannel } from "@/lib/actions/slack/visibility";
 import { decodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { projects, slackChannelProjects, slackIntegrations } from "@/lib/db/migrations/schema";
@@ -11,6 +12,8 @@ export interface SlackChannelProjectBinding {
   channelName: string | null;
   projectId: string;
   projectName: string | null;
+  // A Slack channel the viewer isn't a member of; its name is withheld.
+  hidden: boolean;
 }
 
 const UpsertBindingSchema = z.object({
@@ -26,8 +29,11 @@ const DeleteBindingSchema = z.object({
 });
 
 /** All Slack channel→project bindings for a workspace, joined to the project name for display. */
-export async function getChannelProjectBindings(workspaceId: string): Promise<SlackChannelProjectBinding[]> {
-  return db
+export async function getChannelProjectBindings(
+  workspaceId: string,
+  userId: string
+): Promise<SlackChannelProjectBinding[]> {
+  const bindings = await db
     .select({
       id: slackChannelProjects.id,
       channelId: slackChannelProjects.channelId,
@@ -39,6 +45,10 @@ export async function getChannelProjectBindings(workspaceId: string): Promise<Sl
     .leftJoin(projects, eq(projects.id, slackChannelProjects.projectId))
     .where(eq(slackChannelProjects.workspaceId, workspaceId))
     .orderBy(desc(slackChannelProjects.createdAt));
+  if (bindings.length === 0) return [];
+
+  const visible = await getVisibleSlackChannels(workspaceId, userId);
+  return bindings.map((b) => redactSlackChannel(b, visible));
 }
 
 /**

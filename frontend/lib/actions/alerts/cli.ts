@@ -3,6 +3,13 @@ import { z } from "zod/v4";
 
 import { type Filter, FilterSchema } from "@/lib/actions/common/filter-schemas";
 import { getSlackChannels, getSlackIntegration, type SlackChannel } from "@/lib/actions/slack";
+import {
+  getVisibleSlackChannels,
+  mergeSlackChannelSelection,
+  redactSlackChannel,
+  toVisibleChannels,
+  type VisibleSlackChannels,
+} from "@/lib/actions/slack/visibility";
 import { ApiError } from "@/lib/api/errors";
 import { type InternalClaims } from "@/lib/api/internal";
 import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
@@ -55,6 +62,7 @@ export interface CliAlert {
   disabled: boolean;
   /** Whether the caller's email is a target. */
   notifyMe: boolean;
+  /** `channelName` is null for private channels the caller isn't a member of. */
   slackChannels: { channelId: string; channelName: string | null }[];
   filters: Filter[][];
   createdAt: string;
@@ -62,6 +70,8 @@ export interface CliAlert {
 
 export interface CliAlertContext {
   projectId: string;
+  workspaceId: string;
+  userId: string;
   userEmail: string | null;
 }
 
@@ -73,7 +83,13 @@ export async function cliAlertContext(projectId: string, claims: InternalClaims)
   if (!claims.userId) throw new AlertApiError("Unauthorized", 401);
   const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, claims.userId)).limit(1);
   if (!user) throw new AlertApiError("Unauthorized", 401);
-  return { projectId, userEmail: user.email || null };
+  const [project] = await db
+    .select({ workspaceId: projects.workspaceId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!project) throw new AlertApiError("Project not found", 404);
+  return { projectId, workspaceId: project.workspaceId, userId: claims.userId, userEmail: user.email || null };
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -102,7 +118,8 @@ export async function createCliAlert(ctx: CliAlertContext, input: unknown): Prom
     {}
   );
   const filters = body.filters ? validateFilters(type, body.filters, signal.structuredOutputSchema) : [];
-  const slack = await resolveSlackChannels(ctx.projectId, body.slackChannels ?? []);
+  const { integrationId, channels } = await resolveSlackChannels(ctx, body.slackChannels ?? []);
+  const slack = channels.map((c) => ({ integrationId, channelId: c.id, channelName: c.name }));
   // Default on, but an account without an email simply gets no email target.
   const email = body.notifyMe === false ? null : body.notifyMe ? requireEmail(ctx.userEmail) : ctx.userEmail;
 
@@ -130,7 +147,10 @@ export async function updateCliAlert(ctx: CliAlertContext, alertId: string, inpu
   }
   const name = body.name == null ? undefined : validateName(body.name);
   // Slack lookups are network calls, so they run before the row lock is taken.
-  const slack = body.slackChannels == null ? null : await resolveSlackChannels(ctx.projectId, body.slackChannels);
+  const slack =
+    body.slackChannels == null
+      ? null
+      : await resolveSlackChannels(ctx, body.slackChannels, await storedSlackChannelIds(ctx, alertId));
   const email = body.notifyMe == null ? null : body.notifyMe ? requireEmail(ctx.userEmail) : ctx.userEmail;
 
   await db.transaction(async (tx) => {
@@ -164,7 +184,30 @@ export async function updateCliAlert(ctx: CliAlertContext, alertId: string, inpu
       .update(alerts)
       .set({ metadata, ...(name !== undefined && { name }) })
       .where(and(eq(alerts.id, alertId), eq(alerts.projectId, ctx.projectId)));
+    let slackRows: SlackTargetRow[] = [];
     if (slack) {
+      // Replaces only the channels the caller can see; the rest are kept as stored.
+      const stored = await tx
+        .select({
+          integrationId: alertTargets.integrationId,
+          channelId: alertTargets.channelId,
+          channelName: alertTargets.channelName,
+        })
+        .from(alertTargets)
+        .where(targetsOf(ctx.projectId, alertId, ALERT_TARGET_TYPE.SLACK));
+      const { kept, added } = mergeSlackChannelSelection({
+        stored,
+        requestedIds: slack.channels.map((c) => c.id),
+        visible: slack.visible,
+      });
+      slackRows = [
+        ...kept,
+        ...added.map((channel) => ({
+          integrationId: slack.integrationId,
+          channelId: channel.id,
+          channelName: channel.name,
+        })),
+      ];
       await tx.delete(alertTargets).where(targetsOf(ctx.projectId, alertId, ALERT_TARGET_TYPE.SLACK));
     }
     if (email) {
@@ -173,7 +216,7 @@ export async function updateCliAlert(ctx: CliAlertContext, alertId: string, inpu
         .delete(alertTargets)
         .where(and(targetsOf(ctx.projectId, alertId, ALERT_TARGET_TYPE.EMAIL), eq(alertTargets.email, email)));
     }
-    await insertTargets(tx, ctx.projectId, alertId, slack ?? [], body.notifyMe ? email : null);
+    await insertTargets(tx, ctx.projectId, alertId, slackRows, body.notifyMe ? email : null);
     if (filters) {
       await tx
         .delete(alertFilters)
@@ -213,7 +256,7 @@ async function queryAlerts(ctx: CliAlertContext, where: ReturnType<typeof and>):
   if (rows.length === 0) return [];
 
   const ids = rows.map((r) => r.id);
-  const [targets, filters] = await Promise.all([
+  const [targets, filters, visible] = await Promise.all([
     db
       .select()
       .from(alertTargets)
@@ -223,6 +266,7 @@ async function queryAlerts(ctx: CliAlertContext, where: ReturnType<typeof and>):
       .from(alertFilters)
       .where(and(eq(alertFilters.projectId, ctx.projectId), inArray(alertFilters.alertId, ids)))
       .orderBy(asc(alertFilters.createdAt)),
+    getVisibleSlackChannels(ctx.workspaceId, ctx.userId),
   ]);
 
   return rows.map((row) => {
@@ -241,6 +285,7 @@ async function queryAlerts(ctx: CliAlertContext, where: ReturnType<typeof and>):
         ctx.userEmail !== null && own.some((t) => t.type === ALERT_TARGET_TYPE.EMAIL && t.email === ctx.userEmail),
       slackChannels: own
         .filter((t) => t.type === ALERT_TARGET_TYPE.SLACK && t.channelId)
+        .map((t) => redactSlackChannel(t, visible))
         .map((t) => ({ channelId: t.channelId!, channelName: t.channelName })),
       filters: filters.filter((f) => f.alertId === row.id).map((f) => f.value as Filter[]),
       createdAt: row.createdAt,
@@ -261,20 +306,24 @@ function targetsOf(projectId: string, alertId: string, type: string) {
   return and(eq(alertTargets.projectId, projectId), eq(alertTargets.alertId, alertId), eq(alertTargets.type, type));
 }
 
+interface SlackTargetRow {
+  integrationId: string | null;
+  channelId: string | null;
+  channelName: string | null;
+}
+
 async function insertTargets(
   tx: Tx,
   projectId: string,
   alertId: string,
-  slack: ResolvedSlackChannel[],
+  slack: SlackTargetRow[],
   email: string | null
 ) {
-  const rows: (typeof alertTargets.$inferInsert)[] = slack.map(({ integrationId, channel }) => ({
+  const rows: (typeof alertTargets.$inferInsert)[] = slack.map((target) => ({
     alertId,
     projectId,
     type: ALERT_TARGET_TYPE.SLACK,
-    integrationId,
-    channelId: channel.id,
-    channelName: channel.name,
+    ...target,
   }));
   if (email) rows.push({ alertId, projectId, type: ALERT_TARGET_TYPE.EMAIL, email });
   if (rows.length > 0) await tx.insert(alertTargets).values(rows);
@@ -354,43 +403,57 @@ function validateFilters(type: AlertType, groups: Filter[][], schema: unknown): 
   return groups;
 }
 
-interface ResolvedSlackChannel {
+interface ResolvedSlackChannels {
   integrationId: string;
-  channel: SlackChannel;
+  channels: SlackChannel[];
+  visible: VisibleSlackChannels;
 }
 
-/** Resolves each channel id or `#name` against the workspace's Slack, deduplicated by channel id. */
-async function resolveSlackChannels(projectId: string, refs: string[]): Promise<ResolvedSlackChannel[]> {
-  if (refs.length === 0) return [];
-  const [project] = await db
-    .select({ workspaceId: projects.workspaceId })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  const integration = project ? await getSlackIntegration(project.workspaceId) : null;
-  if (!project || !integration) {
+async function storedSlackChannelIds(ctx: CliAlertContext, alertId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ channelId: alertTargets.channelId })
+    .from(alertTargets)
+    .where(targetsOf(ctx.projectId, alertId, ALERT_TARGET_TYPE.SLACK));
+  return new Set(rows.flatMap((r) => (r.channelId ? [r.channelId] : [])));
+}
+
+/**
+ * Resolves each channel id or `#name` against the Slack channels the caller can see (public
+ * channels, plus private ones they share with the bot), deduplicated by channel id. Ids of the
+ * alert's stored channels pass unresolved: reads return hidden channels by id, and the merge
+ * keeps every stored channel the caller can't see anyway.
+ */
+async function resolveSlackChannels(
+  ctx: CliAlertContext,
+  refs: string[],
+  storedIds: Set<string> = new Set()
+): Promise<ResolvedSlackChannels> {
+  const integration = await getSlackIntegration(ctx.workspaceId);
+  if (!integration) {
+    if (refs.length === 0) return { integrationId: "", channels: [], visible: new Map() };
     throw new AlertApiError(
       "Slack isn't connected to this workspace. Connect it in Settings → Integrations first.",
       400
     );
   }
-  const { channels, rateLimited } = await getSlackChannels(project.workspaceId);
+  const { channels, rateLimited } = await getSlackChannels(ctx.workspaceId, ctx.userId);
 
-  const resolved: ResolvedSlackChannel[] = [];
+  const resolved: SlackChannel[] = [];
   for (const ref of refs) {
     const name = ref.replace(/^#/, "");
     const channel = channels.find((c) => c.id === ref || c.name === name);
+    if (!channel && storedIds.has(ref)) continue;
     if (!channel) {
       throw new AlertApiError(
         rateLimited
           ? `Slack rate-limited the channel lookup before "${ref}" was found; retry in a minute or pass the channel id`
-          : `No Slack channel "${ref}" in the connected workspace (archived channels and private channels the Laminar app isn't in are not listed)`,
+          : `No Slack channel "${ref}" in the connected workspace (archived channels, and private channels that the Laminar app or you aren't in, are not listed; link your Slack account in the alert settings to use private channels)`,
         400
       );
     }
-    if (!resolved.some((r) => r.channel.id === channel.id)) {
-      resolved.push({ integrationId: integration.id, channel });
+    if (!resolved.some((r) => r.id === channel.id)) {
+      resolved.push(channel);
     }
   }
-  return resolved;
+  return { integrationId: integration.id, channels: resolved, visible: toVisibleChannels(channels) };
 }

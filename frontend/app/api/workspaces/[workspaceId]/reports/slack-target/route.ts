@@ -12,8 +12,9 @@ export const POST = handlerWithAudit<{ workspaceId: string }>(
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
-    const result = await setSlackTargets({ ...body, workspaceId });
-    audit.set({ metadata: { channels: body.channels?.map((c: { name: string }) => c.name) } });
+    const result = await setSlackTargets({ ...body, workspaceId, userId: session.user.id });
+    // Ids only: audit readers may not be members of a private channel.
+    audit.set({ metadata: { channelIds: body.channels?.map((c: { id: string }) => c.id) } });
     await audit.target(body.reportId);
     return Response.json(result);
   }

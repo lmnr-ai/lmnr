@@ -1,7 +1,7 @@
 "use client";
 
 import { Command as CommandPrimitive } from "cmdk";
-import { Hash, Loader2, X } from "lucide-react";
+import { Hash, Loader2, Lock, X } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
@@ -184,7 +184,11 @@ const SlackChannelPicker = ({
                         onSelect={() => addChannel(channel)}
                         className="text-xs"
                       >
-                        <Hash className="size-3 shrink-0 text-muted-foreground" />
+                        {channel.isPrivate ? (
+                          <Lock className="size-3 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <Hash className="size-3 shrink-0 text-muted-foreground" />
+                        )}
                         <span className="truncate flex-1">{channel.name}</span>
                         {channel.isMember && <span className="text-[10px] text-muted-foreground shrink-0">member</span>}
                       </CommandItem>

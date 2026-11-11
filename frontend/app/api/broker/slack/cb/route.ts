@@ -7,6 +7,7 @@ import {
   mintClaim,
   verifyState,
 } from "@/lib/actions/slack/broker";
+import { exchangeSlackOidcCode } from "@/lib/actions/slack/user-links";
 
 function buildInstanceRedirect(returnUrl: string, params: Record<string, string>): string {
   const url = new URL(returnUrl);
@@ -55,16 +56,27 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const { token, teamId, teamName } = await exchangeSlackCode({
-      code,
-      redirectUri: getBrokerRedirectUri(),
-      codeVerifier: consumed.codeVerifier,
-    });
+    // A link flow is Sign in with Slack: only the user's Slack ids come back, never a token.
+    const exchanged =
+      state.kind === "link"
+        ? {
+            kind: "link" as const,
+            teamName: null,
+            ...(await exchangeSlackOidcCode({
+              code,
+              redirectUri: getBrokerRedirectUri(),
+              expectedNonce: state.nonce,
+            })),
+          }
+        : await exchangeSlackCode({
+            code,
+            redirectUri: getBrokerRedirectUri(),
+            codeVerifier: consumed.codeVerifier,
+          });
+    const { teamId, teamName } = exchanged;
 
     const claim = await mintClaim({
-      token,
-      teamId,
-      teamName,
+      ...exchanged,
       instanceId: state.instanceId,
       workspaceId: state.workspaceId,
     });

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
+import { requestBrokerAuthorizeUrl } from "@/lib/actions/slack";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
 import { getBrokerLicenseKey } from "@/lib/license";
@@ -76,36 +77,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const response = await fetch(`${brokerUrl.replace(/\/+$/, "")}/api/broker/slack/start`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${licenseKey}`,
-      },
-      body: JSON.stringify({ workspaceId, returnUrl: callback.toString() }),
-    });
-
-    if (!response.ok) {
-      console.error(`Slack broker /start failed with status ${response.status}`);
-      return NextResponse.redirect(await buildErrorRedirect());
-    }
-
-    const { authorizeUrl } = (await response.json()) as { authorizeUrl: string };
-    // The broker always returns a slack.com authorize URL; validate the host
-    // before forwarding it as a browser redirect so a misconfigured
-    // SLACK_BROKER_URL or a compromised broker can't turn this into an open
-    // redirect to an arbitrary target.
-    let authorizeHost: string;
-    try {
-      authorizeHost = new URL(authorizeUrl).host;
-    } catch {
-      authorizeHost = "";
-    }
-    if (authorizeHost !== "slack.com") {
-      console.error(`Slack broker returned unexpected authorizeUrl host: ${authorizeHost}`);
-      return NextResponse.redirect(await buildErrorRedirect());
-    }
-    return NextResponse.redirect(authorizeUrl);
+    return NextResponse.redirect(await requestBrokerAuthorizeUrl({ workspaceId, returnUrl: callback.toString() }));
   } catch (e) {
     console.error("Slack broker /start error:", e);
     return NextResponse.redirect(await buildErrorRedirect());

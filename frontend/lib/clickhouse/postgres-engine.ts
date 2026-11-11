@@ -10,7 +10,7 @@ import { db, getDatabaseConfig, getPostgresSchema } from "@/lib/db/drizzle";
  * whole frontend. See `docs/internal/sql-query-engine.md`.
  */
 
-/** Must match the `signals_v0` / `evaluations_v0` / `datasets_v0` views (CH migration 73), `dashboards_v0` / `dashboard_charts_v0` (78), `alerts_v0` / `alert_targets_v0` / `alert_filters_v0` (81), and the dict sources below. `project_id` is granted to filter and key on, never exposed. */
+/** Must match the `signals_v0` / `evaluations_v0` / `datasets_v0` views (CH migration 73), `dashboards_v0` / `dashboard_charts_v0` (78), `alerts_v0` / `alert_targets_v0` / `alert_filters_v0` (81, `alert_targets_v0` redefined in 84), and the dict sources below. `project_id` is granted to filter and key on, never exposed. */
 const PG_ENTITY_COLUMNS: Record<string, string[]> = {
   signals: [
     "id",
@@ -28,8 +28,14 @@ const PG_ENTITY_COLUMNS: Record<string, string[]> = {
   dashboards: ["id", "project_id", "name", "created_at"],
   dashboard_charts: ["id", "project_id", "dashboard_id", "name", "query", "settings", "created_at"],
   alerts: ["id", "project_id", "name", "type", "source_id", "metadata", "created_at"],
-  alert_targets: ["id", "project_id", "alert_id", "type", "channel_id", "channel_name", "email", "created_at"],
+  alert_targets: ["id", "project_id", "alert_id", "type", "channel_id", "email", "created_at"],
   alert_filters: ["id", "project_id", "alert_id", "value", "created_at"],
+};
+
+/** Columns once granted and since withdrawn; GRANT only adds, so earlier installs need the REVOKE. */
+const PG_REVOKED_COLUMNS: Record<string, string[]> = {
+  // Private Slack channel names may only be shown to channel members (CH migration 84).
+  alert_targets: ["channel_name"],
 };
 
 /** Attributes resolved by `dictGetOrDefault` in the `_v0` views of CH migration 73, keyed by `(project_id, id)`. */
@@ -184,6 +190,10 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
     const qualified = `${schema}.${pgIdent(table)}`;
     try {
       await db.execute(`GRANT SELECT (${columns.map(pgIdent).join(", ")}) ON ${qualified} TO ${role}`);
+      const revoked = PG_REVOKED_COLUMNS[table];
+      if (revoked) {
+        await db.execute(`REVOKE SELECT (${revoked.map(pgIdent).join(", ")}) ON ${qualified} FROM ${role}`);
+      }
       // `evaluations` has RLS on, which denies every row to a non-owner until a
       // policy admits it. Inert on the tables without RLS.
       await db.execute(`

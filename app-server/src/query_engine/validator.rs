@@ -719,7 +719,6 @@ impl TableRegistry {
             "alert_id",
             "type",
             "channel_id",
-            "channel_name",
             "email",
             "created_at",
         ];

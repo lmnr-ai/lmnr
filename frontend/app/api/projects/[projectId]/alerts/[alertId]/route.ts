@@ -8,10 +8,18 @@ export const PATCH = handlerWithAudit<{ projectId: string; alertId: string }>(
     const { projectId, alertId } = await ctx.params;
 
     const session = await getServerSession();
-    const userEmail = session?.user?.email ?? undefined;
+    if (!session) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
 
-    const result = await patchAlert({ projectId, alertId, userEmail, body });
+    const result = await patchAlert({
+      projectId,
+      alertId,
+      userId: session.user.id,
+      userEmail: session.user.email ?? undefined,
+      body,
+    });
     await audit.target(alertId);
     return Response.json(result);
   }

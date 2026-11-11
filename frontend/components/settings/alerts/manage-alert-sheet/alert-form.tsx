@@ -11,6 +11,7 @@ import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { SeverityIcon } from "@/components/notifications/notification-panel/severity-icon";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
+import SlackPrivateChannelsHint from "@/components/slack/slack-private-channels-hint";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -31,7 +32,7 @@ import {
 } from "@/lib/actions/alerts/types";
 import { type FilterDataType } from "@/lib/actions/common/filters";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
-import { type SlackChannel } from "@/lib/actions/slack";
+import { type GetSlackChannelsResult } from "@/lib/actions/slack";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -206,11 +207,15 @@ export function AlertForm({
     return `${totalEventCount} event${totalEventCount === 1 ? "" : "s"} for the past ${dateRangeLabel}`;
   }, [alertType, dateRangeLabel, totalEventCount]);
 
-  const { data: channelsResult, isLoading: isLoadingChannels } = useSWR<{
-    channels: SlackChannel[];
-    rateLimited: boolean;
-  }>(hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null, swrFetcher);
+  const { data: channelsResult, isLoading: isLoadingChannels } = useSWR<GetSlackChannelsResult>(
+    hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
+    swrFetcher
+  );
   const channels = channelsResult?.channels;
+  const hiddenSlackCount = useMemo(
+    () => alert?.targets.filter((t) => t.type === ALERT_TARGET_TYPE.SLACK && t.hidden).length ?? 0,
+    [alert]
+  );
 
   useEffect(() => {
     if (channelsResult?.rateLimited) {
@@ -266,26 +271,15 @@ export function AlertForm({
         email?: string;
       }> = [];
 
-      if (hasSlackIntegration && integrationId && data.slackChannels.length > 0) {
+      // The server keeps Slack targets the user can't see (private channels they aren't in, or all of
+      // them when Slack is disconnected), so only the visible selection is sent.
+      if (hasSlackIntegration && integrationId) {
         for (const selection of data.slackChannels) {
           targets.push({
             type: ALERT_TARGET_TYPE.SLACK,
             integrationId,
             channelId: selection.id,
-            channelName: selection.name,
           });
-        }
-      } else if (!hasSlackIntegration && isEditMode && alert) {
-        // Preserve Slack targets the user can't see/edit when Slack is disconnected.
-        for (const t of alert.targets) {
-          if (t.type === ALERT_TARGET_TYPE.SLACK) {
-            targets.push({
-              type: ALERT_TARGET_TYPE.SLACK,
-              integrationId: t.integrationId ?? undefined,
-              channelId: t.channelId ?? undefined,
-              channelName: t.channelName ?? undefined,
-            });
-          }
         }
       }
 
@@ -740,6 +734,12 @@ export function AlertForm({
                             {fieldState.error && (
                               <p className="text-xs text-destructive-text">{fieldState.error.message}</p>
                             )}
+                            <SlackPrivateChannelsHint
+                              className="pl-7"
+                              workspaceId={workspaceId}
+                              slackLinked={channelsResult?.slackLinked}
+                              hiddenCount={hiddenSlackCount}
+                            />
                           </div>
                         )}
                       />

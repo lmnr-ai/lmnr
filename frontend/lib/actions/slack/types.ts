@@ -29,6 +29,8 @@ const SlackOauthSuccessResponseSchema = z.looseObject({
     name: z.string(),
   }),
   bot_user_id: z.string(),
+  // The Slack user who authorized the install.
+  authed_user: z.looseObject({ id: z.string() }).optional(),
   incoming_webhook: z
     .looseObject({
       url: z.string(),

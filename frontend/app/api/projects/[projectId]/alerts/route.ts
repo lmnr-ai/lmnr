@@ -7,8 +7,10 @@ export const GET = apiHandler<{ projectId: string }>(async (_request, ctx) => {
   const { projectId } = await ctx.params;
 
   const session = await getServerSession();
-  const userEmail = session?.user?.email ?? undefined;
-  const result = await getAlerts(projectId, userEmail);
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const result = await getAlerts(projectId, session.user.id, session.user.email ?? undefined);
   return Response.json(result);
 });
 
@@ -19,7 +21,7 @@ export const POST = handlerWithAudit<{ projectId: string }>(
 
     const session = await getServerSession();
     const userEmail = session?.user?.email;
-    if (!userEmail) {
+    if (!session || !userEmail) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
@@ -27,7 +29,7 @@ export const POST = handlerWithAudit<{ projectId: string }>(
     if (emailTargets.some((t: { email?: string }) => t.email && t.email !== userEmail)) {
       return Response.json({ error: "Cannot create alert targets for other users' emails." }, { status: 403 });
     }
-    const result = await createAlert({ ...body, projectId });
+    const result = await createAlert({ ...body, projectId, userId: session.user.id });
     await audit.target(result.id);
     return Response.json(result);
   }

@@ -731,11 +731,6 @@ const TABLES: &[Table] = &[
                 "Slack channel id; NULL for EMAIL targets",
             ),
             col(
-                "channel_name",
-                "Nullable(String)",
-                "Slack channel name; NULL for EMAIL targets",
-            ),
-            col(
                 "email",
                 "Nullable(String)",
                 "Subscribed member's email; NULL for SLACK targets",

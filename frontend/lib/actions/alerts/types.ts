@@ -44,6 +44,8 @@ export interface AlertTarget {
   channelId: string | null;
   channelName: string | null;
   email: string | null;
+  // A Slack channel the viewer isn't a member of; its name is withheld.
+  hidden?: boolean;
 }
 
 export interface AlertWithDetails {
