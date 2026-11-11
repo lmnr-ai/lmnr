@@ -25,8 +25,9 @@ export default function FileTreeNode({ node, depth, selectedPath, collapsed, onT
         title={node.path}
         onClick={() => (isDir ? onToggle(node.path) : onSelect(node))}
         className={cn(
-          "flex w-full items-center gap-1.5 rounded-sm py-0.5 pr-2 text-left text-xs hover:bg-muted",
-          node.path === selectedPath && "bg-muted font-medium"
+          // Hover and selected states match the main sidebar menu (`SidebarMenuButton`).
+          "flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs hover:overlay-hover hover:text-foreground-50 active:overlay-selected active:text-foreground-50",
+          node.path === selectedPath && "overlay-selected font-medium text-foreground-50"
         )}
         style={{ paddingLeft: depth * 12 + 4 }}
       >
