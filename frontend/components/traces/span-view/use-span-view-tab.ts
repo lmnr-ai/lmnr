@@ -27,8 +27,11 @@ export const useSpanViewTab = ({
   const syncUrl = useUrlState();
   const [urlTab, setUrlTab] = useQueryState(SPAN_TAB_PARAM, spanTabParser);
   const [localTab, setLocalTab] = useState<SpanViewTab | null>(null);
+  // Closing drops `?spanTab` while the panel is still sliding out; keep the last tab so it doesn't flip mid-exit.
+  const [lastUrlTab, setLastUrlTab] = useState(urlTab);
+  if (urlTab && urlTab !== lastUrlTab) setLastUrlTab(urlTab);
 
-  const requested = (syncUrl ? urlTab : localTab) ?? fallback ?? "content";
+  const requested = (syncUrl ? (urlTab ?? lastUrlTab) : localTab) ?? fallback ?? "content";
   const tab = requested === "events" && !hasEvents ? "content" : requested;
 
   const setTab = useCallback(

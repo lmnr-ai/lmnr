@@ -77,17 +77,18 @@ export default function DynamicWidthLayout({ panels, maxWidth: budget, slideIn }
           </div>
         </motion.div>
 
-        {/* propagate: when the whole panel closes, the span slides out with the trace instead of popping. */}
-        <AnimatePresence initial={false} propagate>
+        {/* Not `propagate`: framer-motion renders a propagated child twice when its parent re-renders mid-exit (a
+            second span panel mounts while the drawer closes). The span slides out with the trace via `animate`. */}
+        <AnimatePresence initial={false}>
           {/* Span Panel */}
           {panels.showSpan && (
             <motion.div
               key="span-panel"
               className="relative h-full flex-shrink-0 overflow-hidden"
               initial={{ width: 0, opacity: 0.5 }}
-              animate={{ width: widths.span, opacity: 1 }}
-              exit={{ width: 0, opacity: 0.5, transition: isPresent ? transition : enterExitTransition }}
-              transition={transition}
+              animate={isPresent ? { width: widths.span, opacity: 1 } : { width: 0, opacity: 0.5 }}
+              exit={{ width: 0, opacity: 0.5 }}
+              transition={isPresent ? transition : enterExitTransition}
             >
               <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.span }}>
                 <LeftEdgeResizeHandle onPointerDown={spanResize.handlePointerDown} />

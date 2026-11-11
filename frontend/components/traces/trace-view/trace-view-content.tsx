@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useQueryState } from "nuqs";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
@@ -45,7 +45,6 @@ export default function TraceViewContent({
   isAlwaysSelectSpan,
   layout = FILL,
 }: TraceViewContentProps) {
-  const searchParams = useSearchParams();
   const { projectId } = useParams();
 
   // Panel visibility states
@@ -195,6 +194,8 @@ export default function TraceViewContent({
           setBrowserSession(true);
         }
 
+        // Read at fetch time: subscribing would rebuild fetchSpans (a TracePanel prop) on every URL change.
+        const searchParams = new URLSearchParams(window.location.search);
         const urlSpanId = spanId || searchParams.get("spanId");
         // Auto-select the first span only in the dedicated trace page (always-select mode).
         // In drawer layouts we leave the selection empty unless the user explicitly opens a span.
@@ -233,7 +234,6 @@ export default function TraceViewContent({
       setSelectedSpan,
       isAlwaysSelectSpan,
       spanId,
-      searchParams,
       urlState,
       setSpanTab,
     ]

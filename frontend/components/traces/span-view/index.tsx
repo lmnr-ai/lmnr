@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { CircleAlert } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useRef, useState } from "react";
+import React, { memo, useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
@@ -109,14 +109,7 @@ export const SpanViewTabs = ({
   );
 };
 
-export function SpanView({
-  spanId,
-  traceId,
-  initialSearchTerm,
-  initialTab,
-  onClose,
-  isAlwaysSelectSpan,
-}: SpanViewProps) {
+function PureSpanView({ spanId, traceId, initialSearchTerm, initialTab, onClose, isAlwaysSelectSpan }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
   const {
@@ -188,3 +181,5 @@ export function SpanView({
     );
   }
 }
+
+export const SpanView = memo(PureSpanView);

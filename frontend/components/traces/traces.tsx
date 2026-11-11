@@ -76,6 +76,7 @@ function TracesContent() {
   );
 
   const openTrace = useCallback((id: string) => pushOpenTrace(id), [pushOpenTrace]);
+  const closeTrace = useCallback(() => pushOpenTrace(null), [pushOpenTrace]);
 
   return (
     <SessionPreviewSelectTraceProvider value={openTrace}>
@@ -109,7 +110,7 @@ function TracesContent() {
         <TraceViewSidePanel
           urlState
           spanId={spanId || undefined}
-          onClose={() => pushOpenTrace(null)}
+          onClose={closeTrace}
           traceId={traceId}
           initialSearch={searchParams.get("search") ?? undefined}
         />

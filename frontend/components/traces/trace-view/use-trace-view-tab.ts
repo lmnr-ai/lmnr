@@ -1,5 +1,5 @@
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { type BaseTraceViewStore, useTraceViewBaseStore, useUrlState } from "@/components/traces/trace-view/store/base";
@@ -23,6 +23,9 @@ export const useTraceViewTab = () => {
     shallow
   );
   const [urlTab, setUrlTab] = useQueryState(TRACE_VIEW_PARAM, traceViewParser);
+  // Closing drops `?traceView` while the panel is still sliding out; keep the last view so it doesn't flip mid-exit.
+  const [lastUrlTab, setLastUrlTab] = useState(urlTab);
+  if (urlTab && urlTab !== lastUrlTab) setLastUrlTab(urlTab);
 
   const setTab = useCallback(
     (tab: TraceViewTab) => {
@@ -32,5 +35,5 @@ export const useTraceViewTab = () => {
     [setStoreTab, setUrlTab, syncUrl]
   );
 
-  return [(syncUrl && urlTab) || storeTab, setTab] as const;
+  return [(syncUrl && (urlTab ?? lastUrlTab)) || storeTab, setTab] as const;
 };
