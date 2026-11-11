@@ -237,3 +237,168 @@ fn test_time_series_query_roundtrip() {
     assert_eq!(rtr.column, otr.column);
     assert!(!result.metrics.is_empty());
 }
+
+// ---- Round-trip check: only structures that regenerate the same query ----
+
+#[test]
+fn test_rejects_computed_dimension_aliased_as_column() {
+    // LAM-2523: the dimension was dropped, so the editor opened (and re-saved)
+    // `SELECT sum(total_cost) ...` without the per-user breakdown.
+    let sql = r#"
+SELECT
+    if(empty(user_id), 'scheduled_job', user_id) as user_id,
+    sum(total_cost) AS `sum_total_cost`
+FROM traces
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+GROUP BY
+    user_id
+ORDER BY
+    sum_total_cost DESC
+LIMIT
+    6
+"#;
+    assert!(convert_sql_to_json(sql).is_err());
+}
+
+#[test]
+fn test_rejects_queries_the_builder_would_change() {
+    for sql in [
+        "SELECT user_id AS uid, count(*) AS value FROM traces GROUP BY uid",
+        "SELECT lower(user_id), count(*) AS value FROM traces GROUP BY lower(user_id)",
+        "SELECT count(*) AS value FROM traces GROUP BY user_id",
+        "SELECT if(empty(user_id), 'x', user_id) AS user_id, count(*) AS value FROM traces GROUP BY ALL",
+        "SELECT * FROM traces",
+        "SELECT user_id, count(DISTINCT session_id) AS sessions FROM traces GROUP BY user_id",
+        "SELECT DISTINCT user_id FROM traces GROUP BY user_id",
+        "SELECT user_id, sum(total_cost) AS c FROM traces GROUP BY user_id ORDER BY c DESC LIMIT 6 OFFSET 6",
+        "SELECT user_id, sum(total_cost) AS c FROM traces GROUP BY user_id ORDER BY c DESC LIMIT 1 BY user_id",
+        "SELECT user_id, sum(total_cost) AS c FROM traces GROUP BY user_id SETTINGS max_threads = 1",
+        "SELECT user_id, sum(total_cost) AS c FROM traces WHERE start_time >= now() - INTERVAL 1 DAY GROUP BY user_id",
+        "SELECT user_id, sum(total_cost) AS c FROM default.traces GROUP BY user_id",
+        // The builder always writes both time-range bounds.
+        "SELECT toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time, count(*) AS c FROM spans WHERE start_time >= {start_time:DateTime64} GROUP BY time ORDER BY time",
+    ] {
+        assert!(
+            convert_sql_to_json(sql).is_err(),
+            "expected error for: {sql}"
+        );
+    }
+}
+
+#[test]
+fn test_accepts_cosmetic_differences() {
+    // Quoting, function-name case, `count()`, parens, `col AS col`, implicit ASC and
+    // AND/GROUP BY order don't change the query.
+    let sql = r#"
+SELECT `user_id` AS user_id, model, COUNT() AS c
+FROM `traces`
+WHERE (start_time <= {end_time:DateTime64}) AND start_time >= {start_time:DateTime64}
+GROUP BY model, user_id
+ORDER BY c
+LIMIT 5
+"#;
+    let result = convert_sql_to_json(sql).unwrap();
+    assert_eq!(
+        result.dimensions,
+        vec!["user_id".to_string(), "model".to_string()]
+    );
+    assert_eq!(result.metrics[0].r#fn, "count");
+}
+
+#[test]
+fn test_ungrouped_columns_are_raw_metrics() {
+    let sql = "SELECT name, total_cost FROM spans ORDER BY total_cost DESC";
+    let result = convert_sql_to_json(sql).unwrap();
+    assert!(result.dimensions.is_empty());
+    let columns: Vec<_> = result
+        .metrics
+        .iter()
+        .map(|m| (m.r#fn.as_str(), m.column.as_str()))
+        .collect();
+    assert_eq!(columns, vec![("raw", "name"), ("raw", "total_cost")]);
+}
+
+#[test]
+fn test_builder_sql_round_trips() {
+    let metric = |r#fn: &str, column: &str, args: Vec<f64>, alias: &str| Metric {
+        r#fn: r#fn.to_string(),
+        column: column.to_string(),
+        args,
+        alias: Some(alias.to_string()),
+    };
+    let structures = [
+        QueryStructure {
+            table: "spans".to_string(),
+            metrics: vec![metric(
+                "quantile",
+                "end_time - start_time",
+                vec![0.9],
+                "value",
+            )],
+            dimensions: vec!["model".to_string()],
+            filters: vec![
+                Filter {
+                    field: "span_type".to_string(),
+                    op: "eq".to_string(),
+                    value: Some(FilterValue::StringValue("LLM".to_string())),
+                },
+                Filter {
+                    field: "tags".to_string(),
+                    op: "includes".to_string(),
+                    value: Some(FilterValue::StringValue("prod".to_string())),
+                },
+            ],
+            time_range: Some(TimeRange {
+                column: "start_time".to_string(),
+                from: "{start_time:DateTime64}".to_string(),
+                to: "{end_time:DateTime64}".to_string(),
+                interval_unit: "{interval_unit:String}".to_string(),
+                interval_value: "1".to_string(),
+                fill_gaps: true,
+            }),
+            order_by: vec![],
+            limit: None,
+        },
+        QueryStructure {
+            table: "traces".to_string(),
+            metrics: vec![metric("sum", "total_cost", vec![], "cost")],
+            dimensions: vec!["user_id".to_string()],
+            filters: vec![Filter {
+                field: "total_tokens".to_string(),
+                op: "gt".to_string(),
+                value: Some(FilterValue::NumberValue(100.0)),
+            }],
+            time_range: None,
+            order_by: vec![OrderBy {
+                field: "cost".to_string(),
+                dir: "desc".to_string(),
+            }],
+            limit: Some(6),
+        },
+        QueryStructure {
+            table: "traces".to_string(),
+            metrics: vec![
+                metric("raw", "top_span_name", vec![], "top_span_name"),
+                metric(
+                    "raw",
+                    "countIf(status = 'error') / count(*)",
+                    vec![],
+                    "error_rate",
+                ),
+            ],
+            dimensions: vec![],
+            filters: vec![],
+            time_range: None,
+            order_by: vec![],
+            limit: None,
+        },
+    ];
+    for structure in structures {
+        let sql = convert_json_to_sql(&structure).unwrap();
+        if let Err(e) = convert_sql_to_json(&sql) {
+            panic!("{e} for:\n{sql}");
+        }
+    }
+}

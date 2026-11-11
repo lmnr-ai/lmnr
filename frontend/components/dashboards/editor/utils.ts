@@ -106,6 +106,32 @@ export const toFormValues = (structure: QueryStructure, chartType: ChartType | u
   };
 };
 
+// The structure the visual form sends to `/sql/from-json` for its current values.
+export const buildQueryStructure = (values: QueryStructure, chartType: ChartType | undefined): QueryStructure => {
+  const { table, metrics, dimensions, filters, orderBy, limit } = values;
+  const allFilters = [...(filters || [])];
+
+  // Table and HorizontalBar charts carry no timeRange, so they'd otherwise pull every row ever:
+  // scope them to the dashboard's selected range. Line/Bar get the same bounds from timeRange.
+  if (chartType === ChartType.HorizontalBarChart || chartType === ChartType.Table) {
+    const timeColumn = getTimeColumn(table);
+    allFilters.push(
+      { field: timeColumn, op: "gte", stringValue: "{start_time:DateTime64}" },
+      { field: timeColumn, op: "lte", stringValue: "{end_time:DateTime64}" }
+    );
+  }
+
+  return {
+    table,
+    metrics: injectIdMetrics(metrics, dimensions, table, chartType),
+    dimensions: dimensions || [],
+    filters: allFilters,
+    orderBy: orderBy || [],
+    limit,
+    ...(needsTimeSeries(chartType) && { timeRange: getDefaultTimeRange(table) }),
+  };
+};
+
 // Maps old form state → new form state when the user switches chart type.
 // Encodes the per-type invariants in one place:
 //   - Table rows are bare columns, no aggregation, no limit
