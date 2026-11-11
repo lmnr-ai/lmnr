@@ -11,6 +11,8 @@ import useSWR from "swr";
 import HeatmapValue from "@/components/evaluation/heatmap-value";
 import { formatScoreValue, isValidScore } from "@/components/evaluation/utils";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import GroupByControls from "@/components/evaluations/progression-chart/group-by-controls";
+import { type ProgressionView } from "@/components/evaluations/progression-chart/shared";
 import { EvaluationsTableContents } from "@/components/evaluations/table-contents";
 import { EvaluationsTableControls } from "@/components/evaluations/table-controls";
 import { Button } from "@/components/ui/button";
@@ -176,6 +178,14 @@ function EvaluationsContent() {
   const [hoveredEvaluationId, setHoveredEvaluationId] = useState<string | undefined>(undefined);
   const [heatmapEnabled, setHeatmapEnabled] = useState(true);
   const [chartEvaluations, setChartEvaluations] = useState<{ id: string; name: string }[]>([]);
+  const [chartGroupBy, setChartGroupBy] = useLocalStorage<string | null>(
+    `evaluations-chart-group-by:${params?.projectId}:${groupId ?? ""}`,
+    null
+  );
+  const [chartView, setChartView] = useLocalStorage<ProgressionView>(
+    `evaluations-chart-view:${params?.projectId}:${groupId ?? ""}`,
+    "trend"
+  );
   // Off (default): 0–1 scores plot on a fixed 0–1 axis, others on their own min/max.
   // On: every score stretches to its own min/max so it fills the full chart height.
   const [fillHeight, setFillHeight] = useLocalStorage<boolean>(
@@ -205,6 +215,10 @@ function EvaluationsContent() {
     id: "evaluations-sidebar-layout",
     storage: layoutStorage,
   });
+  const { defaultLayout: chartLayout, onLayoutChanged: onChartLayoutChanged } = useDefaultLayout({
+    id: "evaluations-chart-layout",
+    storage: layoutStorage,
+  });
 
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
@@ -215,7 +229,11 @@ function EvaluationsContent() {
     scoresByEvalId,
     scoreRanges,
     allRunIds,
+    metadataKeys,
   } = useEvaluationsProgression(params?.projectId, groupId, aggregationFunction);
+  // A saved key that no longer exists in this group's metadata falls back to ungrouped (kept while loading).
+  const effectiveGroupBy =
+    chartGroupBy && (!progression || metadataKeys.some((k) => k.key === chartGroupBy)) ? chartGroupBy : null;
 
   // Resolved eval-score directions (override > app-wide LLM default > true).
   const { isHigherBetter, toggle: toggleScoreDirection } = useScoreDirections(params?.projectId, scoreNames);
@@ -371,15 +389,36 @@ function EvaluationsContent() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-2 pl-1 pr-2 border rounded-md bg-background h-7">
-              <Switch id="fill-height" checked={fillHeight} onCheckedChange={setFillHeight} />
-              <label htmlFor="fill-height" className="text-xs cursor-pointer font-medium text-secondary-foreground">
-                Normalize per score
-              </label>
-            </div>
+            <GroupByControls
+              metadataKeys={metadataKeys}
+              groupBy={effectiveGroupBy}
+              onGroupByChange={setChartGroupBy}
+              view={chartView}
+              onViewChange={setChartView}
+            />
+            {!effectiveGroupBy && (
+              <div className="flex items-center gap-2 pl-1 pr-2 border rounded-md bg-background h-7">
+                <Switch id="fill-height" checked={fillHeight} onCheckedChange={setFillHeight} />
+                <label htmlFor="fill-height" className="text-xs cursor-pointer font-medium text-secondary-foreground">
+                  Normalize per score
+                </label>
+              </div>
+            )}
           </div>
-          <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
-            <ResizablePanel className="min-w-0" minSize={160} maxSize={500} defaultSize={220}>
+          <ResizablePanelGroup
+            id="evaluations-panels"
+            className="overflow-hidden"
+            orientation="vertical"
+            defaultLayout={chartLayout}
+            onLayoutChanged={onChartLayoutChanged}
+          >
+            <ResizablePanel
+              id="evaluations-chart-panel"
+              className="min-w-0"
+              minSize={160}
+              maxSize={500}
+              defaultSize={220}
+            >
               <ProgressionChart
                 data={progression}
                 isLoading={isProgressionLoading}
@@ -390,6 +429,8 @@ function EvaluationsContent() {
                 hoveredEvaluationId={hoveredEvaluationId}
                 onPointClick={(id) => router.push(`/project/${params?.projectId}/evaluations/${id}`)}
                 fillHeight={fillHeight}
+                groupBy={effectiveGroupBy}
+                view={chartView}
               />
             </ResizablePanel>
             <ResizableHandle
@@ -399,7 +440,12 @@ function EvaluationsContent() {
                 isResizingChart && "bg-blue-400"
               )}
             />
-            <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
+            <ResizablePanel
+              id="evaluations-table-panel"
+              className="flex flex-1 w-full overflow-hidden"
+              minSize={40}
+              defaultSize={40}
+            >
               <EvaluationsTableContents
                 filter={filter}
                 search={search}
