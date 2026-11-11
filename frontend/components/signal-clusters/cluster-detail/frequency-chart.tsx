@@ -20,8 +20,8 @@ import { swrFetcher } from "@/lib/api/fetch-api";
 import { fixedCountTicks } from "@/lib/charts/y-ticks";
 
 const RESOLVED_COLOR = "var(--color-success)";
-const VERSION_COLOR = "#94a3b8";
-const REOPENED_COLOR = "#f59e0b";
+const VERSION_COLOR = "var(--color-muted-foreground)";
+const REOPENED_COLOR = "var(--color-yellow-text)";
 // Same muting as dashboard bars.
 const BAR_OPACITY = 0.7;
 const LABEL_FONT = 10;
