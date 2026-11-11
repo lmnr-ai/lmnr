@@ -56,7 +56,8 @@ export default function FileViewer({ url, path, size }: FileViewerProps) {
             {content.text.length > HIGHLIGHT_MAX_CHARS ? (
               <pre className="whitespace-pre-wrap break-all font-mono text-xs">{content.text}</pre>
             ) : (
-              <CodeHighlighter code={content.text} language={languageOf(path)} className="text-xs" copyable />
+              // `!` beats CodeHighlighter's inline 0.9rem, matching the span input/output size.
+              <CodeHighlighter code={content.text} language={languageOf(path)} className="[&_pre]:text-xs!" copyable />
             )}
           </>
         )}
