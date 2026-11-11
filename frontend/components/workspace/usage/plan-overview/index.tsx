@@ -5,6 +5,7 @@ import { SettingsSection } from "@/components/settings/settings-section";
 import { ElevatedSurface } from "@/components/ui/surface";
 import {
   DATA_COLOR,
+  formatDay,
   formatGB,
   formatUsd,
   SIGNALS_COLOR,
@@ -24,9 +25,12 @@ interface PlanOverviewProps {
   bill: BillEstimate;
   model: UsageModel;
   period: string;
+  // Set during a trial: usage is priced at plan rates but none of it is billed.
+  trialEndsAt?: string;
 }
 
-export default function PlanOverview({ tier, bill, model, period }: PlanOverviewProps) {
+export default function PlanOverview({ tier, bill, model, period, trialEndsAt }: PlanOverviewProps) {
+  const trial = trialEndsAt !== undefined;
   const { name, dataOverageRatePerGB } = TIERS[tier];
   const { data, signals } = model;
   const allowance = (used: string, included: number | null, fmt: (n: number) => string) =>
@@ -40,8 +44,19 @@ export default function PlanOverview({ tier, bill, model, period }: PlanOverview
       <ElevatedSurface className="flex flex-col gap-4 rounded-lg p-5">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
           <div className="flex flex-col gap-1">
-            <span className="text-sm text-muted-foreground">Estimated bill · {name} plan</span>
-            <span className="text-3xl font-semibold tabular-nums tracking-tight">{formatUsd(bill.totalUsd)}</span>
+            <span className="text-sm text-muted-foreground">
+              {trial ? `${name} trial · free until ${formatDay(trialEndsAt)}` : `Estimated bill · ${name} plan`}
+            </span>
+            <span className="flex items-baseline gap-2">
+              <span className="text-3xl font-semibold tabular-nums tracking-tight">
+                {formatUsd(trial ? 0 : bill.totalUsd)}
+              </span>
+              {trial && (
+                <span className="text-sm tabular-nums text-muted-foreground line-through">
+                  {formatUsd(bill.totalUsd)}
+                </span>
+              )}
+            </span>
             <span className="text-xs text-muted-foreground">{period}</span>
           </div>
           <Link
@@ -59,6 +74,7 @@ export default function PlanOverview({ tier, bill, model, period }: PlanOverview
             detail="Monthly base price"
             amountUsd={formatUsd(bill.baseUsd)}
             swatchClassName={BASE_SWATCH}
+            waived={trial}
           />
           <BillLine
             label="Data ingestion"
@@ -66,6 +82,7 @@ export default function PlanOverview({ tier, bill, model, period }: PlanOverview
             amountUsd={formatUsd(bill.dataOverageUsd)}
             color={DATA_COLOR}
             muted={bill.dataOverageUsd === 0}
+            waived={trial}
           />
           <BillLine
             label="Signals usage"
@@ -86,11 +103,14 @@ export default function PlanOverview({ tier, bill, model, period }: PlanOverview
             amountUsd={formatUsd(bill.signalOverageUsd)}
             color={SIGNALS_COLOR}
             muted={bill.signalOverageUsd === 0}
+            waived={trial}
           />
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Based on usage so far this cycle, so it can still grow before the cycle resets.
+          {trial
+            ? `Free during the trial: struck-through amounts are what this usage would cost on ${name}, and none of it is billed.`
+            : "Based on usage so far this cycle, so it can still grow before the cycle resets."}
         </p>
       </ElevatedSurface>
     </SettingsSection>

@@ -9,9 +9,11 @@ interface BillLineProps {
   color?: string;
   swatchClassName?: string;
   muted?: boolean;
+  // Trial usage: shows what the line would cost, struck through, as free.
+  waived?: boolean;
 }
 
-export default function BillLine({ label, detail, amountUsd, color, swatchClassName, muted }: BillLineProps) {
+export default function BillLine({ label, detail, amountUsd, color, swatchClassName, muted, waived }: BillLineProps) {
   return (
     <div className="flex items-start justify-between gap-4 py-2.5">
       <div className="flex items-start gap-2.5 min-w-0">
@@ -25,7 +27,14 @@ export default function BillLine({ label, detail, amountUsd, color, swatchClassN
           <span className="text-xs text-muted-foreground">{detail}</span>
         </div>
       </div>
-      <span className={cn("text-sm tabular-nums shrink-0", muted && "text-muted-foreground")}>{amountUsd}</span>
+      {waived ? (
+        <span className="flex items-baseline gap-2 text-sm tabular-nums shrink-0">
+          {!muted && <span className="text-xs text-muted-foreground line-through">{amountUsd}</span>}
+          <span className="text-success-text">Free</span>
+        </span>
+      ) : (
+        <span className={cn("text-sm tabular-nums shrink-0", muted && "text-muted-foreground")}>{amountUsd}</span>
+      )}
     </div>
   );
 }
