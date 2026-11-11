@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import SlackChannelPicker, { type SlackChannelSelection } from "@/components/settings/alerts/slack-channel-picker";
+import SlackPrivateChannelsHint from "@/components/slack/slack-private-channels-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
-import { type SlackChannel } from "@/lib/actions/slack";
+import { type GetSlackChannelsResult } from "@/lib/actions/slack";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -75,11 +76,15 @@ export default function ManageReportSheet({
     setExcludedProjectIds(currentExcludedProjectIds);
   }, [open, report, currentEmailSubscribed, currentSlackChannels, currentExcludedProjectIds]);
 
-  const { data: channelsResult, isLoading: isLoadingChannels } = useSWR<{
-    channels: SlackChannel[];
-    rateLimited: boolean;
-  }>(open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null, swrFetcher);
+  const { data: channelsResult, isLoading: isLoadingChannels } = useSWR<GetSlackChannelsResult>(
+    open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
+    swrFetcher
+  );
   const channels = channelsResult?.channels;
+  const hiddenSlackCount = useMemo(
+    () => report?.targets.filter((t) => t.type === REPORT_TARGET_TYPE.SLACK && t.hidden).length ?? 0,
+    [report]
+  );
 
   useEffect(() => {
     if (channelsResult?.rateLimited) {
@@ -135,8 +140,7 @@ export default function ManageReportSheet({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reportId: report.id,
-            integrationId,
-            channels: slackChannels,
+            channels: slackChannels.map((c) => ({ id: c.id })),
           }),
         });
         if (!res.ok) {
@@ -241,6 +245,11 @@ export default function ManageReportSheet({
                         value={slackChannels}
                         onChange={setSlackChannels}
                         placeholder="Search for channels..."
+                      />
+                      <SlackPrivateChannelsHint
+                        workspaceId={workspaceId}
+                        slackLinked={channelsResult?.slackLinked}
+                        hiddenCount={hiddenSlackCount}
                       />
                     </div>
                   )}

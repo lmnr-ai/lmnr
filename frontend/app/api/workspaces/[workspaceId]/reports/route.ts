@@ -7,8 +7,10 @@ export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => 
   const { workspaceId } = await ctx.params;
 
   const session = await getServerSession();
-  const userEmail = session?.user?.email ?? undefined;
-  const result = await getReports(workspaceId, userEmail);
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const result = await getReports(workspaceId, session.user.id, session.user.email ?? undefined);
   return Response.json(result);
 });
 

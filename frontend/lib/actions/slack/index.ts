@@ -2,7 +2,9 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { SlackOauthResponseSchema } from "@/lib/actions/slack/types";
+import { getSlackUserId, linkSlackUser } from "@/lib/actions/slack/user-links";
 import { assertWorkspaceHasSlack } from "@/lib/actions/usage/plan-gates";
+import { cache } from "@/lib/cache";
 import { decodeSlackToken, encodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
 import { alertTargets, reportTargets, slackIntegrations } from "@/lib/db/migrations/schema";
@@ -11,6 +13,7 @@ import { getBrokerLicenseKey } from "@/lib/license";
 const ConnectSlackIntegrationSchema = z.object({
   code: z.string(),
   workspaceId: z.guid(),
+  userId: z.guid(),
 });
 
 const DeleteSlackIntegrationSchema = z.union([z.object({ workspaceId: z.guid() }), z.object({ teamId: z.string() })]);
@@ -32,6 +35,7 @@ export interface SlackChannel {
   id: string;
   name: string;
   isMember: boolean;
+  isPrivate: boolean;
 }
 
 export async function getSlackIntegration(workspaceId: string): Promise<SlackIntegration | null> {
@@ -121,7 +125,7 @@ async function persistSlackIntegration(input: {
 }
 
 export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
-  const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
+  const { code, workspaceId, userId } = ConnectSlackIntegrationSchema.parse(input);
 
   const redirectUri = process.env.SLACK_REDIRECT_URL;
   if (!redirectUri) {
@@ -136,21 +140,24 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
     teamName: data.team.name || null,
     token: data.access_token,
   });
+  // The installer is the Laminar user in this browser session, so their Slack identity comes free.
+  if (data.authed_user) {
+    await linkSlackUser({ userId, teamId: data.team.id, slackUserId: data.authed_user.id });
+  }
 }
 
 const BrokerRedeemResponseSchema = z.object({
-  token: z.string(),
+  kind: z.enum(["install", "link"]).optional(),
+  token: z.string().optional(),
   teamId: z.string(),
-  teamName: z.string().nullable(),
+  teamName: z.string().nullable().optional(),
   workspaceId: z.guid(),
+  slackUserId: z.string().optional(),
 });
 
-// Brokered (self-hosted) connect: redeem the one-time claim from the broker for
-// the bot token, server-to-server, authenticated by this instance's license
-// key, then persist exactly as the direct path does. The token transits over
-// TLS only — it never appears in a browser URL. Inert unless SLACK_BROKER_URL
-// and a license key (env or settings) are configured.
-export async function redeemBrokeredSlackToken(input: { claim: string; workspaceId: string }) {
+// Redeems a one-time broker claim server-to-server, authenticated by this instance's license key.
+// Inert unless SLACK_BROKER_URL and a license key (env or settings) are configured.
+async function redeemBrokerClaim(input: { claim: string; workspaceId: string }) {
   const brokerUrl = process.env.SLACK_BROKER_URL;
   const licenseKey = await getBrokerLicenseKey();
   if (!brokerUrl || !licenseKey) {
@@ -170,23 +177,101 @@ export async function redeemBrokeredSlackToken(input: { claim: string; workspace
     throw new Error(`Broker redeem failed with status ${response.status}`);
   }
 
-  const { token, teamId, teamName, workspaceId } = BrokerRedeemResponseSchema.parse(await response.json());
+  const payload = BrokerRedeemResponseSchema.parse(await response.json());
 
   // The claim is bound at /cb to the workspace the flow was started for. The
   // caller's URL workspaceId is attacker-controllable (it rides the public
   // callback as a query param), so reject any claim whose bound workspace
   // doesn't match — otherwise a member of workspace B could redeem a claim
   // minted for workspace A by rewriting the workspaceId in the callback URL.
-  if (workspaceId !== input.workspaceId) {
+  if (payload.workspaceId !== input.workspaceId) {
     throw new Error("Broker claim workspace mismatch.");
+  }
+  return payload;
+}
+
+// Brokered (self-hosted) connect: redeem the claim for the bot token, then
+// persist exactly as the direct path does. The token transits over TLS only —
+// it never appears in a browser URL.
+export async function redeemBrokeredSlackToken(input: { claim: string; workspaceId: string; userId: string }) {
+  const { kind, token, teamId, teamName, workspaceId, slackUserId } = await redeemBrokerClaim(input);
+  if (kind === "link" || !token) {
+    throw new Error("Broker claim is not an install claim.");
   }
 
   await persistSlackIntegration({
     workspaceId,
     teamId,
-    teamName,
+    teamName: teamName ?? null,
     token,
   });
+  if (slackUserId) {
+    await linkSlackUser({ userId: input.userId, teamId, slackUserId });
+  }
+}
+
+// Brokered Sign in with Slack: the broker verified the user's identity and hands back only their
+// Slack ids. The team must be the one this workspace's bot is installed in.
+export async function redeemBrokeredSlackLink(input: { claim: string; workspaceId: string; userId: string }) {
+  const { kind, teamId, slackUserId } = await redeemBrokerClaim(input);
+  if (kind !== "link" || !slackUserId) {
+    throw new Error("Broker claim is not a link claim.");
+  }
+  await linkSlackUserToWorkspaceTeam({ workspaceId: input.workspaceId, userId: input.userId, teamId, slackUserId });
+}
+
+// Links only when the Slack identity is in the team the workspace's bot is installed in.
+export async function linkSlackUserToWorkspaceTeam(input: {
+  workspaceId: string;
+  userId: string;
+  teamId: string;
+  slackUserId: string;
+}) {
+  const integration = await getSlackIntegration(input.workspaceId);
+  if (!integration || integration.teamId !== input.teamId) {
+    throw new Error("Signed in to a different Slack workspace than the one connected to Laminar.");
+  }
+  await linkSlackUser({ userId: input.userId, teamId: input.teamId, slackUserId: input.slackUserId });
+}
+
+// Asks the broker for a Slack authorize URL (install or Sign in with Slack). The broker always
+// returns a slack.com URL; checking the host keeps a misconfigured SLACK_BROKER_URL or a
+// compromised broker from turning the caller's redirect into an open redirect.
+export async function requestBrokerAuthorizeUrl(body: {
+  workspaceId: string;
+  returnUrl: string;
+  kind?: "link";
+  teamId?: string;
+}): Promise<string> {
+  const brokerUrl = process.env.SLACK_BROKER_URL;
+  const licenseKey = await getBrokerLicenseKey();
+  if (!brokerUrl || !licenseKey) {
+    throw new Error("Slack broker is not configured (SLACK_BROKER_URL / license key).");
+  }
+
+  const response = await fetch(`${brokerUrl.replace(/\/+$/, "")}/api/broker/slack/start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${licenseKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Slack broker /start failed with status ${response.status}`);
+  }
+
+  const { authorizeUrl } = (await response.json()) as { authorizeUrl: string };
+  let authorizeHost: string;
+  try {
+    authorizeHost = new URL(authorizeUrl).host;
+  } catch {
+    authorizeHost = "";
+  }
+  if (authorizeHost !== "slack.com") {
+    throw new Error(`Slack broker returned unexpected authorizeUrl host: ${authorizeHost}`);
+  }
+  return authorizeUrl;
 }
 
 export async function deleteSlackIntegration(
@@ -287,6 +372,8 @@ export async function addEyesReaction(input: { teamId: string; channel: string; 
 }
 
 const SLACK_CONVERSATIONS_PAGE_LIMIT = 500;
+// Listings are cached briefly so pages that redact stored targets don't burn Slack's Tier 2/3 limits.
+const SLACK_CHANNELS_CACHE_TTL_SECONDS = 60;
 
 interface SlackConversationsListResponse {
   ok: boolean;
@@ -295,32 +382,29 @@ interface SlackConversationsListResponse {
   response_metadata?: { next_cursor?: string };
 }
 
-function buildConversationsUrl(cursor: string): string {
-  const url = new URL("https://slack.com/api/conversations.list");
-  url.searchParams.set("exclude_archived", "true");
-  url.searchParams.set("types", "public_channel,private_channel");
-  url.searchParams.set("limit", String(SLACK_CONVERSATIONS_PAGE_LIMIT));
-  if (cursor) url.searchParams.set("cursor", cursor);
-  return url.toString();
-}
-
-export interface GetSlackChannelsResult {
+interface ChannelListing {
   channels: SlackChannel[];
   // True when Slack rate-limited us mid-pagination and the list is incomplete.
   rateLimited: boolean;
 }
 
-export async function getSlackChannels(workspaceId: string): Promise<GetSlackChannelsResult> {
-  const integration = await getIntegrationWithToken(workspaceId);
-
+async function listConversations(
+  token: string,
+  method: "conversations.list" | "users.conversations",
+  params: Record<string, string>,
+  isPrivate: boolean
+): Promise<ChannelListing> {
   const channels: SlackChannel[] = [];
   let cursor = "";
 
   do {
-    const response = await fetch(buildConversationsUrl(cursor), {
-      headers: { Authorization: `Bearer ${integration.decryptedToken}` },
-    });
+    const url = new URL(`https://slack.com/api/${method}`);
+    url.searchParams.set("exclude_archived", "true");
+    url.searchParams.set("limit", String(SLACK_CONVERSATIONS_PAGE_LIMIT));
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    if (cursor) url.searchParams.set("cursor", cursor);
 
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (response.status === 429) {
       return { channels, rateLimited: true };
     }
@@ -334,13 +418,57 @@ export async function getSlackChannels(workspaceId: string): Promise<GetSlackCha
     }
 
     for (const ch of data.channels ?? []) {
-      channels.push({ id: ch.id, name: ch.name, isMember: !!ch.is_member });
+      // users.conversations only returns channels the bot is in, and omits is_member.
+      channels.push({ id: ch.id, name: ch.name, isMember: isPrivate || !!ch.is_member, isPrivate });
     }
 
     cursor = data.response_metadata?.next_cursor ?? "";
   } while (cursor);
 
   return { channels, rateLimited: false };
+}
+
+async function cachedListing(key: string, load: () => Promise<ChannelListing>): Promise<ChannelListing> {
+  const cached = await cache.get<SlackChannel[]>(key);
+  if (cached) {
+    return { channels: cached, rateLimited: false };
+  }
+  const listing = await load();
+  if (!listing.rateLimited) {
+    await cache.set(key, listing.channels, { expireAfterSeconds: SLACK_CHANNELS_CACHE_TTL_SECONDS });
+  }
+  return listing;
+}
+
+export interface GetSlackChannelsResult extends ChannelListing {
+  // False when the viewer hasn't linked their Slack account, so private channels are left out.
+  slackLinked: boolean;
+}
+
+// The channels `userId` may see: every public channel, plus the private channels that both the
+// bot and the user's linked Slack account are members of (users.conversations with `user` filters
+// private channels to shared membership). Never list private channels by the bot token alone.
+export async function getSlackChannels(workspaceId: string, userId: string): Promise<GetSlackChannelsResult> {
+  const integration = await getIntegrationWithToken(workspaceId);
+  const token = integration.decryptedToken;
+  const slackUserId = await getSlackUserId(integration.teamId, userId);
+
+  const [publicListing, privateListing] = await Promise.all([
+    cachedListing(`slack_channels:public:${integration.teamId}`, () =>
+      listConversations(token, "conversations.list", { types: "public_channel" }, false)
+    ),
+    slackUserId
+      ? cachedListing(`slack_channels:private:${integration.teamId}:${slackUserId}`, () =>
+          listConversations(token, "users.conversations", { types: "private_channel", user: slackUserId }, true)
+        )
+      : Promise.resolve({ channels: [], rateLimited: false }),
+  ]);
+
+  return {
+    channels: [...publicListing.channels, ...privateListing.channels],
+    rateLimited: publicListing.rateLimited || privateListing.rateLimited,
+    slackLinked: slackUserId !== null,
+  };
 }
 
 export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {

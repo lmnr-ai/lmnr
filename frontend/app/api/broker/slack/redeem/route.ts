@@ -27,10 +27,12 @@ export const POST = handlerNoAudit(
       }
 
       return NextResponse.json({
+        kind: payload.kind,
         token: payload.token,
         teamId: payload.teamId,
         teamName: payload.teamName,
         workspaceId: payload.workspaceId,
+        slackUserId: payload.slackUserId,
       });
     } catch (error) {
       console.error("Slack broker /redeem error:", error);

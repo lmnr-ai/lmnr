@@ -1,6 +1,13 @@
 import { and, eq, inArray, not, notInArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { getSlackIntegration } from "@/lib/actions/slack";
+import {
+  getVisibleSlackChannels,
+  mergeSlackChannelSelection,
+  redactSlackChannel,
+} from "@/lib/actions/slack/visibility";
+import { ApiError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { projects, reportProjects, reports, reportTargets } from "@/lib/db/migrations/schema";
 
@@ -33,8 +40,9 @@ const SetEmailSubscriptionsSchema = z.object({
 const SetSlackTargetsSchema = z.object({
   reportId: z.uuid(),
   workspaceId: z.uuid(),
-  integrationId: z.uuid(),
-  channels: z.array(z.object({ id: z.string().min(1), name: z.string() })),
+  userId: z.uuid(),
+  // Only ids are used; names come from Slack.
+  channels: z.array(z.object({ id: z.string().min(1) })),
 });
 
 const SetExcludedProjectsSchema = z.object({
@@ -43,7 +51,11 @@ const SetExcludedProjectsSchema = z.object({
   excludedProjectIds: z.array(z.uuid()),
 });
 
-export async function getReports(workspaceId: string, userEmail?: string): Promise<ReportWithDetails[]> {
+export async function getReports(
+  workspaceId: string,
+  userId: string,
+  userEmail?: string
+): Promise<ReportWithDetails[]> {
   const reportRows = await db
     .select({
       id: reports.id,
@@ -71,6 +83,10 @@ export async function getReports(workspaceId: string, userEmail?: string): Promi
     .from(reportTargets)
     .where(eq(reportTargets.workspaceId, workspaceId));
 
+  const visible = targetRows.some((t) => t.type === REPORT_TARGET_TYPE.SLACK)
+    ? await getVisibleSlackChannels(workspaceId, userId)
+    : new Map();
+
   const excludedRows = await db
     .select({ reportId: reportProjects.reportId, projectId: reportProjects.projectId })
     .from(reportProjects)
@@ -95,13 +111,14 @@ export async function getReports(workspaceId: string, userEmail?: string): Promi
     // If userEmail is unknown, strip all email targets as a safeguard.
     if (t.type === REPORT_TARGET_TYPE.EMAIL && (!userEmail || t.email !== userEmail)) continue;
     const list = targetsByReport.get(t.reportId) ?? [];
-    list.push({
+    const target = {
       id: t.id,
       type: t.type,
       email: t.email,
       channelId: t.channelId,
       channelName: t.channelName,
-    });
+    };
+    list.push(t.type === REPORT_TARGET_TYPE.SLACK ? redactSlackChannel(target, visible) : target);
     targetsByReport.set(t.reportId, list);
   }
 
@@ -203,10 +220,35 @@ export async function setEmailSubscriptions(input: z.infer<typeof SetEmailSubscr
   });
 }
 
-// Replace ALL Slack targets for a report with the provided channel set.
-// Pass an empty `channels` array to remove every Slack target.
+// Replace the report's Slack targets with the provided channel set, as far as the caller can see:
+// channels they aren't in are kept, and new ones must be visible to them.
+// Pass an empty `channels` array to remove every visible Slack target.
 export async function setSlackTargets(input: z.infer<typeof SetSlackTargetsSchema>) {
-  const { reportId, workspaceId, integrationId, channels } = SetSlackTargetsSchema.parse(input);
+  const { reportId, workspaceId, userId, channels } = SetSlackTargetsSchema.parse(input);
+
+  const integration = await getSlackIntegration(workspaceId);
+  if (!integration) {
+    throw new ApiError("Slack isn't connected to this workspace.", 400);
+  }
+  const stored = await db
+    .select({ channelId: reportTargets.channelId, channelName: reportTargets.channelName })
+    .from(reportTargets)
+    .where(
+      and(
+        eq(reportTargets.reportId, reportId),
+        eq(reportTargets.workspaceId, workspaceId),
+        eq(reportTargets.type, REPORT_TARGET_TYPE.SLACK)
+      )
+    );
+  const visible = await getVisibleSlackChannels(workspaceId, userId);
+  const { kept, added } = mergeSlackChannelSelection({ stored, requestedIds: channels.map((c) => c.id), visible });
+  const rows = [
+    ...kept.map((t) => ({
+      channelId: t.channelId,
+      channelName: visible.get(t.channelId ?? "")?.name ?? t.channelName,
+    })),
+    ...added.map((c) => ({ channelId: c.id, channelName: c.name })),
+  ];
 
   return await db.transaction(async (tx) => {
     await tx
@@ -219,15 +261,14 @@ export async function setSlackTargets(input: z.infer<typeof SetSlackTargetsSchem
         )
       );
 
-    if (channels.length > 0) {
+    if (rows.length > 0) {
       await tx.insert(reportTargets).values(
-        channels.map((c) => ({
+        rows.map((r) => ({
           workspaceId,
           reportId,
           type: REPORT_TARGET_TYPE.SLACK,
-          integrationId,
-          channelId: c.id,
-          channelName: c.name,
+          integrationId: integration.id,
+          ...r,
         }))
       );
     }

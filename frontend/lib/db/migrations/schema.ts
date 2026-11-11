@@ -1965,6 +1965,27 @@ export const slackChannelProjects = pgTable(
   ]
 );
 
+// A Laminar user's verified Slack identity in one Slack team, from the installer's oauth.v2.access
+// `authed_user` or a Sign in with Slack flow. Scopes private-channel visibility in the web app.
+export const slackUserLinks = pgTable(
+  "slack_user_links",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    userId: uuid("user_id").notNull(),
+    teamId: text("team_id").notNull(),
+    slackUserId: text("slack_user_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "slack_user_links_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("slack_user_links_user_id_team_id_key").on(table.userId, table.teamId),
+  ]
+);
+
 export const tableViews = pgTable(
   "table_views",
   {

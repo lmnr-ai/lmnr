@@ -7,6 +7,9 @@ import { handlerNoAudit } from "@/lib/audit";
 const StartRequestSchema = z.object({
   workspaceId: z.guid(),
   returnUrl: z.url(),
+  // "link" starts Sign in with Slack for the instance's user instead of a bot install.
+  kind: z.literal("link").optional(),
+  teamId: z.string().optional(),
 });
 
 // Server-to-server: the calling instance authenticates with its issued key and
@@ -21,9 +24,9 @@ export const POST = handlerNoAudit(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      const { workspaceId, returnUrl } = StartRequestSchema.parse(await req.json());
-      const { state, codeChallenge } = await mintState({ instanceId, workspaceId, returnUrl });
-      const authorizeUrl = buildSlackAuthorizeUrl(state, codeChallenge);
+      const { workspaceId, returnUrl, kind, teamId } = StartRequestSchema.parse(await req.json());
+      const { state, codeChallenge, payload } = await mintState({ instanceId, workspaceId, returnUrl, kind, teamId });
+      const authorizeUrl = buildSlackAuthorizeUrl(state, codeChallenge, payload);
 
       return NextResponse.json({ authorizeUrl });
     } catch (error) {

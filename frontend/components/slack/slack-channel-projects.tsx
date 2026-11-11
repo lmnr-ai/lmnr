@@ -5,12 +5,13 @@ import { useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { useSlackIntegration } from "@/components/slack/slack-connection-card";
+import SlackPrivateChannelsHint from "@/components/slack/slack-private-channels-hint";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SlackChannel } from "@/lib/actions/slack";
+import type { GetSlackChannelsResult } from "@/lib/actions/slack";
 import type { SlackChannelProjectBinding } from "@/lib/actions/slack/channel-projects";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -41,7 +42,7 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
     integration ? `/api/workspaces/${workspaceId}/slack/channel-projects` : null,
     swrFetcher
   );
-  const { data: channelsResult, isLoading: channelsLoading } = useSWR<{ channels: SlackChannel[] }>(
+  const { data: channelsResult, isLoading: channelsLoading } = useSWR<GetSlackChannelsResult>(
     integration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
     swrFetcher
   );
@@ -55,7 +56,6 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
   const [saving, setSaving] = useState(false);
 
   const channels = channelsResult?.channels ?? [];
-  const channelName = useMemo(() => channels.find((c) => c.id === channelId)?.name, [channels, channelId]);
   // Channels already bound — keep the picker to channels without a binding to avoid silent overwrites.
   const boundChannelIds = useMemo(() => new Set((bindings ?? []).map((b) => b.channelId)), [bindings]);
   const availableChannels = channels.filter((c) => !boundChannelIds.has(c.id));
@@ -69,7 +69,7 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
       const res = await fetch(`/api/workspaces/${workspaceId}/slack/channel-projects`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channelId, channelName, projectId }),
+        body: JSON.stringify({ channelId, projectId }),
       });
       if (!res.ok) {
         const data = await res
@@ -154,6 +154,8 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
         </Button>
       </div>
 
+      <SlackPrivateChannelsHint className="-mt-2" workspaceId={workspaceId} slackLinked={channelsResult?.slackLinked} />
+
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -176,7 +178,13 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
           ) : bindings && bindings.length > 0 ? (
             bindings.map((b) => (
               <TableRow key={b.id}>
-                <TableCell className="px-2 py-1 font-mono text-xs">#{b.channelName ?? b.channelId}</TableCell>
+                <TableCell className="px-2 py-1 font-mono text-xs">
+                  {b.hidden ? (
+                    <span className="font-sans italic text-muted-foreground">Private channel</span>
+                  ) : (
+                    `#${b.channelName ?? b.channelId}`
+                  )}
+                </TableCell>
                 <TableCell className="px-2 py-1 truncate text-xs">{b.projectName ?? b.projectId}</TableCell>
                 <TableCell className="px-2 py-1">
                   <Button

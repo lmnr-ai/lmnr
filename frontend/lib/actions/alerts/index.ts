@@ -1,12 +1,25 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { getSlackIntegration } from "@/lib/actions/slack";
+import {
+  getVisibleSlackChannels,
+  mergeSlackChannelSelection,
+  redactSlackChannel,
+  type VisibleSlackChannels,
+} from "@/lib/actions/slack/visibility";
 import { ApiError } from "@/lib/api/errors";
 import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
 
-import { type AlertMetadata, type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
+import {
+  ALERT_TARGET_TYPE,
+  type AlertMetadata,
+  type AlertTarget,
+  type AlertType,
+  type AlertWithDetails,
+} from "./types";
 
 const TargetSchema = z.object({
   type: z.string(),
@@ -36,6 +49,7 @@ const buildMetadataValidator = (type: "SIGNAL_EVENT" | "NEW_CLUSTER", metadata: 
 
 const CreateAlertSchema = z.object({
   projectId: z.guid(),
+  userId: z.guid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT", "NEW_CLUSTER"]),
   sourceId: z.guid(),
@@ -46,6 +60,7 @@ const CreateAlertSchema = z.object({
 const UpdateAlertSchema = z.object({
   alertId: z.guid(),
   projectId: z.guid(),
+  userId: z.guid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT", "NEW_CLUSTER"]),
   sourceId: z.guid(),
@@ -65,9 +80,9 @@ const SetAlertDisabledSchema = z.object({
   disabled: z.boolean(),
 });
 
-export async function getAlerts(projectId: string, userEmail?: string): Promise<AlertWithDetails[]> {
+export async function getAlerts(projectId: string, userId: string, userEmail?: string): Promise<AlertWithDetails[]> {
   const [project] = await db
-    .select({ id: projects.id, name: projects.name })
+    .select({ id: projects.id, name: projects.name, workspaceId: projects.workspaceId })
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
@@ -107,20 +122,25 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
     .from(alertTargets)
     .where(inArray(alertTargets.alertId, alertIds));
 
+  const visible = targetRows.some((t) => t.type === ALERT_TARGET_TYPE.SLACK)
+    ? await getVisibleSlackChannels(project.workspaceId, userId)
+    : new Map();
+
   const targetsByAlert = new Map<string, AlertTarget[]>();
   for (const t of targetRows) {
     // Only include the current user's own email target; never expose other members' emails.
     // If userEmail is unknown, strip all email targets as a safeguard.
     if (t.type === "EMAIL" && (!userEmail || t.email !== userEmail)) continue;
     const list = targetsByAlert.get(t.alertId) ?? [];
-    list.push({
+    const target = {
       id: t.id,
       type: t.type,
       integrationId: t.integrationId,
       channelId: t.channelId,
       channelName: t.channelName,
       email: t.email,
-    });
+    };
+    list.push(t.type === ALERT_TARGET_TYPE.SLACK ? redactSlackChannel(target, visible) : target);
     targetsByAlert.set(t.alertId, list);
   }
 
@@ -135,8 +155,9 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
 }
 
 export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
-  const { projectId, name, type, sourceId, targets, metadata } = CreateAlertSchema.parse(input);
+  const { projectId, userId, name, type, sourceId, targets, metadata } = CreateAlertSchema.parse(input);
   const validatedMetadata = buildMetadataValidator(type, metadata);
+  const slack = await resolveSlackSelection({ projectId, userId, stored: [], targets });
 
   return await db.transaction(async (tx) => {
     const [alert] = await tx
@@ -144,27 +165,99 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
       .values({ projectId, name, type, sourceId, metadata: validatedMetadata })
       .returning({ id: alerts.id });
 
-    if (targets.length > 0) {
-      await tx.insert(alertTargets).values(
-        targets.map((t) => ({
-          alertId: alert.id,
-          projectId,
+    const rows = [
+      ...slackTargetRows(slack),
+      ...targets
+        .filter((t) => t.type !== ALERT_TARGET_TYPE.SLACK)
+        .map((t) => ({
           type: t.type,
-          integrationId: t.integrationId ?? null,
-          channelId: t.channelId ?? null,
-          channelName: t.channelName ?? null,
+          integrationId: null,
+          channelId: null,
+          channelName: null,
           email: t.email ?? null,
-        }))
-      );
+        })),
+    ];
+    if (rows.length > 0) {
+      await tx.insert(alertTargets).values(rows.map((r) => ({ ...r, alertId: alert.id, projectId })));
     }
 
     return alert;
   });
 }
 
+interface StoredSlackTarget {
+  integrationId: string | null;
+  channelId: string | null;
+  channelName: string | null;
+}
+
+/**
+ * The Slack targets to store for a requested channel selection, per `mergeSlackChannelSelection`:
+ * names come from Slack, never the client, and channels the caller can't see stay untouched.
+ */
+async function resolveSlackSelection(input: {
+  projectId: string;
+  userId: string;
+  stored: StoredSlackTarget[];
+  targets: z.infer<typeof TargetSchema>[];
+}): Promise<{ kept: StoredSlackTarget[]; added: StoredSlackTarget[]; visible: VisibleSlackChannels }> {
+  const requestedIds = input.targets.flatMap((t) =>
+    t.type === ALERT_TARGET_TYPE.SLACK && t.channelId ? [t.channelId] : []
+  );
+  if (requestedIds.length === 0 && input.stored.length === 0) {
+    return { kept: [], added: [], visible: new Map() };
+  }
+
+  const [project] = await db
+    .select({ workspaceId: projects.workspaceId })
+    .from(projects)
+    .where(eq(projects.id, input.projectId))
+    .limit(1);
+  if (!project) throw new ApiError("Project not found.", 404);
+
+  const visible = await getVisibleSlackChannels(project.workspaceId, input.userId);
+  const { kept, added } = mergeSlackChannelSelection({ stored: input.stored, requestedIds, visible });
+  const integration = added.length > 0 ? await getSlackIntegration(project.workspaceId) : null;
+
+  return {
+    kept,
+    added: added.map((c) => ({ integrationId: integration?.id ?? null, channelId: c.id, channelName: c.name })),
+    visible,
+  };
+}
+
+function slackTargetRows(slack: Awaited<ReturnType<typeof resolveSlackSelection>>) {
+  return [...slack.kept, ...slack.added].map((t) => ({
+    type: ALERT_TARGET_TYPE.SLACK as string,
+    integrationId: t.integrationId,
+    channelId: t.channelId,
+    // Refresh the cached name of channels the caller can see; keep the stored one otherwise.
+    channelName: (t.channelId && slack.visible.get(t.channelId)?.name) ?? t.channelName,
+    email: null,
+  }));
+}
+
 async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
-  const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata } = UpdateAlertSchema.parse(input);
+  const { alertId, projectId, userId, name, type, sourceId, targets, userEmail, metadata } =
+    UpdateAlertSchema.parse(input);
   const validatedMetadata = buildMetadataValidator(type, metadata);
+
+  // Slack lookups are network calls, so they run before the transaction.
+  const storedSlack = await db
+    .select({
+      integrationId: alertTargets.integrationId,
+      channelId: alertTargets.channelId,
+      channelName: alertTargets.channelName,
+    })
+    .from(alertTargets)
+    .where(
+      and(
+        eq(alertTargets.alertId, alertId),
+        eq(alertTargets.projectId, projectId),
+        eq(alertTargets.type, ALERT_TARGET_TYPE.SLACK)
+      )
+    );
+  const slack = await resolveSlackSelection({ projectId, userId, stored: storedSlack, targets });
 
   const result = await db.transaction(async (tx) => {
     await tx
@@ -172,48 +265,41 @@ async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
       .set({ name, type, sourceId, metadata: validatedMetadata })
       .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
 
-    // Fetch existing email targets belonging to OTHER users so we can preserve them.
-    // The frontend only manages the current user's own email target + Slack targets.
-    const existingTargets = await tx
-      .select({
-        id: alertTargets.id,
-        type: alertTargets.type,
-        integrationId: alertTargets.integrationId,
-        channelId: alertTargets.channelId,
-        channelName: alertTargets.channelName,
-        email: alertTargets.email,
-      })
+    // The frontend only manages the current user's own email target, so other users' email
+    // targets are preserved. When userEmail is unknown, ALL email targets are preserved.
+    const existingEmailTargets = await tx
+      .select({ email: alertTargets.email })
       .from(alertTargets)
-      .where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)));
-
-    // When userEmail is known, preserve other users' email targets.
-    // When userEmail is unknown, preserve ALL email targets as a safeguard.
-    const preservedEmailTargets = existingTargets.filter(
-      (t) => t.type === "EMAIL" && (!userEmail || t.email !== userEmail)
-    );
+      .where(
+        and(
+          eq(alertTargets.alertId, alertId),
+          eq(alertTargets.projectId, projectId),
+          eq(alertTargets.type, ALERT_TARGET_TYPE.EMAIL)
+        )
+      );
+    const preservedEmails = existingEmailTargets.filter((t) => !userEmail || t.email !== userEmail);
 
     await tx.delete(alertTargets).where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)));
 
     const allTargets = [
-      ...targets.map((t) => ({
-        alertId,
-        projectId,
-        type: t.type,
-        integrationId: t.integrationId ?? null,
-        channelId: t.channelId ?? null,
-        channelName: t.channelName ?? null,
-        email: t.email ?? null,
-      })),
-      ...preservedEmailTargets.map((t) => ({
-        alertId,
-        projectId,
-        type: t.type,
-        integrationId: t.integrationId ?? null,
-        channelId: t.channelId ?? null,
-        channelName: t.channelName ?? null,
+      ...slackTargetRows(slack),
+      ...targets
+        .filter((t) => t.type === ALERT_TARGET_TYPE.EMAIL)
+        .map((t) => ({
+          type: t.type,
+          integrationId: null,
+          channelId: null,
+          channelName: null,
+          email: t.email ?? null,
+        })),
+      ...preservedEmails.map((t) => ({
+        type: ALERT_TARGET_TYPE.EMAIL as string,
+        integrationId: null,
+        channelId: null,
+        channelName: null,
         email: t.email,
       })),
-    ];
+    ].map((t) => ({ ...t, alertId, projectId }));
 
     if (allTargets.length > 0) {
       await tx.insert(alertTargets).values(allTargets);
@@ -266,10 +352,11 @@ export class AlertEmailTargetError extends ApiError {
 export async function patchAlert(input: {
   projectId: string;
   alertId: string;
+  userId: string;
   userEmail?: string;
   body: Record<string, any>;
 }) {
-  const { projectId, alertId, userEmail, body } = input;
+  const { projectId, alertId, userId, userEmail, body } = input;
 
   switch (body?.action ?? "update") {
     case "toggleDisabled":
@@ -280,7 +367,7 @@ export async function patchAlert(input: {
         throw new AlertEmailTargetError();
       }
       // updateAlert re-validates via zod; body is untyped JSON so cast to its input shape.
-      return updateAlert({ ...body, projectId, alertId, userEmail } as Parameters<typeof updateAlert>[0]);
+      return updateAlert({ ...body, projectId, alertId, userId, userEmail } as Parameters<typeof updateAlert>[0]);
     }
     default:
       throw new Error(`Unknown alert action: ${body?.action}`);

@@ -510,7 +510,6 @@ const tableSchemas: Record<string, TableSchema> = {
       { name: "alert_id", type: "UUID", description: "Id of the alert" },
       { name: "type", type: "String", description: "SLACK or EMAIL" },
       { name: "channel_id", type: "Nullable(String)", description: "Slack channel id" },
-      { name: "channel_name", type: "Nullable(String)", description: "Slack channel name" },
       { name: "email", type: "Nullable(String)", description: "Subscribed member's email" },
       { name: "created_at", type: "DateTime64(6)", description: "When the target was added" },
     ],

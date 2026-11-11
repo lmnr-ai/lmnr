@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 import { exchangeSlackOauthCode } from "@/lib/actions/slack";
 import { SLACK_SCOPES } from "@/lib/actions/slack/types";
+import { buildSlackOidcAuthorizeUrl } from "@/lib/actions/slack/user-links";
 import { cache } from "@/lib/cache";
 import { isLicenseExpired, verifyLicense } from "@/lib/license/format";
 
@@ -26,10 +27,15 @@ interface StatePayload {
   returnUrl: string;
   nonce: string;
   exp: number;
+  // "link" runs Sign in with Slack (identity only, no bot install); absent means install.
+  kind?: "link";
+  teamId?: string;
 }
 
 interface ClaimPayload {
-  token: string;
+  kind?: "link";
+  // Bot token; absent on link claims.
+  token?: string;
   teamId: string;
   teamName: string | null;
   instanceId: string;
@@ -39,6 +45,8 @@ interface ClaimPayload {
   // instance verifies it against its URL workspaceId — otherwise a member of
   // workspace B could redeem a claim minted for workspace A into B.
   workspaceId: string;
+  // The installer (install claims) or the signed-in user (link claims).
+  slackUserId?: string;
 }
 
 // Slack's registered redirect_uri. Must match exactly between the authorize
@@ -60,7 +68,16 @@ export function getBrokerRedirectUri(): string {
 // kept server-side. Without it, a leaked state could be paired with an
 // attacker's Slack code at /cb (OAuth token injection); PKCE makes Slack reject
 // any code not issued for this challenge.
-export function buildSlackAuthorizeUrl(state: string, codeChallenge: string): string {
+export function buildSlackAuthorizeUrl(state: string, codeChallenge: string, payload: StatePayload): string {
+  if (payload.kind === "link") {
+    // PKCE's role here is played by the OIDC nonce, which /cb checks in the id_token.
+    return buildSlackOidcAuthorizeUrl({
+      state,
+      nonce: payload.nonce,
+      redirectUri: getBrokerRedirectUri(),
+      teamId: payload.teamId,
+    });
+  }
   const clientId = process.env.SLACK_CLIENT_ID;
   if (!clientId) {
     throw new Error("SLACK_CLIENT_ID is not configured.");
@@ -137,7 +154,9 @@ export async function mintState(input: {
   instanceId: string;
   workspaceId: string;
   returnUrl: string;
-}): Promise<{ state: string; codeChallenge: string }> {
+  kind?: "link";
+  teamId?: string;
+}): Promise<{ state: string; codeChallenge: string; payload: StatePayload }> {
   assertSharedStore();
   const { verifier, challenge } = generatePkcePair();
   const payload: StatePayload = {
@@ -146,6 +165,7 @@ export async function mintState(input: {
     returnUrl: input.returnUrl,
     nonce: crypto.randomBytes(16).toString("hex"),
     exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS,
+    ...(input.kind === "link" && { kind: "link", teamId: input.teamId }),
   };
   // The PKCE verifier is stored here, server-side, alongside the single-use
   // nonce — never in the state itself. /cb reads it back at consume time.
@@ -155,7 +175,7 @@ export async function mintState(input: {
     { expireAfterSeconds: STATE_TTL_SECONDS }
   );
   const payloadJson = JSON.stringify(payload);
-  return { state: `${base64url(payloadJson)}.${signState(payloadJson)}`, codeChallenge: challenge };
+  return { state: `${base64url(payloadJson)}.${signState(payloadJson)}`, codeChallenge: challenge, payload };
 }
 
 export function verifyState(state: string): StatePayload | null {
@@ -226,6 +246,7 @@ export async function exchangeSlackCode(input: z.infer<typeof SlackTokenExchange
     token: data.access_token,
     teamId: data.team.id,
     teamName: data.team.name || null,
+    slackUserId: data.authed_user?.id,
   };
 }
 

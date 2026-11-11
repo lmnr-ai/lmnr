@@ -20,6 +20,8 @@ export interface ReportTargetRow {
   email: string | null;
   channelId: string | null;
   channelName: string | null;
+  // A Slack channel the viewer isn't a member of; its name is withheld.
+  hidden?: boolean;
 }
 
 export interface ReportWithDetails {

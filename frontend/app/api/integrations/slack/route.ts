@@ -1,7 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
-import { connectSlackIntegration, redeemBrokeredSlackToken } from "@/lib/actions/slack";
+import {
+  connectSlackIntegration,
+  linkSlackUserToWorkspaceTeam,
+  redeemBrokeredSlackLink,
+  redeemBrokeredSlackToken,
+} from "@/lib/actions/slack";
+import {
+  consumeSlackLinkState,
+  exchangeSlackOidcCode,
+  SLACK_LINK_STATE_PARAM_PREFIX,
+  type SlackLinkState,
+} from "@/lib/actions/slack/user-links";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
 import { BASE_PATH } from "@/lib/utils";
@@ -45,11 +56,62 @@ async function buildRedirectUrl(workspaceId: string, returnPath?: string, error 
   return `${base}${settingsPath}${separator}${status}`;
 }
 
+// Sign in with Slack callback (direct or brokered). The link state was minted for the user who
+// started the flow, so it only resolves in that user's session.
+async function handleLink(input: {
+  linkStateId: string;
+  complete: (userId: string, linkState: SlackLinkState) => Promise<void>;
+}) {
+  const session = await getServerSession();
+  const linkState = session ? await consumeSlackLinkState(input.linkStateId, session.user.id) : null;
+  if (!session || !linkState) {
+    return NextResponse.redirect(`${prefixedBase()}/projects?slack=error`);
+  }
+  try {
+    await input.complete(session.user.id, linkState);
+    return NextResponse.redirect(await buildRedirectUrl(linkState.workspaceId, linkState.returnPath));
+  } catch (e) {
+    console.error(e);
+    return NextResponse.redirect(await buildRedirectUrl(linkState.workspaceId, linkState.returnPath, true));
+  }
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
   const stateParam = searchParams.get("state");
   const error = searchParams.get("error");
+
+  const brokeredLinkStateId = searchParams.get("linkState");
+  if (brokeredLinkStateId !== null) {
+    const claim = searchParams.get("claim");
+    return handleLink({
+      linkStateId: brokeredLinkStateId,
+      complete: async (userId, { workspaceId }) => {
+        if (searchParams.get("slack") === "error" || !claim) {
+          throw new Error("Slack sign-in failed at the broker.");
+        }
+        await redeemBrokeredSlackLink({ claim, workspaceId, userId });
+      },
+    });
+  }
+
+  if (stateParam?.startsWith(SLACK_LINK_STATE_PARAM_PREFIX)) {
+    return handleLink({
+      linkStateId: stateParam.slice(SLACK_LINK_STATE_PARAM_PREFIX.length),
+      complete: async (userId, { workspaceId, oidcNonce }) => {
+        const redirectUri = process.env.SLACK_REDIRECT_URL;
+        if (error || !code || !redirectUri) {
+          throw new Error(`Slack sign-in failed: ${error ?? "no code"}`);
+        }
+        await linkSlackUserToWorkspaceTeam({
+          workspaceId,
+          userId,
+          ...(await exchangeSlackOidcCode({ code, redirectUri, expectedNonce: oidcNonce })),
+        });
+      },
+    });
+  }
 
   // Brokered (self-hosted) path: the broker's /cb redirected here with the
   // workspaceId/returnPath this instance embedded in the returnUrl at /start,
@@ -76,7 +138,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
     try {
-      await redeemBrokeredSlackToken({ claim, workspaceId: brokeredWorkspaceId });
+      await redeemBrokeredSlackToken({ claim, workspaceId: brokeredWorkspaceId, userId: session.user.id });
       return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath));
     } catch (e) {
       console.error(e);
@@ -95,8 +157,14 @@ export async function GET(request: NextRequest) {
 
   const { workspaceId, returnPath } = parseState(stateParam);
 
+  // The installer's Slack identity is linked to this session's user, so they must belong here.
+  const session = await getServerSession();
+  if (!session || !(await isUserMemberOfWorkspace(workspaceId, session.user.id))) {
+    return NextResponse.redirect(await buildRedirectUrl(workspaceId, returnPath, true));
+  }
+
   try {
-    await connectSlackIntegration({ code, workspaceId });
+    await connectSlackIntegration({ code, workspaceId, userId: session.user.id });
     return NextResponse.redirect(await buildRedirectUrl(workspaceId, returnPath));
   } catch (e) {
     console.error(e);
