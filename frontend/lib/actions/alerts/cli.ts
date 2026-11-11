@@ -147,7 +147,10 @@ export async function updateCliAlert(ctx: CliAlertContext, alertId: string, inpu
   }
   const name = body.name == null ? undefined : validateName(body.name);
   // Slack lookups are network calls, so they run before the row lock is taken.
-  const slack = body.slackChannels == null ? null : await resolveSlackChannels(ctx, body.slackChannels);
+  const slack =
+    body.slackChannels == null
+      ? null
+      : await resolveSlackChannels(ctx, body.slackChannels, await storedSlackChannelIds(ctx, alertId));
   const email = body.notifyMe == null ? null : body.notifyMe ? requireEmail(ctx.userEmail) : ctx.userEmail;
 
   await db.transaction(async (tx) => {
@@ -406,11 +409,25 @@ interface ResolvedSlackChannels {
   visible: VisibleSlackChannels;
 }
 
+async function storedSlackChannelIds(ctx: CliAlertContext, alertId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ channelId: alertTargets.channelId })
+    .from(alertTargets)
+    .where(targetsOf(ctx.projectId, alertId, ALERT_TARGET_TYPE.SLACK));
+  return new Set(rows.flatMap((r) => (r.channelId ? [r.channelId] : [])));
+}
+
 /**
  * Resolves each channel id or `#name` against the Slack channels the caller can see (public
- * channels, plus private ones they share with the bot), deduplicated by channel id.
+ * channels, plus private ones they share with the bot), deduplicated by channel id. Ids of the
+ * alert's stored channels pass unresolved: reads return hidden channels by id, and the merge
+ * keeps every stored channel the caller can't see anyway.
  */
-async function resolveSlackChannels(ctx: CliAlertContext, refs: string[]): Promise<ResolvedSlackChannels> {
+async function resolveSlackChannels(
+  ctx: CliAlertContext,
+  refs: string[],
+  storedIds: Set<string> = new Set()
+): Promise<ResolvedSlackChannels> {
   const integration = await getSlackIntegration(ctx.workspaceId);
   if (!integration) {
     if (refs.length === 0) return { integrationId: "", channels: [], visible: new Map() };
@@ -425,6 +442,7 @@ async function resolveSlackChannels(ctx: CliAlertContext, refs: string[]): Promi
   for (const ref of refs) {
     const name = ref.replace(/^#/, "");
     const channel = channels.find((c) => c.id === ref || c.name === name);
+    if (!channel && storedIds.has(ref)) continue;
     if (!channel) {
       throw new AlertApiError(
         rateLimited

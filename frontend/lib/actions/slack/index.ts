@@ -460,14 +460,19 @@ export async function getSlackChannels(workspaceId: string, userId: string): Pro
     slackUserId
       ? cachedListing(`slack_channels:private:${integration.teamId}:${slackUserId}`, () =>
           listConversations(token, "users.conversations", { types: "private_channel", user: slackUserId }, true)
-        )
-      : Promise.resolve({ channels: [], rateLimited: false }),
+        ).catch((e) => {
+          // e.g. user_not_found / account_inactive for a linked account that's gone: drop only the
+          // private channels and report the account as unlinked so the user can link again.
+          console.warn("Slack private channel listing failed; listing public channels only", e);
+          return null;
+        })
+      : Promise.resolve(null),
   ]);
 
   return {
-    channels: [...publicListing.channels, ...privateListing.channels],
-    rateLimited: publicListing.rateLimited || privateListing.rateLimited,
-    slackLinked: slackUserId !== null,
+    channels: [...publicListing.channels, ...(privateListing?.channels ?? [])],
+    rateLimited: publicListing.rateLimited || !!privateListing?.rateLimited,
+    slackLinked: privateListing !== null,
   };
 }
 
