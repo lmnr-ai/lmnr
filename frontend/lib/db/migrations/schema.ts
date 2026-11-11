@@ -235,6 +235,162 @@ export const signalNotes = pgTable(
   ]
 );
 
+// One row per time a cluster was marked resolved; reopening stamps reopened_at. A cluster
+// can be resolved many times, and is resolved now iff it has a row with reopened_at null.
+// cluster_id is a ClickHouse signal_event_clusters id (L1+, which are never deleted); no FK.
+export const signalClusterResolutions = pgTable(
+  "signal_cluster_resolutions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    resolvedBy: uuid("resolved_by"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    reopenedBy: uuid("reopened_by"),
+    reopenedAt: timestamp("reopened_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    index("signal_cluster_resolutions_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    uniqueIndex("signal_cluster_resolutions_one_open_idx")
+      .using("btree", table.clusterId.asc().nullsLast().op("uuid_ops"))
+      .where(sql`(reopened_at IS NULL)`),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_resolutions_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_resolutions_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.resolvedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_resolutions_resolved_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.reopenedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_resolutions_reopened_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+// Archived clusters: hidden from Active and Resolved and never get new reports. Unarchiving deletes the row.
+export const signalClusterArchives = pgTable(
+  "signal_cluster_archives",
+  {
+    clusterId: uuid("cluster_id").primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    archivedBy: uuid("archived_by"),
+    archivedAt: timestamp("archived_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_cluster_archives_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_archives_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_archives_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.archivedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_archives_archived_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+// When each user last opened each cluster's report. A cluster is unread for a user when it
+// has events newer than last_viewed_at, or no row at all.
+export const signalClusterViews = pgTable(
+  "signal_cluster_views",
+  {
+    userId: uuid("user_id").notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    lastViewedAt: timestamp("last_viewed_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.clusterId], name: "signal_cluster_views_pkey" }),
+    index("signal_cluster_views_user_project_idx").using(
+      "btree",
+      table.userId.asc().nullsLast().op("uuid_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "signal_cluster_views_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_views_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_views_signal_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+// The Laminar Agent's report on an L1 cluster: one per cluster, rewritten when regenerated.
+export const signalClusterReports = pgTable(
+  "signal_cluster_reports",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    status: text().notNull(),
+    content: text(),
+    error: text(),
+    sessionId: uuid("session_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_cluster_reports_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    index("signal_cluster_reports_cluster_created_idx").using(
+      "btree",
+      table.clusterId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.desc().nullsFirst().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_reports_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_reports_signal_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const tracesAgentMessages = pgTable(
   "traces_agent_messages",
   {
