@@ -88,7 +88,7 @@ fn normalized(any_of: Vec<Vec<String>>) -> Vec<Vec<String>> {
 }
 
 /// Control characters go too: Postgres rejects NUL inside `jsonb`.
-pub(super) fn normalize(text: &str) -> String {
+fn normalize(text: &str) -> String {
     sanitize_string(text)
         .split_whitespace()
         .collect::<Vec<_>>()

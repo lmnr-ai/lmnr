@@ -87,6 +87,12 @@ impl Job {
         if spans.len() < min_matches {
             return Ok(());
         }
+        // With no trace new since the last run, the model would see the same
+        // samples it already declined.
+        let last_run = now - INTERVAL_SECONDS.get() as i64 * NS;
+        if spans.iter().all(|span| span.ingested <= last_run) {
+            return Ok(());
+        }
         let defined = get_defined_agents(&self.db.pool, project_id).await?;
         let agent_hashes: Vec<&str> = defined.iter().map(|a| a.agent_hash.as_str()).collect();
         let latest = latest_agent_spans(&self.clickhouse, project_id, &agent_hashes, since).await?;
