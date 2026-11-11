@@ -18,7 +18,7 @@ import { SPAN_TAB_PARAM, type SpanViewTab, spanTabParser } from "../span-view/us
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
-import { useTracePanelNavigate } from "./trace-panel-url";
+import { navigateTracePanel } from "./trace-panel-url";
 import { type TraceViewLayout, type TraceViewPanels } from "./trace-view-panels";
 
 // The span tab holding a search hit, so selecting a hit lands on it.
@@ -135,7 +135,6 @@ export default function TraceViewContent({
     traceId,
   ]);
 
-  const navigate = useTracePanelNavigate();
   const urlState = useUrlState();
   const [, setSpanTab] = useQueryState(SPAN_TAB_PARAM, spanTabParser);
 
@@ -143,9 +142,13 @@ export default function TraceViewContent({
     (span?: TraceViewSpan) => {
       if (!span) return;
       setSelectedSpan(span);
-      navigate({ type: "selectSpan", spanId: span.spanId, spanTab: urlState ? snippetTabOf(span) : undefined });
+      navigateTracePanel({
+        type: "selectSpan",
+        spanId: span.spanId,
+        spanTab: urlState ? snippetTabOf(span) : undefined,
+      });
     },
-    [setSelectedSpan, navigate, urlState]
+    [setSelectedSpan, urlState]
   );
 
   const [traceSearchTerm, setTraceSearchTerm] = useState("");
@@ -241,8 +244,8 @@ export default function TraceViewContent({
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
-    navigate({ type: "closeSpan" });
-  }, [setSelectedSpan, navigate]);
+    navigateTracePanel({ type: "closeSpan" });
+  }, [setSelectedSpan]);
 
   const isLoading = isTraceLoading && !trace;
 

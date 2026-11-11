@@ -13,7 +13,7 @@ import TraceViewStoreProvider, {
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
-import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
+import { navigateTracePanel } from "@/components/traces/trace-view/trace-panel-url";
 import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 
@@ -26,7 +26,6 @@ interface TraceViewProps {
 // Expects a store seeded with `trace`/`spans` so the server render already shows the tree.
 export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const searchParams = useSearchParams();
-  const navigate = useTracePanelNavigate();
 
   const { selectedSpan, setSelectedSpan, spanPanelOpen } = useTraceViewStore(
     (state) => ({
@@ -44,16 +43,16 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
-      if (span) navigate({ type: "selectSpan", spanId: span.spanId });
+      if (span) navigateTracePanel({ type: "selectSpan", spanId: span.spanId });
       setSelectedSpan(span);
     },
-    [navigate, setSelectedSpan]
+    [setSelectedSpan]
   );
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
-    navigate({ type: "closeSpan" });
-  }, [setSelectedSpan, navigate]);
+    navigateTracePanel({ type: "closeSpan" });
+  }, [setSelectedSpan]);
 
   useEffect(() => {
     const spanId = searchParams.get("spanId");

@@ -6,7 +6,7 @@ import { shallow } from "zustand/shallow";
 
 import { SessionPreviewSelectTraceProvider } from "@/components/traces/session-preview/select-trace-context";
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
-import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
+import { navigateTracePanel } from "@/components/traces/trace-view/trace-panel-url";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
@@ -30,7 +30,6 @@ type NavigationItem =
 
 function TracesContent() {
   const searchParams = useSearchParams();
-  const navigate = useTracePanelNavigate();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
   const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext(
@@ -45,20 +44,15 @@ function TracesContent() {
 
   // The URL is the source of truth; the store mirrors it so the table highlights the row instantly.
   const pushOpenTrace = useCallback(
-    (id: string | null, edit?: (params: URLSearchParams) => void) => {
-      navigate(id ? { type: "open", traceId: id } : { type: "close" }, edit);
+    (id: string | null, hostParams?: Record<string, string | null>) => {
+      navigateTracePanel(id ? { type: "open", traceId: id } : { type: "close" }, hostParams);
       setSpanId(null);
       setTraceId(id);
     },
-    [navigate, setSpanId, setTraceId]
+    [setSpanId, setTraceId]
   );
 
-  const resetUrlParams = (newView: string) =>
-    pushOpenTrace(null, (params) => {
-      params.delete("filter");
-      params.delete("textSearch");
-      params.set("view", newView);
-    });
+  const resetUrlParams = (newView: string) => pushOpenTrace(null, { filter: null, textSearch: null, view: newView });
 
   const handleNavigate = useCallback(
     (item: NavigationItem | null) => {

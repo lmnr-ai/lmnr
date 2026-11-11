@@ -54,18 +54,19 @@ const toHref = (pathname: string, params: URLSearchParams) => {
 
 /**
  * Applies a trace panel action through native history, which Next syncs into useSearchParams; `router.replace` would
- * re-render the page on the server for every span click. The href is rebuilt without the hash: a `#output-N` message
- * link points into one span, so it must not survive any panel action (nuqs would keep it).
+ * re-render the page on the server for every span click. `hostParams` sets the host's own params alongside (null
+ * deletes). The href is rebuilt without the hash: a `#output-N` message link points into one span, so it must not
+ * survive any panel action (nuqs would keep it).
  */
-const navigateTracePanel = (action: TracePanelAction, edit?: (params: URLSearchParams) => void) => {
+export const navigateTracePanel = (action: TracePanelAction, hostParams: Record<string, string | null> = {}) => {
   const current = new URLSearchParams(window.location.search);
   const params = applyTracePanelAction(current, action);
-  edit?.(params);
+  for (const [key, value] of Object.entries(hostParams)) {
+    if (value === null) params.delete(key);
+    else params.set(key, value);
+  }
   if (params.toString() === current.toString() && !window.location.hash) return;
   const href = toHref(window.location.pathname, params);
   if (tracePanelHistory(action) === "push") window.history.pushState(null, "", href);
   else window.history.replaceState(null, "", href);
 };
-
-/** Stable across URL changes, so callbacks built on it don't break memoized trace lists. */
-export const useTracePanelNavigate = () => navigateTracePanel;
