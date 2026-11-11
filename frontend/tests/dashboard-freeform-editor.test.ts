@@ -82,6 +82,7 @@ test("the visual form keeps only structures in its own shape for the chart type"
     [{ ...grouped, filters: [bounds[0], llm, bounds[1]] }, ChartType.HorizontalBarChart],
     [rows, ChartType.Table],
     [{ ...getDefaultFormValues(), dimensions: ["model"], timeRange }, ChartType.LineChart],
+    [{ ...grouped, dimensions: [] }, ChartType.Value],
   ];
   for (const [structure, type] of kept) assert.ok(formKeepsStructure(structure, type), JSON.stringify(structure));
 
@@ -92,6 +93,13 @@ test("the visual form keeps only structures in its own shape for the chart type"
     ["a horizontal bar gets time bounds", { ...grouped, filters: [llm] }, ChartType.HorizontalBarChart],
     ["a horizontal bar gets the upper bound", { ...grouped, filters: [bounds[0]] }, ChartType.HorizontalBarChart],
     ["a bar gets a time bucket", grouped, ChartType.BarChart],
+    ["a value drops GROUP BY", grouped, ChartType.Value],
+    ["a value drops LIMIT", { ...grouped, dimensions: [], limit: 1 }, ChartType.Value],
+    [
+      "a value drops ORDER BY",
+      { ...grouped, dimensions: [], orderBy: [{ field: "count", dir: "desc" }] },
+      ChartType.Value,
+    ],
     [
       "a line gets gap filling",
       { ...grouped, filters: [], timeRange: { ...timeRange, fillGaps: false } },

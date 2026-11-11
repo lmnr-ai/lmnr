@@ -6,17 +6,10 @@ import ColumnSelect from "@/components/chart-builder/column-select";
 import { ChartType } from "@/components/chart-builder/types";
 import { canSelectForXAxis, canSelectForYAxis, transformDataToColumns } from "@/components/chart-builder/utils";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
-import FreeformSqlField from "@/components/dashboards/editor/freeform-sql-field";
 import { needsTimeSeries } from "@/components/dashboards/editor/utils";
 
-interface FreeformFieldsProps {
-  onRun: () => void;
-  canRun: boolean;
-  issue: string | null;
-}
-
-/** Advanced mode's query fields: the SQL itself and which result columns to plot. */
-export default function FreeformFields({ onRun, canRun, issue }: FreeformFieldsProps) {
+/** Advanced mode's column mappings: which result columns the chosen chart type plots. */
+export default function FreeformAxes() {
   const { config, data, setChartConfig } = useDashboardEditorStoreContext((state) => ({
     config: state.chart.settings.config,
     data: state.data,
@@ -28,8 +21,17 @@ export default function FreeformFields({ onRun, canRun, issue }: FreeformFieldsP
 
   return (
     <>
-      <FreeformSqlField onRun={onRun} canRun={canRun} issue={issue} />
-      {config.type !== ChartType.Table && (
+      {config.type === ChartType.Value && (
+        <ColumnSelect
+          label="Value"
+          columns={columns}
+          // Unset or missing from the result, the renderer shows the first column; show that one picked.
+          value={columns.some((column) => column.name === config.y) ? config.y : columns[0]?.name}
+          onChange={setAxis("y")}
+          info="Shown from the first row. A number gets formatted; text is shown as written."
+        />
+      )}
+      {config.type !== ChartType.Table && config.type !== ChartType.Value && (
         <>
           <ColumnSelect
             label={isHorizontal ? "Value" : "X axis"}

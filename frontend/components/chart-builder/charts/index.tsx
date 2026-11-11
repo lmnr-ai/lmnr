@@ -14,6 +14,7 @@ import {
   transformDataForBreakdown,
   transformDataForSimpleChart,
 } from "@/components/chart-builder/charts/utils";
+import ValueChart from "@/components/chart-builder/charts/value-chart";
 import {
   type ChartConfig,
   ChartType,
@@ -55,7 +56,7 @@ export const ChartRendererCore = ({
     keys,
     chartConfig: uiChartConfig,
   } = useMemo(() => {
-    if (!config.type || isTable || !config.x || !config.y) {
+    if (!config.type || isTable || config.type === ChartType.Value || !config.x || !config.y) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
@@ -97,6 +98,10 @@ export const ChartRendererCore = ({
         fetchNextPage={fetchNextPage}
       />
     );
+  }
+
+  if (config.type === ChartType.Value) {
+    return <ValueChart data={data} columns={columns} column={config.y} hiddenColumns={hiddenColumns} />;
   }
 
   if (!config.type || !config.x || !config.y) {

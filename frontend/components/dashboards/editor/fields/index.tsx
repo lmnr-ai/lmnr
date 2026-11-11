@@ -12,15 +12,18 @@ import TableSelect from "./TableSelect";
 /** Standard mode's query fields; the shared ones live in EditorSidebar. */
 export const QueryBuilderFields = () => {
   const chartType = useDashboardEditorStoreContext((state) => state.chart.settings.config.type);
+  const isTable = chartType === ChartType.Table;
+  // A value chart is one aggregate over the whole range, so it has nothing to group, order or limit.
+  const isValue = chartType === ChartType.Value;
 
   return (
     <>
       <TableSelect />
-      {chartType === ChartType.Table ? <ColumnsField /> : <MetricsField />}
+      {isTable ? <ColumnsField /> : <MetricsField />}
       <FiltersField />
-      {chartType !== ChartType.Table && <DimensionsField />}
-      {(chartType === ChartType.HorizontalBarChart || chartType === ChartType.Table) && <OrderByField />}
-      {chartType !== ChartType.Table && <LimitField />}
+      {!isTable && !isValue && <DimensionsField />}
+      {(chartType === ChartType.HorizontalBarChart || isTable) && <OrderByField />}
+      {!isTable && !isValue && <LimitField />}
     </>
   );
 };

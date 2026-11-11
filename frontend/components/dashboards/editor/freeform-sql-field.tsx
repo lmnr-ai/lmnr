@@ -30,7 +30,8 @@ export default function FreeformSqlField({ onRun, canRun, issue }: FreeformSqlFi
         <Label className="text-xs font-semibold">SQL</Label>
         <SqlEditorMenu query={query} editorRef={editorRef} />
       </div>
-      <div className="relative h-72 overflow-hidden rounded border bg-background [&_.cm-scroller]:scrollbar-thin">
+      {/* Grows with the query; the sidebar scrolls. */}
+      <div className="relative overflow-hidden rounded border bg-background [&_.cm-content]:!min-h-72">
         <SQLEditor value={query} onChange={setQuery} editable formattable editorRef={editorRef} lineNumbers={false} />
         <Button
           className="absolute bottom-2 right-2 z-10 gap-1 shadow-md"

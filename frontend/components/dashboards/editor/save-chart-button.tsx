@@ -63,11 +63,16 @@ export default function SaveChartButton({ disabled }: { disabled: boolean }) {
 
   return (
     <>
-      {saveError && <div className="text-sm text-destructive-text">{saveError}</div>}
+      {saveError && (
+        // order-first: ahead of the footer's Cancel button.
+        <span className="order-first min-w-0 truncate text-sm text-destructive-text" title={saveError}>
+          {saveError}
+        </span>
+      )}
       <Button
         onClick={handleSave}
         disabled={disabled || !chart.name.trim() || !chart.query.trim() || isSaving}
-        className="gap-1 self-end"
+        className="shrink-0 gap-1"
       >
         {isSaving && <Loader2 className="size-3.5 animate-spin" />}
         {chart.id ? "Update" : "Save"}

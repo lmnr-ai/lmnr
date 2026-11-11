@@ -51,7 +51,7 @@ export default function EditorModeTabs() {
   return (
     <>
       <Tabs value={editorMode} onValueChange={handleChange}>
-        <TabsList className="w-full h-8">
+        <TabsList className="w-full max-w-80 h-8">
           <TabsTrigger value="visual" className="text-xs" disabled={isParsing}>
             Standard
           </TabsTrigger>
