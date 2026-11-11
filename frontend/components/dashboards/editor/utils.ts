@@ -94,15 +94,17 @@ export const toFormValues = (structure: QueryStructure, chartType: ChartType | u
   // Table/HorizontalBar/Value charts (see Form.tsx), and SQL reverse-parsed by convertSqlToJson still
   // carries them, so keeping them would duplicate. A user's own filter on that column stays.
   const timeColumn = getTimeColumn(structure.table);
+  // Value hides Group By, Order and Limit, so drop them rather than keep a grouping the user can't see.
+  const isValue = chartType === ChartType.Value;
   return {
     table: structure.table,
     metrics: structure.metrics,
-    dimensions: structure.dimensions,
+    dimensions: isValue ? [] : structure.dimensions,
     filters: (structure.filters || []).filter((filter) => !(filter.field === timeColumn && isTimeBound(filter))),
     timeRange: structure.timeRange,
-    orderBy: structure.orderBy,
+    orderBy: isValue ? [] : structure.orderBy,
     // Table charts never carry a LIMIT — pagination is applied at fetch time in the executor.
-    limit: chartType === ChartType.Table ? undefined : structure.limit,
+    limit: chartType === ChartType.Table || isValue ? undefined : structure.limit,
   };
 };
 
