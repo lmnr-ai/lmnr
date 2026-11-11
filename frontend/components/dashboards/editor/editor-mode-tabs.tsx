@@ -34,7 +34,7 @@ export default function EditorModeTabs() {
   const switchToStandard = async () => {
     if (!query.trim()) return startFresh();
     setIsParsing(true);
-    const structure = await parseVisualStructure(query, projectId);
+    const structure = await parseVisualStructure(query, projectId, chartType);
     setIsParsing(false);
     if (!structure) return setConfirmOpen(true);
     reset(toFormValues(structure, chartType));
