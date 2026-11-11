@@ -23,6 +23,10 @@ impl super::StorageTrait for MockStorage {
         Ok(false)
     }
 
+    async fn delete(&self, _bucket: &str, _key: &str) -> Result<()> {
+        Ok(())
+    }
+
     async fn upload_stream(
         &self,
         _bucket: &str,
