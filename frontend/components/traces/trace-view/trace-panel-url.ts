@@ -1,6 +1,3 @@
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
-
 import { SPAN_TAB_PARAM, type SpanViewTab } from "@/components/traces/span-view/use-span-view-tab";
 import { TRACE_VIEW_PARAM } from "@/components/traces/trace-view/use-trace-view-tab";
 
@@ -42,11 +39,6 @@ export const applyTracePanelAction = (params: URLSearchParams, action: TracePane
 export const tracePanelHistory = (action: TracePanelAction): "push" | "replace" =>
   action.type === "open" || action.type === "close" ? "push" : "replace";
 
-const toHref = (pathname: string, params: URLSearchParams) => {
-  const query = params.toString();
-  return query ? `${pathname}?${query}` : pathname;
-};
-
 /** The link to one message of a span: the panel's URL with that span selected and the message's hash. */
 export const messageLinkUrl = (href: string, spanId: string, hash: string): URL => {
   const url = new URL(href);
@@ -55,23 +47,26 @@ export const messageLinkUrl = (href: string, spanId: string, hash: string): URL 
   return url;
 };
 
-/**
- * Applies trace panel actions to the URL. The href is rebuilt without the hash: a `#output-N` message link points
- * into one span, so it must not survive any panel action (nuqs would keep it).
- */
-export const useTracePanelNavigate = () => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+const toHref = (pathname: string, params: URLSearchParams) => {
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+};
 
-  return useCallback(
-    (action: TracePanelAction, edit?: (params: URLSearchParams) => void) => {
-      const params = applyTracePanelAction(searchParams, action);
-      edit?.(params);
-      const unchanged = params.toString() === searchParams.toString() && !window.location.hash;
-      if (unchanged) return;
-      router[tracePanelHistory(action)](toHref(pathname, params));
-    },
-    [router, pathname, searchParams]
-  );
+/**
+ * Applies a trace panel action through native history, which Next syncs into useSearchParams; `router.replace` would
+ * re-render the page on the server for every span click. `hostParams` sets the host's own params alongside (null
+ * deletes). The href is rebuilt without the hash: a `#output-N` message link points into one span, so it must not
+ * survive any panel action (nuqs would keep it).
+ */
+export const navigateTracePanel = (action: TracePanelAction, hostParams: Record<string, string | null> = {}) => {
+  const current = new URLSearchParams(window.location.search);
+  const params = applyTracePanelAction(current, action);
+  for (const [key, value] of Object.entries(hostParams)) {
+    if (value === null) params.delete(key);
+    else params.set(key, value);
+  }
+  if (params.toString() === current.toString() && !window.location.hash) return;
+  const href = toHref(window.location.pathname, params);
+  if (tracePanelHistory(action) === "push") window.history.pushState(null, "", href);
+  else window.history.replaceState(null, "", href);
 };

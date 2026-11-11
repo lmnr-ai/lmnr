@@ -1,5 +1,5 @@
 import { AlertTriangle, CirclePlay } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
@@ -31,7 +31,7 @@ interface TracePanelProps {
   isLoading: boolean;
 }
 
-export default function TracePanel({ traceId, handleClose, handleSpanSelect, fetchSpans, isLoading }: TracePanelProps) {
+function TracePanel({ traceId, handleClose, handleSpanSelect, fetchSpans, isLoading }: TracePanelProps) {
   const {
     trace,
     spans,
@@ -203,3 +203,5 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
     </TemplatePickerProvider>
   );
 }
+
+export default memo(TracePanel);

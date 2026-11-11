@@ -11,7 +11,7 @@ import {
 import { CreateSignalJobTableControls } from "@/components/signal/create-signal-job/table-controls";
 import { useSignalStoreContext } from "@/components/signal/store";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
-import { useTracePanelNavigate } from "@/components/traces/trace-view/trace-panel-url";
+import { navigateTracePanel } from "@/components/traces/trace-view/trace-panel-url";
 import { columns, defaultTracesColumnOrder } from "@/components/traces/traces-table/columns";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -21,7 +21,6 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 const CreateSignalJobContent = () => {
   const router = useRouter();
-  const navigate = useTracePanelNavigate();
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
 
@@ -152,7 +151,7 @@ const CreateSignalJobContent = () => {
         className="z-60 pointer-events-auto"
         spanId={spanId || undefined}
         onClose={() => {
-          navigate({ type: "close" });
+          navigateTracePanel({ type: "close" });
           setTraceId(null);
           setSpanId(null);
         }}

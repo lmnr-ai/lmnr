@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useQueryState } from "nuqs";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
@@ -18,7 +18,7 @@ import { SPAN_TAB_PARAM, type SpanViewTab, spanTabParser } from "../span-view/us
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import TracePanel from "./trace-panel";
-import { useTracePanelNavigate } from "./trace-panel-url";
+import { navigateTracePanel } from "./trace-panel-url";
 import { type TraceViewLayout, type TraceViewPanels } from "./trace-view-panels";
 
 // The span tab holding a search hit, so selecting a hit lands on it.
@@ -45,7 +45,6 @@ export default function TraceViewContent({
   isAlwaysSelectSpan,
   layout = FILL,
 }: TraceViewContentProps) {
-  const searchParams = useSearchParams();
   const { projectId } = useParams();
 
   // Panel visibility states
@@ -136,7 +135,6 @@ export default function TraceViewContent({
     traceId,
   ]);
 
-  const navigate = useTracePanelNavigate();
   const urlState = useUrlState();
   const [, setSpanTab] = useQueryState(SPAN_TAB_PARAM, spanTabParser);
 
@@ -144,9 +142,13 @@ export default function TraceViewContent({
     (span?: TraceViewSpan) => {
       if (!span) return;
       setSelectedSpan(span);
-      navigate({ type: "selectSpan", spanId: span.spanId, spanTab: urlState ? snippetTabOf(span) : undefined });
+      navigateTracePanel({
+        type: "selectSpan",
+        spanId: span.spanId,
+        spanTab: urlState ? snippetTabOf(span) : undefined,
+      });
     },
-    [setSelectedSpan, navigate, urlState]
+    [setSelectedSpan, urlState]
   );
 
   const [traceSearchTerm, setTraceSearchTerm] = useState("");
@@ -195,6 +197,8 @@ export default function TraceViewContent({
           setBrowserSession(true);
         }
 
+        // Read at fetch time: subscribing would rebuild fetchSpans (a TracePanel prop) on every URL change.
+        const searchParams = new URLSearchParams(window.location.search);
         const urlSpanId = spanId || searchParams.get("spanId");
         // Auto-select the first span only in the dedicated trace page (always-select mode).
         // In drawer layouts we leave the selection empty unless the user explicitly opens a span.
@@ -233,7 +237,6 @@ export default function TraceViewContent({
       setSelectedSpan,
       isAlwaysSelectSpan,
       spanId,
-      searchParams,
       urlState,
       setSpanTab,
     ]
@@ -241,8 +244,8 @@ export default function TraceViewContent({
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
-    navigate({ type: "closeSpan" });
-  }, [setSelectedSpan, navigate]);
+    navigateTracePanel({ type: "closeSpan" });
+  }, [setSelectedSpan]);
 
   const isLoading = isTraceLoading && !trace;
 
