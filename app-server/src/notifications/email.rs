@@ -756,7 +756,8 @@ fn render_usage_hard_limit_email(
             allowance
         )
     } else if one_time_credit_exhausted {
-        "Your workspace has used its one-time Signals credit. Upgrade to continue running Signals."
+        // Only Free reaches here: a trial gets the trial copy above, and paid tiers bill past the credit.
+        "Your workspace has used its one-time Signals credit. Upgrade to Pro to continue running Signals."
             .to_string()
     } else {
         format!(
@@ -1040,6 +1041,7 @@ fn html_escape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::projects::WorkspaceTierName;
     use crate::reports::{
         ProjectReportData, ReportChartBucket, ReportClusterData, ReportData, SignalReportData,
     };
@@ -1271,6 +1273,25 @@ mod tests {
     }
 
     #[test]
+    fn usage_warning_names_tiers_by_display_name() {
+        let render = |tier: WorkspaceTierName| {
+            render_usage_warning_email(
+                "Workspace",
+                Uuid::nil(),
+                "bytes",
+                "3 GiB",
+                "3 GiB",
+                true,
+                tier.display_name(),
+                true,
+            )
+        };
+
+        assert!(render(WorkspaceTierName::Hobby).contains("included in the Pro plan"));
+        assert!(render(WorkspaceTierName::Pro).contains("included in the Scale plan"));
+    }
+
+    #[test]
     fn usage_emails_keep_primary_action_button() {
         let warning_html = render_usage_warning_email(
             "Workspace",
@@ -1332,7 +1353,7 @@ mod tests {
 
         assert!(html.contains("Signal runs has paused"));
         assert!(html.contains("used its one-time Signals credit"));
-        assert!(html.contains("Upgrade to continue"));
+        assert!(html.contains("Upgrade to Pro to continue"));
         assert!(!html.contains("billing cycle resets"));
     }
 
