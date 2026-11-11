@@ -5,7 +5,6 @@ import {
   buildGrouping,
   describeMetadataKeys,
   flattenMetadata,
-  MAX_GROUPS,
   NONE_GROUP,
 } from "@/components/evaluations/progression-chart/grouping";
 
@@ -41,12 +40,10 @@ describe("progression grouping", () => {
     assert.equal(g.groupByEvalId["3"], NONE_GROUP);
   });
 
-  it("keeps the largest groups and reports the rest as omitted", () => {
-    const runs = Array.from({ length: MAX_GROUPS + 2 }, (_, i) => run(String(i), { id: i }));
-    runs.push(run("dup", { id: 0 }));
+  it("keeps every group, with no cap", () => {
+    const runs = Array.from({ length: 25 }, (_, i) => run(String(i), { id: i }));
     const g = buildGrouping(runs, "id");
-    assert.equal(g.groups.length, MAX_GROUPS);
-    assert.equal(g.omittedCount, 2);
-    assert.ok(g.groups.some((x) => x.label === "0"));
+    assert.equal(g.groups.length, 25);
+    assert.equal(new Set(g.groups.map((x) => x.color)).size > 1, true);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { type ChartConfig } from "@/components/ui/chart";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,7 +9,7 @@ import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import CombinedLegend from "./combined-legend";
 import GroupedBreakdownChart from "./grouped-breakdown-chart";
 import GroupedTrendChart from "./grouped-trend-chart";
-import { buildGrouping, MAX_GROUPS } from "./grouping";
+import { buildGrouping } from "./grouping";
 import ScorePicker from "./score-picker";
 import { type ProgressionPoint, type ProgressionView } from "./shared";
 
@@ -28,6 +28,7 @@ interface GroupedViewProps {
 
 const SCORE_LEGEND_COLOR = "var(--color-muted-foreground)";
 const EMPTY_GROUPS: string[] = [];
+const COLLAPSED_GROUP_COUNT = 10;
 
 export default function GroupedView({
   points,
@@ -49,6 +50,7 @@ export default function GroupedView({
     `evaluations-chart-trend-score:${prefsKey}`,
     null
   );
+  const [showAllGroups, setShowAllGroups] = useState(false);
   const toggleGroup = (label: string) =>
     setHiddenGroups((prev) => (prev.includes(label) ? prev.filter((g) => g !== label) : [...prev, label]));
   const trendScore = pickedScore && scoreKeys.includes(pickedScore) ? pickedScore : scoreKeys[0];
@@ -84,15 +86,19 @@ export default function GroupedView({
               {groupBy}
             </span>
             <CombinedLegend
-              scores={grouping.groups.map((g) => g.label)}
+              scores={grouping.groups.slice(0, showAllGroups ? undefined : COLLAPSED_GROUP_COUNT).map((g) => g.label)}
               visibleScores={shownGroups.map((g) => g.label)}
               chartConfig={groupConfig}
               onToggle={toggleGroup}
             />
-            {grouping.omittedCount > 0 && (
-              <span className="text-xs text-muted-foreground">
-                +{grouping.omittedCount} more (top {MAX_GROUPS} by runs shown)
-              </span>
+            {grouping.groups.length > COLLAPSED_GROUP_COUNT && (
+              <button
+                type="button"
+                onClick={() => setShowAllGroups((v) => !v)}
+                className="text-left text-xs text-muted-foreground hover:text-foreground"
+              >
+                {showAllGroups ? "Show less" : `Show ${grouping.groups.length - COLLAPSED_GROUP_COUNT} more`}
+              </button>
             )}
           </div>
           {view === "breakdown" && (

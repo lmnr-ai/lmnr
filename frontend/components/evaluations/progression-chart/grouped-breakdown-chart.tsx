@@ -1,18 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ErrorBar,
-  Rectangle,
-  type RectangleProps,
-  Tooltip,
-  useYAxisScale,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, ErrorBar, Tooltip, XAxis, YAxis } from "recharts";
 
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 import { ElevatedSurface } from "@/components/ui/surface";
@@ -28,7 +17,7 @@ interface GroupedBreakdownChartProps {
 }
 
 type GroupStat = { mean: number; min: number; max: number; runs: number };
-// Per score: one normalized height + whisker per group, raw stats kept for labels and tooltip.
+// Per score: one normalized height + whisker per group, raw stats kept for the tooltip.
 type Row = { score: string; stats: Record<string, GroupStat> } & Record<string, unknown>;
 
 const CHART_CONFIG: ChartConfig = {};
@@ -75,7 +64,7 @@ export default function GroupedBreakdownChart({ scores, points, groupByEvalId, g
 
   return (
     <ChartContainer config={CHART_CONFIG} className="aspect-auto h-full w-full">
-      <BarChart data={rows} margin={{ top: 20, right: 8, bottom: 4, left: 8 }} barGap={2}>
+      <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 4, left: 8 }} barGap={2}>
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="score"
@@ -87,7 +76,7 @@ export default function GroupedBreakdownChart({ scores, points, groupByEvalId, g
           tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
           tickFormatter={(v: string) => (v.length > 18 ? `${v.slice(0, 17)}…` : v)}
         />
-        {/* Heights are per-score scaled, so the axis has no shared unit; bar labels carry real values. */}
+        {/* Heights are per-score scaled, so the axis has no shared unit; the tooltip carries real values. */}
         <YAxis hide domain={[0, 1]} />
         <Tooltip
           isAnimationActive={false}
@@ -102,7 +91,6 @@ export default function GroupedBreakdownChart({ scores, points, groupByEvalId, g
             isAnimationActive={false}
             radius={[3, 3, 0, 0]}
             maxBarSize={40}
-            shape={(props: RectangleProps & { payload?: Row }) => <BarWithLabel {...props} group={g} />}
           >
             <ErrorBar
               dataKey={`${g.label}__range`}
@@ -115,31 +103,6 @@ export default function GroupedBreakdownChart({ scores, points, groupByEvalId, g
         ))}
       </BarChart>
     </ChartContainer>
-  );
-}
-
-// The raw mean sits above the whisker (not the bar top) so the two never overlap.
-function BarWithLabel({ payload, group, ...props }: RectangleProps & { payload?: Row; group: GroupInfo }) {
-  const yScale = useYAxisScale();
-  const stat = payload?.stats[group.label];
-  const height = payload?.[group.label];
-  const range = payload?.[`${group.label}__range`] as number[] | undefined;
-  const top = typeof height === "number" && yScale ? yScale(height + (range?.[1] ?? 0)) : undefined;
-  return (
-    <g>
-      <Rectangle {...props} fill={group.color} />
-      {stat && typeof top === "number" && (
-        <text
-          x={(props.x ?? 0) + (props.width ?? 0) / 2}
-          y={top - 4}
-          textAnchor="middle"
-          fontSize={12}
-          className="fill-foreground tabular-nums"
-        >
-          {formatNumber(stat.mean)}
-        </text>
-      )}
-    </g>
   );
 }
 

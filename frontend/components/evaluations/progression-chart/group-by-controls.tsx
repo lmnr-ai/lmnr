@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-import { MAX_GROUPS, type MetadataKeyInfo } from "./grouping";
+import { type MetadataKeyInfo } from "./grouping";
 import { type ProgressionView } from "./shared";
 
 interface GroupByControlsProps {
@@ -36,9 +36,8 @@ export default function GroupByControls({
   view,
   onViewChange,
 }: GroupByControlsProps) {
-  // Keys that split runs into a chartable number of groups come first; constant keys can't split anything.
-  const splitting = metadataKeys.filter((k) => k.distinctValues > 1 && k.distinctValues <= MAX_GROUPS);
-  const many = metadataKeys.filter((k) => k.distinctValues > MAX_GROUPS);
+  // Constant keys can't split runs, so they're listed but disabled.
+  const varying = metadataKeys.filter((k) => k.distinctValues > 1);
   const constant = metadataKeys.filter((k) => k.distinctValues <= 1);
 
   return (
@@ -50,8 +49,7 @@ export default function GroupByControls({
             {groupBy && <span className="font-medium">{groupBy}</span>}
           </SelectTrigger>
           <SelectContent>
-            <KeyGroup label="Varies across runs" keys={splitting} />
-            <KeyGroup label={`More than ${MAX_GROUPS} values`} keys={many} />
+            <KeyGroup label="Varies across runs" keys={varying} />
             <KeyGroup label="Same for all runs" keys={constant} disabled />
           </SelectContent>
         </Select>
