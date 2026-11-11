@@ -133,7 +133,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
     // Run limit and Hobby-overage-warning cleanup on every tier transition so that
     // cancellations (Hobby → Free) also clear Hobby-specific defaults. Otherwise a
     // later upgrade to Pro would inherit them.
-    await upsertDefaultTierUsageLimits({
+    await clearLegacyHobbyHardLimit({
       workspaceId,
       newTierName: newPaidTier,
       currentTierName: currentPaidTier,
@@ -335,13 +335,15 @@ export const handleInvoiceFinalized = async (
 
 // Extra overage warnings fired on Hobby so users accumulating a large overage
 // bill are nudged before it grows further. The signal
-// threshold is in micro-USD (1e-6 USD): $100
-const HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 100_000_000;
+// threshold is in micro-USD (1e-6 USD): $25
+const HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 25_000_000;
 const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
 
-// Default hard cap on Hobby signal cost, in micro-USD ($50). Users can still
-// raise/remove it from workspace usage settings.
-const HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD = HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD;
+// Earlier Hobby defaults still present on existing workspaces: a $100 Signals
+// warning and a $100 Signals hard limit. New Hobby workspaces get neither, but
+// both are still cleared when a workspace leaves Hobby.
+const LEGACY_HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 100_000_000;
+const LEGACY_HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD = 100_000_000;
 
 const insertNewTierUsageWarnings = async ({
   workspaceId,
@@ -400,7 +402,10 @@ const clearHobbyOverageWarnings = async (workspaceId: string) => {
       and(
         eq(workspaceUsageWarnings.workspaceId, workspaceId),
         eq(workspaceUsageWarnings.usageItem, "signal_cost"),
-        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD)
+        inArray(workspaceUsageWarnings.limitValue, [
+          HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD,
+          LEGACY_HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD,
+        ])
       )
     );
   await db
@@ -414,12 +419,10 @@ const clearHobbyOverageWarnings = async (workspaceId: string) => {
     );
 };
 
-// Hobby gets a default hard cap on signal cost so cheaper-than-Pro customers
-// don't silently accrue overage charges; Pro intentionally has no default cap. `newTierName`
-// is undefined when the workspace moves to Free (cancellation), which must still trigger the
-// Hobby cleanup — otherwise a canceled Hobby leaves a default row that would silently re-apply
-// on a future paid-tier upgrade.
-const upsertDefaultTierUsageLimits = async ({
+// No tier gets a default hard limit. Clears the legacy Hobby default Signals hard limit on
+// every transition out of Hobby, including Hobby → Free on cancellation, so it can't
+// re-apply on a later upgrade. Matched on the exact default so user-set limits survive.
+const clearLegacyHobbyHardLimit = async ({
   workspaceId,
   newTierName,
   currentTierName,
@@ -428,53 +431,26 @@ const upsertDefaultTierUsageLimits = async ({
   newTierName?: PaidTier;
   currentTierName?: PaidTier;
 }) => {
-  // Preserve user overrides: only clear the default when it still matches a known Hobby
-  // default. Looked up here (not accepted from the caller) so the cleanup does
-  // not silently skip when the caller forgets to pass currentTierConfig.
-  if (currentTierName === "hobby" && newTierName !== "hobby") {
-    const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD];
-    const deleted = await db
-      .delete(workspaceUsageLimits)
-      .where(
-        and(
-          eq(workspaceUsageLimits.workspaceId, workspaceId),
-          eq(workspaceUsageLimits.limitType, "signal_cost"),
-          inArray(workspaceUsageLimits.limitValue, clearableValues)
-        )
+  if (currentTierName !== "hobby" || newTierName === "hobby") return;
+  const deleted = await db
+    .delete(workspaceUsageLimits)
+    .where(
+      and(
+        eq(workspaceUsageLimits.workspaceId, workspaceId),
+        eq(workspaceUsageLimits.limitType, "signal_cost"),
+        eq(workspaceUsageLimits.limitValue, LEGACY_HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD)
       )
-      .returning({ id: workspaceUsageLimits.id });
-    // Mirror the user-facing delete path: clearing the default hard limit must also
-    // drop the dedup stamp so a re-applied limit on a future upgrade starts fresh.
-    // Best-effort: the limit delete already committed, and a throw here would skip
-    // the warnings sync + cache invalidations in the caller's try block.
-    if (deleted.length > 0) {
-      try {
-        await deleteHardLimitNotification(workspaceId, "signal_cost");
-      } catch (e) {
-        console.error("Failed to clear hard-limit dedup row on Hobby default limit delete, continuing", e);
-      }
-    }
-  }
-
-  if (newTierName === "hobby") {
-    const inserted = await db
-      .insert(workspaceUsageLimits)
-      .values({
-        workspaceId,
-        limitType: "signal_cost",
-        limitValue: HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD,
-      })
-      .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] })
-      .returning({ id: workspaceUsageLimits.id });
-    // A freshly inserted default is a brand-new limit; drop any leftover dedup stamp
-    // (e.g. from a prior Hobby stint) so the first breach under the new limit notifies.
-    // Best-effort, same as the delete path above.
-    if (inserted.length > 0) {
-      try {
-        await deleteHardLimitNotification(workspaceId, "signal_cost");
-      } catch (e) {
-        console.error("Failed to clear hard-limit dedup row on Hobby default limit insert, continuing", e);
-      }
+    )
+    .returning({ id: workspaceUsageLimits.id });
+  // Mirror the user-facing delete path: clearing a hard limit must also drop the dedup
+  // stamp so a limit set later starts fresh. Best-effort: the limit delete already
+  // committed, and a throw here would skip the warnings sync + cache invalidations in
+  // the caller's try block.
+  if (deleted.length > 0) {
+    try {
+      await deleteHardLimitNotification(workspaceId, "signal_cost");
+    } catch (e) {
+      console.error("Failed to clear hard-limit dedup row on legacy Hobby limit delete, continuing", e);
     }
   }
 };

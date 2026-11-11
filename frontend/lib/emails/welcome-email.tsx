@@ -2,13 +2,14 @@ import { Head, Html, Img, Link, Preview, Section, Text } from "@react-email/comp
 import type { CSSProperties } from "react";
 
 import { TIER_RETENTION } from "@/lib/billing/retention";
+import { SIGNALS_SIGNUP_CREDIT_USD } from "@/lib/billing/tiers";
 
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 
 const GET_STARTED_URL = "https://lmnr.ai/docs/getting-started";
 const TRIAL_INCLUDES = [
   `No data cap during the trial, with ${TIER_RETENTION.hobby.durationPlural} of data access`,
-  "Signals, free during the trial",
+  `$${SIGNALS_SIGNUP_CREDIT_USD} credit for Signals`,
   "Slack alerts",
   "Unlimited projects and teammates",
 ];
