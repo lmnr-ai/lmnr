@@ -5,10 +5,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button.tsx";
 import { useProjectContext } from "@/contexts/project-context";
 import { TIER_RETENTION } from "@/lib/billing/retention";
-import { TIERS } from "@/lib/billing/tiers";
+import { SIGNALS_SIGNUP_CREDIT_USD, TIERS } from "@/lib/billing/tiers";
 
 const TRIAL_INCLUDES = [
-  { icon: Radio, label: "Signals" },
+  { icon: Radio, label: `Signals, with a $${SIGNALS_SIGNUP_CREDIT_USD} credit` },
   { icon: Bell, label: "Slack alerts for critical events" },
   { icon: Database, label: "No data cap during the trial" },
   { icon: Clock, label: `${TIER_RETENTION.hobby.durationPlural} of data access` },

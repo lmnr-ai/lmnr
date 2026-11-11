@@ -46,11 +46,16 @@ const PROJECT_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 /// a failed eviction can keep suppressing the Postgres re-check.
 const HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS: u64 = 60 * 5; // 5 minutes
 
-/// Only Free stops at the tier allowance. Trials run uncapped like paid Pro (an
+/// Only Free stops at the data allowance. Trials ingest past it like paid Pro (an
 /// acquisition choice) yet are never billed: they carry no metered prices, and
 /// conversion restarts the usage window at the trial end.
-fn is_capped_at_allowance(project_info: &ProjectWithWorkspaceBillingInfo) -> bool {
+fn is_bytes_capped_at_allowance(project_info: &ProjectWithWorkspaceBillingInfo) -> bool {
     project_info.tier_name.is_free()
+}
+
+/// Free and trials run Signals only on the one-time credit; paid tiers bill past it.
+fn is_signals_capped_at_credit(project_info: &ProjectWithWorkspaceBillingInfo) -> bool {
+    project_info.tier_name.is_free() || project_info.trialing
 }
 
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
@@ -58,7 +63,7 @@ fn is_capped_at_allowance(project_info: &ProjectWithWorkspaceBillingInfo) -> boo
 /// - For free tier: always uses the tier limit (custom limits are not allowed).
 /// - For paid tiers and trials: uses custom limit when set, else no limit is enforced.
 fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
-    if is_capped_at_allowance(project_info) {
+    if is_bytes_capped_at_allowance(project_info) {
         return Some(project_info.bytes_limit);
     }
     project_info.custom_bytes_limit
@@ -189,7 +194,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         return Ok(true);
     }
 
-    let is_capped = is_capped_at_allowance(&project_info);
+    let is_capped = is_signals_capped_at_credit(&project_info);
     let effective_limit = project_info.signal_cost_hard_limit_micro_usd;
     if !is_capped && effective_limit.is_none() {
         return Ok(false);
@@ -461,7 +466,7 @@ pub async fn check_workspace_signal_usage(
     )
     .await;
 
-    if is_capped_at_allowance(&project_info) {
+    if is_signals_capped_at_credit(&project_info) {
         let persisted_credit =
             db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
         let remaining_credit = persisted_credit.unwrap_or(0);
@@ -896,9 +901,10 @@ mod tests {
     }
 
     #[test]
-    fn trial_is_not_capped_at_the_tier_allowance() {
+    fn trial_ingests_past_the_data_allowance_but_signals_stop_at_the_credit() {
         let trial = billing_info(WorkspaceTierName::Hobby, true);
-        assert!(!is_capped_at_allowance(&trial));
+        assert!(!is_bytes_capped_at_allowance(&trial));
+        assert!(is_signals_capped_at_credit(&trial));
         assert_eq!(get_effective_bytes_limit(&trial), None);
 
         let with_custom_limit = ProjectWithWorkspaceBillingInfo {
@@ -912,9 +918,17 @@ mod tests {
     }
 
     #[test]
+    fn paid_pro_bills_past_the_signals_credit() {
+        let paid = billing_info(WorkspaceTierName::Hobby, false);
+        assert!(!is_bytes_capped_at_allowance(&paid));
+        assert!(!is_signals_capped_at_credit(&paid));
+    }
+
+    #[test]
     fn free_stays_capped_at_the_tier_allowance() {
         let free = billing_info(WorkspaceTierName::Free, false);
-        assert!(is_capped_at_allowance(&free));
+        assert!(is_bytes_capped_at_allowance(&free));
+        assert!(is_signals_capped_at_credit(&free));
         assert_eq!(get_effective_bytes_limit(&free), Some(free.bytes_limit));
     }
 }

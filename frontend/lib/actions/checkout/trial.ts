@@ -325,7 +325,7 @@ export const handleTrialConversion = async (
 
   await attachOveragePrices(subscription);
   // The first paid invoice carries only the flat price, so invoice.finalized never resets usage for it.
-  // Trials are uncapped, so the paid period must start exactly at the trial end: no trial usage
+  // Trial data is uncapped, so the paid period must start exactly at the trial end: no trial usage
   // rolls into it.
   const periodStart = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
   await handleInvoiceFinalized(workspaceId, true, true, periodStart, { exactStart: true });

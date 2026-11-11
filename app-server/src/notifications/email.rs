@@ -703,19 +703,36 @@ fn render_usage_hard_limit_email(
         "signal_cost" | "signal_credit" => ("Signal runs", "signals cost"),
         _ => ("Usage", "usage"),
     };
+    // No limit to raise once the credit is gone (a trial, in practice: paid tiers
+    // bill past it), so point at billing, where the paid plan starts.
+    let (tab, campaign, cta, footer_cta) = if one_time_credit_exhausted {
+        (
+            "billing",
+            "start_subscription",
+            "Go to Billing",
+            "Manage billing",
+        )
+    } else {
+        (
+            "usage",
+            "manage_limits",
+            "Manage limit",
+            "Manage usage limits",
+        )
+    };
     let link = with_utm(
         &format!(
-            "{}/workspace/{}?tab=usage",
+            "{}/workspace/{}?tab={}",
             frontend_url_email(),
-            workspace_id
+            workspace_id,
+            tab
         ),
         "email",
         "usage_hard_limit",
-        "manage_limits",
+        campaign,
     );
     let copy = if one_time_credit_exhausted {
-        // Only Free reaches here: trials and paid tiers run past the credit.
-        "Your workspace has used its one-time Signals credit. Upgrade to Pro to continue running Signals."
+        "Your workspace has used its one-time Signals credit. Start your Pro plan to keep Signals running."
             .to_string()
     } else {
         format!(
@@ -733,7 +750,7 @@ fn render_usage_hard_limit_email(
         TEXT,
         html_escape(&copy),
         data_rows(&rows),
-        action(&link, "Manage limit")
+        action(&link, cta)
     );
     let subtitle = format!("{} has paused", blocked);
     let body = format!(
@@ -743,7 +760,7 @@ fn render_usage_hard_limit_email(
         footer(
             "This notification was generated automatically by Laminar.",
             &link,
-            "Manage usage limits"
+            footer_cta
         )
     );
     email_document(
@@ -1289,7 +1306,10 @@ mod tests {
 
         assert!(html.contains("Signal runs has paused"));
         assert!(html.contains("used its one-time Signals credit"));
-        assert!(html.contains("Upgrade to Pro to continue"));
+        assert!(html.contains("Start your Pro plan to keep Signals running"));
+        assert!(html.contains("Go to Billing"));
+        assert!(html.contains("tab=billing"));
+        assert!(!html.contains("Manage limit"));
         assert!(!html.contains("billing cycle resets"));
     }
 
