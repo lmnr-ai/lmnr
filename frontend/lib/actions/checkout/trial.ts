@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type Stripe from "stripe";
 import { z } from "zod/v4";
 
@@ -14,7 +14,7 @@ import { invalidateProjectCacheForWorkspace } from "@/lib/actions/usage/utils";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { getServerSession } from "@/lib/auth-session";
 import { getWorkspaceRole, invalidateWorkspaceMemberAccessCache } from "@/lib/authorization";
-import { normalizeTier } from "@/lib/billing/tiers";
+import { normalizeTier, SIGNALS_SIGNUP_CREDIT_MICRO_USD } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, users, workspaces } from "@/lib/db/migrations/schema";
 import { sendTrialEndedEmail, sendTrialEndingEmail } from "@/lib/emails/utils";
@@ -36,6 +36,12 @@ const TrialPaymentSchema = z.object({
   // Set when the card is collected for an upgrade; the return URL reopens that upgrade for confirmation.
   tier: z.enum(["hobby", "pro"]).optional(),
 });
+
+// A trial runs Signals only on the one-time credit, but workspaces that predate the credit hold NULL
+// (never granted). Trial eligibility means the workspace never subscribed, so grant it at trial start;
+// COALESCE leaves an existing balance alone, keeping the credit one-time.
+const signalCreditWithTrialGrant = () =>
+  sql`COALESCE(${workspaces.signalCreditRemainingMicroUsd}, ${SIGNALS_SIGNUP_CREDIT_MICRO_USD})`;
 
 // Marks Checkout sessions created by getTrialPaymentUrl for the checkout.session.completed handler.
 export const TRIAL_PAYMENT_SESSION_TYPE = "trial_payment";
@@ -144,7 +150,10 @@ export const startStarterTrial = async (input: z.infer<typeof StartTrialSchema>)
   );
 
   const endsAt = new Date((subscription.trial_end ?? 0) * 1000).toISOString();
-  await db.update(workspaces).set({ trialEndsAt: endsAt }).where(eq(workspaces.id, workspaceId));
+  await db
+    .update(workspaces)
+    .set({ trialEndsAt: endsAt, signalCreditRemainingMicroUsd: signalCreditWithTrialGrant() })
+    .where(eq(workspaces.id, workspaceId));
 
   // Applied here as well as in the webhook so the tier flips before Stripe calls back; both are idempotent.
   await manageWorkspaceSubscriptionEvent({
@@ -193,7 +202,7 @@ export const syncTrialEndFromSubscription = async (subscription: Stripe.Subscrip
   const endsAt = new Date(subscription.trial_end * 1000).toISOString();
   const [updated] = await db
     .update(workspaces)
-    .set({ trialEndsAt: endsAt })
+    .set({ trialEndsAt: endsAt, signalCreditRemainingMicroUsd: signalCreditWithTrialGrant() })
     .where(
       and(
         eq(workspaces.id, workspaceId),
