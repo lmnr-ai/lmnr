@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ExternalLink } from "lucide-react";
+import { AlertTriangle, ExternalLink, Info } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect } from "react";
@@ -16,6 +16,7 @@ import {
   selectTriggerWithIconClassName,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProviderIcon } from "@/components/workspace/llm-profiles/provider-icon";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
@@ -74,7 +75,22 @@ function LlmProfileFields() {
   return (
     <div className="grid gap-3">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">LLM</Label>
+        <TooltipProvider delayDuration={200}>
+          <div className="flex items-center gap-1.5">
+            <Label className="text-sm font-medium">LLM</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-64">
+                <p>
+                  The model that reads each trace and decides whether to report an event. It runs on the LLM
+                  profile&apos;s credentials, so usage is billed to that provider account.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
         {settingsLink}
       </div>
       {isExisting && !profileId && (

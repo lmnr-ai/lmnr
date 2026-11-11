@@ -1,6 +1,9 @@
-// Keep in sync with the "Failure Detector" entry in components/signals/prompts.ts.
+import { NEW_SIGNAL_SETTINGS } from "@/lib/signals/settings";
+
+// Keep in sync with the "Issues" entry in components/signals/prompts.ts.
 export const DEFAULT_SIGNAL = {
-  name: "Failure Detector",
+  name: "Issues",
+  ...NEW_SIGNAL_SETTINGS,
   prompt: `Report every distinct error the agent made in this run that meets the bar below. One finding per distinct error. [IMPORTANT]: If nothing meets the bar, submit no findings. A clean run is a valid outcome, and an unsupported finding is worse than no finding.
 
 Reportable:

@@ -11,6 +11,7 @@ import NotificationPanel from "@/components/notifications/notification-panel";
 import ProjectBottomBar from "@/components/project/bottom-bar";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
+import CreateSignalSheet from "@/components/signals/create-signal-sheet";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
@@ -60,6 +61,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
           {/* Outside the sidebar: the card that opens it unmounts on collapse. */}
           {announcementsEnabled && <AnnouncementDetailsDialog />}
+          <CreateSignalSheet />
           <div className="fixed inset-0 flex overflow-clip">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
               <ProjectSidebar

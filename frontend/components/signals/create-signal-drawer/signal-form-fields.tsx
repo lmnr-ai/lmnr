@@ -13,9 +13,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { track } from "@/lib/posthog";
+import { NEW_SIGNAL_SETTINGS, readSignalSettings, type SignalSettings } from "@/lib/signals/settings";
 import { cn, tryParseJson } from "@/lib/utils";
 
 import LlmProfileSection from "./llm-profile-section";
+import ReportsSection from "./reports-section";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
@@ -40,25 +42,36 @@ export default function SignalFormFields({
     formState: { errors, isValid, isDirty },
   } = useFormContext<ManageSignalForm>();
 
+  const applySettings = useCallback(
+    (settings: SignalSettings) => {
+      for (const [key, value] of Object.entries(settings) as [keyof SignalSettings, boolean][]) {
+        setValue(key, value, { shouldDirty: true });
+      }
+    },
+    [setValue]
+  );
+
   const applyTemplate = useCallback(
     (templateIndex: number) => {
       const template = templates[templateIndex];
       track("signals", "template_applied", { template: template.name });
       setValue("prompt", template.prompt, { shouldValidate: true });
+      applySettings(readSignalSettings(template));
       const parsedSchema = tryParseJson(template.structuredOutputSchema);
       if (parsedSchema) {
         const fields = jsonSchemaToSchemaFields(parsedSchema);
         setValue("schemaFields", fields, { shouldValidate: true });
       }
     },
-    [setValue]
+    [setValue, applySettings]
   );
 
   const clearToBlank = useCallback(() => {
     track("signals", "template_applied", { template: "Blank" });
     setValue("prompt", "", { shouldValidate: true });
+    applySettings(NEW_SIGNAL_SETTINGS);
     setValue("schemaFields", getDefaultSchemaFields(), { shouldValidate: true });
-  }, [setValue]);
+  }, [setValue, applySettings]);
 
   return (
     <div className={cn("grid gap-8 py-4 pb-16", className)}>
@@ -155,6 +168,7 @@ export default function SignalFormFields({
       <SchemaFieldsBuilder />
       <TriggersSection />
       <SamplingSection />
+      <ReportsSection />
       {/*  Temporarily hide test section */}
       {/*<TestSection />*/}
 

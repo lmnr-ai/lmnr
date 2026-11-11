@@ -55,13 +55,13 @@ export function LinkChip({
       // select on. Purely additive — no rule in shipping CSS matches it.
       data-slot="span-chip"
       className={cn(
-        "inline-flex items-center gap-1 rounded px-1 py-0.25 align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer",
+        "inline-flex items-center gap-1 rounded px-1 py-0.25 text-left align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer",
         !icon && "pl-1.5"
       )}
     >
       {icon}
       <span className={`text-sm text-secondary-foreground ${loading ? "opacity-60" : ""}`}>{name}</span>
-      <ArrowUpRight className="w-3.5 h-3.5 text-foreground-400" />
+      <ArrowUpRight className="size-3.5 shrink-0 text-foreground-400" />
     </button>
   );
 }

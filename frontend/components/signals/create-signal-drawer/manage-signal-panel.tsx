@@ -3,7 +3,7 @@
 import { Bell, GitBranch, History, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { type CSSProperties, type ReactNode, useCallback, useEffect } from "react";
+import { type ReactNode, useCallback, useEffect } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
 import AlertsManager from "@/components/settings/alerts/alerts-manager";
@@ -28,6 +28,7 @@ import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
+import DeleteSignalSection from "./delete-signal-section";
 import ManageSignalContent from "./manage-signal-content";
 import { getDefaultValues, type ManageSignalForm } from "./types";
 
@@ -67,9 +68,8 @@ const tabHeaders: Record<SignalTab, { title: string; description?: string }> = {
   },
 };
 
-const contentWidthClass = "max-w-4xl 2xl:max-w-6xl mx-auto";
-
-const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
+// Project settings is max-w-3xl (768px); signal forms (schema rows, prompt) get a little more room.
+const contentWidthClass = "max-w-[796px] 3xl:max-w-[924px] mx-auto";
 
 const isSignalTab = (value: string | null): value is SignalTab => tabs.some((tab) => tab.id === value);
 
@@ -131,18 +131,25 @@ export default function ManageSignalPanel({
       case "settings":
         return (
           <ScrollArea className="flex-1">
-            <div className={cn(contentWidthClass, "w-full px-4 flex flex-col gap-4")}>
+            <div className={cn(contentWidthClass, "w-full px-4 pb-32 flex flex-col gap-4")}>
               <SettingsSectionHeader {...tabHeaders.settings} />
               <FormProvider {...form}>
                 <ManageSignalContent variant="panel" onSuccess={onSuccess} onSubmitComplete={onSubmitComplete} />
               </FormProvider>
+              {signalId && (
+                <DeleteSignalSection
+                  projectId={String(projectId)}
+                  signalId={signalId}
+                  signalName={initialValues?.name ?? "signal"}
+                />
+              )}
             </div>
           </ScrollArea>
         );
       case "versions":
         return (
           <ScrollArea className="flex-1">
-            <div className={cn(contentWidthClass, "w-full px-4 flex flex-col gap-4")}>
+            <div className={cn(contentWidthClass, "w-full px-4 pb-32 flex flex-col gap-4")}>
               <SettingsSectionHeader {...tabHeaders.versions} />
               <VersionsSection />
             </div>
@@ -160,7 +167,7 @@ export default function ManageSignalPanel({
       case "alerts":
         return (
           <ScrollArea className="flex-1">
-            <div className={cn(contentWidthClass, "w-full px-4 flex flex-col gap-4")}>
+            <div className={cn(contentWidthClass, "w-full px-4 pb-32 flex flex-col gap-4")}>
               <SettingsSectionHeader {...tabHeaders.alerts} />
               <SlackConnectionCard
                 workspaceId={workspace?.id ?? ""}
@@ -185,19 +192,19 @@ export default function ManageSignalPanel({
   };
 
   return (
-    <SidebarProvider defaultOpen className="min-h-0 flex-1 overflow-hidden">
-      <div className="flex flex-1 overflow-hidden" style={sidebarStyle}>
-        <Sidebar collapsible="none" className="min-w-[160px]">
-          <SidebarContent className="bg-background">
-            <SidebarGroup className="px-4 py-0">
-              <SidebarMenu>
+    <SidebarProvider defaultOpen className="min-h-0 flex-1 overflow-hidden pt-2">
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar collapsible="none" className="w-52">
+          <SidebarContent className="bg-background pl-2">
+            <SidebarGroup className="pt-0">
+              <SidebarMenu className="gap-0.5">
                 {tabs
                   .filter((tab) => tab.id !== "versions" || signalId)
                   .map((tab) => (
                     <SidebarMenuItem className="h-7" key={tab.id}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
+                        className="flex h-7 items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
                         isActive={activeTab === tab.id}
                         tooltip={tab.label}
                       >

@@ -9,6 +9,7 @@ import OpenSourceCard from "@/components/project/sidebar/open-source-card.tsx";
 import TrialCard from "@/components/project/sidebar/trial-card.tsx";
 import UsageCard from "@/components/project/sidebar/usage-card.tsx";
 import { getSidebarMenus } from "@/components/project/utils.ts";
+import SidebarSignals from "@/components/signal-clusters/sidebar-signals";
 import {
   SidebarContent,
   SidebarGroup,
@@ -59,26 +60,30 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
           {group.label && <SidebarSectionLabel>{group.label}</SidebarSectionLabel>}
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {group.items.map((option) => (
-                <SidebarMenuItem className="h-[30px]" key={option.name}>
-                  <SidebarMenuButton
-                    asChild
-                    className="h-[30px]"
-                    isActive={pathname.startsWith(option.href)}
-                    tooltip={option.name}
-                  >
-                    <Link href={option.href}>
-                      <option.icon />
-                      <span className="flex items-start gap-0.5">
-                        {option.name}
-                        {option.badge && (
-                          <span className="text-[9px] font-medium leading-3 text-primary">{option.badge}</span>
-                        )}
-                      </span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {group.items.map((option) =>
+                option.name === "Signals" ? (
+                  <SidebarSignals key={option.name} href={option.href} icon={option.icon} />
+                ) : (
+                  <SidebarMenuItem className="h-[30px]" key={option.name}>
+                    <SidebarMenuButton
+                      asChild
+                      className="h-[30px]"
+                      isActive={pathname.startsWith(option.href)}
+                      tooltip={option.name}
+                    >
+                      <Link href={option.href}>
+                        <option.icon />
+                        <span className="flex items-start gap-0.5">
+                          {option.name}
+                          {option.badge && (
+                            <span className="text-[9px] font-medium leading-3 text-primary">{option.badge}</span>
+                          )}
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

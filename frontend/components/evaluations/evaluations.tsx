@@ -5,7 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { type LayoutStorage, useDefaultLayout } from "react-resizable-panels";
+import { useDefaultLayout } from "react-resizable-panels";
 import useSWR from "swr";
 
 import HeatmapValue from "@/components/evaluation/heatmap-value";
@@ -33,7 +33,7 @@ import { higherBetterMenuItem } from "../evaluation/columns/score-cell";
 import { useScoreDirections } from "../evaluation/use-score-directions";
 import Header from "../ui/header";
 import Mono from "../ui/mono";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
+import { browserLayoutStorage, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { defaultEvaluationsColumnOrder, RESOURCE } from "./constants";
 import GroupsList from "./groups-list";
@@ -120,13 +120,6 @@ function buildScoreColumns(
   });
 }
 
-const layoutStorage: LayoutStorage = {
-  getItem: (key) => (typeof window === "undefined" ? null : localStorage.getItem(key)),
-  setItem: (key, value) => {
-    if (typeof window !== "undefined") localStorage.setItem(key, value);
-  },
-};
-
 const emptySubscribe = () => () => {};
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
@@ -203,7 +196,7 @@ function EvaluationsContent() {
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "evaluations-sidebar-layout",
-    storage: layoutStorage,
+    storage: browserLayoutStorage,
   });
 
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
