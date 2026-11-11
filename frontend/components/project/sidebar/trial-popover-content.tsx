@@ -10,7 +10,7 @@ import { TIERS } from "@/lib/billing/tiers";
 const TRIAL_INCLUDES = [
   { icon: Radio, label: "Signals" },
   { icon: Bell, label: "Slack alerts for critical events" },
-  { icon: Database, label: `${TIERS.hobby.includedBytesGB} GB of data a month` },
+  { icon: Database, label: "No data cap during the trial" },
   { icon: Clock, label: `${TIER_RETENTION.hobby.durationPlural} of data access` },
   { icon: Users, label: "Unlimited teammates and projects" },
 ];

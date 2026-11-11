@@ -295,7 +295,10 @@ export const handleInvoiceFinalized = async (
   workspaceId: string,
   hasBytes: boolean,
   hasSignalRuns: boolean,
-  newStartTime: Date | null
+  newStartTime: Date | null,
+  // Keep the exact start instead of rounding down to midnight UTC. Trial conversion needs it:
+  // rounding would count trial usage from earlier that day toward the first paid period.
+  { exactStart = false }: { exactStart?: boolean } = {}
 ) => {
   const resetDateRaw = newStartTime ? newStartTime.toISOString() : sql`now()`;
   const resetDate = sql`${resetDateRaw}::timestamptz`;
@@ -315,7 +318,7 @@ export const handleInvoiceFinalized = async (
         ...(hasSignalRuns ? { signalCost: 0 } : {}),
       },
     });
-  const nextResetTime = sql`date_trunc('day', ${resetDate})`;
+  const nextResetTime = exactStart ? resetDate : sql`date_trunc('day', ${resetDate})`;
   await db
     .update(workspaces)
     .set({

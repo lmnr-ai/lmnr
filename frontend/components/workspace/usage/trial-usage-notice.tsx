@@ -5,7 +5,7 @@ import { type ActiveTrialInfo } from "@/lib/actions/checkout/types";
 const formatEndDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
-// A trial never bills usage: it stays capped at the Pro allowance until Pro starts.
+// A trial is uncapped and never billed; the paid period counts usage from zero.
 export default function TrialUsageNotice({ trial }: { trial: ActiveTrialInfo }) {
   const endsOn = formatEndDate(trial.endsAt);
 
@@ -16,8 +16,8 @@ export default function TrialUsageNotice({ trial }: { trial: ActiveTrialInfo }) 
         <span className="font-medium">Pro free trial until {endsOn}</span>
         <span className="text-secondary-foreground">
           {trial.convertsToPaid
-            ? `Usage stops at the included 3 GB of data and the $5 Signals credit until Pro starts on ${endsOn}. Start it today from Billing.`
-            : "You won't be billed. Usage stops at the included 3 GB of data and the $5 Signals credit."}
+            ? `Data and Signals aren't capped during the trial, and none of it is billed. Pro starts on ${endsOn} with usage counted from zero. Start it today from Billing.`
+            : "You won't be billed. Data and Signals aren't capped during the trial; workspace hard limits still apply."}
         </span>
       </div>
     </div>
