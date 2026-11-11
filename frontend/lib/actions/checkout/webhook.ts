@@ -318,7 +318,12 @@ export const handleInvoiceFinalized = async (
         ...(hasSignalRuns ? { signalCost: 0 } : {}),
       },
     });
-  const nextResetTime = exactStart ? resetDate : sql`date_trunc('day', ${resetDate})`;
+  // The app-server's billing periods are monthly anniversaries of reset_time, so the invoice path
+  // keeps the workspace's time of day: rounding to midnight would move the boundary back and count
+  // the hours before it in both periods. A no-op for workspaces already reset at midnight.
+  const nextResetTime = exactStart
+    ? resetDate
+    : sql`date_trunc('day', ${resetDate}) + (${workspaces.resetTime} - date_trunc('day', ${workspaces.resetTime}))`;
   await db
     .update(workspaces)
     .set({
