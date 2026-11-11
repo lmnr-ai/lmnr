@@ -46,15 +46,17 @@ const PROJECT_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 /// a failed eviction can keep suppressing the Postgres re-check.
 const HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS: u64 = 60 * 5; // 5 minutes
 
-/// Free, and a card-less Starter trial, stop at the tier allowance instead of billing overage.
+/// Only Free stops at the tier allowance. Trials run uncapped like paid Pro (an
+/// acquisition choice) yet are never billed: they carry no metered prices, and
+/// conversion restarts the usage window at the trial end.
 fn is_capped_at_allowance(project_info: &ProjectWithWorkspaceBillingInfo) -> bool {
-    project_info.tier_name.is_free() || project_info.trialing
+    project_info.tier_name.is_free()
 }
 
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
 ///
-/// - For free tier and trials: always uses the tier limit (custom limits are not allowed).
-/// - For paid tiers: uses custom limit when set, else no limit is enforced.
+/// - For free tier: always uses the tier limit (custom limits are not allowed).
+/// - For paid tiers and trials: uses custom limit when set, else no limit is enforced.
 fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
     if is_capped_at_allowance(project_info) {
         return Some(project_info.bytes_limit);
@@ -148,7 +150,6 @@ pub async fn get_workspace_bytes_limit_exceeded(
         queue,
         workspace_id,
         project_info.reset_time,
-        project_info.trialing,
         UsageItem::Bytes,
         bytes_ingested,
         Some(effective_limit),
@@ -211,7 +212,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
                 queue,
                 workspace_id,
                 project_info.reset_time,
-                project_info.trialing,
                 UsageItem::SignalCredit,
                 SIGNALS_SIGNUP_CREDIT_MICRO_USD - remaining_credit,
                 persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
@@ -254,7 +254,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         queue,
         workspace_id,
         project_info.reset_time,
-        project_info.trialing,
         UsageItem::SignalCost,
         signal_cost,
         Some(effective_limit),
@@ -369,7 +368,6 @@ pub async fn update_workspace_bytes_ingested(
         queue,
         workspace_id,
         project_info.reset_time,
-        project_info.trialing,
         UsageItem::Bytes,
         current_value,
         effective_bytes_limit,
@@ -474,7 +472,6 @@ pub async fn check_workspace_signal_usage(
                 queue,
                 workspace_id,
                 project_info.reset_time,
-                project_info.trialing,
                 UsageItem::SignalCredit,
                 current_cost,
                 persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
@@ -488,7 +485,6 @@ pub async fn check_workspace_signal_usage(
             queue,
             workspace_id,
             project_info.reset_time,
-            project_info.trialing,
             UsageItem::SignalCost,
             current_cost,
             project_info.signal_cost_hard_limit_micro_usd,
@@ -657,7 +653,6 @@ async fn check_notify_hard_limit(
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
     reset_time: DateTime<Utc>,
-    trialing: bool,
     usage_item: UsageItem,
     current_value: i64,
     effective_limit: Option<i64>,
@@ -742,7 +737,6 @@ async fn check_notify_hard_limit(
             formatted_limit,
             usage_item: usage_item.to_string(),
             one_time_credit_exhausted,
-            trialing,
         }],
     };
 
@@ -875,5 +869,52 @@ pub async fn get_workspace_info_for_project_id(
             }
             Ok(info)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn billing_info(
+        tier_name: WorkspaceTierName,
+        trialing: bool,
+    ) -> ProjectWithWorkspaceBillingInfo {
+        ProjectWithWorkspaceBillingInfo {
+            id: Uuid::nil(),
+            name: "p".into(),
+            workspace_id: Uuid::nil(),
+            tier_name,
+            reset_time: Utc::now(),
+            workspace_project_ids: vec![],
+            bytes_limit: 3 * 1024i64.pow(3),
+            custom_bytes_limit: None,
+            signal_cost_hard_limit_micro_usd: None,
+            trialing,
+            settings: Default::default(),
+        }
+    }
+
+    #[test]
+    fn trial_is_not_capped_at_the_tier_allowance() {
+        let trial = billing_info(WorkspaceTierName::Hobby, true);
+        assert!(!is_capped_at_allowance(&trial));
+        assert_eq!(get_effective_bytes_limit(&trial), None);
+
+        let with_custom_limit = ProjectWithWorkspaceBillingInfo {
+            custom_bytes_limit: Some(50 * 1024i64.pow(3)),
+            ..billing_info(WorkspaceTierName::Hobby, true)
+        };
+        assert_eq!(
+            get_effective_bytes_limit(&with_custom_limit),
+            Some(50 * 1024i64.pow(3))
+        );
+    }
+
+    #[test]
+    fn free_stays_capped_at_the_tier_allowance() {
+        let free = billing_info(WorkspaceTierName::Free, false);
+        assert!(is_capped_at_allowance(&free));
+        assert_eq!(get_effective_bytes_limit(&free), Some(free.bytes_limit));
     }
 }
