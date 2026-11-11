@@ -1094,6 +1094,7 @@ export const evaluations = pgTable(
     name: text().notNull(),
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
+    hostedMetadata: jsonb("hosted_metadata"),
   },
   (table) => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),

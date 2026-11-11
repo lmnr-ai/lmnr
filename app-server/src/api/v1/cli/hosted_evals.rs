@@ -4,11 +4,13 @@ use actix_web::{
     HttpRequest, post, put,
     web::{self, Json},
 };
+use uuid::Uuid;
 
 use crate::{
     api::v1::hosted_evals::{
         CreateImageRequest, HostedEvalsData, LayersRequest, handle_create_image,
-        handle_create_upload, handle_missing_layers, handle_start_run, handle_upload_layer,
+        handle_create_upload, handle_missing_layers, handle_start_run, handle_upload_index,
+        handle_upload_layer,
     },
     auth::cli_user::CliProjectAuth,
     cache::Cache,
@@ -61,6 +63,17 @@ pub async fn create_upload(
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
     handle_create_upload(auth.project_id, payload, &hosted, &storage).await
+}
+
+#[put("/hosted-evals/uploads/{upload_id}/index")]
+pub async fn upload_index(
+    path: web::Path<Uuid>,
+    auth: CliProjectAuth,
+    payload: web::Payload,
+    hosted: HostedEvalsData,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    handle_upload_index(auth.project_id, &path, payload, &hosted, &storage).await
 }
 
 #[post("/hosted-evals/runs")]

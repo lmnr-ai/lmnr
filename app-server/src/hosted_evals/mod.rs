@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use aws_config::SdkConfig;
 use chrono::{Duration, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -36,18 +36,17 @@ use sandboxes::CreateError;
 /// from the project's key list (`frontend/lib/actions/project-api-keys`).
 pub const RUN_KEY_NAME_PREFIX: &str = "lmnr-internal-evals-";
 // Downloads the archive with the run key, runs the CLI, then deletes the
-// archive and the sandbox through the app-server however the run ended. Runs
-// under `sh`, with stderr folded into stdout so the provider's command log has
-// everything.
+// sandbox through the app-server however the run ended. The archive stays: the
+// run's evaluations show its files. Runs under `sh`, with stderr folded into
+// stdout so the provider's command log has everything. The Laminar Harbor
+// plugin records suite and task paths relative to `LMNR_EVALS_ROOT`.
 const ORCHESTRATOR_COMMAND: &str = concat!(
-    r#"exec 2>&1; "#,
-    r#"mkdir -p "$HOME/evals" && cd "$HOME/evals" && "#,
+    r#"exec 2>&1; export LMNR_EVALS_ROOT="$HOME/evals"; "#,
+    r#"mkdir -p "$LMNR_EVALS_ROOT" && cd "$LMNR_EVALS_ROOT" && "#,
     r#"curl -fsS -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
     r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID" -o /tmp/evals.tar.gz && "#,
     r#"tar -xzf /tmp/evals.tar.gz && rm /tmp/evals.tar.gz && "#,
     r#"npx -y --package="$LMNR_CLI_PACKAGE" lmnr-cli eval orchestrate; "#,
-    r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID"; "#,
     r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
     r#""$LMNR_BASE_URL/v1/hosted-evals/sandboxes/$LMNR_SANDBOX_ID""#,
 );
@@ -98,6 +97,45 @@ impl From<anyhow::Error> for RunError {
 
 pub fn archive_key(project_id: &Uuid, upload_id: &Uuid) -> String {
     format!("hosted-evals/{project_id}/{upload_id}.tar.gz")
+}
+
+pub fn index_key(project_id: &Uuid, upload_id: &Uuid) -> String {
+    format!("hosted-evals/{project_id}/{upload_id}.index.json")
+}
+
+/// Where each file sits in an uploaded archive (written by lmnr-cli's
+/// `pack.ts`), so the frontend reads one file with a ranged GET instead of the
+/// whole archive. Parsed here only to reject a malformed index; it is stored as
+/// sent and read by the frontend (`lib/hosted-evals`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveIndex {
+    #[allow(dead_code)]
+    files: Vec<IndexedFile>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+struct IndexedFile {
+    /// POSIX path relative to the archive root.
+    path: String,
+    size: u64,
+    /// Byte range of the gzip member holding the file.
+    offset: u64,
+    length: u64,
+    /// Where the file's content starts in the decompressed member.
+    data_offset: u64,
+}
+
+/// What links an evaluation to the remote run that produced it
+/// (`evaluations.hosted_metadata`), set by the Laminar Harbor plugin.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HostedMetadata {
+    pub upload_id: Uuid,
+    /// The suite dir, relative to the archive root.
+    pub suite_path: String,
 }
 
 /// POSIX single-quoting, safe for sh, bash and zsh.

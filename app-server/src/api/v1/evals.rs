@@ -13,6 +13,7 @@ use crate::{
         },
         update_evaluation_trial,
     },
+    hosted_evals::HostedMetadata,
     names::NameGenerator,
     pubsub::PubSub,
     routes::types::ResponseResult,
@@ -32,6 +33,9 @@ pub struct InitEvalRequest {
     pub group_name: Option<String>,
     #[serde(default)]
     pub metadata: Option<Value>,
+    /// Set by the Laminar Harbor plugin in a remote run's orchestrator.
+    #[serde(default)]
+    pub hosted_metadata: Option<HostedMetadata>,
 }
 
 #[post("/evals")]
@@ -53,9 +57,15 @@ pub async fn init_eval(
         name_generator.next().await
     };
 
-    let evaluation =
-        db::evaluations::create_evaluation(&db.pool, &name, project_id, &group_name, &metadata)
-            .await?;
+    let evaluation = db::evaluations::create_evaluation(
+        &db.pool,
+        &name,
+        project_id,
+        &group_name,
+        &metadata,
+        body.hosted_metadata.as_ref(),
+    )
+    .await?;
     audit::target_named(&req, evaluation.id, evaluation.name.clone());
 
     db::debugger_session_blocks::upsert_block_for_evaluation(
