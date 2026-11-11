@@ -321,12 +321,12 @@ const SharedSettings = ({
             <SidebarContent className="bg-background pl-2">
               <SidebarGroup className="pt-0">
                 <SidebarSectionLabel>Project settings</SidebarSectionLabel>
-                <SidebarMenu>
+                <SidebarMenu className="gap-0.5">
                   {projectMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
+                        className="flex h-7 items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >
@@ -350,12 +350,12 @@ const SharedSettings = ({
 
               <SidebarGroup className="pt-2">
                 <SidebarSectionLabel>Workspace settings</SidebarSectionLabel>
-                <SidebarMenu>
+                <SidebarMenu className="gap-0.5">
                   {workspaceMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
+                        className="flex h-7 items-center flex-1 hover:overlay-hover active:overlay-selected data-[active=true]:overlay-selected"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >

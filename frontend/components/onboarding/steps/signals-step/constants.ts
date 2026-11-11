@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle, Frown, type LucideIcon, Target } from "lucide-react";
+import { AlertCircle, Frown, type LucideIcon, Target } from "lucide-react";
 
 export interface OnboardingSignal {
   name: string;
@@ -8,11 +8,10 @@ export interface OnboardingSignal {
 
 export const ONBOARDING_SIGNALS: OnboardingSignal[] = [
   {
-    name: "Failure Detector",
+    name: "Issues",
     description: "Catch logical errors, loops, hallucinations, wrong tool calls, etc.",
     icon: AlertCircle,
   },
-  { name: "Intent Classifier", description: "What users want to do", icon: Target },
-  { name: "Task Evaluator", description: "Whether a task was successfully completed", icon: CheckCircle },
-  { name: "Friction Detector", description: "Whether users get frustrated", icon: Frown },
+  { name: "Intent", description: "What users want to do", icon: Target },
+  { name: "Friction", description: "Whether users get frustrated", icon: Frown },
 ];

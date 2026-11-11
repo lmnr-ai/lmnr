@@ -23,13 +23,20 @@ import {
   signalTriggers,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import {
+  readSignalSettings,
+  type SignalSettings,
+  type SignalSettingsPatch,
+  SignalSettingsPatchSchema,
+  writeSignalSettings,
+} from "@/lib/signals/settings";
 
 // User-controlled signal settings stored in the `metadata` jsonb column.
 // `disabled` is only persisted when true; absence means enabled (active).
 type SignalMetadata = {
   sampleRate?: number | null;
   disabled?: boolean;
-};
+} & SignalSettingsPatch;
 
 export type SignalRow = {
   id: string;
@@ -47,7 +54,7 @@ export type SignalRow = {
   versionsCount: number | null;
 };
 
-export type Signal = {
+export type Signal = SignalSettings & {
   id: string;
   name: string;
   createdAt: string;
@@ -112,6 +119,7 @@ const CreateSignalSchema = z
     structuredOutput: z.record(z.string(), z.unknown()),
     sampleRate: z.number().int().min(1).max(95).nullable().optional(),
     disabled: z.boolean().optional(),
+    ...SignalSettingsPatchSchema.shape,
     triggers: z.array(TriggerInputSchema).optional(),
     // When provided, the creator is auto-subscribed via EMAIL alert targets on
     // every alert created for this signal.
@@ -130,6 +138,7 @@ const UpdateSignalSchema = z
     structuredOutput: z.record(z.string(), z.unknown()),
     sampleRate: z.number().int().min(1).max(95).nullable().optional(),
     disabled: z.boolean().optional(),
+    ...SignalSettingsPatchSchema.shape,
     triggers: z.array(TriggerInputSchema).optional(),
     ...LlmProfileFieldsSchema,
   })
@@ -315,6 +324,7 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
           name: template.name,
           prompt: template.prompt,
           structuredOutputSchema: JSON.parse(template.structuredOutputSchema) as Record<string, unknown>,
+          metadata: readSignalSettings(template) satisfies SignalMetadata,
         })
         .returning();
 
@@ -351,7 +361,7 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
         );
       }
 
-      // Mirror the default trigger seeded by createWorkspace's Failure Detector
+      // Mirror the default trigger seeded by createWorkspace's Issues signal
       // so every template a user toggles on actually fires.
       await tx.insert(signalTriggers).values({
         projectId,
@@ -402,6 +412,43 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return { created: toCreate.length, deleted: toDeleteIds.length };
+}
+
+/** The signal the sidenav lists first (active before paused, newest first), or null when there are none. */
+export async function getFirstSignalId(projectId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: signals.id })
+    .from(signals)
+    .where(eq(signals.projectId, projectId))
+    .orderBy(
+      asc(sql<number>`CASE WHEN ${signals.metadata}->>'disabled' = 'true' THEN 1 ELSE 0 END`),
+      desc(signals.createdAt)
+    )
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/** Most signals the sidebar lists; the rest are reachable by URL. */
+export const SIDEBAR_SIGNALS_LIMIT = 100;
+
+/**
+ * Ids and names for the sidebar, in the list's default order (active first, newest first). Postgres only: the
+ * sidebar renders on every project page, so it must not pay for `getSignals`' ClickHouse counts.
+ */
+export async function getSidebarSignals(input: {
+  projectId: string;
+}): Promise<{ items: { id: string; name: string }[] }> {
+  const { projectId } = z.object({ projectId: z.guid() }).parse(input);
+  const items = await db
+    .select({ id: signals.id, name: signals.name })
+    .from(signals)
+    .where(eq(signals.projectId, projectId))
+    .orderBy(
+      asc(sql<number>`CASE WHEN ${signals.metadata}->>'disabled' = 'true' THEN 1 ELSE 0 END`),
+      desc(signals.createdAt)
+    )
+    .limit(SIDEBAR_SIGNALS_LIMIT);
+  return { items };
 }
 
 export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
@@ -586,6 +633,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
     structuredOutput: result.structuredOutputSchema,
     sampleRate: metadata.sampleRate ?? null,
     disabled: metadata.disabled ?? false,
+    ...readSignalSettings(metadata),
     triggers: triggerRows.map((row) => ({
       id: row.id,
       conditions: row.value,
@@ -659,6 +707,8 @@ export async function createSignal(
     structuredOutput,
     sampleRate,
     disabled,
+    reportsEnabled,
+    resolvingEnabled,
     subscriberEmail,
     triggers,
     llmProfileId,
@@ -670,7 +720,8 @@ export async function createSignal(
     throw llmProfileError("llmProfileId", "Select an LLM profile and a model");
   }
 
-  const metadata: SignalMetadata = {};
+  // Omitted settings are off on create (an explicit opt-in); the UI sends NEW_SIGNAL_SETTINGS.
+  const metadata: SignalMetadata = readSignalSettings({ reportsEnabled, resolvingEnabled });
   if (sampleRate != null) metadata.sampleRate = sampleRate;
   // Only persist `disabled` when deactivated; absence means active.
   if (disabled === true) metadata.disabled = true;
@@ -767,8 +818,20 @@ export async function createSignal(
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, name, prompt, structuredOutput, sampleRate, disabled, triggers, llmProfileId, llmModel } =
-    UpdateSignalSchema.parse(input);
+  const {
+    projectId,
+    id,
+    name,
+    prompt,
+    structuredOutput,
+    sampleRate,
+    disabled,
+    reportsEnabled,
+    resolvingEnabled,
+    triggers,
+    llmProfileId,
+    llmModel,
+  } = UpdateSignalSchema.parse(input);
 
   // No "required" check here: an edit must not force a legacy env-backed signal onto a profile.
   const llmRoute = await resolveLlmRoute(projectId, llmProfileId, llmModel);
@@ -789,7 +852,10 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
 
     // Merge over stored metadata so omitted fields keep their values — a PUT
     // without `disabled` must not silently re-enable a deactivated signal.
-    const metadata: SignalMetadata = { ...((existing.metadata ?? {}) as SignalMetadata) };
+    const metadata: SignalMetadata = writeSignalSettings((existing.metadata ?? {}) as SignalMetadata, {
+      reportsEnabled,
+      resolvingEnabled,
+    });
     if (sampleRate !== undefined) metadata.sampleRate = sampleRate;
     // Only persist `disabled` when deactivated; absence means active.
     if (disabled !== undefined) {

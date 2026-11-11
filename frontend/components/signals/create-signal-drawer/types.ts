@@ -2,6 +2,7 @@ import { getDefaultSchemaFields, type SchemaField } from "@/components/signals/u
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { type Signal } from "@/lib/actions/signals";
+import { NEW_SIGNAL_SETTINGS } from "@/lib/signals/settings";
 
 export type ManageSignalContentVariant = "sheet" | "panel";
 
@@ -40,6 +41,7 @@ export const getDefaultValues = (projectId: string, defaultMode: number): Manage
   triggers: getDefaultTriggers(defaultMode),
   sampleRate: null,
   disabled: false,
+  ...NEW_SIGNAL_SETTINGS,
   llmProfileId: null,
   llmModel: null,
 });
