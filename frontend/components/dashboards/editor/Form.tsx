@@ -14,9 +14,8 @@ import EditorLayout from "@/components/dashboards/editor/editor-layout";
 import EditorSidebar from "@/components/dashboards/editor/editor-sidebar";
 import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
 import FreeformForm from "@/components/dashboards/editor/freeform-form";
-import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
 import {
-  getDefaultTimeRange,
+  buildQueryStructure,
   injectIdMetrics,
   needsTimeSeries,
   savedHorizontalBarAxes,
@@ -147,43 +146,12 @@ const VisualForm = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return;
     }
 
-    const { table, metrics, dimensions, filters, orderBy, limit } = getValues();
-
     setLoading(true);
     setError(null);
 
     try {
       const isTable = chartType === ChartType.Table;
-      const allFilters = [...(filters || [])];
-
-      // Non-time-series charts (Table, HorizontalBar, Value) don't use queryStructure.timeRange,
-      // so they'd otherwise pull every row ever. Append the dashboard's selected
-      // start_time/end_time as a WHERE filter on the table's time column so the
-      // result is scoped to the current date range. Line/Bar charts get this for
-      // free via timeRange → the backend generates the WHERE clause itself.
-      if (chartType && !needsTimeSeries(chartType)) {
-        const timeColumn = getTimeColumn(table);
-        allFilters.push(
-          { field: timeColumn, op: "gte" as const, stringValue: "{start_time:DateTime64}" },
-          { field: timeColumn, op: "lte" as const, stringValue: "{end_time:DateTime64}" }
-        );
-      }
-
-      const injectedMetrics = injectIdMetrics(metrics, dimensions, table, chartType);
-
-      const queryStructure: QueryStructure = {
-        table,
-        metrics: injectedMetrics,
-        dimensions: dimensions || [],
-        filters: allFilters,
-        orderBy: [],
-        ...(orderBy && orderBy.length > 0 && { orderBy }),
-        limit,
-      };
-
-      if (needsTimeSeries(chartType)) {
-        queryStructure.timeRange = getDefaultTimeRange(table);
-      }
+      const queryStructure = buildQueryStructure(getValues(), chartType);
 
       const sqlResponse = await fetch(`/api/projects/${projectId}/sql/from-json`, {
         method: "POST",

@@ -8,6 +8,7 @@
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
+use super::definition;
 use crate::{
     cache::{Cache, CacheTrait, keys::AGENT_DEFINITIONS_CACHE_KEY},
     db::{
@@ -53,9 +54,10 @@ impl<'a> AgentResolver<'a> {
 }
 
 fn first_match<'a>(agents: &'a [DefinedAgent], system_prompt: &str) -> Option<&'a DefinedAgent> {
+    let opening = definition::opening(system_prompt);
     agents
         .iter()
-        .find(|agent| agent.definition.matches(system_prompt))
+        .find(|agent| agent.definition.matches(&opening))
 }
 
 pub fn definitions_cache_key(project_id: Uuid) -> String {

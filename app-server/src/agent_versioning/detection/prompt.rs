@@ -1,6 +1,8 @@
 //! What the detection model reads: its instructions, the prompts and agents it
 //! works on, and its tools' schemas.
 
+use std::collections::HashSet;
+
 use serde_json::json;
 
 use super::agent::{KnownAgent, UnlabelledPrompt};
@@ -15,11 +17,14 @@ pub const SUBMIT_TOOL: &str = "submit";
 
 const INSTRUCTIONS: &str = "You maintain the list of AI agents in an observability project. \
 Each agent has a check: it matches a system prompt when every substring of any one \
-alternative (`any_of: [[substring, ...], ...]`) occurs in the prompt's first 1000 \
-characters, ignoring case and whitespace.
+alternative (`any_of: [[substring, ...], ...]`) occurs in the prompt's first \
+{opening_chars} characters (its opening), ignoring case and whitespace.
 
 You get the project's known agents (name, check, and opening and time of their latest \
 prompt) and the openings of system prompts that no check matched, with the time of each.
+
+Prompts often open with text that is not the agent's own: memory, a list of skills or \
+tools, a framework's preset. Look past it for the agent's own instructions.
 
 Group the prompts by the agent that sent them, then for each group either:
 - extend a known agent whose prompt changed (`updates`; the added alternatives are kept \
@@ -51,22 +56,35 @@ pub fn format_time(ns: i64) -> String {
 }
 
 pub fn instructions(min_matches: usize) -> String {
-    INSTRUCTIONS.replace("{min_matches}", &min_matches.to_string())
+    INSTRUCTIONS
+        .replace("{min_matches}", &min_matches.to_string())
+        .replace("{opening_chars}", &OPENING_CHARS.to_string())
 }
+
+/// Known agents' latest prompts are shown, most recently seen first, up to
+/// this many characters; the rest are only named. An agent whose prompt just
+/// changed went quiet recently, so it is among those shown.
+const AGENT_PROMPTS_CHARS: usize = 100_000;
 
 /// The first user message. Prompts and agents are numbered from 1, the ids the
 /// tools take and report.
 pub fn context(prompts: &[UnlabelledPrompt], agents: &[KnownAgent]) -> String {
+    let shown = agents_with_prompt_shown(agents);
     let agents: String = agents
         .iter()
         .enumerate()
         .map(|(index, known)| {
             let check = serde_json::to_string(&known.agent.definition.any_of).unwrap_or_default();
             let latest_prompt = match &known.latest {
-                Some(latest) => format!(
+                Some(latest) if shown.contains(&index) => format!(
                     "<latest_prompt time=\"{}\">\n{}\n</latest_prompt>",
                     format_time(latest.time),
                     truncate_chars(&latest.system_prompt, OPENING_CHARS)
+                ),
+                Some(latest) => format!(
+                    "<latest_prompt time=\"{}\">(not shown: other agents were seen more \
+                     recently)</latest_prompt>",
+                    format_time(latest.time),
                 ),
                 None => "<latest_prompt>(none recently)</latest_prompt>".to_string(),
             };
@@ -90,6 +108,27 @@ pub fn context(prompts: &[UnlabelledPrompt], agents: &[KnownAgent]) -> String {
         })
         .collect();
     format!("<agents>\n{agents}</agents>\n\n<prompts>\n{prompts}</prompts>")
+}
+
+/// Indices of the agents whose latest prompt fits in [`AGENT_PROMPTS_CHARS`],
+/// most recently seen first.
+fn agents_with_prompt_shown(agents: &[KnownAgent]) -> HashSet<usize> {
+    let mut latest: Vec<_> = agents
+        .iter()
+        .enumerate()
+        .filter_map(|(index, known)| Some((index, known.latest.as_ref()?)))
+        .collect();
+    latest.sort_by_key(|(_, latest)| std::cmp::Reverse(latest.time));
+    let mut chars = 0;
+    let mut shown = HashSet::new();
+    for (index, latest) in latest {
+        chars += latest.system_prompt.chars().count().min(OPENING_CHARS);
+        if chars > AGENT_PROMPTS_CHARS {
+            break;
+        }
+        shown.insert(index);
+    }
+    shown
 }
 
 pub fn tools() -> ProviderTool {
@@ -145,5 +184,49 @@ pub fn tools() -> ProviderTool {
                 }),
             },
         ],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sqlx::types::Json;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::{
+        agent_versioning::{
+            definition::{self, Definition},
+            detection::agent::LatestPrompt,
+        },
+        db::agent_versioning::DefinedAgent,
+    };
+
+    fn known(name: &str, latest_prompt: &str, time: i64) -> KnownAgent {
+        KnownAgent {
+            agent: DefinedAgent {
+                id: Uuid::new_v4(),
+                agent_hash: Uuid::new_v4().simple().to_string(),
+                name: Some(name.to_string()),
+                definition: Json(Definition::new(vec![vec![name.to_string()]]).unwrap()),
+            },
+            latest: Some(LatestPrompt {
+                system_prompt: latest_prompt.to_string(),
+                opening: definition::opening(latest_prompt),
+                time,
+            }),
+        }
+    }
+
+    #[test]
+    fn only_the_most_recently_seen_agents_prompts_are_shown_past_the_budget() {
+        let long = "x".repeat(OPENING_CHARS + 500);
+        let agents: Vec<KnownAgent> = (0..12)
+            .map(|i| known(&format!("agent {i}"), &long, i))
+            .collect();
+        let shown = agents_with_prompt_shown(&agents);
+        let expected: HashSet<usize> = (2..12).collect();
+        assert_eq!(shown, expected);
+        let context = context(&[], &agents);
+        assert_eq!(context.matches("(not shown").count(), 2);
     }
 }

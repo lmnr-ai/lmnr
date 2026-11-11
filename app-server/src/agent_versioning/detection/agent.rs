@@ -33,6 +33,8 @@ pub struct UnlabelledPrompt {
     pub trace_id: Uuid,
     pub span_id: Uuid,
     pub system_prompt: String,
+    /// [`opening`](crate::agent_versioning::definition::opening) of `system_prompt`.
+    pub opening: String,
     /// The trace's start, ns.
     pub time: i64,
 }
@@ -46,6 +48,8 @@ pub struct KnownAgent {
 
 pub struct LatestPrompt {
     pub system_prompt: String,
+    /// [`opening`](crate::agent_versioning::definition::opening) of `system_prompt`.
+    pub opening: String,
     /// The span's start, ns.
     pub time: i64,
 }
@@ -408,7 +412,7 @@ impl<'a> DetectionAgent<'a> {
 
     fn matched_prompts(&self, definition: &Definition) -> Vec<usize> {
         numbered(&self.prompts)
-            .filter(|(_, prompt)| definition.matches(&prompt.system_prompt))
+            .filter(|(_, prompt)| definition.matches(&prompt.opening))
             .map(|(id, _)| id)
             .collect()
     }
@@ -420,7 +424,7 @@ impl<'a> DetectionAgent<'a> {
                 known
                     .latest
                     .as_ref()
-                    .is_some_and(|latest| definition.matches(&latest.system_prompt))
+                    .is_some_and(|latest| definition.matches(&latest.opening))
             })
             .map(|(id, _)| id)
             .collect()
@@ -479,9 +483,12 @@ mod tests {
     use sqlx::types::Json;
 
     use super::*;
-    use crate::llm::{
-        ProviderClient, ProviderFunctionCall,
-        mock::{MockProviderClient, function_call_response},
+    use crate::{
+        agent_versioning::definition,
+        llm::{
+            ProviderClient, ProviderFunctionCall,
+            mock::{MockProviderClient, function_call_response},
+        },
     };
 
     fn check(any_of: &[&[&str]]) -> Vec<Vec<String>> {
@@ -501,6 +508,7 @@ mod tests {
             },
             latest: Some(LatestPrompt {
                 system_prompt: latest_prompt.to_string(),
+                opening: definition::opening(latest_prompt),
                 time: 0,
             }),
         }
@@ -511,6 +519,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             span_id: Uuid::new_v4(),
             system_prompt: system_prompt.to_string(),
+            opening: definition::opening(system_prompt),
             time: 0,
         }
     }
