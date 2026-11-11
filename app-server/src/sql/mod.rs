@@ -95,18 +95,21 @@ impl ClickhouseReadonlyClient {
         // Cloud pins `compatibility = 24.6`, which turns `use_skip_indexes_if_final`
         // off, so skip indexes (e.g. the `signal_events.trace_id` bloom filter behind
         // `traces.signal_events`) would never prune a `FINAL` read.
-        let exact_mode = if env::sql::SKIP_INDEXES_IF_FINAL_EXACT_MODE.get() {
-            "1"
-        } else {
-            "0"
-        };
-        let client = clickhouse::Client::default()
+        let mut client = clickhouse::Client::default()
             .with_url(url)
             .with_user(user)
             .with_database("default")
-            .with_password(password)
-            .with_setting("use_skip_indexes_if_final", "1")
-            .with_setting("use_skip_indexes_if_final_exact_mode", exact_mode);
+            .with_password(password);
+        if env::sql::SKIP_INDEXES_IF_FINAL.get() {
+            let exact_mode = if env::sql::SKIP_INDEXES_IF_FINAL_EXACT_MODE.get() {
+                "1"
+            } else {
+                "0"
+            };
+            client = client
+                .with_setting("use_skip_indexes_if_final", "1")
+                .with_setting("use_skip_indexes_if_final_exact_mode", exact_mode);
+        }
 
         Self(client)
     }
