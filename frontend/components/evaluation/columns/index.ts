@@ -1,6 +1,7 @@
 import { type ColumnDef } from "@tanstack/react-table";
 
 import { deriveStatus } from "@/components/evaluation/utils";
+import { EVAL_COLUMN_SQL, scoreColumnSql } from "@/lib/evaluation/columns";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { CostCell } from "./cost-cell";
@@ -18,14 +19,14 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["id"],
     header: "ID",
     enableSorting: false,
-    meta: { sql: "id", dataType: "string", filterable: false, comparable: false, hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.id, dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
     id: "evaluationId",
     accessorFn: (row) => row["evaluationId"],
     header: "Evaluation ID",
     enableSorting: false,
-    meta: { sql: "evaluation_id", dataType: "string", filterable: false, comparable: false, hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.evaluationId, dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
     id: "status",
@@ -43,7 +44,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Task",
     size: 180,
     enableSorting: true,
-    meta: { sql: "task_id", dataType: "string", filterable: true, comparable: false, dbType: "String" },
+    meta: { ...EVAL_COLUMN_SQL.taskId, dataType: "string", filterable: true, comparable: false },
   },
   {
     id: "index",
@@ -51,7 +52,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Index",
     size: 70,
     enableSorting: true,
-    meta: { sql: "`index`", dataType: "number", filterable: true, comparable: false, dbType: "Int64" },
+    meta: { ...EVAL_COLUMN_SQL.index, dataType: "number", filterable: true, comparable: false },
   },
   {
     id: "data",
@@ -60,7 +61,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Data",
     enableSorting: false,
     meta: {
-      sql: "substring(data, 1, 200)",
+      ...EVAL_COLUMN_SQL.data,
       dataType: "string",
       filterable: false,
       comparable: false,
@@ -75,7 +76,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Target",
     enableSorting: false,
     meta: {
-      sql: "substring(target, 1, 200)",
+      ...EVAL_COLUMN_SQL.target,
       dataType: "string",
       filterable: false,
       comparable: false,
@@ -90,12 +91,10 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Metadata",
     enableSorting: false,
     meta: {
-      sql: "metadata",
+      ...EVAL_COLUMN_SQL.metadata,
       dataType: "json",
       filterable: true,
       comparable: false,
-      filterSql:
-        "(simpleJSONExtractString(metadata, {KEY:String}) = {VAL:String} OR simpleJSONExtractRaw(metadata, {KEY:String}) = {VAL:String})",
     },
   },
   {
@@ -105,7 +104,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Output",
     enableSorting: false,
     meta: {
-      sql: "substring(executor_output, 1, 200)",
+      ...EVAL_COLUMN_SQL.output,
       dataType: "string",
       filterable: false,
       comparable: false,
@@ -120,11 +119,10 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Duration",
     enableSorting: true,
     meta: {
-      sql: "duration",
+      ...EVAL_COLUMN_SQL.duration,
       dataType: "number",
       filterable: true,
       comparable: true,
-      dbType: "Float64",
     },
   },
   {
@@ -134,11 +132,10 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Cost",
     enableSorting: true,
     meta: {
-      sql: "if(total_cost > 0, greatest(input_cost + output_cost, total_cost), input_cost + output_cost)",
+      ...EVAL_COLUMN_SQL.cost,
       dataType: "number",
       filterable: true,
       comparable: true,
-      dbType: "Float64",
     },
   },
   // Hidden columns - needed for row interactions and comparison data
@@ -147,7 +144,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["traceId"],
     header: "Trace ID",
     enableSorting: false,
-    meta: { sql: "trace_id", dataType: "string", filterable: true, comparable: true, dbType: "UUID", hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.traceId, dataType: "string", filterable: true, comparable: true, hidden: true },
   },
   {
     id: "startTime",
@@ -155,7 +152,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Start Time",
     enableSorting: false,
     meta: {
-      sql: "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      ...EVAL_COLUMN_SQL.startTime,
       dataType: "datetime",
       filterable: false,
       comparable: true,
@@ -168,7 +165,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "End Time",
     enableSorting: false,
     meta: {
-      sql: "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      ...EVAL_COLUMN_SQL.endTime,
       dataType: "datetime",
       filterable: false,
       comparable: true,
@@ -180,28 +177,28 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["inputCost"],
     header: "Input Cost",
     enableSorting: false,
-    meta: { sql: "input_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.inputCost, dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "outputCost",
     accessorFn: (row) => row["outputCost"],
     header: "Output Cost",
     enableSorting: false,
-    meta: { sql: "output_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.outputCost, dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "totalCost",
     accessorFn: (row) => row["totalCost"],
     header: "Total Cost",
     enableSorting: false,
-    meta: { sql: "total_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.totalCost, dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "scores",
     accessorFn: (row) => row["scores"],
     header: "Scores",
     enableSorting: false,
-    meta: { sql: "scores", dataType: "string", filterable: false, comparable: true, hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.scores, dataType: "string", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "createdAt",
@@ -209,7 +206,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Created At",
     enableSorting: true,
     meta: {
-      sql: "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      ...EVAL_COLUMN_SQL.createdAt,
       dataType: "datetime",
       filterable: false,
       comparable: false,
@@ -221,14 +218,14 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["traceStatus"],
     header: "Trace Status",
     enableSorting: false,
-    meta: { sql: "trace_status", dataType: "string", filterable: false, comparable: false, hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.traceStatus, dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
     id: "topSpanId",
     accessorFn: (row) => row["topSpanId"],
     header: "Top Span ID",
     enableSorting: false,
-    meta: { sql: "top_span_id", dataType: "string", filterable: false, comparable: false, hidden: true },
+    meta: { ...EVAL_COLUMN_SQL.topSpanId, dataType: "string", filterable: false, comparable: false, hidden: true },
   },
 ];
 
@@ -243,12 +240,11 @@ export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
     cell: createScoreColumnCell(name),
     enableSorting: true,
     meta: {
-      sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
+      ...scoreColumnSql(name),
       dataType: "number",
       filterable: true,
       comparable: true,
       scoreName: name,
-      dbType: "Float64",
       customDropdownItems: (table) => scoreDirectionDropdownItems(name, table),
     },
   };

@@ -9,6 +9,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import type { CustomColumn } from "@/components/ui/columns-menu/types";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
+import { scoreColumnSql } from "@/lib/evaluation/columns";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { DataCell } from "./columns/data-cell";
@@ -83,8 +84,8 @@ export function buildColumnDefs({
 }): ColumnDef<EvalRow>[] {
   const scoreCols = scoreNames.map((name) => createScoreColumnDef(name));
 
-  // Don't include custom columns in shared evaluations to prevent
-  // browser-persisted custom SQL from being executed.
+  // Don't include custom columns in shared evaluations: the shared routes only resolve
+  // built-in and score column ids (`resolveEvalColumns`) and would drop them anyway.
   const customCols: ColumnDef<EvalRow>[] = isShared
     ? []
     : customColumns.map((cc) => ({
@@ -136,12 +137,7 @@ export function buildStatsParams(
       if (id.startsWith("score:")) {
         const name = id.slice("score:".length);
         if (!scoreNames.includes(name)) return;
-        filterColPayload.push({
-          id,
-          sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
-          comparable: true,
-          dbType: "Float64",
-        });
+        filterColPayload.push({ id, ...scoreColumnSql(name), comparable: true });
         return;
       }
       const col = columnDefs.find((c) => c.id === id);
