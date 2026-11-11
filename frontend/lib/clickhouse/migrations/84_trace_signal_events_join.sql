@@ -1,8 +1,9 @@
 -- Signal events on the trace row come from `signal_events` at read time, joined
 -- on `trace_id`, instead of the payload tuple stamped onto `traces_agg` (LAM-2522).
--- `FINAL` hides discarded (tombstoned) events and those of deleted signals, and
--- the exposed `Array(Tuple(event_id, signal_id, severity, payload))` is unchanged,
--- as are both views' parameters.
+-- `FINAL` hides discarded (tombstoned) events and those of deleted signals. The
+-- tuple keeps `(event_id, signal_id, severity, payload)` first and appends
+-- `timestamp` and `updated_at`, so positional and named access both still work.
+-- Both views' parameters are unchanged.
 --
 -- `signal_events` is ordered by (project_id, signal_id, id), so nothing in its key
 -- can prune a trace-scoped read. The bloom filter lets a pushed-down
@@ -153,10 +154,14 @@ LEFT JOIN (
 LEFT JOIN (
     SELECT
         trace_id,
-        CAST(
-            groupArray((id, signal_id, severity, payload)),
-            'Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))'
-        ) AS signal_events
+        CAST(groupArray((id, signal_id, severity, payload, timestamp, updated_at)) AS Array(Tuple(
+            event_id UUID,
+            signal_id UUID,
+            severity UInt8,
+            payload String,
+            timestamp DateTime64(9, 'UTC'),
+            updated_at DateTime64(9, 'UTC')
+        ))) AS signal_events
     FROM default.signal_events FINAL
     WHERE project_id = {project_id:UUID}
         AND created_at >= {min_start_time:DateTime64(9)}
@@ -302,10 +307,14 @@ LEFT JOIN (
 LEFT JOIN (
     SELECT
         trace_id,
-        CAST(
-            groupArray((id, signal_id, severity, payload)),
-            'Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))'
-        ) AS signal_events
+        CAST(groupArray((id, signal_id, severity, payload, timestamp, updated_at)) AS Array(Tuple(
+            event_id UUID,
+            signal_id UUID,
+            severity UInt8,
+            payload String,
+            timestamp DateTime64(9, 'UTC'),
+            updated_at DateTime64(9, 'UTC')
+        ))) AS signal_events
     FROM default.signal_events FINAL
     WHERE project_id = {project_id:UUID}
         AND created_at >= {min_start_time:DateTime64(9)}

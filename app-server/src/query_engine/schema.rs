@@ -231,8 +231,8 @@ const TABLES: &[Table] = &[
             ),
             col(
                 "signal_events",
-                "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))",
-                "Signal events that fired on this trace, read from signal_events when the query runs, so discarded events and those of deleted signals are excluded. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Reading this column scans the project's signal events created since the query's earliest start_time, so narrow by time first. The event's time is the trace's own end_time; signal names live in the signals table, join on signal_id. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+                "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String, timestamp DateTime64(9, 'UTC'), updated_at DateTime64(9, 'UTC')))",
+                "Signal events that fired on this trace, read from signal_events when the query runs, so discarded events and those of deleted signals are excluded. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Reading this column scans the project's signal events created since the query's earliest start_time, so narrow by time first. e.timestamp is when the event fired, e.updated_at when it last changed; signal names live in the signals table, join on signal_id. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col(
                 "clusters",
