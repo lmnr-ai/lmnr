@@ -1,22 +1,28 @@
 -- Signal events on the trace row come from `signal_events` at read time, joined
 -- on `trace_id`, instead of the payload tuple stamped onto `traces_agg` (LAM-2522).
 -- `FINAL` hides discarded (tombstoned) events and those of deleted signals, and
--- the exposed `Array(Tuple(event_id, signal_id, severity, payload))` is unchanged.
+-- the exposed `Array(Tuple(event_id, signal_id, severity, payload))` is unchanged,
+-- as are both views' parameters.
 --
 -- `signal_events` is ordered by (project_id, signal_id, id), so nothing in its key
 -- can prune a trace-scoped read. The bloom filter lets a pushed-down
--- `traces.id = X` skip granules. Under `FINAL` ClickHouse consults skip indexes
--- only with `use_skip_indexes_if_final = 1`, which is not the default everywhere
--- (ClickHouse Cloud), so the joins set it themselves. Skipping is safe because
--- every version of an event, tombstones included, carries the same `trace_id`.
+-- `traces.id = X` skip granules. Skipping is safe because every version of an
+-- event, tombstones included, carries the same `trace_id`.
 ALTER TABLE signal_events ADD INDEX IF NOT EXISTS signal_events_trace_id_bf_idx trace_id TYPE bloom_filter(0.01) GRANULARITY 1;
 ALTER TABLE signal_events MATERIALIZE INDEX signal_events_trace_id_bf_idx;
 
--- The join's `created_at` bound is the only partition pruning available. It is
--- sound because an event is never created before its trace starts, and every
--- version of an event keeps its `created_at`, so FINAL never loses a version.
+-- The join's SETTINGS make these reads behave the same on every deployment:
+-- - Under `FINAL`, skip indexes are consulted only with
+--   `use_skip_indexes_if_final = 1`, which ClickHouse Cloud does not default to.
+-- - `created_at >= min_start_time` prunes partitions only with
+--   `defer_partition_pruning_after_final = 0`, which 26.3+ does not default to.
+--   That is sound here: every version of an event keeps its `created_at`, so
+--   pruning never separates a row from its newer version, and an event is never
+--   created before its trace starts.
 --
--- traces_v0: hand callers only, so it keeps its three parameters and always joins.
+-- ClickHouse keeps the join in the plan even when `signal_events` is not
+-- selected; it then reads only the join keys of events created in the window.
+
 DROP VIEW IF EXISTS traces_v0;
 CREATE VIEW IF NOT EXISTS traces_v0 SQL SECURITY INVOKER AS
 SELECT
@@ -157,19 +163,17 @@ LEFT JOIN (
     WHERE project_id = {project_id:UUID}
         AND created_at >= {min_start_time:DateTime64(9)}
     GROUP BY trace_id
-    SETTINGS use_skip_indexes_if_final = 1, use_skip_indexes_if_final_exact_mode = 1
+    SETTINGS
+        use_skip_indexes_if_final = 1,
+        use_skip_indexes_if_final_exact_mode = 1,
+        defer_partition_pruning_after_final = 0
 ) AS se
     ON t.id = se.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
     AND t.start_time <= {max_start_time:DateTime64(9)};
 
--- traces_v2 is traces_v1 plus `with_signal_events`, which the query engine sets
--- to 1 only when a query can read `signal_events`: ClickHouse keeps an unused
--- LEFT JOIN in the plan. traces_v1 stays, still reading the stamped tuple, so an
--- app-server that predates traces_v2 keeps working; it goes away with
--- `traces_agg.signal_events`.
-DROP VIEW IF EXISTS traces_v2;
-CREATE VIEW IF NOT EXISTS traces_v2 SQL SECURITY INVOKER AS
+DROP VIEW IF EXISTS traces_v1;
+CREATE VIEW IF NOT EXISTS traces_v1 SQL SECURITY INVOKER AS
 SELECT
     t.start_time AS start_time,
     t.end_time AS end_time,
@@ -310,10 +314,12 @@ LEFT JOIN (
         ) AS signal_events
     FROM default.signal_events FINAL
     WHERE project_id = {project_id:UUID}
-        AND {with_signal_events:UInt8} = 1
         AND created_at >= {min_start_time:DateTime64(9)}
     GROUP BY trace_id
-    SETTINGS use_skip_indexes_if_final = 1, use_skip_indexes_if_final_exact_mode = 1
+    SETTINGS
+        use_skip_indexes_if_final = 1,
+        use_skip_indexes_if_final_exact_mode = 1,
+        defer_partition_pruning_after_final = 0
 ) AS se
     ON t.id = se.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}

@@ -54,6 +54,6 @@ Each of these lets a member of a `dual` project see raw text:
 - Realtime SSE (`realtime/`, `send_span_updates`) publishes the raw span once to every subscriber; needs dual publish with per-connection policy.
 - `trace_outputs_v0` (agent output) and `signal_events_v0` take no policy; Signals stores its produced event raw (`handle_create_event`, private repo).
 - `traces_static.input` (extracted task) has no masks or `pii_checked`, hence the blanket mask on `agent_input`; `traceFilters` are enforced on it already.
-- `traceFilters` are honoured by `spans_v1`/`traces_v1`/`traces_v2` only; `trace_outputs_v0`, `signal_events_v0`, search (hit existence) and realtime do not scope by trace.
+- `traceFilters` are honoured by `spans_v1`/`traces_v1` only; `trace_outputs_v0`, `signal_events_v0`, search (hit existence) and realtime do not scope by trace.
 - The Laminar Agent (private repo) runs under the caller's policy (`AgentSource::actor`: UI → the user's role, CLI → `Actor::Cli`, MCP → `Actor::ApiKey`, Slack → `Shared`), but its replies are not re-masked per user, and conversation history persists whatever the first caller saw.
 - Unchecked history is never backfilled; notifications are not rendered per role; there is no `pii_terms` search field for admin raw search.

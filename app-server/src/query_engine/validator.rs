@@ -5,8 +5,7 @@
 //! ClickHouse functions that can reach the filesystem / network / other
 //! tenants, rejects `project_id` access and unknown table-qualified columns,
 //! and rewrites allowed table references to their project-scoped view
-//! functions (`_v0`, `_v1` for the views that also take an access policy, or
-//! `traces_v2`).
+//! functions (`_v0`, or `_v1` for the views that also take an access policy).
 
 use std::any::TypeId;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -14,9 +13,9 @@ use std::ops::ControlFlow;
 
 use sqlparser::ast::{
     BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArgOperator, FunctionArguments,
-    Ident, JoinOperator, ObjectName, ObjectNamePart, Query, Select, SelectItem, Statement,
-    TableAlias, TableFactor, TableFunctionArgs, TableWithJoins, Value, ValueWithSpan, Visit,
-    VisitMut, Visitor, VisitorMut,
+    Ident, JoinOperator, ObjectName, ObjectNamePart, Query, Select, Statement, TableAlias,
+    TableFactor, TableFunctionArgs, TableWithJoins, Value, ValueWithSpan, Visit, VisitMut, Visitor,
+    VisitorMut,
 };
 use sqlparser::dialect::{ClickHouseDialect, Dialect, Precedence};
 use sqlparser::keywords::Keyword;
@@ -28,10 +27,6 @@ const VIEW_VERSION: &str = "v0";
 /// docs/internal/rbac.md). Parameterized views have no default arguments, so a
 /// table moves here only together with its `_v1` view.
 const POLICY_VIEW_VERSION: &str = "v1";
-/// `traces_v2` is `traces_v1` plus `with_signal_events` (migration 84), which
-/// gates its `signal_events` join; see [`reads_signal_events`].
-const TRACES_VIEW_VERSION: &str = "v2";
-const TRACES_SIGNAL_EVENTS_COLUMN: &str = "signal_events";
 const SPANS_TABLE: &str = "spans";
 
 /// The table whose view an allowlisted name reads; resolves name aliases.
@@ -49,16 +44,14 @@ fn takes_policy(table_name: &str) -> bool {
 }
 
 fn view_version(table_name: &str) -> &'static str {
-    if table_name == TRACES_TABLE {
-        TRACES_VIEW_VERSION
-    } else if takes_policy(table_name) {
+    if takes_policy(table_name) {
         POLICY_VIEW_VERSION
     } else {
         VIEW_VERSION
     }
 }
 
-/// The `traces_v2` view is parameterized by `min_start_time` / `max_start_time`,
+/// The `traces_v1` view is parameterized by `min_start_time` / `max_start_time`,
 /// which narrow the scan before the trace rows are materialized. These bounds are
 /// derived from the user's WHERE filters on `start_time` / `end_time` (padded ±3h,
 /// see [`START_TIME_PADDING`]); when the query has no time filter on traces, the
@@ -451,7 +444,7 @@ pub(crate) fn parse_clickhouse_sql(sql: &str) -> Result<Vec<Statement>, ParserEr
 
 /// Parse a single scalar expression with the same ClickHouse dialect used for
 /// statements. Used to build the `min_start_time` / `max_start_time` bound
-/// arguments injected into the `traces_v2(...)` view function.
+/// arguments injected into the `traces_v1(...)` view function.
 fn parse_ch_expr(sql: &str) -> Result<Expr, ParserError> {
     let dialect = ClickHouseOptionalIntervalDialect::default();
     let tokens = Tokenizer::new(&dialect, sql).tokenize_with_location()?;
@@ -855,12 +848,10 @@ impl QueryValidator {
         let tables = self.validate_tables_and_columns(&statement, &array_join_operands)?;
 
         let cte_names = collect_cte_names(&statement);
-        let with_signal_events = reads_signal_events(sql_query, &statement);
         let mut rewriter = ViewRewriter {
             registry: &self.registry,
             project_id,
             policy,
-            with_signal_events,
             cte_names,
             array_join_operands: &array_join_operands,
             where_stack: Vec::new(),
@@ -1349,72 +1340,6 @@ impl Visitor for BlockedScanner {
     }
 }
 
-/// Whether the query can read `traces.signal_events`, i.e. the
-/// `with_signal_events` argument of `traces_v2`. The view keeps its join in the
-/// plan whether or not the column is selected, so the gate is what spares other
-/// queries the cost. Errs towards `true`: an extra join only costs time, while a
-/// missed read returns empty arrays. Any token spelling the name counts (even as
-/// the `signal_events` table), and so does any wildcard that could expand to it.
-fn reads_signal_events(sql: &str, statement: &Statement) -> bool {
-    let dialect = ClickHouseOptionalIntervalDialect::default();
-    let mentioned = Tokenizer::new(&dialect, sql).tokenize().map_or(true, |tokens| {
-        tokens.iter().any(
-            |t| matches!(t, Token::Word(w) if w.value.eq_ignore_ascii_case(TRACES_SIGNAL_EVENTS_COLUMN)),
-        )
-    });
-    if mentioned {
-        return true;
-    }
-    let mut scan = WildcardScanner { found: false };
-    let _ = statement.visit(&mut scan);
-    scan.found
-}
-
-/// Finds column wildcards: `*` / `t.*` in a projection, `*` as a function
-/// argument other than `count(*)` (e.g. `tuple(*)`), and ClickHouse's
-/// `COLUMNS('regex')`.
-struct WildcardScanner {
-    found: bool,
-}
-
-impl Visitor for WildcardScanner {
-    type Break = ();
-
-    fn pre_visit_select(&mut self, select: &Select) -> ControlFlow<()> {
-        if select.projection.iter().any(|item| {
-            matches!(
-                item,
-                SelectItem::Wildcard(_) | SelectItem::QualifiedWildcard(..)
-            )
-        }) {
-            self.found = true;
-            return ControlFlow::Break(());
-        }
-        ControlFlow::Continue(())
-    }
-
-    fn pre_visit_expr(&mut self, expr: &Expr) -> ControlFlow<()> {
-        let Expr::Function(f) = expr else {
-            return ControlFlow::Continue(());
-        };
-        let name = relation_table_name(&f.name);
-        let wildcard_arg = match &f.args {
-            FunctionArguments::List(list) => list.args.iter().any(|arg| {
-                let (FunctionArg::Named { arg, .. }
-                | FunctionArg::ExprNamed { arg, .. }
-                | FunctionArg::Unnamed(arg)) = arg;
-                !matches!(arg, FunctionArgExpr::Expr(_))
-            }),
-            _ => false,
-        };
-        if name == "columns" || (wildcard_arg && name != "count") {
-            self.found = true;
-            return ControlFlow::Break(());
-        }
-        ControlFlow::Continue(())
-    }
-}
-
 struct TableColumnChecker<'a> {
     registry: &'a TableRegistry,
     cte_names: &'a HashSet<String>,
@@ -1577,7 +1502,6 @@ struct ViewRewriter<'a> {
     project_id: &'a str,
     /// JSON `AccessPolicy` literal for the `_v1` views.
     policy: &'a str,
-    with_signal_events: bool,
     cte_names: HashSet<String>,
     array_join_operands: &'a HashSet<Span>,
     where_stack: Vec<Option<Expr>>,
@@ -1684,7 +1608,7 @@ impl VisitorMut for ViewRewriter<'_> {
             if takes_policy(source) {
                 view_args.push(named_arg("policy", string_expr(self.policy)));
             }
-            // `traces_v2` and `evaluation_datapoints_v0` are parameterized by
+            // `traces_v1` and `evaluation_datapoints_v0` are parameterized by
             // start_time bounds; derive them from the enclosing WHERE so the view
             // narrows its scan. Columns are matched against this relation's alias
             // (or the bare table name) so a joined table's `start_time` is not
@@ -1695,10 +1619,6 @@ impl VisitorMut for ViewRewriter<'_> {
             let where_clause = self.where_stack.last().and_then(|w| w.as_ref());
             if source == TRACES_TABLE {
                 let (min_expr, max_expr) = traces_time_bound_args(where_clause, &alias_ident.value);
-                view_args.push(named_arg(
-                    "with_signal_events",
-                    number_expr(u8::from(self.with_signal_events)),
-                ));
                 view_args.push(named_arg("min_start_time", min_expr));
                 view_args.push(named_arg("max_start_time", max_expr));
             } else if source == EVALUATION_DATAPOINTS_TABLE {
@@ -2000,7 +1920,7 @@ fn merge(a: Option<String>, b: Option<String>, is_and: bool, lower: bool) -> Opt
 }
 
 /// Build the `min_start_time` / `max_start_time` argument expressions for a
-/// `traces_v2(...)` call from the enclosing WHERE clause. Derived bounds are
+/// `traces_v1(...)` call from the enclosing WHERE clause. Derived bounds are
 /// padded ±[`START_TIME_PADDING`]; missing bounds fall back to the broad epoch
 /// defaults so every trace stays visible.
 fn traces_time_bound_args(where_clause: Option<&Expr>, alias: &str) -> (Expr, Expr) {
@@ -2180,13 +2100,6 @@ fn named_arg(name: &str, value: Expr) -> FunctionArg {
 fn string_expr(value: &str) -> Expr {
     Expr::Value(ValueWithSpan {
         value: Value::SingleQuotedString(value.to_string()),
-        span: sqlparser::tokenizer::Span::empty(),
-    })
-}
-
-fn number_expr(value: u8) -> Expr {
-    Expr::Value(ValueWithSpan {
-        value: Value::Number(value.to_string(), false),
         span: sqlparser::tokenizer::Span::empty(),
     })
 }
