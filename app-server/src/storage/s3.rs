@@ -136,16 +136,6 @@ impl super::StorageTrait for S3Storage {
         }
     }
 
-    async fn delete(&self, bucket: &str, key: &str) -> Result<()> {
-        self.client
-            .delete_object()
-            .bucket(bucket)
-            .key(key)
-            .send()
-            .await?;
-        Ok(())
-    }
-
     async fn upload_stream(
         &self,
         bucket: &str,

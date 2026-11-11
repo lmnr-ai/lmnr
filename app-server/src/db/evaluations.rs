@@ -2,10 +2,10 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::{PgPool, prelude::FromRow};
+use sqlx::{PgPool, prelude::FromRow, types::Json};
 use uuid::Uuid;
 
-use crate::evaluations::DEFAULT_GROUP_NAME;
+use crate::{evaluations::DEFAULT_GROUP_NAME, hosted_evals::HostedMetadata};
 
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
@@ -32,10 +32,11 @@ pub async fn create_evaluation(
     project_id: Uuid,
     group_id: &str,
     metadata: &Option<Value>,
+    hosted_metadata: Option<&HostedMetadata>,
 ) -> Result<Evaluation> {
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "INSERT INTO evaluations (name, project_id, group_id, metadata)
-        VALUES ($1, $2, $3, $4)
+        "INSERT INTO evaluations (name, project_id, group_id, metadata, hosted_metadata)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING
             id,
             created_at,
@@ -48,6 +49,7 @@ pub async fn create_evaluation(
     .bind(project_id)
     .bind(group_id)
     .bind(metadata)
+    .bind(hosted_metadata.map(Json))
     .fetch_one(pool)
     .await?;
 

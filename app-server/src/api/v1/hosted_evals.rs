@@ -23,7 +23,7 @@ use crate::{
     env,
     features::{Feature, is_feature_enabled},
     hosted_evals::{
-        self, HostedEvals, RunError, RunRequest,
+        self, ArchiveIndex, HostedEvals, RunError, RunRequest,
         images::{self, ImageError},
         provider::{SandboxHandle, SandboxProvider, SandboxProviderTrait},
         sandboxes::{self, CreateError, ImageRequest},
@@ -34,6 +34,7 @@ use crate::{
 
 // Streamed bodies aren't covered by the global HTTP payload limit, so each gets its own.
 const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_INDEX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_LAYER_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_LAYERS: usize = 256;
@@ -441,22 +442,23 @@ pub async fn download_upload(
     })
 }
 
-/// The orchestrator deletes its run's archive here when the run ends.
-#[delete("/hosted-evals/uploads/{upload_id}")]
-pub async fn delete_upload(
+/// Body: the archive's file index (JSON, `hosted_evals::ArchiveIndex`).
+#[put("/hosted-evals/uploads/{upload_id}/index")]
+pub async fn upload_index(
     path: web::Path<Uuid>,
+    payload: web::Payload,
     project_api_key: ProjectApiKey,
     hosted: HostedEvalsData,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
-    let Some(bucket) = uploads_bucket(&hosted) else {
-        return Ok(not_enabled());
-    };
-    let key = hosted_evals::archive_key(&project_api_key.project_id, &path);
-    Ok(match storage.delete(&bucket, &key).await {
-        Ok(()) => HttpResponse::NoContent().finish(),
-        Err(e) => upstream_error("archive delete", e),
-    })
+    handle_upload_index(
+        project_api_key.project_id,
+        &path,
+        payload,
+        &hosted,
+        &storage,
+    )
+    .await
 }
 
 #[post("/hosted-evals/runs")]
@@ -506,6 +508,47 @@ pub async fn handle_create_upload(
     Ok(match stored {
         Ok(_) => HttpResponse::Ok().json(json!({ "uploadId": upload_id })),
         Err(e) => upstream_error("archive upload", e),
+    })
+}
+
+/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) index uploads.
+pub async fn handle_upload_index(
+    project_id: Uuid,
+    upload_id: &Uuid,
+    payload: web::Payload,
+    hosted: &HostedEvalsData,
+    storage: &Storage,
+) -> ResponseResult {
+    let Some(bucket) = uploads_bucket(hosted) else {
+        return Ok(not_enabled());
+    };
+    let body = match collect_payload(payload, MAX_INDEX_BYTES).await {
+        Ok(body) => body,
+        Err(e) => return Ok(body_error_response(e)),
+    };
+    if let Err(e) = serde_json::from_slice::<ArchiveIndex>(&body) {
+        return Ok(HttpResponse::BadRequest().json(json!({
+            "error": format!("Invalid archive index: {e}")
+        })));
+    }
+    match storage
+        .exists(&bucket, &hosted_evals::archive_key(&project_id, upload_id))
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            return Ok(HttpResponse::NotFound().json(json!({ "error": "Upload not found" })));
+        }
+        Err(e) => return Ok(upstream_error("archive check", e)),
+    }
+
+    let (tx, rx) = mpsc::channel(1);
+    let _ = tx.send(Ok(body)).await;
+    drop(tx);
+    let key = hosted_evals::index_key(&project_id, upload_id);
+    Ok(match storage.upload_stream(&bucket, &key, rx).await {
+        Ok(_) => HttpResponse::NoContent().finish(),
+        Err(e) => upstream_error("index upload", e),
     })
 }
 
