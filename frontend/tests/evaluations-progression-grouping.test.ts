@@ -25,10 +25,12 @@ describe("progression grouping", () => {
   });
 
   it("describes keys with their distinct value counts", () => {
+    // `a` is missing on two runs, so it splits into "x" and (none).
     assert.deepEqual(describeMetadataKeys([run("1", { b: 1 }), run("2", { a: "x", b: 2 }), run("3", { b: 2 })]), [
-      { key: "a", distinctValues: 1 },
+      { key: "a", distinctValues: 2 },
       { key: "b", distinctValues: 2 },
     ]);
+    assert.deepEqual(describeMetadataKeys([run("1", { c: 1 }), run("2", { c: 1 })]), [{ key: "c", distinctValues: 1 }]);
   });
 
   it("puts runs without the key into the none group, ordered last", () => {

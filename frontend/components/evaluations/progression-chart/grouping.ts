@@ -33,16 +33,18 @@ export interface MetadataKeyInfo {
   distinctValues: number;
 }
 
-// Every groupable key with how many distinct values it takes, sorted by key.
+// Every groupable key with how many distinct values it takes (runs missing it count as `(none)`), sorted by key.
 export function describeMetadataKeys(points: { metadata?: Record<string, unknown> | null }[]): MetadataKeyInfo[] {
   const valuesByKey = new Map<string, Set<string>>();
+  const runsByKey = new Map<string, number>();
   for (const p of points) {
     for (const [key, value] of Object.entries(flattenMetadata(p.metadata))) {
       valuesByKey.set(key, (valuesByKey.get(key) ?? new Set<string>()).add(String(value)));
+      runsByKey.set(key, (runsByKey.get(key) ?? 0) + 1);
     }
   }
   return Array.from(valuesByKey.entries())
-    .map(([key, values]) => ({ key, distinctValues: values.size }))
+    .map(([key, values]) => ({ key, distinctValues: values.size + (runsByKey.get(key)! < points.length ? 1 : 0) }))
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
