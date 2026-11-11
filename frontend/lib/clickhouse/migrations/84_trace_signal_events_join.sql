@@ -6,29 +6,17 @@
 --
 -- `signal_events` is ordered by (project_id, signal_id, id), so nothing in its key
 -- can prune a trace-scoped read. The bloom filter lets a pushed-down
--- `traces.id = X` skip granules. Each false positive is a 1024-row granule of
--- payloads read for nothing, so the rate is 0.001 rather than the 0.025 default:
--- ~5 stray granules per lookup in a 5M-event project instead of ~130, for an
--- index ~1.9x larger (under 2 KiB per granule).
-ALTER TABLE signal_events ADD INDEX IF NOT EXISTS signal_events_trace_id_bf_idx trace_id TYPE bloom_filter(0.001) GRANULARITY 1;
+-- `traces.id = X` skip granules. Under `FINAL` it is consulted only with
+-- `use_skip_indexes_if_final = 1`, which the SQL engine's ClickHouse client sends
+-- (Cloud's compatibility level defaults it off), along with
+-- `use_skip_indexes_if_final_exact_mode` from SQL_QUERY_SKIP_INDEXES_IF_FINAL_EXACT_MODE.
+ALTER TABLE signal_events ADD INDEX IF NOT EXISTS signal_events_trace_id_bf_idx trace_id TYPE bloom_filter GRANULARITY 1;
 ALTER TABLE signal_events MATERIALIZE INDEX signal_events_trace_id_bf_idx;
 
--- The join's SETTINGS make these reads behave the same on every deployment, and
--- apply to that subquery only (verified: the view's other FINAL reads keep their
--- own settings):
--- - Under `FINAL`, skip indexes are consulted only with
---   `use_skip_indexes_if_final = 1`, which ClickHouse Cloud does not default to.
--- - `use_skip_indexes_if_final_exact_mode = 0`: exact mode widens every selected
---   granule to all granules of other parts that overlap it in the sort key, so
---   with many parts it read most of the table. It exists for filters on a column
---   that changes between versions of a row; `trace_id` never does (tombstones
---   copy the whole row), so every version of a matching event is selected anyway,
---   and stray versions of other events fail the `trace_id` filter after FINAL.
--- - `created_at >= min_start_time` prunes partitions only with
---   `defer_partition_pruning_after_final = 0`, which 26.3+ does not default to.
---   That is sound here: every version of an event keeps its `created_at`, so
---   pruning never separates a row from its newer version, and an event is never
---   created before its trace starts.
+-- `created_at >= min_start_time` is sound: every version of an event keeps its
+-- `created_at`, and an event is never created before its trace starts. It prunes
+-- partitions only where `defer_partition_pruning_after_final` is off (before 26.3,
+-- or under an older compatibility level).
 --
 -- ClickHouse keeps the join in the plan even when `signal_events` is not
 -- selected; it then reads only the join keys of events created in the window.
@@ -173,10 +161,6 @@ LEFT JOIN (
     WHERE project_id = {project_id:UUID}
         AND created_at >= {min_start_time:DateTime64(9)}
     GROUP BY trace_id
-    SETTINGS
-        use_skip_indexes_if_final = 1,
-        use_skip_indexes_if_final_exact_mode = 0,
-        defer_partition_pruning_after_final = 0
 ) AS se
     ON t.id = se.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
@@ -326,10 +310,6 @@ LEFT JOIN (
     WHERE project_id = {project_id:UUID}
         AND created_at >= {min_start_time:DateTime64(9)}
     GROUP BY trace_id
-    SETTINGS
-        use_skip_indexes_if_final = 1,
-        use_skip_indexes_if_final_exact_mode = 0,
-        defer_partition_pruning_after_final = 0
 ) AS se
     ON t.id = se.trace_id
 WHERE t.start_time >= {min_start_time:DateTime64(9)}
