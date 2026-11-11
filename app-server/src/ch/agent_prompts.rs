@@ -101,6 +101,8 @@ pub struct PromptSpan {
     pub span_id: Uuid,
     /// The trace's first prompt start, ns.
     pub time: i64,
+    /// When the trace's last prompt was ingested, ns.
+    pub ingested: i64,
 }
 
 /// Up to `limit` traces with prompts ingested after `since`, none of them
@@ -118,11 +120,12 @@ pub async fn uncovered_traces(
 ) -> Result<Vec<PromptSpan>> {
     let spans = clickhouse
         .query(
-            "SELECT trace_id, span_id, time
+            "SELECT trace_id, span_id, time, ingested
              FROM (
                  SELECT trace_id,
                         argMax(span_id, length(line_hashes)) AS span_id,
                         min(start_time) AS time,
+                        toUnixTimestamp64Nano(max(ingested_at)) AS ingested,
                         toStartOfMinute(time) AS minute
                  FROM agent_prompts
                  WHERE project_id = {project_id:UUID}
