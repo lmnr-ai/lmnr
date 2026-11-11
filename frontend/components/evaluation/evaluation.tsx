@@ -393,17 +393,18 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                   {isHosted && <PanelToggle value={panel} onChange={setPanel} />}
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                  {showFiles ? (
-                    <TaskFiles
-                      key={taskPath ?? "none"}
-                      projectId={params.projectId}
-                      evaluationId={evaluationId}
-                      taskPath={taskPath}
-                    />
-                  ) : (
-                    /* No onClose ⇒ always-open: the trace header shows no close button. */
-                    traceId && <TraceView key={traceId} traceId={traceId} urlState />
-                  )}
+                  {showFiles
+                    ? // Wait for the trial: before it loads there's no task path, which isn't "not uploaded".
+                      selectedRow && (
+                        <TaskFiles
+                          key={taskPath ?? "none"}
+                          projectId={params.projectId}
+                          evaluationId={evaluationId}
+                          taskPath={taskPath}
+                        />
+                      )
+                    : /* No onClose ⇒ always-open: the trace header shows no close button. */
+                      traceId && <TraceView key={traceId} traceId={traceId} urlState />}
                 </div>
               </div>
             }
