@@ -64,15 +64,23 @@ export const readExportText = async (path: string): Promise<string | null> => {
   }
 };
 
-/** Bytes `start` to `end` (inclusive) of an exports-bucket object. */
-export const streamExportRange = async (path: string, start: number, end: number): Promise<Readable> => {
-  const response = await client.send(
-    new GetObjectCommand({
-      Bucket: process.env.S3_EXPORTS_BUCKET ?? "",
-      Key: path,
-      Range: `bytes=${start}-${end}`,
-    })
-  );
+/** Bytes `start` to `end` (inclusive) of an exports-bucket object, or `null` when it doesn't exist. */
+export const streamExportRange = async (path: string, start: number, end: number): Promise<Readable | null> => {
+  let response;
+  try {
+    response = await client.send(
+      new GetObjectCommand({
+        Bucket: process.env.S3_EXPORTS_BUCKET ?? "",
+        Key: path,
+        Range: `bytes=${start}-${end}`,
+      })
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === "NoSuchKey") {
+      return null;
+    }
+    throw error;
+  }
   if (!response.Body) {
     throw new Error("No body in S3 response");
   }

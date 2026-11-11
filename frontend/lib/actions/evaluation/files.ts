@@ -43,6 +43,12 @@ export interface EvaluationFiles {
   files: { path: string; size: number }[];
 }
 
+class FilesUnavailableError extends NotFoundError {
+  constructor() {
+    super("This evaluation's files are not available");
+  }
+}
+
 // Indexes never change once uploaded.
 const indexes = new SimpleLRU<string, ArchiveIndex>(16);
 
@@ -66,12 +72,12 @@ const getHostedRun = async (projectId: string, evaluationId: string) => {
     const text = await readExportText(`${prefix}.index.json`);
     if (text === null) {
       // Uploaded by a CLI that predates the index, or expired.
-      throw new NotFoundError("This evaluation's files are not available");
+      throw new FilesUnavailableError();
     }
     index = ArchiveIndexSchema.parse(JSON.parse(text));
     indexes.set(prefix, index);
   }
-  return { suitePath: hosted.data.suitePath, archiveKey: `${prefix}.tar.gz`, index };
+  return { suitePath: hosted.data.suitePath, prefix, index };
 };
 
 export const getEvaluationFiles = async (projectId: string, evaluationId: string): Promise<EvaluationFiles> => {
@@ -85,12 +91,17 @@ export const readEvaluationFile = async (
   evaluationId: string,
   path: string
 ): Promise<{ size: number; stream: Readable }> => {
-  const { archiveKey, index } = await getHostedRun(projectId, evaluationId);
+  const { prefix, index } = await getHostedRun(projectId, evaluationId);
   const file = index.files.find((f) => f.path === path);
   if (!file) {
     throw new NotFoundError("File not found");
   }
-  const member = await streamExportRange(archiveKey, file.offset, file.offset + file.length - 1);
+  const member = await streamExportRange(`${prefix}.tar.gz`, file.offset, file.offset + file.length - 1);
+  if (!member) {
+    // Expired (the bucket's lifecycle rule) while its index was still cached.
+    indexes.delete(prefix);
+    throw new FilesUnavailableError();
+  }
   const gunzip = createGunzip();
   // Stopping early (the file ends before its member does) destroys the gunzip
   // stream, and the pipeline then aborts the S3 download.
