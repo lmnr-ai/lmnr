@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { NEW_SIGNAL_SETTINGS, readSignalSettings, writeSignalSettings } from "@/lib/signals/settings";
+import {
+  NEW_SIGNAL_SETTINGS,
+  readSignalSettings,
+  SIGNAL_SETTINGS_OFF,
+  writeSignalSettings,
+} from "@/lib/signals/settings";
 
 describe("signal settings", () => {
   it("reads a missing or non-boolean setting as off", () => {
-    assert.deepEqual(readSignalSettings(null), { reportsEnabled: false, resolvingEnabled: false });
+    assert.deepEqual(readSignalSettings(null), SIGNAL_SETTINGS_OFF);
     assert.deepEqual(readSignalSettings({ reportsEnabled: true, resolvingEnabled: "yes" }), {
       reportsEnabled: true,
       resolvingEnabled: false,
+      autoResolveEnabled: false,
     });
   });
 

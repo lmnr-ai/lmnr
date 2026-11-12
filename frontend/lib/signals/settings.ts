@@ -6,17 +6,31 @@ export interface SignalSettings {
   reportsEnabled: boolean;
   /** Clusters can be marked resolved and reopened. */
   resolvingEnabled: boolean;
+  /** Open clusters with no events for `AUTO_RESOLVE_DAYS` are resolved by app-server's hourly job. Needs resolving. */
+  autoResolveEnabled: boolean;
 }
 
-export const SIGNAL_SETTINGS_OFF: SignalSettings = { reportsEnabled: false, resolvingEnabled: false };
+/** Quiet days before an auto-resolve; app-server's `clustering/private/auto_resolve` uses the same number. */
+export const AUTO_RESOLVE_DAYS = 30;
+
+export const SIGNAL_SETTINGS_OFF: SignalSettings = {
+  reportsEnabled: false,
+  resolvingEnabled: false,
+  autoResolveEnabled: false,
+};
 
 /** What a new signal starts with (the blank form, seeded defaults, most templates). */
-export const NEW_SIGNAL_SETTINGS: SignalSettings = { reportsEnabled: true, resolvingEnabled: true };
+export const NEW_SIGNAL_SETTINGS: SignalSettings = {
+  reportsEnabled: true,
+  resolvingEnabled: true,
+  autoResolveEnabled: false,
+};
 
 /** Request fields for create/update; an omitted field keeps the stored value on update. */
 export const SignalSettingsPatchSchema = z.object({
   reportsEnabled: z.boolean().optional(),
   resolvingEnabled: z.boolean().optional(),
+  autoResolveEnabled: z.boolean().optional(),
 });
 export type SignalSettingsPatch = z.infer<typeof SignalSettingsPatchSchema>;
 

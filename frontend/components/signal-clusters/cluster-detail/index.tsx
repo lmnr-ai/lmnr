@@ -42,7 +42,11 @@ export default function ClusterDetail({
       <div className="flex h-12 flex-none items-center justify-between gap-2 px-4">
         {reportsEnabled ? <ClusterTabs /> : <span />}
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => onSetArchived(!cluster.archived)} className="gap-1.5">
+          <Button
+            variant="ghost"
+            onClick={() => onSetArchived(!cluster.archived)}
+            className="gap-1.5 bg-emphasis-2 hover:overlay-hover active:overlay-selected"
+          >
             {cluster.archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
             {cluster.archived ? "Unarchive" : "Archive"}
           </Button>

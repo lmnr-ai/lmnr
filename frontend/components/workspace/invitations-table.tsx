@@ -56,7 +56,7 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
   };
 
   return (
-    <div className="border rounded-md">
+    <div className="rounded-md border bg-surface-up">
       <Table>
         <TableHeader>
           <TableRow>

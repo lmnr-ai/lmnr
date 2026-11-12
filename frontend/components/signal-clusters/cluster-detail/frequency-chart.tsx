@@ -5,7 +5,7 @@ import { crosshair } from "@tanstack/charts/crosshair";
 import { Chart } from "@tanstack/charts/react/tooltip";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { portal } from "@tanstack/charts/tooltip/portal";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import useSWR from "swr";
 
 import "@/components/chart-builder/charts/cartesian-chart/styles.css";
@@ -45,6 +45,9 @@ interface Props {
   color: string;
   /** Off where the page already says these are events. */
   showTitle?: boolean;
+  /** Replaces the "Events" title, e.g. with a date range picker. */
+  heading?: ReactNode;
+  barOpacity?: number;
 }
 
 /** Markers for timestamps inside the window; earlier ones have no bar to sit on. */
@@ -61,6 +64,8 @@ export default function FrequencyChart({
   days,
   color,
   showTitle = true,
+  heading,
+  barOpacity = BAR_OPACITY,
 }: Props) {
   const { data: versionData } = useSWR<ClusterVersionMarker[]>(
     clusterId ? `/api/projects/${projectId}/signals/${signalId}/clusters/${clusterId}/versions` : null,
@@ -106,7 +111,7 @@ export default function FrequencyChart({
     const definition = defineChart({
       marks: [
         crosshair({ x: { band: { fill: "var(--color-emphasis-2)", fillOpacity: 1 } }, y: false }),
-        barY(rows, { x: "x", y: "value", color: "series", inset: 0, radius: [3, 3, 0, 0], fillOpacity: BAR_OPACITY }),
+        barY(rows, { x: "x", y: "value", color: "series", inset: 0, radius: [3, 3, 0, 0], fillOpacity: barOpacity }),
         ruleX(versions, { x: "x", stroke: VERSION_COLOR, strokeOpacity: 1, strokeDasharray: "4 3" }),
         ruleX(resolved, { x: "x", stroke: RESOLVED_COLOR, strokeOpacity: 1, strokeWidth: 2 }),
         ruleX(reopened, { x: "x", stroke: REOPENED_COLOR, strokeOpacity: 1, strokeDasharray: "2 2" }),
@@ -133,7 +138,7 @@ export default function FrequencyChart({
     });
     const present = { versions: versions.length > 0, resolved: resolved.length > 0, reopened: reopened.length > 0 };
     return { definition, present };
-  }, [daily, resolutions, days, versionData, color]);
+  }, [daily, resolutions, days, versionData, color, barOpacity]);
 
   const resolvable = useSignalStoreContext((state) => state.signal.resolvingEnabled);
   const legend = present.versions || (resolvable && (present.resolved || present.reopened));
@@ -142,7 +147,9 @@ export default function FrequencyChart({
     <div className="flex flex-col gap-2">
       {(showTitle || legend) && (
         <div className="flex items-center justify-end gap-4 text-xs text-muted-foreground">
-          {showTitle && <h3 className="mr-auto text-sm font-medium text-foreground">Events</h3>}
+          {showTitle && (
+            <div className="mr-auto">{heading ?? <h3 className="text-sm font-medium text-foreground">Events</h3>}</div>
+          )}
           {/* Only lines actually drawn in this window get a legend entry. */}
           {present.versions && <Legend color={VERSION_COLOR} dashed label="Agent version" />}
           {resolvable && present.resolved && <Legend color={RESOLVED_COLOR} label="Marked resolved" />}

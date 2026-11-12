@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
 
+import SamplingSection from "../sampling-section";
 import ConditionSummary from "./condition-summary";
 import FiltersField from "./filters-field";
 import ProcessingModeSelect from "./processing-mode-select";
@@ -17,44 +18,46 @@ export default function TriggersSection() {
   const batchEnabled = featureFlags[Feature.BATCH_SIGNALS];
 
   return (
-    <div className="grid gap-6">
-      <div className="grid gap-2">
-        <TooltipProvider delayDuration={200}>
-          <div className="flex items-center gap-1.5">
-            <Label className="text-sm font-medium">Trigger</Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-64">
-                <p>When should this Signal run?</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
+    <div className="grid gap-2">
+      <TooltipProvider delayDuration={200}>
+        <div className="flex items-center gap-1.5">
+          <Label className="text-sm font-medium">Trigger</Label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="right" className="max-w-64">
+              <p>When should this Signal run?</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+      <div className="grid gap-6 rounded-lg ring-1 ring-border bg-surface-up p-4">
         <TriggerPicker />
+
+        <div className="grid gap-2">
+          <TooltipProvider delayDuration={200}>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-sm font-medium">Filters</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-64">
+                  <p>Checked against the trace at the moment of the trigger. Every filter must match (AND).</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+          <FiltersField />
+        </div>
+
+        <SamplingSection />
+
+        <ConditionSummary />
+
+        {batchEnabled && <ProcessingModeSelect />}
       </div>
-
-      <div className="grid gap-2">
-        <TooltipProvider delayDuration={200}>
-          <div className="flex items-center gap-1.5">
-            <Label className="text-sm font-medium">Filters</Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-64">
-                <p>Checked against the trace at the moment of the trigger. Every filter must match (AND).</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
-        <FiltersField />
-      </div>
-
-      <ConditionSummary />
-
-      {batchEnabled && <ProcessingModeSelect />}
     </div>
   );
 }

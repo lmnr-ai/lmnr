@@ -71,8 +71,9 @@ export default function ManageSignalContent({
           <X className="w-4 h-4" />
         </Button>
       </div>
-      <ScrollArea className="flex-1 px-5 w-full">
-        <SignalFormFields variant={variant} isLoading={isLoading} showTemplates={!id} />
+      {/* Padding sits inside the viewport so card rings drawn outside their box aren't clipped by it. */}
+      <ScrollArea className="flex-1 w-full">
+        <SignalFormFields className="px-5" variant={variant} isLoading={isLoading} showTemplates={!id} />
       </ScrollArea>
       <div className="flex items-center justify-end gap-2 px-5 py-3 border-t">
         <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>

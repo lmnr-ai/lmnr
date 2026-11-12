@@ -5,7 +5,10 @@ import ActivityTimeline from "@/components/signal-clusters/cluster-detail/activi
 import ClusterReport from "@/components/signal-clusters/cluster-detail/cluster-report";
 import { dayLabel } from "@/components/signal-clusters/cluster-detail/dates";
 import FrequencyChart from "@/components/signal-clusters/cluster-detail/frequency-chart";
+import { useClusterDaily } from "@/components/signal-clusters/cluster-detail/use-cluster-daily";
 import { useClusterReports } from "@/components/signal-clusters/cluster-detail/use-cluster-report";
+import DateRangeFilter from "@/components/ui/date-range-filter";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { type SignalCluster } from "@/lib/actions/signal-clusters/types";
 
 interface Props {
@@ -23,9 +26,10 @@ export default function ReportPage({ projectId, signalId, cluster, days, color, 
   const { reports, latest, isLoading, writing, generate } = useClusterReports(projectId, signalId, cluster.id);
   const shown = reports.find((r) => r.status === "done" && r.content) ?? null;
   const failed = latest?.status === "failed" && latest !== shown;
+  const chart = useClusterDaily(projectId, signalId, cluster.id, { days, daily: cluster.daily });
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block">
       <div className="mx-auto flex w-full max-w-[796px] flex-col gap-8 px-6 pt-6 pb-26 3xl:max-w-[924px]">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold">{cluster.name}</h1>
@@ -44,10 +48,11 @@ export default function ReportPage({ projectId, signalId, cluster, days, color, 
           projectId={projectId}
           signalId={signalId}
           clusterId={cluster.id}
-          daily={cluster.daily}
+          daily={chart.daily}
           resolutions={cluster.resolutions}
-          days={days}
+          days={chart.days}
           color={color}
+          heading={<DateRangeFilter />}
         />
 
         {LAMINAR_AGENT_AVAILABLE && (
@@ -70,6 +75,6 @@ export default function ReportPage({ projectId, signalId, cluster, days, color, 
           onOpenTrace={onOpenTrace}
         />
       </div>
-    </div>
+    </ScrollArea>
   );
 }

@@ -103,6 +103,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
         clusterId: string;
         total: number;
         traces: number;
+        severity: number;
         firstSeen: string;
         lastSeen: string;
         traceIds: string[];
@@ -112,6 +113,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
           cluster_id AS clusterId,
           count() AS total,
           uniqExact(trace_id) AS traces,
+          avg(severity) AS severity,
           formatDateTime(min(timestamp), '%Y-%m-%d %H:%i:%S.%f') AS firstSeen,
           formatDateTime(max(timestamp), '%Y-%m-%d %H:%i:%S.%f') AS lastSeen,
           arraySlice(arrayMap(x -> tupleElement(x, 2), arrayReverseSort(groupArray((timestamp, trace_id)))), 1, ${SAMPLE_TRACES}) AS traceIds
@@ -141,6 +143,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
           resolvedBy: resolver.name,
           reopenedAt: signalClusterResolutions.reopenedAt,
           reopenedBy: reopener.name,
+          automatic: signalClusterResolutions.automatic,
         })
         .from(signalClusterResolutions)
         .leftJoin(resolver, eq(resolver.id, signalClusterResolutions.resolvedBy))
@@ -207,6 +210,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
       resolvedBy: r.resolvedBy,
       reopenedAt: r.reopenedAt ? new Date(r.reopenedAt).toISOString() : null,
       reopenedBy: r.reopenedBy,
+      automatic: r.automatic,
     }));
     return [
       {
@@ -215,6 +219,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
         daily: dailyById.get(cluster.id) ?? Array.from({ length: days.length }, () => 0),
         total: Number(s.total),
         traces: Number(s.traces),
+        severity: Math.round(Number(s.severity)),
         firstSeen: chToIso(s.firstSeen),
         lastSeen,
         createdAt: chToIso(cluster.createdAt),
@@ -387,4 +392,49 @@ export async function getClusterVersionMarkers(
     const n = numberByHash.get(r.versionHash);
     return n === undefined ? [] : [{ label: `v${n}`, firstSeen: chToIso(r.firstSeen) }];
   });
+}
+
+const MAX_RANGE_DAYS = 366;
+
+export const ClusterDailySchema = ClusterScopeSchema.extend({
+  pastHours: z.coerce.number().positive().optional(),
+  startDate: z.iso.datetime().optional(),
+  endDate: z.iso.datetime().optional(),
+});
+
+/** A cluster's events per UTC day over the picked range (the last `pastHours`, or `startDate`–`endDate`). */
+export async function getClusterDaily(
+  input: z.input<typeof ClusterDailySchema>
+): Promise<{ days: string[]; daily: number[] }> {
+  const { pastHours, startDate, endDate, ...scopeInput } = ClusterDailySchema.parse(input);
+  const { projectId, signalId, clusterId } = await resolveClusterScope(scopeInput);
+
+  const end = endDate ? new Date(endDate) : new Date();
+  const start = startDate
+    ? new Date(startDate)
+    : new Date(end.getTime() - (pastHours ?? CLUSTER_WINDOW_DAYS * 24) * 3_600_000);
+  if (start >= end) throw new ApiError("startDate must be before endDate", 400);
+
+  const firstDay = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const count = Math.min(MAX_RANGE_DAYS, Math.floor((end.getTime() - firstDay) / 86_400_000) + 1);
+  const days = Array.from({ length: count }, (_, i) => new Date(firstDay + i * 86_400_000).toISOString().slice(0, 10));
+
+  const rows = await executeQuery<{ day: string; count: number }>({
+    query: `
+      SELECT toString(toDate(timestamp)) AS day, count() AS count
+      FROM signal_events
+      WHERE signal_id = {signalId: UUID} AND has(leaf_clusters, {clusterId: UUID})
+        AND timestamp >= toDateTime64({from: String}, 9, 'UTC') AND timestamp <= toDateTime64({to: String}, 9, 'UTC')
+      GROUP BY day
+    `,
+    parameters: {
+      signalId,
+      clusterId,
+      from: start.toISOString().replace("T", " ").replace("Z", ""),
+      to: end.toISOString().replace("T", " ").replace("Z", ""),
+    },
+    projectId,
+  });
+  const byDay = new Map(rows.map((r) => [r.day, Number(r.count)]));
+  return { days, daily: days.map((d) => byDay.get(d) ?? 0) };
 }

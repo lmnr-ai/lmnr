@@ -47,7 +47,8 @@ Investigate first:
 Then answer with ONLY the report, in Markdown, with exactly these four sections and nothing before or after:
 
 ## Overview
-At most 4 sentences describing the problem.
+At most 4 sentences describing the problem. When the problem is a sequence of steps, write it as a numbered list instead, one step per item.
+Leave out event counts and dates: the page already shows them, and they go stale as new events join the cluster.
 
 ## Consequences
 At most 2 sentences on how it affects users and what it breaks downstream.

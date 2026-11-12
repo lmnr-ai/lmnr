@@ -9,6 +9,8 @@ export interface ClusterResolution {
   resolvedBy: string | null;
   reopenedAt: string | null;
   reopenedBy: string | null;
+  /** Resolved by the auto-resolve job after `AUTO_RESOLVE_DAYS` without events, not by a user. */
+  automatic: boolean;
 }
 
 /** A signal's L1 cluster with its state for the current user. */
@@ -21,6 +23,8 @@ export interface SignalCluster {
   total: number;
   /** All-time distinct traces with an event in this cluster. */
   traces: number;
+  /** Mean severity of its events, rounded: 0 Info, 1 Warning, 2 Critical. */
+  severity: number;
   firstSeen: string;
   lastSeen: string;
   /** When clustering created the cluster. */

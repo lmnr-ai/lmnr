@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
 import { shallow } from "zustand/shallow";
 
@@ -33,7 +33,6 @@ function PureEventsTable({ clusterIds, unclustered, defaultPastHours = 72 }: Eve
   const refetchRef = useRef<() => void>(() => {});
   // State, not a ref: the virtualizer lives further down the tree and has to
   // re-measure once this element exists.
-  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
   const [clusterId] = useClusterId();
   const [emergingClusterId] = useEmergingClusterId();
@@ -83,7 +82,7 @@ function PureEventsTable({ clusterIds, unclustered, defaultPastHours = 72 }: Eve
   }, [pastHours, startDate, endDate, searchParams, pathName, router, defaultPastHours]);
 
   return (
-    // Controls sit outside the scrollport so only the rows scroll; columns still scroll sideways under them.
+    // Controls sit above the table, which owns its scroll like the traces table, so its bottom edge stays in view.
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="mx-4 flex flex-none flex-col items-start gap-2">
         <EventsTableControls
@@ -102,12 +101,8 @@ function PureEventsTable({ clusterIds, unclustered, defaultPastHours = 72 }: Eve
           scopedToCluster={!!clusterIds || !!unclustered}
         />
       </div>
-      <div
-        ref={setScroller}
-        className="mx-4 min-h-0 min-w-0 flex-1 overflow-auto rounded-t pb-4 no-scrollbar [container-type:inline-size]"
-      >
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden px-4 pb-4">
         <EventsTableContents
-          externalScrollElement={scroller}
           refetchRef={refetchRef}
           columns={columns}
           projectId={params.projectId}

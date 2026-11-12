@@ -798,6 +798,17 @@ fn main() -> anyhow::Result<()> {
             runtime_handle.spawn(job.run());
         }
 
+        #[cfg(feature = "signals")]
+        {
+            // Does nothing until a signal turns auto-resolving on.
+            log::info!("Starting cluster auto-resolve job");
+            runtime_handle.spawn(clustering::private::auto_resolve::run(
+                db.clone(),
+                clickhouse.clone(),
+                cache.clone(),
+            ));
+        }
+
         let worker_pool = Arc::new(WorkerPool::new(
             queue.clone(),
             shutdown.clone(),

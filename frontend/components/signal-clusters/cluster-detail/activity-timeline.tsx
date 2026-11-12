@@ -15,6 +15,7 @@ import {
   StepTitle,
 } from "@/components/ui/step-list";
 import { type ClusterReport, type SignalCluster } from "@/lib/actions/signal-clusters/types";
+import { AUTO_RESOLVE_DAYS } from "@/lib/signals/settings";
 import { formatRelativeTime } from "@/lib/utils";
 
 interface Entry {
@@ -81,7 +82,15 @@ export default function ActivityTimeline({ cluster, reports, shownReportId, writ
       {
         key: `resolved-${i}`,
         at: r.resolvedAt,
-        node: line(<Check className="text-success" />, <>{actor(r.resolvedBy)} marked this resolved</>, r.resolvedAt),
+        node: line(
+          <Check className="text-success" />,
+          r.automatic ? (
+            <>Resolved automatically after {AUTO_RESOLVE_DAYS} days without events</>
+          ) : (
+            <>{actor(r.resolvedBy)} marked this resolved</>
+          ),
+          r.resolvedAt
+        ),
       },
       ...(r.reopenedAt
         ? [

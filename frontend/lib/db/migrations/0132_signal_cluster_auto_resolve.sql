@@ -1,0 +1,1 @@
+ALTER TABLE "signal_cluster_resolutions" ADD COLUMN "automatic" boolean DEFAULT false NOT NULL;

@@ -5,7 +5,6 @@ import { useCallback, useEffect } from "react";
 
 import SignalClusters from "@/components/signal-clusters";
 import { useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
-import SignalRunsTable from "@/components/signal/runs-table";
 import SignalPageTabs from "@/components/signal/signal-page-tabs";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
@@ -27,17 +26,17 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
   const searchParams = useSearchParams();
   const [{ traceId, spanId }] = useSignalTraceParams();
 
-  // Old bookmarks: ?tab=settings&section=activity, then ?tab=activity.
+  // Old bookmarks: ?tab=runs, ?tab=activity and ?tab=settings&section=activity open Overview → Runs.
   const tabParam = searchParams.get("tab");
-  const isLegacyRunsTab = tabParam === "activity" || searchParams.get("section") === "activity";
+  const isLegacyRunsTab = tabParam === "runs" || tabParam === "activity" || searchParams.get("section") === "activity";
   // Clusters are the default view and replace Events; old ?tab=events links land on them.
-  const activeTab = isLegacyRunsTab ? "runs" : tabParam === "runs" || tabParam === "settings" ? tabParam : null;
+  const showOverview = isLegacyRunsTab || tabParam === "settings";
 
   useEffect(() => {
     if (!isLegacyRunsTab) return;
     const next = new URLSearchParams(searchParams.toString());
-    next.set("tab", "runs");
-    next.delete("section");
+    next.set("tab", "settings");
+    next.set("section", "runs");
     replace(`${pathName}?${next.toString()}`);
   }, [isLegacyRunsTab, searchParams, pathName, replace]);
 
@@ -78,17 +77,14 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
     />
   );
 
-  if (!activeTab) {
+  if (!showOverview) {
     return (
       <>
         <SignalClusters
           projectId={params.projectId}
           signalId={signal.id}
-          header={
-            <Header path={[{ name: "signals" }, { name: signal.name }]} childrenContainerClassName="whitespace-nowrap">
-              <SignalPageTabs signalId={signal.id} active="clusters" />
-            </Header>
-          }
+          header={<Header path={[{ name: "signals" }, { name: signal.name }]} className="h-auto pt-[10px]" />}
+          tabs={<SignalPageTabs signalId={signal.id} active="clusters" />}
           onOpenTrace={(id) => navigateTracePanel({ type: "open", traceId: id }, { eventId: null })}
         />
         {tracePanel}
@@ -98,25 +94,18 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
 
   return (
     <>
-      <Header path={[{ name: "signals" }, { name: signal.name }]} childrenContainerClassName="whitespace-nowrap">
-        <SignalPageTabs signalId={signal.id} active={activeTab} />
-      </Header>
-      {/* Same nesting the old tab panels had, so runs and settings lay out as before. */}
+      <Header path={[{ name: "signals" }, { name: signal.name }]} className="h-auto pt-[10px]" />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex flex-col overflow-hidden">
-          {activeTab === "runs" ? (
-            <SignalRunsTable />
-          ) : (
-            <ManageSignalPanel
-              key={signal.id}
-              defaultValues={signal}
-              onSuccess={handleSuccess}
-              slackClientId={slackClientId}
-              slackRedirectUri={slackRedirectUri}
-              slackBrokerEnabled={slackBrokerEnabled}
-            />
-          )}
-        </div>
+        <ManageSignalPanel
+          key={signal.id}
+          defaultValues={signal}
+          onSuccess={handleSuccess}
+          slackClientId={slackClientId}
+          slackRedirectUri={slackRedirectUri}
+          slackBrokerEnabled={slackBrokerEnabled}
+          sidebarHeader={<SignalPageTabs signalId={signal.id} active="settings" />}
+          contentClassName="pt-10"
+        />
       </div>
       {tracePanel}
     </>
