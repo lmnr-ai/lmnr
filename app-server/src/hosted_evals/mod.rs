@@ -35,18 +35,27 @@ use sandboxes::CreateError;
 /// Name prefix of the per-run project API keys. The frontend hides keys with it
 /// from the project's key list (`frontend/lib/actions/project-api-keys`).
 pub const RUN_KEY_NAME_PREFIX: &str = "lmnr-internal-evals-";
-// Downloads the archive with the run key, runs the CLI, then deletes the
-// sandbox through the app-server however the run ended. The archive stays: the
-// run's evaluations show its files. Runs under `sh`, with stderr folded into
-// stdout so the provider's command log has everything. The Laminar Harbor
-// plugin records suite and task paths relative to `LMNR_EVALS_ROOT`.
+// Downloads the archive with the run key, runs the CLI, ends the run's log with
+// its exit code, then deletes the sandbox through the app-server however the run
+// ended. The archive stays: the run's evaluations show its files. Runs under
+// `sh`, with all output in a file: lmnr-cli sends its own lines to the run's log
+// and touches `LMNR_RUN_LOG_MARKER` once it has; without the marker (it never
+// ran, e.g. a failed download or npm install) the file's tail goes with the exit
+// code instead. The Laminar Harbor plugin records suite and task paths relative
+// to `LMNR_EVALS_ROOT`.
 const ORCHESTRATOR_COMMAND: &str = concat!(
-    r#"exec 2>&1; export LMNR_EVALS_ROOT="$HOME/evals"; "#,
+    r#"exec >/tmp/lmnr-orchestrator.log 2>&1; "#,
+    r#"export LMNR_EVALS_ROOT="$HOME/evals" LMNR_RUN_LOG_MARKER=/tmp/lmnr-run-log-started; "#,
     r#"mkdir -p "$LMNR_EVALS_ROOT" && cd "$LMNR_EVALS_ROOT" && "#,
     r#"curl -fsS -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
     r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID" -o /tmp/evals.tar.gz && "#,
     r#"tar -xzf /tmp/evals.tar.gz && rm /tmp/evals.tar.gz && "#,
-    r#"npx -y --package="$LMNR_CLI_PACKAGE" lmnr-cli eval orchestrate; "#,
+    r#"npx -y --package="$LMNR_CLI_PACKAGE" lmnr-cli eval orchestrate; code=$?; "#,
+    r#"if [ -e "$LMNR_RUN_LOG_MARKER" ]; then : >/tmp/lmnr-tail; "#,
+    r#"else tail -n 200 /tmp/lmnr-orchestrator.log | cut -c 1-4096 >/tmp/lmnr-tail; fi; "#,
+    r#"curl -fsS --retry 3 -X POST -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
+    r#"-H "Content-Type: text/plain" --data-binary @/tmp/lmnr-tail "#,
+    r#""$LMNR_BASE_URL/v1/hosted-evals/runs/$LMNR_EVAL_UPLOAD_ID/logs/end?exitCode=$code"; "#,
     r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
     r#""$LMNR_BASE_URL/v1/hosted-evals/sandboxes/$LMNR_SANDBOX_ID""#,
 );
