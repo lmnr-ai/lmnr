@@ -59,6 +59,7 @@ export default function ReportPage({ projectId, signalId, cluster, days, color, 
           daily={chart.daily}
           resolutions={cluster.resolutions}
           days={chart.days}
+          start={chart.start}
           color={color}
           heading={<DateRangeFilter />}
         />

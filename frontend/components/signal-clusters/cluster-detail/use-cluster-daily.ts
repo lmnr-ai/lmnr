@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import useSWR from "swr";
 
-import { CLUSTER_WINDOW_DAYS } from "@/lib/actions/signal-clusters/types";
+import { CLUSTER_WINDOW_DAYS, type ClusterDaily } from "@/lib/actions/signal-clusters/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
 export const DEFAULT_PAST_HOURS = CLUSTER_WINDOW_DAYS * 24;
@@ -18,7 +18,7 @@ export function useClusterDaily(
   signalId: string,
   clusterId: string,
   fallback: { days: string[]; daily: number[] }
-) {
+): { days: string[]; daily: number[]; start?: string } {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
@@ -38,7 +38,7 @@ export function useClusterDaily(
     ...(pastHours ? { pastHours } : startDate && endDate ? { startDate, endDate } : {}),
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
   }).toString();
-  const { data } = useSWR<{ days: string[]; daily: number[] }>(
+  const { data } = useSWR<ClusterDaily>(
     hasRange ? `/api/projects/${projectId}/signals/${signalId}/clusters/${clusterId}/daily?${query}` : null,
     swrFetcher,
     { keepPreviousData: true }

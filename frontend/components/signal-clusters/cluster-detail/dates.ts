@@ -9,6 +9,16 @@ export const dayLabel = (value: string) =>
 /** Index of the timestamp's UTC day in `days`, or -1 when it falls outside the window. */
 export const dayIndexOf = (days: string[], iso: string) => days.indexOf(iso.slice(0, 10));
 
+/**
+ * The bar a timestamp falls in: by elapsed 24h from `start` when the bars are counted from a range start, else by
+ * UTC calendar date. -1 when it's outside the bars.
+ */
+export const barIndexOf = (days: string[], iso: string, start?: string) => {
+  if (!start) return dayIndexOf(days, iso);
+  const i = Math.floor((Date.parse(iso) - Date.parse(start)) / 86_400_000);
+  return i >= 0 && i < days.length ? i : -1;
+};
+
 /** The open resolution's start, if the cluster is resolved now. */
 export const openResolutionAt = (resolutions: { resolvedAt: string; reopenedAt: string | null }[]) =>
   resolutions.findLast((r) => r.reopenedAt === null)?.resolvedAt ?? null;

@@ -13,6 +13,7 @@ export const GET = apiHandler<{ projectId: string; id: string; clusterId: string
       pastHours: params.get("pastHours") ?? undefined,
       startDate: params.get("startDate") ?? undefined,
       endDate: params.get("endDate") ?? undefined,
+      tz: params.get("tz") ?? undefined,
     })
   );
 });

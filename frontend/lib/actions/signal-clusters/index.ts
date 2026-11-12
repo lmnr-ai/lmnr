@@ -23,6 +23,7 @@ const archiver = alias(users, "archiver");
 import { ClusterScopeSchema, resolveClusterScope, SignalScopeSchema } from "./scope";
 import {
   type ClusterResolution,
+  type ClusterDaily,
   CLUSTER_WINDOW_DAYS,
   type ClusterVersionMarker,
   type SignalCluster,
@@ -421,9 +422,7 @@ const dateIn = (tz: string | undefined) => {
  * the range's start. The bars cover exactly the range the Events table reads, so 720h is 30 bars ending now, and a
  * picker range (local midnights) is one bar per local day.
  */
-export async function getClusterDaily(
-  input: z.input<typeof ClusterDailySchema>
-): Promise<{ days: string[]; daily: number[] }> {
+export async function getClusterDaily(input: z.input<typeof ClusterDailySchema>): Promise<ClusterDaily> {
   const { pastHours, startDate, endDate, tz, ...scopeInput } = ClusterDailySchema.parse(input);
   const { projectId, signalId, clusterId } = await resolveClusterScope(scopeInput);
 
@@ -435,9 +434,11 @@ export async function getClusterDaily(
   // The picker's single-day range has start = end at midnight: read it as that whole day.
   const count = Math.min(MAX_RANGE_DAYS, Math.max(1, Math.ceil((end - start) / DAY_MS)));
   const to = start === end ? start + DAY_MS : Math.min(end, start + count * DAY_MS);
-  // Each bar is labelled by the viewer's date at its middle, so a bar ending now reads as today.
+  // Each bar is labelled by the viewer's date at its middle, clamped into the window so a 1h range reads as today.
   const label = dateIn(tz);
-  const days = Array.from({ length: count }, (_, i) => label(start + i * DAY_MS + DAY_MS / 2));
+  const days = Array.from({ length: count }, (_, i) =>
+    label(Math.min(start + i * DAY_MS + DAY_MS / 2, Math.max(start, to - 1)))
+  );
 
   const chTime = (ms: number) => new Date(ms).toISOString().replace("T", " ").replace("Z", "");
   const rows = await executeQuery<{ bucket: number; count: number }>({
@@ -454,5 +455,5 @@ export async function getClusterDaily(
   });
   const daily = Array.from({ length: count }, () => 0);
   for (const r of rows) daily[Number(r.bucket)] += Number(r.count);
-  return { days, daily };
+  return { days, daily, start: new Date(start).toISOString() };
 }

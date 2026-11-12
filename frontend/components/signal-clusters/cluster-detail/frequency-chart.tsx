@@ -13,7 +13,7 @@ import "@/components/chart-builder/charts/cartesian-chart/styles.css";
 import { xScale, yScale } from "@/components/chart-builder/charts/cartesian-chart/axes";
 import { type SeriesRow } from "@/components/chart-builder/charts/cartesian-chart/definition";
 import TooltipBody from "@/components/chart-builder/charts/cartesian-chart/tooltip-body";
-import { dayIndexOf, dayLabel } from "@/components/signal-clusters/cluster-detail/dates";
+import { barIndexOf, dayLabel } from "@/components/signal-clusters/cluster-detail/dates";
 import { type ClusterResolution, type ClusterVersionMarker } from "@/lib/actions/signal-clusters/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { fixedCountTicks } from "@/lib/charts/y-ticks";
@@ -41,6 +41,8 @@ interface Props {
   daily: number[];
   resolutions: ClusterResolution[];
   days: string[];
+  /** The first bar's start when bars are 24h counted from a range start; without it, `days` are UTC dates. */
+  start?: string;
   color: string;
   /** Off where the page already says these are events. */
   showTitle?: boolean;
@@ -49,9 +51,12 @@ interface Props {
   barOpacity?: number;
 }
 
-/** Markers for timestamps inside the window; earlier ones have no bar to sit on. */
-const markersAt = (days: string[], items: { at: string; label: string }[]): Marker[] =>
-  items.flatMap(({ at, label }) => (dayIndexOf(days, at) >= 0 ? [{ x: dayLabel(at), label }] : []));
+/** Markers on the bar their timestamp falls in; ones outside the window have no bar to sit on. */
+const markersAt = (days: string[], start: string | undefined, items: { at: string; label: string }[]): Marker[] =>
+  items.flatMap(({ at, label }) => {
+    const i = barIndexOf(days, at, start);
+    return i >= 0 ? [{ x: dayLabel(days[i]), label }] : [];
+  });
 
 /** Daily event counts, drawn with TanStack Charts like dashboards, plus agent-version and resolution rules. */
 export default function FrequencyChart({
@@ -61,6 +66,7 @@ export default function FrequencyChart({
   daily,
   resolutions,
   days,
+  start,
   color,
   showTitle = true,
   heading,
@@ -76,22 +82,25 @@ export default function FrequencyChart({
     const top = fixedCountTicks(Math.max(1, ...daily), 5).at(-1)!;
     const versions = markersAt(
       days,
+      start,
       (versionData ?? []).map((v) => ({ at: v.firstSeen, label: v.label }))
     );
-    // One marker per day, for that day's latest change, so a resolve/reopen/resolve in one day draws one line.
+    // One marker per bar, for that bar's latest change, so a resolve/reopen/resolve in one day draws one line.
     const changes = resolutions
       .flatMap((r) => [
         { at: r.resolvedAt, label: "Resolved" },
         ...(r.reopenedAt ? [{ at: r.reopenedAt, label: "Reopened" }] : []),
       ])
       .sort((a, b) => a.at.localeCompare(b.at));
-    const latestPerDay = [...new Map(changes.map((c) => [c.at.slice(0, 10), c])).values()];
+    const latestPerDay = [...new Map(changes.map((c) => [barIndexOf(days, c.at, start), c])).values()];
     const resolved = markersAt(
       days,
+      start,
       latestPerDay.filter((c) => c.label === "Resolved")
     );
     const reopened = markersAt(
       days,
+      start,
       latestPerDay.filter((c) => c.label === "Reopened")
     );
     // Resolution labels sit above the plot and version labels just inside it, so the rows never collide.
@@ -137,7 +146,7 @@ export default function FrequencyChart({
     });
     const present = { versions: versions.length > 0, resolved: resolved.length > 0, reopened: reopened.length > 0 };
     return { definition, present };
-  }, [daily, resolutions, days, versionData, color, barOpacity]);
+  }, [daily, resolutions, days, start, versionData, color, barOpacity]);
 
   const legend = present.versions || present.resolved || present.reopened;
 
