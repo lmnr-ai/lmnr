@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { parseAsString, useQueryState } from "nuqs";
+import { useMemo } from "react";
 import useSWR from "swr";
 
 import FileBrowser from "@/components/evaluation/task-files/file-browser";
 import Message from "@/components/evaluation/task-files/message";
-import { buildFileTree, type FileNode, flattenFiles } from "@/components/evaluation/task-files/utils";
+import { buildFileTree, flattenFiles } from "@/components/evaluation/task-files/utils";
 import { type TrialLogFiles } from "@/lib/actions/evaluation/files";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
@@ -20,8 +21,8 @@ interface TrialLogProps {
 
 /**
  * The trial's dir in the Harbor job its remote run uploaded once the suite
- * ended. Mount with `key={trialName}` so switching trials reopens the
- * default file.
+ * ended. The open file is `?logFile=`, so it stays open across trials that
+ * have it (and in links); other trials open their best default.
  */
 export default function TrialLog({ projectId, evaluationId, trialName }: TrialLogProps) {
   const base = `/api/projects/${projectId}/evaluations/${evaluationId}/logs`;
@@ -30,8 +31,8 @@ export default function TrialLog({ projectId, evaluationId, trialName }: TrialLo
     revalidateOnFocus: false,
   });
   const tree = useMemo(() => (data ? buildFileTree(data.files, "") : []), [data]);
-  const [selected, setSelected] = useState<FileNode | null>(null);
-  const open = useMemo(() => selected ?? defaultLogFile(flattenFiles(tree)), [selected, tree]);
+  const [logFile, setLogFile] = useQueryState("logFile", parseAsString);
+  const open = useMemo(() => defaultLogFile(flattenFiles(tree), logFile), [logFile, tree]);
 
   const contentUrl = (path: string) => `${base}/content?${trialQuery}&path=${encodeURIComponent(path)}`;
 
@@ -46,7 +47,7 @@ export default function TrialLog({ projectId, evaluationId, trialName }: TrialLo
       title={trialName}
       nodes={tree}
       open={open}
-      onSelect={setSelected}
+      onSelect={(node) => setLogFile(node.path)}
       contentUrl={contentUrl}
     />
   );
