@@ -18,7 +18,7 @@ export function useClusterDaily(
   signalId: string,
   clusterId: string,
   fallback: { days: string[]; daily: number[] }
-): { days: string[]; daily: number[]; start?: string } {
+): { days: string[]; daily: number[]; start?: string; toNow?: boolean } {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();

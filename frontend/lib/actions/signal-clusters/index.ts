@@ -455,5 +455,5 @@ export async function getClusterDaily(input: z.input<typeof ClusterDailySchema>)
   });
   const daily = Array.from({ length: count }, () => 0);
   for (const r of rows) daily[Number(r.bucket)] += Number(r.count);
-  return { days, daily, start: new Date(start).toISOString() };
+  return { days, daily, start: new Date(start).toISOString(), toNow: !endDate };
 }

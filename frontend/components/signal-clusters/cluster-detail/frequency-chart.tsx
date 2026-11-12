@@ -43,6 +43,8 @@ interface Props {
   days: string[];
   /** The first bar's start when bars are 24h counted from a range start; without it, `days` are UTC dates. */
   start?: string;
+  /** The range ends at "now", so markers after the last bar's end still sit on it. */
+  toNow?: boolean;
   color: string;
   /** Off where the page already says these are events. */
   showTitle?: boolean;
@@ -52,9 +54,9 @@ interface Props {
 }
 
 /** Markers on the bar their timestamp falls in; ones outside the window have no bar to sit on. */
-const markersAt = (days: string[], start: string | undefined, items: { at: string; label: string }[]): Marker[] =>
+const markersAt = (bar: (iso: string) => number, days: string[], items: { at: string; label: string }[]): Marker[] =>
   items.flatMap(({ at, label }) => {
-    const i = barIndexOf(days, at, start);
+    const i = bar(at);
     return i >= 0 ? [{ x: dayLabel(days[i]), label }] : [];
   });
 
@@ -67,6 +69,7 @@ export default function FrequencyChart({
   resolutions,
   days,
   start,
+  toNow,
   color,
   showTitle = true,
   heading,
@@ -80,9 +83,10 @@ export default function FrequencyChart({
   const { definition, present } = useMemo(() => {
     const rows: SeriesRow[] = daily.map((value, i) => ({ x: dayLabel(days[i]), series: "Events", value }));
     const top = fixedCountTicks(Math.max(1, ...daily), 5).at(-1)!;
+    const bar = (iso: string) => barIndexOf(days, iso, start, toNow);
     const versions = markersAt(
+      bar,
       days,
-      start,
       (versionData ?? []).map((v) => ({ at: v.firstSeen, label: v.label }))
     );
     // One marker per bar, for that bar's latest change, so a resolve/reopen/resolve in one day draws one line.
@@ -92,15 +96,15 @@ export default function FrequencyChart({
         ...(r.reopenedAt ? [{ at: r.reopenedAt, label: "Reopened" }] : []),
       ])
       .sort((a, b) => a.at.localeCompare(b.at));
-    const latestPerDay = [...new Map(changes.map((c) => [barIndexOf(days, c.at, start), c])).values()];
+    const latestPerDay = [...new Map(changes.map((c) => [bar(c.at), c])).values()];
     const resolved = markersAt(
+      bar,
       days,
-      start,
       latestPerDay.filter((c) => c.label === "Resolved")
     );
     const reopened = markersAt(
+      bar,
       days,
-      start,
       latestPerDay.filter((c) => c.label === "Reopened")
     );
     // Resolution labels sit above the plot and version labels just inside it, so the rows never collide.
@@ -146,7 +150,7 @@ export default function FrequencyChart({
     });
     const present = { versions: versions.length > 0, resolved: resolved.length > 0, reopened: reopened.length > 0 };
     return { definition, present };
-  }, [daily, resolutions, days, start, versionData, color, barOpacity]);
+  }, [daily, resolutions, days, start, toNow, versionData, color, barOpacity]);
 
   const legend = present.versions || present.resolved || present.reopened;
 

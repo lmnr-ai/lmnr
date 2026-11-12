@@ -81,5 +81,8 @@ export interface ClusterReport {
   updatedAt: string;
 }
 
-/** Events in 24h bars; `start` is the first bar's start, so a timestamp's bar is `floor((t - start) / 24h)`. */
-export type ClusterDaily = { days: string[]; daily: number[]; start: string };
+/**
+ * Events in 24h bars; `start` is the first bar's start, so a timestamp's bar is `floor((t - start) / 24h)`.
+ * `toNow` when the range ends at "now" (`pastHours`): later timestamps belong on the last bar.
+ */
+export type ClusterDaily = { days: string[]; daily: number[]; start: string; toNow: boolean };

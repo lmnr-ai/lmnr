@@ -13,9 +13,11 @@ export const dayIndexOf = (days: string[], iso: string) => days.indexOf(iso.slic
  * The bar a timestamp falls in: by elapsed 24h from `start` when the bars are counted from a range start, else by
  * UTC calendar date. -1 when it's outside the bars.
  */
-export const barIndexOf = (days: string[], iso: string, start?: string) => {
+export const barIndexOf = (days: string[], iso: string, start?: string, toNow = false) => {
   if (!start) return dayIndexOf(days, iso);
   const i = Math.floor((Date.parse(iso) - Date.parse(start)) / 86_400_000);
+  // A range ending at "now" keeps growing after the fetch, so a resolve made since then sits on the last bar.
+  if (toNow && i >= days.length) return days.length - 1;
   return i >= 0 && i < days.length ? i : -1;
 };
 
