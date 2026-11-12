@@ -1,11 +1,12 @@
 "use client";
 
-import { Fingerprint } from "lucide-react";
+import { Info } from "lucide-react";
 import { useState } from "react";
 
 import { CardExpandIndicator } from "@/components/ui/card-expand-indicator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type AgentDefinition as Definition } from "@/lib/actions/agents";
 import { fetchApi } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -66,11 +67,20 @@ export default function AgentDefinition({ projectId, agentId, definition, onChan
           type="button"
           className="group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-emphasis-1 transition-colors"
         >
-          <Fingerprint size={14} className="text-muted-foreground" />
           <span className="text-sm font-medium">Definition</span>
-          <span className="text-xs text-muted-foreground">
-            {rules.length} {rules.length === 1 ? "rule" : "rules"}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* Clicking the icon shouldn't toggle the card. */}
+              <span className="text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                <Info size={12} />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-md">
+              Laminar generates these rules automatically
+              <br />
+              and may add more over time.
+            </TooltipContent>
+          </Tooltip>
           <CardExpandIndicator expanded={open} className="ml-auto" />
         </button>
       </CollapsibleTrigger>
