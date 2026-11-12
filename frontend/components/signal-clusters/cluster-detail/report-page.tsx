@@ -1,11 +1,13 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+
 import { LAMINAR_AGENT_AVAILABLE } from "@/components/agent";
 import ActivityTimeline from "@/components/signal-clusters/cluster-detail/activity-timeline";
 import ClusterReport from "@/components/signal-clusters/cluster-detail/cluster-report";
 import { dayLabel } from "@/components/signal-clusters/cluster-detail/dates";
 import FrequencyChart from "@/components/signal-clusters/cluster-detail/frequency-chart";
-import { useClusterDaily } from "@/components/signal-clusters/cluster-detail/use-cluster-daily";
+import { DEFAULT_PAST_HOURS, useClusterDaily } from "@/components/signal-clusters/cluster-detail/use-cluster-daily";
 import { useClusterReports } from "@/components/signal-clusters/cluster-detail/use-cluster-report";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,6 +29,11 @@ export default function ReportPage({ projectId, signalId, cluster, days, color, 
   const failed = latest?.status === "failed" && latest !== shown;
   const chart = useClusterDaily(projectId, signalId, cluster.id, { days, daily: cluster.daily });
   const inRange = chart.daily.reduce((a, b) => a + b, 0);
+  const searchParams = useSearchParams();
+  // A custom start/end range has no pastHours; only the default rolling window reads as "the last 30 days".
+  const lastThirtyDays =
+    !searchParams.get("startDate") &&
+    Number(searchParams.get("pastHours") ?? DEFAULT_PAST_HOURS) === DEFAULT_PAST_HOURS;
 
   return (
     <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block">
@@ -35,7 +42,8 @@ export default function ReportPage({ projectId, signalId, cluster, days, color, 
           <h1 className="text-2xl font-semibold">{cluster.name}</h1>
           <p className="flex flex-wrap items-center gap-x-2.5 text-sm text-muted-foreground">
             <span>
-              {inRange.toLocaleString()} {inRange === 1 ? "event" : "events"} in the selected range
+              {inRange.toLocaleString()} {inRange === 1 ? "event" : "events"}{" "}
+              {lastThirtyDays ? "in the last 30 days" : "in the selected range"}
             </span>
             <span aria-hidden>·</span>
             <span>First seen {dayLabel(cluster.firstSeen)}</span>
