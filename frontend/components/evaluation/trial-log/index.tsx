@@ -9,8 +9,7 @@ import { buildFileTree, type FileNode, flattenFiles } from "@/components/evaluat
 import { type TrialLogFiles } from "@/lib/actions/evaluation/files";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
-import TrialSummary from "./summary";
-import { defaultLogFile, RESULT_FILE } from "./utils";
+import { defaultLogFile } from "./utils";
 
 interface TrialLogProps {
   projectId: string;
@@ -21,8 +20,7 @@ interface TrialLogProps {
 
 /**
  * The trial's dir in the Harbor job its remote run uploaded once the suite
- * ended: phase timings and the exception from `result.json` on top, then the
- * dir's files. Mount with `key={trialName}` so switching trials reopens the
+ * ended. Mount with `key={trialName}` so switching trials reopens the
  * default file.
  */
 export default function TrialLog({ projectId, evaluationId, trialName }: TrialLogProps) {
@@ -43,18 +41,13 @@ export default function TrialLog({ projectId, evaluationId, trialName }: TrialLo
   if (!open) return <Message>{`No logs were uploaded for ${trialName}`}</Message>;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
-      {data?.files.some((f) => f.path === RESULT_FILE) && <TrialSummary url={contentUrl(RESULT_FILE)} />}
-      <div className="flex min-h-0 flex-1">
-        <FileBrowser
-          id="evaluation-trial-log"
-          title={trialName}
-          nodes={tree}
-          open={open}
-          onSelect={setSelected}
-          contentUrl={contentUrl}
-        />
-      </div>
-    </div>
+    <FileBrowser
+      id="evaluation-trial-log"
+      title={trialName}
+      nodes={tree}
+      open={open}
+      onSelect={setSelected}
+      contentUrl={contentUrl}
+    />
   );
 }
