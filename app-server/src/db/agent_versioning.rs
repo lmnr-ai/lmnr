@@ -114,18 +114,37 @@ pub async fn insert_defined_agent(
     Ok(())
 }
 
-pub async fn set_agent_definition(
+/// Adds `added`'s alternatives to the definition as stored now. The row is
+/// locked while merging, so rules users add or remove meanwhile are kept.
+pub async fn extend_agent_definition(
     pool: &PgPool,
     project_id: Uuid,
     agent_id: Uuid,
-    definition: &Definition,
+    added: &Definition,
 ) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    let current = sqlx::query_scalar::<_, Option<Json<Definition>>>(
+        "SELECT definition FROM agents WHERE project_id = $1 AND id = $2 FOR UPDATE",
+    )
+    .bind(project_id)
+    .bind(agent_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    // The agent was deleted since detection read it.
+    let Some(current) = current else {
+        return Ok(());
+    };
+    let definition = match current {
+        Some(Json(current)) => current.extended(added),
+        None => added.clone(),
+    };
     sqlx::query("UPDATE agents SET definition = $3 WHERE project_id = $1 AND id = $2")
         .bind(project_id)
         .bind(agent_id)
-        .bind(Json(definition))
-        .execute(pool)
+        .bind(Json(&definition))
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 

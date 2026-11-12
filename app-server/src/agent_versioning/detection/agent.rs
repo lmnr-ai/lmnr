@@ -54,7 +54,9 @@ pub struct LatestPrompt {
     pub time: i64,
 }
 
-/// An accepted change. `Extend` carries the agent's full new definition.
+/// An accepted change. `Extend` carries only the added alternatives, merged
+/// into the definition as stored when saved, so rules users edit meanwhile are
+/// kept.
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Change {
@@ -64,7 +66,7 @@ pub enum Change {
     },
     Extend {
         agent_id: Uuid,
-        definition: Definition,
+        added: Definition,
     },
 }
 
@@ -383,7 +385,7 @@ impl<'a> DetectionAgent<'a> {
         self.validate_check(&added, Some(update.agent_id))?;
         Ok(Change::Extend {
             agent_id: known.agent.id,
-            definition: self.current_definition(known).extended(&added),
+            added,
         })
     }
 
@@ -434,21 +436,6 @@ impl<'a> DetectionAgent<'a> {
         self.changes.iter().any(|change| {
             matches!(change, Change::Create { definition: created, .. } if created == definition)
         })
-    }
-
-    /// The agent's definition with this run's accepted extensions.
-    fn current_definition(&self, known: &KnownAgent) -> Definition {
-        self.changes
-            .iter()
-            .rev()
-            .find_map(|change| match change {
-                Change::Extend {
-                    agent_id,
-                    definition,
-                } if *agent_id == known.agent.id => Some(definition.clone()),
-                _ => None,
-            })
-            .unwrap_or_else(|| known.agent.definition.0.clone())
     }
 }
 
@@ -638,8 +625,7 @@ mod tests {
             agent.changes,
             vec![Change::Extend {
                 agent_id,
-                definition: Definition::new(check(&[&["you are a sales bot"], &["gtm assistant"]]))
-                    .unwrap(),
+                added: Definition::new(check(&[&["gtm assistant"]])).unwrap(),
             }]
         );
     }

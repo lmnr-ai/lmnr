@@ -24,7 +24,7 @@ use crate::{
         spans::fetch_system_prompts,
     },
     db::agent_versioning::{
-        DefinedAgent, get_defined_agents, insert_defined_agent, set_agent_definition,
+        DefinedAgent, extend_agent_definition, get_defined_agents, insert_defined_agent,
     },
     env::{
         agent_versioning::{
@@ -147,11 +147,8 @@ impl Job {
                     )
                     .await?;
                 }
-                Change::Extend {
-                    agent_id,
-                    definition,
-                } => {
-                    set_agent_definition(&self.db.pool, project_id, *agent_id, definition).await?;
+                Change::Extend { agent_id, added } => {
+                    extend_agent_definition(&self.db.pool, project_id, *agent_id, added).await?;
                 }
             }
         }
