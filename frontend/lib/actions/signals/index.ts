@@ -8,7 +8,7 @@ import { PaginationFiltersSchema, SortSchema, TimeRangeSchema } from "@/lib/acti
 import { buildSignalDefinition, mintSignalVersion } from "@/lib/actions/signal-versions";
 import { executeQuery } from "@/lib/actions/sql";
 import { assertProjectHasSignals } from "@/lib/actions/usage/plan-gates";
-import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
+import { cache, SIGNAL_NAME_CACHE_KEY, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { DEFAULT_SIGNAL_TRIGGER_FILTERS, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
@@ -160,6 +160,10 @@ const SetTemplateSignalsSchema = z.object({
   templateNames: z.array(z.string()),
   subscriberEmail: z.email().optional(),
 });
+
+async function removeSignalNameCache(projectId: string, signalIds: string[]) {
+  await Promise.all(signalIds.map((signalId) => cache.remove(SIGNAL_NAME_CACHE_KEY(projectId, signalId))));
+}
 
 // Events first so a crash mid-purge can't resurrect clusters via the backfill join.
 // Don't scrub traces_agg — a per-signal UPDATE rewrites the whole table; residue is
@@ -410,6 +414,10 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
 
   // Creates write triggers too, so invalidate the cache whenever anything changed.
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
+  await removeSignalNameCache(
+    projectId,
+    deletedSignals.map((s) => s.id)
+  );
 
   return { created: toCreate.length, deleted: toDeleteIds.length };
 }
@@ -902,6 +910,7 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
   });
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
+  await removeSignalNameCache(projectId, [id]);
 
   return result;
 }
@@ -929,6 +938,7 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
   await purgeSignalsFromClickhouse(projectId, [id]);
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
+  await removeSignalNameCache(projectId, [id]);
 
   return result;
 }
@@ -959,6 +969,10 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
   );
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
+  await removeSignalNameCache(
+    projectId,
+    deletedSignals.map((s) => s.id)
+  );
 
   return { success: true };
 }

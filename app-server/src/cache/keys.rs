@@ -25,6 +25,10 @@ pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 pub const LICENSE_STATE_CACHE_KEY: &str = "license_state";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
+/// `signal_name:{project_id}:{signal_id}` → the signal's current name. Signal
+/// renames and deletes remove it, here (`signals::service`) and in the
+/// frontend signal actions.
+pub const SIGNAL_NAME_CACHE_KEY: &str = "signal_name";
 /// `llm_profile:{workspace_id}:{profile_id}` → full profile row (encrypted secrets included).
 /// `llm::profiles::service` removes the key on every profile write.
 pub const LLM_PROFILE_CACHE_KEY: &str = "llm_profile";

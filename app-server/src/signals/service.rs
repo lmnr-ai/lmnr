@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::cache::keys::SIGNAL_TRIGGERS_CACHE_KEY;
+use crate::cache::keys::{SIGNAL_NAME_CACHE_KEY, SIGNAL_TRIGGERS_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::signal_triggers::{TriggerPatch, TriggerRow};
 use crate::db::signals::{CreateSignalError, SignalRow, SignalUpdate, SignalVersionRow};
@@ -501,6 +501,15 @@ async fn invalidate_trigger_cache(cache: &Cache, project_id: Uuid) {
     }
 }
 
+async fn invalidate_signal_name_cache(cache: &Cache, project_id: Uuid, signal_id: Uuid) {
+    if let Err(e) = cache
+        .remove(&format!("{SIGNAL_NAME_CACHE_KEY}:{project_id}:{signal_id}"))
+        .await
+    {
+        log::warn!("failed to invalidate signal name cache for {project_id}/{signal_id}: {e}");
+    }
+}
+
 pub async fn get_signal(
     pool: &PgPool,
     project_id: Uuid,
@@ -644,6 +653,7 @@ pub async fn update_signal(
     let llm_route =
         resolve_llm_route(pool, project_id, input.llm_profile_id, input.model, false).await?;
 
+    let renamed = name.is_some();
     let (updated, trigger_row) = signals::update_signal(
         pool,
         project_id,
@@ -662,6 +672,9 @@ pub async fn update_signal(
     .ok_or(CrudError::SignalNotFound)?;
 
     invalidate_trigger_cache(cache, project_id).await;
+    if renamed {
+        invalidate_signal_name_cache(cache, project_id, signal_id).await;
+    }
 
     let profile_name = llm_profile_name(pool, &updated).await?;
     Ok(SignalResponse::new(updated, trigger_row, profile_name))
@@ -680,6 +693,7 @@ pub async fn delete_signal(
         .ok_or(CrudError::SignalNotFound)?;
 
     invalidate_trigger_cache(cache, project_id).await;
+    invalidate_signal_name_cache(cache, project_id, signal_id).await;
     purge_signal_from_clickhouse(clickhouse, project_id, signal_id).await;
 
     // The row is gone; name lookup still works since profiles outlive signals.
