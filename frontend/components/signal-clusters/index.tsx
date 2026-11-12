@@ -9,11 +9,10 @@ import EventsPage from "@/components/signal-clusters/cluster-detail/events-page"
 import FrequencyChart from "@/components/signal-clusters/cluster-detail/frequency-chart";
 import ClusterList from "@/components/signal-clusters/cluster-list";
 import ClusterListControls, { useClusterView } from "@/components/signal-clusters/cluster-list-controls";
-import { type ClusterView, RESOLVED_VIEW, viewClusters } from "@/components/signal-clusters/cluster-views";
+import { type ClusterView, viewClusters } from "@/components/signal-clusters/cluster-views";
 import UnclusteredRow from "@/components/signal-clusters/unclustered-row";
 import { useClusterRoute } from "@/components/signal-clusters/use-cluster-route";
 import { useSignalClusters } from "@/components/signal-clusters/use-signal-clusters";
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { browserLayoutStorage, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ElevatedSurface } from "@/components/ui/surface";
@@ -45,25 +44,16 @@ const getServerSnapshot = () => false;
 /** A signal's L1 clusters. A report is always open; the first cluster when none is picked. */
 export default function SignalClusters({ projectId, signalId, header, tabs, onOpenTrace }: Props) {
   const [clusterId, selectCluster] = useClusterRoute();
-  const [urlView, setView] = useClusterView();
+  const [view, setView] = useClusterView();
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "signal-clusters-layout",
     storage: browserLayoutStorage,
   });
   // The saved split is only known in the browser; mounting the group there keeps it from jumping after hydration.
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
-  const resolvable = useSignalStoreContext((state) => state.signal.resolvingEnabled);
-  const view = !resolvable && urlView === RESOLVED_VIEW ? "active" : urlView;
   const { data, isLoading, markViewed, setResolved, setArchived } = useSignalClusters(projectId, signalId);
 
-  // With resolving off, past resolutions vanish too: every cluster reads as open, with no resolve history.
-  const items = useMemo(
-    () =>
-      resolvable
-        ? (data?.items ?? [])
-        : (data?.items ?? []).map((i) => ({ ...i, status: "open" as const, resolutions: [] })),
-    [data, resolvable]
-  );
+  const items = useMemo(() => data?.items ?? [], [data]);
   const visible = useMemo(() => viewClusters(items, view), [items, view]);
   const counts = useMemo(
     () =>

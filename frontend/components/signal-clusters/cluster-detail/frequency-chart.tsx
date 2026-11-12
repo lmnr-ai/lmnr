@@ -14,7 +14,6 @@ import { xScale, yScale } from "@/components/chart-builder/charts/cartesian-char
 import { type SeriesRow } from "@/components/chart-builder/charts/cartesian-chart/definition";
 import TooltipBody from "@/components/chart-builder/charts/cartesian-chart/tooltip-body";
 import { dayIndexOf, dayLabel } from "@/components/signal-clusters/cluster-detail/dates";
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type ClusterResolution, type ClusterVersionMarker } from "@/lib/actions/signal-clusters/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { fixedCountTicks } from "@/lib/charts/y-ticks";
@@ -140,8 +139,7 @@ export default function FrequencyChart({
     return { definition, present };
   }, [daily, resolutions, days, versionData, color, barOpacity]);
 
-  const resolvable = useSignalStoreContext((state) => state.signal.resolvingEnabled);
-  const legend = present.versions || (resolvable && (present.resolved || present.reopened));
+  const legend = present.versions || present.resolved || present.reopened;
 
   return (
     <div className="flex flex-col gap-2">
@@ -152,8 +150,8 @@ export default function FrequencyChart({
           )}
           {/* Only lines actually drawn in this window get a legend entry. */}
           {present.versions && <Legend color={VERSION_COLOR} dashed label="Agent version" />}
-          {resolvable && present.resolved && <Legend color={RESOLVED_COLOR} label="Marked resolved" />}
-          {resolvable && present.reopened && <Legend color={REOPENED_COLOR} dashed label="Reopened" />}
+          {present.resolved && <Legend color={RESOLVED_COLOR} label="Marked resolved" />}
+          {present.reopened && <Legend color={REOPENED_COLOR} dashed label="Reopened" />}
         </div>
       )}
       <div className="h-[160px] w-full text-xs [&_*:focus]:outline-none">

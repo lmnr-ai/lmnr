@@ -31,7 +31,6 @@ export default function ClusterDetail({
   onOpenTrace,
 }: Props) {
   const [tab] = useClusterTab();
-  const resolvable = useSignalStoreContext((state) => state.signal.resolvingEnabled);
   // Without reports there is nothing for a Report tab to hold, so the cluster opens straight to its events.
   const reportsEnabled = useSignalStoreContext((state) => state.signal.reportsEnabled);
   const resolvedAt = openResolutionAt(cluster.resolutions);
@@ -50,16 +49,14 @@ export default function ClusterDetail({
             {cluster.archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
             {cluster.archived ? "Unarchive" : "Archive"}
           </Button>
-          {resolvable && (
-            <Button
-              variant={resolvedAt ? "outline" : "default"}
-              onClick={() => onSetResolved(!resolvedAt)}
-              className="gap-1.5"
-            >
-              {resolvedAt ? <RotateCcw className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
-              {resolvedAt ? "Reopen" : "Resolve"}
-            </Button>
-          )}
+          <Button
+            variant={resolvedAt ? "outline" : "default"}
+            onClick={() => onSetResolved(!resolvedAt)}
+            className="gap-1.5"
+          >
+            {resolvedAt ? <RotateCcw className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
+            {resolvedAt ? "Reopen" : "Resolve"}
+          </Button>
         </div>
       </div>
       {reportsEnabled && tab === "report" ? (

@@ -1,8 +1,5 @@
 import { type SignalCluster } from "@/lib/actions/signal-clusters/types";
 
-/** Hidden when the signal doesn't allow resolving, along with the rest of that feature. */
-export const RESOLVED_VIEW = "resolved";
-
 export const CLUSTER_VIEWS = [
   { value: "active", label: "Active" },
   { value: "resolved", label: "Resolved" },

@@ -319,8 +319,7 @@ const SetResolvedSchema = ClusterScopeSchema.extend({ resolved: z.boolean() });
 export async function setClusterResolved(input: z.infer<typeof SetResolvedSchema>): Promise<void> {
   const { resolved } = SetResolvedSchema.parse(input);
   const userId = await requireUserId();
-  const { projectId, signalId, clusterId, signal } = await resolveClusterScope(input);
-  if (!signal.settings.resolvingEnabled) throw new ApiError("Resolving clusters is off for this signal", 409);
+  const { projectId, signalId, clusterId } = await resolveClusterScope(input);
 
   if (resolved) {
     // The partial unique index allows one open resolution per cluster.
@@ -395,50 +394,65 @@ export async function getClusterVersionMarkers(
 }
 
 const MAX_RANGE_DAYS = 366;
+const DAY_MS = 86_400_000;
 
 export const ClusterDailySchema = ClusterScopeSchema.extend({
   pastHours: z.coerce.number().positive().optional(),
   startDate: z.iso.datetime().optional(),
   endDate: z.iso.datetime().optional(),
+  /** The viewer's IANA timezone, for the bars' date labels. */
+  tz: z.string().max(64).optional(),
 });
 
-/** A cluster's events per UTC day over the picked range (the last `pastHours`, or `startDate`–`endDate`). */
+/** `YYYY-MM-DD` in the viewer's timezone; an unknown zone falls back to UTC. */
+const dateIn = (tz: string | undefined) => {
+  const options = { year: "numeric", month: "2-digit", day: "2-digit" } as const;
+  let format: Intl.DateTimeFormat;
+  try {
+    format = new Intl.DateTimeFormat("en-CA", { ...options, timeZone: tz ?? "UTC" });
+  } catch {
+    format = new Intl.DateTimeFormat("en-CA", { ...options, timeZone: "UTC" });
+  }
+  return (ms: number) => format.format(new Date(ms));
+};
+
+/**
+ * A cluster's events over the picked range (the last `pastHours`, or `startDate`–`endDate`) in 24h bars counted from
+ * the range's start. The bars cover exactly the range the Events table reads, so 720h is 30 bars ending now, and a
+ * picker range (local midnights) is one bar per local day.
+ */
 export async function getClusterDaily(
   input: z.input<typeof ClusterDailySchema>
 ): Promise<{ days: string[]; daily: number[] }> {
-  const { pastHours, startDate, endDate, ...scopeInput } = ClusterDailySchema.parse(input);
+  const { pastHours, startDate, endDate, tz, ...scopeInput } = ClusterDailySchema.parse(input);
   const { projectId, signalId, clusterId } = await resolveClusterScope(scopeInput);
 
-  let end = endDate ? new Date(endDate) : new Date();
-  const utcDay = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  // A rolling window counts whole days ending today (720h is 30 bars, like the list), so it starts at midnight.
-  const start = startDate
-    ? new Date(startDate)
-    : new Date(utcDay(end) - (Math.ceil((pastHours ?? CLUSTER_WINDOW_DAYS * 24) / 24) - 1) * 86_400_000);
+  const now = Date.now();
+  const end = endDate ? new Date(endDate).getTime() : now;
+  const start = startDate ? new Date(startDate).getTime() : end - (pastHours ?? CLUSTER_WINDOW_DAYS * 24) * 3_600_000;
   if (start > end) throw new ApiError("startDate must not be after endDate", 400);
+
   // The picker's single-day range has start = end at midnight: read it as that whole day.
-  if (start.getTime() === end.getTime()) end = new Date(start.getTime() + 86_400_000 - 1);
+  const count = Math.min(MAX_RANGE_DAYS, Math.max(1, Math.ceil((end - start) / DAY_MS)));
+  const to = start === end ? start + DAY_MS : Math.min(end, start + count * DAY_MS);
+  // Each bar is labelled by the viewer's date at its middle, so a bar ending now reads as today.
+  const label = dateIn(tz);
+  const days = Array.from({ length: count }, (_, i) => label(start + i * DAY_MS + DAY_MS / 2));
 
-  const firstDay = utcDay(start);
-  const count = Math.min(MAX_RANGE_DAYS, Math.floor((end.getTime() - firstDay) / 86_400_000) + 1);
-  const days = Array.from({ length: count }, (_, i) => new Date(firstDay + i * 86_400_000).toISOString().slice(0, 10));
-
-  const rows = await executeQuery<{ day: string; count: number }>({
+  const chTime = (ms: number) => new Date(ms).toISOString().replace("T", " ").replace("Z", "");
+  const rows = await executeQuery<{ bucket: number; count: number }>({
     query: `
-      SELECT toString(toDate(timestamp)) AS day, count() AS count
+      SELECT least(intDiv(dateDiff('millisecond', toDateTime64({from: String}, 9, 'UTC'), timestamp), ${DAY_MS}), {last: Int64}) AS bucket,
+        count() AS count
       FROM signal_events
       WHERE signal_id = {signalId: UUID} AND has(leaf_clusters, {clusterId: UUID})
         AND timestamp >= toDateTime64({from: String}, 9, 'UTC') AND timestamp <= toDateTime64({to: String}, 9, 'UTC')
-      GROUP BY day
+      GROUP BY bucket
     `,
-    parameters: {
-      signalId,
-      clusterId,
-      from: start.toISOString().replace("T", " ").replace("Z", ""),
-      to: end.toISOString().replace("T", " ").replace("Z", ""),
-    },
+    parameters: { signalId, clusterId, from: chTime(start), to: chTime(to), last: count - 1 },
     projectId,
   });
-  const byDay = new Map(rows.map((r) => [r.day, Number(r.count)]));
-  return { days, daily: days.map((d) => byDay.get(d) ?? 0) };
+  const daily = Array.from({ length: count }, () => 0);
+  for (const r of rows) daily[Number(r.bucket)] += Number(r.count);
+  return { days, daily };
 }

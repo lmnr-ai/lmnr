@@ -716,7 +716,6 @@ export async function createSignal(
     sampleRate,
     disabled,
     reportsEnabled,
-    resolvingEnabled,
     autoResolveEnabled,
     subscriberEmail,
     triggers,
@@ -729,8 +728,8 @@ export async function createSignal(
     throw llmProfileError("llmProfileId", "Select an LLM profile and a model");
   }
 
-  // Omitted settings are off on create (an explicit opt-in); the UI sends NEW_SIGNAL_SETTINGS.
-  const metadata: SignalMetadata = readSignalSettings({ reportsEnabled, resolvingEnabled, autoResolveEnabled });
+  // Omitted settings take their defaults (reports off, auto-resolve on); the UI sends NEW_SIGNAL_SETTINGS.
+  const metadata: SignalMetadata = readSignalSettings({ reportsEnabled, autoResolveEnabled });
   if (sampleRate != null) metadata.sampleRate = sampleRate;
   // Only persist `disabled` when deactivated; absence means active.
   if (disabled === true) metadata.disabled = true;
@@ -836,7 +835,6 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
     sampleRate,
     disabled,
     reportsEnabled,
-    resolvingEnabled,
     autoResolveEnabled,
     triggers,
     llmProfileId,
@@ -864,7 +862,6 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
     // without `disabled` must not silently re-enable a deactivated signal.
     const metadata: SignalMetadata = writeSignalSettings((existing.metadata ?? {}) as SignalMetadata, {
       reportsEnabled,
-      resolvingEnabled,
       autoResolveEnabled,
     });
     if (sampleRate !== undefined) metadata.sampleRate = sampleRate;

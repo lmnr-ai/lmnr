@@ -34,9 +34,10 @@ export function useClusterDaily(
     router.replace(`${pathName}?${next.toString()}`);
   }, [hasRange, searchParams, pathName, router]);
 
-  const query = new URLSearchParams(
-    pastHours ? { pastHours } : startDate && endDate ? { startDate, endDate } : {}
-  ).toString();
+  const query = new URLSearchParams({
+    ...(pastHours ? { pastHours } : startDate && endDate ? { startDate, endDate } : {}),
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }).toString();
   const { data } = useSWR<{ days: string[]; daily: number[] }>(
     hasRange ? `/api/projects/${projectId}/signals/${signalId}/clusters/${clusterId}/daily?${query}` : null,
     swrFetcher,

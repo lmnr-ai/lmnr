@@ -19,11 +19,6 @@ const REPORTS = {
 const SETTINGS = [
   ...(LAMINAR_AGENT_AVAILABLE ? [REPORTS] : []),
   {
-    name: "resolvingEnabled",
-    label: "Allow clusters to be resolved",
-    description: "Mark clusters resolved once they're fixed, and reopen them.",
-  },
-  {
     name: "autoResolveEnabled",
     label: "Automatically resolve clusters",
     description: `Resolve a cluster once it has had no new events for ${AUTO_RESOLVE_DAYS} days.`,
@@ -33,7 +28,6 @@ const SETTINGS = [
 /** Per-signal switches for what clusters of this signal can do. */
 export default function ReportsSection() {
   const { control } = useFormContext<ManageSignalForm>();
-  const resolving = useWatch({ control, name: "resolvingEnabled" });
   const isExisting = Boolean(useWatch({ control, name: "id" }));
   // Auto-resolve is an advanced setting, offered only once the signal exists.
   const settings = isExisting ? SETTINGS : SETTINGS.filter((s) => s.name !== "autoResolveEnabled");
@@ -50,13 +44,7 @@ export default function ReportsSection() {
             </Label>
             <p className="text-xs text-muted-foreground">{s.description}</p>
           </div>
-          <Switch
-            id={`signal-${s.name}`}
-            checked={field.value ?? false}
-            onCheckedChange={field.onChange}
-            // Auto-resolving needs resolving; the stored value is kept so turning resolving back on restores it.
-            disabled={s.name === "autoResolveEnabled" && !resolving}
-          />
+          <Switch id={`signal-${s.name}`} checked={field.value ?? false} onCheckedChange={field.onChange} />
         </div>
       )}
     />
