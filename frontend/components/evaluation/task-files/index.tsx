@@ -3,12 +3,10 @@
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { type EvaluationFiles } from "@/lib/actions/evaluation/files";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
-import FileTree from "./file-tree";
-import FileViewer from "./file-viewer";
+import FileBrowser from "./file-browser";
 import Message from "./message";
 import { buildFileTree, DEFAULT_FILE, type FileNode, flattenFiles } from "./utils";
 
@@ -17,6 +15,8 @@ interface TaskFilesProps {
   evaluationId: string;
   /** The trial's task dir in the uploaded evals folder; null when it wasn't uploaded. */
   taskPath: string | null;
+  /** Shown above the tree; the dir's last segment when the trial has none. */
+  taskName: string | null;
 }
 
 /**
@@ -24,7 +24,7 @@ interface TaskFilesProps {
  * tree on the left, the open file on the right. Mount with `key={taskPath}` so
  * switching tasks reopens the default file.
  */
-export default function TaskFiles({ projectId, evaluationId, taskPath }: TaskFilesProps) {
+export default function TaskFiles({ projectId, evaluationId, taskPath, taskName }: TaskFilesProps) {
   const base = `/api/projects/${projectId}/evaluations/${evaluationId}/files`;
   // One listing per evaluation, shared by every trial's task; an uploaded folder never changes.
   const { data, error, isLoading } = useSWR<EvaluationFiles>(base, swrFetcher, {
@@ -50,24 +50,14 @@ export default function TaskFiles({ projectId, evaluationId, taskPath }: TaskFil
   if (!open) return <Message>{`No files found in ${taskPath}`}</Message>;
 
   return (
-    <ResizablePanelGroup id="evaluation-task-files" orientation="horizontal">
-      <ResizablePanel id="evaluation-task-files-tree" defaultSize={30} minSize={15} className="min-w-0">
-        <div className="h-full overflow-auto">
-          <div className="truncate border-b px-3 py-1.5 font-mono text-xs text-muted-foreground" title={taskPath}>
-            {taskPath}
-          </div>
-          <FileTree nodes={tree} selectedPath={open.path} onSelect={setSelected} />
-        </div>
-      </ResizablePanel>
-      <ResizableHandle />
-      <ResizablePanel id="evaluation-task-files-viewer" defaultSize={70} minSize={30} className="min-w-0">
-        <FileViewer
-          key={open.path}
-          url={`${base}/content?path=${encodeURIComponent(`${taskPath}/${open.path}`)}`}
-          path={open.path}
-          size={open.size}
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+    <FileBrowser
+      id="evaluation-task-files"
+      title={taskName ?? taskPath.split("/").pop() ?? taskPath}
+      hint={taskPath}
+      nodes={tree}
+      open={open}
+      onSelect={setSelected}
+      contentUrl={(path) => `${base}/content?path=${encodeURIComponent(`${taskPath}/${path}`)}`}
+    />
   );
 }
