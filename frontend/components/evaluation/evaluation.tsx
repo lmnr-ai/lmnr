@@ -27,7 +27,8 @@ import {
 } from "@/components/evaluation/store";
 import TaskFiles from "@/components/evaluation/task-files";
 import PanelToggle, { PANELS } from "@/components/evaluation/task-files/panel-toggle";
-import { taskPathOf } from "@/components/evaluation/task-files/utils";
+import { taskPathOf, trialNameOf } from "@/components/evaluation/task-files/utils";
+import TrialLog from "@/components/evaluation/trial-log";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
   type EvaluationStatsPayload,
@@ -267,11 +268,12 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // shared links carried traceId without trialId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
-  // Remote-run evaluations can show each trial's task folder instead of its trace.
+  // Remote-run evaluations can show each trial's task folder or its Harbor output instead of its trace.
   const isHosted = !isShared && !!evaluations.find((e) => e.id === evaluationId)?.hostedMetadata;
   const [panel, setPanel] = useQueryState("panel", parseAsStringLiteral(PANELS).withDefault("trace"));
-  const showFiles = isHosted && panel === "files";
+  const shownPanel = isHosted ? panel : "trace";
   const taskPath = taskPathOf(selectedRow);
+  const trialName = trialNameOf(selectedRow);
 
   const handleRowClick = useCallback(
     (row: Row<EvalRow>) => {
@@ -393,18 +395,25 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                   {isHosted && <PanelToggle value={panel} onChange={setPanel} />}
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                  {showFiles
-                    ? // Wait for the trial: before it loads there's no task path, which isn't "not uploaded".
-                      selectedRow && (
-                        <TaskFiles
-                          key={taskPath ?? "none"}
-                          projectId={params.projectId}
-                          evaluationId={evaluationId}
-                          taskPath={taskPath}
-                        />
-                      )
-                    : /* No onClose ⇒ always-open: the trace header shows no close button. */
-                      traceId && <TraceView key={traceId} traceId={traceId} urlState />}
+                  {/* Task and Log wait for the trial: before it loads there's no task path or trial name, which isn't "not uploaded". */}
+                  {shownPanel === "task" && selectedRow && (
+                    <TaskFiles
+                      key={taskPath ?? "none"}
+                      projectId={params.projectId}
+                      evaluationId={evaluationId}
+                      taskPath={taskPath}
+                    />
+                  )}
+                  {shownPanel === "log" && selectedRow && (
+                    <TrialLog
+                      key={trialName ?? "none"}
+                      projectId={params.projectId}
+                      evaluationId={evaluationId}
+                      trialName={trialName}
+                    />
+                  )}
+                  {/* No onClose ⇒ always-open: the trace header shows no close button. */}
+                  {shownPanel === "trace" && traceId && <TraceView key={traceId} traceId={traceId} urlState />}
                 </div>
               </div>
             }

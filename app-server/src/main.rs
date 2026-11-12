@@ -1993,6 +1993,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::hosted_evals::create_upload)
                                     .service(api::v1::hosted_evals::download_upload)
                                     .service(api::v1::hosted_evals::upload_index)
+                                    .service(api::v1::hosted_evals::upload_job)
+                                    .service(api::v1::hosted_evals::upload_job_index)
                                     .service(api::v1::hosted_evals::start_run)
                                     .service(api::v1::signals::create_signal)
                                     .service(api::v1::signals::list_signals)

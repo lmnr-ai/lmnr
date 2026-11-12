@@ -34,6 +34,7 @@ use crate::{
 
 // Streamed bodies aren't covered by the global HTTP payload limit, so each gets its own.
 const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_JOB_ARCHIVE_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_INDEX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_LAYER_BYTES: u64 = 8 * 1024 * 1024 * 1024;
@@ -51,6 +52,11 @@ enum BodyError {
 #[derive(Deserialize)]
 pub struct FilePath {
     path: String,
+}
+
+#[derive(Deserialize)]
+pub struct JobSuite {
+    suite: String,
 }
 
 // ---- Images (layers and images also under /v1/cli) ----
@@ -461,6 +467,78 @@ pub async fn upload_index(
     .await
 }
 
+/// Body: one suite's Harbor job output (`.tar.gz` of its trial dirs, packed like
+/// the run's archive), sent by the run's orchestrator once the suite ends.
+#[put("/hosted-evals/uploads/{upload_id}/jobs")]
+pub async fn upload_job(
+    path: web::Path<Uuid>,
+    query: web::Query<JobSuite>,
+    payload: web::Payload,
+    project_api_key: ProjectApiKey,
+    hosted: HostedEvalsData,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    let Some(bucket) = uploads_bucket(&hosted) else {
+        return Ok(not_enabled());
+    };
+    if !hosted_evals::is_suite_name(&query.suite) {
+        return Ok(invalid_suite());
+    }
+    let project_id = project_api_key.project_id;
+    // Only a run's own upload gets job output.
+    match storage
+        .exists(&bucket, &hosted_evals::archive_key(&project_id, &path))
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            return Ok(HttpResponse::NotFound().json(json!({ "error": "Upload not found" })));
+        }
+        Err(e) => return Ok(upstream_error("archive check", e)),
+    }
+
+    let key = hosted_evals::job_archive_key(&project_id, &path, &query.suite);
+    let (tx, rx) = mpsc::channel(4);
+    let (received, stored) = futures_util::join!(
+        forward_payload(payload, tx, MAX_JOB_ARCHIVE_BYTES),
+        storage.upload_stream(&bucket, &key, rx)
+    );
+    if let Err(e) = received {
+        return Ok(body_error_response(e));
+    }
+    Ok(match stored {
+        Ok(_) => HttpResponse::NoContent().finish(),
+        Err(e) => upstream_error("job upload", e),
+    })
+}
+
+/// Body: the index of the suite's job archive (JSON, `hosted_evals::ArchiveIndex`).
+#[put("/hosted-evals/uploads/{upload_id}/jobs/index")]
+pub async fn upload_job_index(
+    path: web::Path<Uuid>,
+    query: web::Query<JobSuite>,
+    payload: web::Payload,
+    project_api_key: ProjectApiKey,
+    hosted: HostedEvalsData,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    let Some(bucket) = uploads_bucket(&hosted) else {
+        return Ok(not_enabled());
+    };
+    if !hosted_evals::is_suite_name(&query.suite) {
+        return Ok(invalid_suite());
+    }
+    let project_id = project_api_key.project_id;
+    store_index(
+        &storage,
+        &bucket,
+        &hosted_evals::job_archive_key(&project_id, &path, &query.suite),
+        &hosted_evals::job_index_key(&project_id, &path, &query.suite),
+        payload,
+    )
+    .await
+}
+
 #[post("/hosted-evals/runs")]
 pub async fn start_run(
     req: HttpRequest,
@@ -522,6 +600,25 @@ pub async fn handle_upload_index(
     let Some(bucket) = uploads_bucket(hosted) else {
         return Ok(not_enabled());
     };
+    store_index(
+        storage,
+        &bucket,
+        &hosted_evals::archive_key(&project_id, upload_id),
+        &hosted_evals::index_key(&project_id, upload_id),
+        payload,
+    )
+    .await
+}
+
+/// Stores an archive's index next to it, after checking it parses and that the
+/// archive exists.
+async fn store_index(
+    storage: &Storage,
+    bucket: &str,
+    archive_key: &str,
+    index_key: &str,
+    payload: web::Payload,
+) -> ResponseResult {
     let body = match collect_payload(payload, MAX_INDEX_BYTES).await {
         Ok(body) => body,
         Err(e) => return Ok(body_error_response(e)),
@@ -531,10 +628,7 @@ pub async fn handle_upload_index(
             "error": format!("Invalid archive index: {e}")
         })));
     }
-    match storage
-        .exists(&bucket, &hosted_evals::archive_key(&project_id, upload_id))
-        .await
-    {
+    match storage.exists(bucket, archive_key).await {
         Ok(true) => {}
         Ok(false) => {
             return Ok(HttpResponse::NotFound().json(json!({ "error": "Upload not found" })));
@@ -545,8 +639,7 @@ pub async fn handle_upload_index(
     let (tx, rx) = mpsc::channel(1);
     let _ = tx.send(Ok(body)).await;
     drop(tx);
-    let key = hosted_evals::index_key(&project_id, upload_id);
-    Ok(match storage.upload_stream(&bucket, &key, rx).await {
+    Ok(match storage.upload_stream(bucket, index_key, rx).await {
         Ok(_) => HttpResponse::NoContent().finish(),
         Err(e) => upstream_error("index upload", e),
     })
@@ -736,6 +829,12 @@ fn invalid_digests() -> HttpResponse {
 fn invalid_image() -> HttpResponse {
     HttpResponse::BadRequest().json(json!({
         "error": "image must be a sha256 manifest digest"
+    }))
+}
+
+fn invalid_suite() -> HttpResponse {
+    HttpResponse::BadRequest().json(json!({
+        "error": "suite must be a suite directory name"
     }))
 }
 

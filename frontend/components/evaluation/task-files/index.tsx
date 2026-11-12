@@ -3,12 +3,10 @@
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { type EvaluationFiles } from "@/lib/actions/evaluation/files";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
-import FileTree from "./file-tree";
-import FileViewer from "./file-viewer";
+import FileBrowser from "./file-browser";
 import Message from "./message";
 import { buildFileTree, DEFAULT_FILE, type FileNode, flattenFiles } from "./utils";
 
@@ -50,24 +48,13 @@ export default function TaskFiles({ projectId, evaluationId, taskPath }: TaskFil
   if (!open) return <Message>{`No files found in ${taskPath}`}</Message>;
 
   return (
-    <ResizablePanelGroup id="evaluation-task-files" orientation="horizontal">
-      <ResizablePanel id="evaluation-task-files-tree" defaultSize={30} minSize={15} className="min-w-0">
-        <div className="h-full overflow-auto">
-          <div className="truncate border-b px-3 py-1.5 font-mono text-xs text-muted-foreground" title={taskPath}>
-            {taskPath}
-          </div>
-          <FileTree nodes={tree} selectedPath={open.path} onSelect={setSelected} />
-        </div>
-      </ResizablePanel>
-      <ResizableHandle />
-      <ResizablePanel id="evaluation-task-files-viewer" defaultSize={70} minSize={30} className="min-w-0">
-        <FileViewer
-          key={open.path}
-          url={`${base}/content?path=${encodeURIComponent(`${taskPath}/${open.path}`)}`}
-          path={open.path}
-          size={open.size}
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+    <FileBrowser
+      id="evaluation-task-files"
+      title={taskPath}
+      nodes={tree}
+      open={open}
+      onSelect={setSelected}
+      contentUrl={(path) => `${base}/content?path=${encodeURIComponent(`${taskPath}/${path}`)}`}
+    />
   );
 }
