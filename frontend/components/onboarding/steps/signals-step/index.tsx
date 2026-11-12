@@ -4,6 +4,7 @@ import { Controller, useFormContext } from "react-hook-form";
 
 import StepShell from "@/components/onboarding/step-shell";
 import { ONBOARDING_SIGNALS } from "@/components/onboarding/steps/signals-step/constants";
+import CustomSignalCard from "@/components/onboarding/steps/signals-step/custom-signal-card";
 import PipelineDiagram from "@/components/onboarding/steps/signals-step/pipeline-diagram";
 import SignalCard from "@/components/onboarding/steps/signals-step/signal-card";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
@@ -78,6 +79,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance, onBack }
                   onToggle={() => toggle(signal.name)}
                 />
               ))}
+              <CustomSignalCard />
             </div>
           );
         }}
