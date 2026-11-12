@@ -1,4 +1,5 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { isEqual } from "lodash";
 import { z } from "zod/v4";
 
 import { ApiError, NotFoundError } from "@/lib/api/errors";
@@ -25,55 +26,54 @@ export const AgentRuleSchema = z.object({
   substrings: z.array(z.string()).min(1),
 });
 
-/** Appends the rule unless the definition already has it. */
+/** Adds the rule unless the definition already has it. */
 export async function addAgentRule(input: z.infer<typeof AgentRuleSchema>): Promise<AgentDefinition> {
   const { projectId, agentId, substrings } = AgentRuleSchema.parse(input);
   const rule = substrings.map(normalize).filter(Boolean);
   if (rule.length === 0) throw new ApiError("A rule needs at least one non-empty phrase", 400);
 
-  const ruleJson = JSON.stringify(rule);
-  const anyOf = sql`COALESCE(${agents.definition} -> 'any_of', '[]'::jsonb)`;
-  const [row] = await db
-    .update(agents)
-    .set({
-      definition: sql`jsonb_set(COALESCE(${agents.definition}, '{}'::jsonb), '{any_of}', ${anyOf} || CASE
-        WHEN ${ruleJson}::jsonb IN (SELECT jsonb_array_elements(${anyOf})) THEN '[]'::jsonb
-        ELSE jsonb_build_array(${ruleJson}::jsonb)
-      END)`,
-    })
-    .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
-    .returning({ definition: agents.definition });
-
-  if (!row) throw new NotFoundError("Agent not found");
-  await invalidateDefinitions(projectId);
-  return AgentDefinitionSchema.parse(row.definition);
+  return updateRules(projectId, agentId, (rules) =>
+    rules.some((existing) => isEqual(existing, rule)) ? rules : [...rules, rule]
+  );
 }
 
 /** Removes the rule as stored; the last rule is kept, since an agent without rules matches nothing. */
 export async function removeAgentRule(input: z.infer<typeof AgentRuleSchema>): Promise<AgentDefinition> {
   const { projectId, agentId, substrings } = AgentRuleSchema.parse(input);
 
-  const ruleJson = JSON.stringify(substrings);
-  const others = sql`jsonb_array_elements(${agents.definition} -> 'any_of') WITH ORDINALITY AS e(rule, i)
-    WHERE e.rule <> ${ruleJson}::jsonb`;
-  const [row] = await db
-    .update(agents)
-    .set({
-      definition: sql`jsonb_set(${agents.definition}, '{any_of}', (SELECT jsonb_agg(e.rule ORDER BY e.i) FROM ${others}))`,
-    })
-    .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId), sql`EXISTS (SELECT 1 FROM ${others})`))
-    .returning({ definition: agents.definition });
+  return updateRules(projectId, agentId, (rules) => {
+    const remaining = rules.filter((existing) => !isEqual(existing, substrings));
+    if (remaining.length === 0) throw new ApiError("At least one rule should exist per agent.", 400);
+    return remaining;
+  });
+}
 
-  if (!row) {
-    const [agent] = await db
-      .select({ id: agents.id })
+/** Applies `change` to the rules as stored now. The row stays locked until the write, so a
+ * concurrent edit (another user, or detection adding rules) is never overwritten. */
+async function updateRules(
+  projectId: string,
+  agentId: string,
+  change: (rules: string[][]) => string[][]
+): Promise<AgentDefinition> {
+  const definition = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ definition: agents.definition })
       .from(agents)
+      .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
+      .for("update");
+    if (!row) throw new NotFoundError("Agent not found");
+
+    const current = row.definition === null ? [] : AgentDefinitionSchema.parse(row.definition).any_of;
+    const next: AgentDefinition = { any_of: change(current) };
+    await tx
+      .update(agents)
+      .set({ definition: next })
       .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)));
-    if (!agent) throw new NotFoundError("Agent not found");
-    throw new ApiError("At least one rule should exist per agent.", 400);
-  }
+    return next;
+  });
+
   await invalidateDefinitions(projectId);
-  return AgentDefinitionSchema.parse(row.definition);
+  return definition;
 }
 
 /** Ingest caches definitions per project; the 5-minute TTL covers a failed removal. */

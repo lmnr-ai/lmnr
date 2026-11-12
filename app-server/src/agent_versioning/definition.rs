@@ -59,6 +59,18 @@ impl Definition {
                 .all(|substring| opening.contains(substring.as_str()))
         })
     }
+
+    /// This definition with `other`'s alternatives added, so everything it
+    /// matched still matches.
+    pub fn extended(&self, other: &Definition) -> Definition {
+        let mut any_of = self.any_of.clone();
+        for all_of in &other.any_of {
+            if !any_of.contains(all_of) {
+                any_of.push(all_of.clone());
+            }
+        }
+        Definition { any_of }
+    }
 }
 
 fn normalized(any_of: Vec<Vec<String>>) -> Vec<Vec<String>> {
@@ -153,5 +165,16 @@ mod tests {
         assert_eq!(Definition::new(vec![vec![" ".to_string()], vec![]]), None);
         let check = Definition::new(vec![vec!["  A\n b ".to_string(), String::new()]]).unwrap();
         assert_eq!(check.any_of, vec![vec!["a b".to_string()]]);
+    }
+
+    #[test]
+    fn extending_keeps_old_alternatives_and_skips_duplicates() {
+        let old = definition(&[&["research analyst"]]);
+        let extended = old.extended(&definition(&[&["research analyst"], &["market analyst"]]));
+        assert_eq!(
+            extended,
+            definition(&[&["research analyst"], &["market analyst"]])
+        );
+        assert!(matches(&extended, "You are a Research Analyst."));
     }
 }

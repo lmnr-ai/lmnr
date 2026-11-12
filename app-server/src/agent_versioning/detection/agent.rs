@@ -54,8 +54,9 @@ pub struct LatestPrompt {
     pub time: i64,
 }
 
-/// An accepted change. `Extend` carries only the added alternatives, appended
-/// on save so rules users edit meanwhile are kept.
+/// An accepted change. `Extend` carries only the added alternatives, merged
+/// into the definition as stored when saved, so rules users edit meanwhile are
+/// kept.
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Change {
