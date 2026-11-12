@@ -22,11 +22,11 @@ interface Props {
 
 /** Summary, frequency, the newest report, then the cluster's activity, in one scroll. */
 export default function ReportPage({ projectId, signalId, cluster, days, color, onOpenTrace }: Props) {
-  const inWindow = cluster.daily.reduce((a, b) => a + b, 0);
   const { reports, latest, isLoading, writing, generate } = useClusterReports(projectId, signalId, cluster.id);
   const shown = reports.find((r) => r.status === "done" && r.content) ?? null;
   const failed = latest?.status === "failed" && latest !== shown;
   const chart = useClusterDaily(projectId, signalId, cluster.id, { days, daily: cluster.daily });
+  const inRange = chart.daily.reduce((a, b) => a + b, 0);
 
   return (
     <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block">
@@ -35,7 +35,7 @@ export default function ReportPage({ projectId, signalId, cluster, days, color, 
           <h1 className="text-2xl font-semibold">{cluster.name}</h1>
           <p className="flex flex-wrap items-center gap-x-2.5 text-sm text-muted-foreground">
             <span>
-              {inWindow.toLocaleString()} {inWindow === 1 ? "event" : "events"} in the last 30 days
+              {inRange.toLocaleString()} {inRange === 1 ? "event" : "events"} in the selected range
             </span>
             <span aria-hidden>·</span>
             <span>First seen {dayLabel(cluster.firstSeen)}</span>

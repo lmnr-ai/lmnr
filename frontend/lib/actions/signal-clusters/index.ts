@@ -410,12 +410,14 @@ export async function getClusterDaily(
   const { projectId, signalId, clusterId } = await resolveClusterScope(scopeInput);
 
   const end = endDate ? new Date(endDate) : new Date();
+  const utcDay = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  // A rolling window counts whole days ending today (720h is 30 bars, like the list), so it starts at midnight.
   const start = startDate
     ? new Date(startDate)
-    : new Date(end.getTime() - (pastHours ?? CLUSTER_WINDOW_DAYS * 24) * 3_600_000);
+    : new Date(utcDay(end) - (Math.ceil((pastHours ?? CLUSTER_WINDOW_DAYS * 24) / 24) - 1) * 86_400_000);
   if (start >= end) throw new ApiError("startDate must be before endDate", 400);
 
-  const firstDay = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const firstDay = utcDay(start);
   const count = Math.min(MAX_RANGE_DAYS, Math.floor((end.getTime() - firstDay) / 86_400_000) + 1);
   const days = Array.from({ length: count }, (_, i) => new Date(firstDay + i * 86_400_000).toISOString().slice(0, 10));
 
