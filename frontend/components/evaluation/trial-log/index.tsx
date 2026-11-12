@@ -17,6 +17,8 @@ interface TrialLogProps {
   evaluationId: string;
   /** Harbor's trial name: the trial's dir in its suite's job. */
   trialName: string | null;
+  /** Shown above the tree; the trial name when the trial has none. */
+  taskName: string | null;
 }
 
 /**
@@ -24,7 +26,7 @@ interface TrialLogProps {
  * ended. The open file is `?logFile=`, so it stays open across trials that
  * have it (and in links); other trials open their best default.
  */
-export default function TrialLog({ projectId, evaluationId, trialName }: TrialLogProps) {
+export default function TrialLog({ projectId, evaluationId, trialName, taskName }: TrialLogProps) {
   const base = `/api/projects/${projectId}/evaluations/${evaluationId}/logs`;
   const trialQuery = trialName ? `trial=${encodeURIComponent(trialName)}` : null;
   const { data, error, isLoading } = useSWR<TrialLogFiles>(trialQuery && `${base}?${trialQuery}`, swrFetcher, {
@@ -44,7 +46,8 @@ export default function TrialLog({ projectId, evaluationId, trialName }: TrialLo
   return (
     <FileBrowser
       id="evaluation-trial-log"
-      title={trialName}
+      title={taskName ?? trialName}
+      hint={trialName}
       nodes={tree}
       open={open}
       onSelect={(node) => setLogFile(node.path)}

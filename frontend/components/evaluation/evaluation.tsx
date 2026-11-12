@@ -27,7 +27,7 @@ import {
 } from "@/components/evaluation/store";
 import TaskFiles from "@/components/evaluation/task-files";
 import PanelToggle, { PANELS } from "@/components/evaluation/task-files/panel-toggle";
-import { taskPathOf, trialNameOf } from "@/components/evaluation/task-files/utils";
+import { taskNameOf, taskPathOf, trialNameOf } from "@/components/evaluation/task-files/utils";
 import TrialLog from "@/components/evaluation/trial-log";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
@@ -274,6 +274,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   const shownPanel = isHosted ? panel : "trace";
   const taskPath = taskPathOf(selectedRow);
   const trialName = trialNameOf(selectedRow);
+  const taskName = taskNameOf(selectedRow);
 
   const handleRowClick = useCallback(
     (row: Row<EvalRow>) => {
@@ -402,6 +403,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                       projectId={params.projectId}
                       evaluationId={evaluationId}
                       taskPath={taskPath}
+                      taskName={taskName}
                     />
                   )}
                   {shownPanel === "log" && selectedRow && (
@@ -410,6 +412,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                       projectId={params.projectId}
                       evaluationId={evaluationId}
                       trialName={trialName}
+                      taskName={taskName}
                     />
                   )}
                   {/* No onClose ⇒ always-open: the trace header shows no close button. */}

@@ -15,6 +15,8 @@ interface TaskFilesProps {
   evaluationId: string;
   /** The trial's task dir in the uploaded evals folder; null when it wasn't uploaded. */
   taskPath: string | null;
+  /** Shown above the tree; the dir's last segment when the trial has none. */
+  taskName: string | null;
 }
 
 /**
@@ -22,7 +24,7 @@ interface TaskFilesProps {
  * tree on the left, the open file on the right. Mount with `key={taskPath}` so
  * switching tasks reopens the default file.
  */
-export default function TaskFiles({ projectId, evaluationId, taskPath }: TaskFilesProps) {
+export default function TaskFiles({ projectId, evaluationId, taskPath, taskName }: TaskFilesProps) {
   const base = `/api/projects/${projectId}/evaluations/${evaluationId}/files`;
   // One listing per evaluation, shared by every trial's task; an uploaded folder never changes.
   const { data, error, isLoading } = useSWR<EvaluationFiles>(base, swrFetcher, {
@@ -50,7 +52,8 @@ export default function TaskFiles({ projectId, evaluationId, taskPath }: TaskFil
   return (
     <FileBrowser
       id="evaluation-task-files"
-      title={taskPath}
+      title={taskName ?? taskPath.split("/").pop() ?? taskPath}
+      hint={taskPath}
       nodes={tree}
       open={open}
       onSelect={setSelected}

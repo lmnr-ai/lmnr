@@ -7,8 +7,10 @@ import { type FileNode } from "./utils";
 interface FileBrowserProps {
   /** Prefix for the resizable panels' ids. */
   id: string;
-  /** Shown above the tree: the folder's name. */
+  /** Shown above the tree: the trial's task. */
   title: string;
+  /** Where the folder is, on hover (its path in the archive). */
+  hint: string;
   nodes: FileNode[];
   open: FileNode;
   onSelect: (node: FileNode) => void;
@@ -17,12 +19,12 @@ interface FileBrowserProps {
 }
 
 /** A folder from a remote run's archive: file tree on the left, the open file on the right. */
-export default function FileBrowser({ id, title, nodes, open, onSelect, contentUrl }: FileBrowserProps) {
+export default function FileBrowser({ id, title, hint, nodes, open, onSelect, contentUrl }: FileBrowserProps) {
   return (
     <ResizablePanelGroup id={id} orientation="horizontal">
       <ResizablePanel id={`${id}-tree`} defaultSize={30} minSize={15} className="min-w-0">
         <div className="h-full overflow-auto">
-          <div className="truncate border-b px-3 py-1.5 font-mono text-xs text-muted-foreground" title={title}>
+          <div className="truncate border-b px-3 py-1.5 font-mono text-xs text-muted-foreground" title={hint}>
             {title}
           </div>
           <FileTree nodes={nodes} selectedPath={open.path} onSelect={onSelect} />
