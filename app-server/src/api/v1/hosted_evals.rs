@@ -666,6 +666,8 @@ pub async fn append_run_logs(
 /// `ORCHESTRATOR_COMMAND` once lmnr-cli exits. Body (may be empty): the tail of
 /// the orchestrator's own output when lmnr-cli never got to send any, e.g. a
 /// failed download or npm install. Lines are numbered after the run's last one.
+/// A run that already has its exit code is left as is: curl's `--retry` resends
+/// this after a timeout or 5xx even when the first request was stored.
 #[post("/hosted-evals/runs/{upload_id}/logs/end")]
 pub async fn end_run_logs(
     path: web::Path<Uuid>,
@@ -684,7 +686,8 @@ pub async fn end_run_logs(
     };
     let project_id = project_api_key.project_id;
     let next = match evaluation_logs::next_seq(&clickhouse, &project_id, &path).await {
-        Ok(next) => next,
+        Ok(Some(next)) => next,
+        Ok(None) => return Ok(HttpResponse::NoContent().finish()),
         Err(e) => return Ok(upstream_error("log read", e)),
     };
     let time = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);

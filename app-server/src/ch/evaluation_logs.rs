@@ -41,23 +41,24 @@ pub async fn insert_evaluation_logs(
     Ok(())
 }
 
-/// The run's next free `seq` (0 for a run with no rows yet).
+/// The run's next free `seq` (0 for a run with no rows yet), or `None` once
+/// the run's log has its exit-code row.
 pub async fn next_seq(
     clickhouse: &clickhouse::Client,
     project_id: &Uuid,
     upload_id: &Uuid,
-) -> Result<u64> {
-    let next = clickhouse
+) -> Result<Option<u64>> {
+    let (next, ended) = clickhouse
         .query(
-            "SELECT if(count() = 0, 0, max(seq) + 1)
+            "SELECT if(count() = 0, 0, max(seq) + 1), toUInt8(countIf(exit_code IS NOT NULL) > 0)
              FROM evaluation_logs
              WHERE project_id = {project_id:UUID} AND upload_id = {upload_id:UUID}",
         )
         .param("project_id", project_id)
         .param("upload_id", upload_id)
-        .fetch_one::<u64>()
+        .fetch_one::<(u64, u8)>()
         .await?;
-    Ok(next)
+    Ok((ended == 0).then_some(next))
 }
 
 /// Up to `limit` rows from `from` on, in `seq` order. A retried batch can leave
