@@ -98,7 +98,7 @@ function DownloadButtonMultipleFormats({
             className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 outline-hidden"
             onClick={async () => {
               setIsDownloading(true);
-              await downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);
+              await downloadFile(uri + `/${format}`, filenameFallback + `.${format}`, format);
               setIsDownloading(false);
             }}
           >
