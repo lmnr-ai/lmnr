@@ -2,8 +2,8 @@ import { z } from "zod/v4";
 
 import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { EvalFilterSchema, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
-import { getSharedEvaluationTrials } from "@/lib/actions/shared/evaluation";
+import { EvalFilterSchema } from "@/lib/actions/evaluation/query-builder";
+import { getSharedEvaluationTrials, parseColumnIds } from "@/lib/actions/shared/evaluation";
 import { apiHandler } from "@/lib/api/api-handler";
 import { NotFoundError } from "@/lib/api/errors";
 
@@ -28,7 +28,6 @@ const SharedEvaluationTrialsSchema = z.object({
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
   columns: z.string().optional(),
-  sortSql: z.string().optional(),
 });
 
 export const GET = apiHandler<{ evaluationId: string }>(async (req, ctx) => {
@@ -37,26 +36,7 @@ export const GET = apiHandler<{ evaluationId: string }>(async (req, ctx) => {
   const parseResult = parseUrlParams(req.nextUrl.searchParams, SharedEvaluationTrialsSchema);
   if (!parseResult.success) throw parseResult.error;
 
-  const {
-    pageNumber,
-    pageSize,
-    filter,
-    search,
-    searchIn,
-    sortBy,
-    sortSql,
-    sortDirection,
-    columns: columnsJson,
-  } = parseResult.data;
-
-  let columns: EvalQueryColumn[] = [];
-  if (columnsJson) {
-    try {
-      columns = JSON.parse(columnsJson);
-    } catch {
-      columns = [];
-    }
-  }
+  const { pageNumber, pageSize, filter, search, searchIn, sortBy, sortDirection, columns } = parseResult.data;
 
   const result = await getSharedEvaluationTrials({
     evaluationId,
@@ -66,9 +46,8 @@ export const GET = apiHandler<{ evaluationId: string }>(async (req, ctx) => {
     search,
     searchIn,
     sortBy,
-    sortSql,
     sortDirection,
-    columns,
+    columnIds: parseColumnIds(columns),
   });
 
   if (!result) throw new NotFoundError("Evaluation not found or not public");
