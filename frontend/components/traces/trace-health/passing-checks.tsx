@@ -14,8 +14,12 @@ export default function PassingChecks({ items }: PassingChecksProps) {
   if (items.length === 0) return null;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border">
-      <CollapsibleTrigger className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:overlay-hover">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-md border hover:overlay-hover has-[>button:focus-visible]:ring-1 has-[>button:focus-visible]:ring-ring"
+    >
+      <CollapsibleTrigger className="flex w-full items-start gap-3 px-3 py-2.5 text-left outline-none">
         <CircleCheck className="mt-0.5 size-4 shrink-0 text-success-text" />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-sm font-medium">
@@ -28,7 +32,7 @@ export default function PassingChecks({ items }: PassingChecksProps) {
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-        <div className="flex flex-col gap-2.5 px-3 pb-3 pl-10">
+        <div className="flex cursor-pointer flex-col gap-2.5 px-3 pb-3 pl-10" onClick={() => setOpen(false)}>
           {items.map(({ check, result }) => (
             <div key={check.id} className="flex items-center justify-between gap-3 text-xs">
               <span className="text-secondary-foreground">{check.name}</span>

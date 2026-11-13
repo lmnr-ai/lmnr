@@ -24,8 +24,12 @@ export default function CheckRow({ check, result, onOpenTrace }: CheckRowProps) 
   const sampleTraceId = result.sampleTraceId;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border">
-      <CollapsibleTrigger className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:overlay-hover">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-md border hover:overlay-hover has-[>button:focus-visible]:ring-1 has-[>button:focus-visible]:ring-ring"
+    >
+      <CollapsibleTrigger className="flex w-full items-start gap-3 px-3 py-2.5 text-left outline-none">
         <SeverityIcon severity={TRACE_HEALTH_CATEGORIES[check.category].advisory ? 0 : 2} className="mt-0.5 size-4" />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-sm font-medium">{check.title}</span>
@@ -39,9 +43,10 @@ export default function CheckRow({ check, result, onOpenTrace }: CheckRowProps) 
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-        <div className="flex flex-col gap-3 px-3 pb-3 pl-10">
+        {/* The trigger owns keyboard toggling; this lets the expanded body collapse on click too. */}
+        <div className="flex cursor-pointer flex-col gap-3 px-3 pb-3 pl-10" onClick={() => setOpen(false)}>
           <p className="text-xs text-secondary-foreground">Fix: {check.fix}</p>
-          <div className="flex items-center gap-2">
+          <div className="flex w-fit cursor-default items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <CopyButton
               text={buildFixPrompt([result])}
               iconClassName="size-3.5"

@@ -79,7 +79,7 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     name: "Single root span per trace",
     category: "evals",
     title: "Traces have multiple root spans",
-    impact: "Runs are split into disconnected pieces, so no single trace shows the whole run.",
+    impact: "Runs are split into disconnected pieces.",
     fix: "Propagate the active span context across async boundaries, threads and service calls so child spans attach to their parent.",
     unit: "traces",
   },

@@ -7,18 +7,18 @@ import {
   type TraceHealthCheckResult,
   type TraceHealthResponse,
 } from "@/lib/trace-health/checks";
-
-const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+import {
+  IS_ROOT,
+  LLM_NO_COST,
+  LLM_NO_INPUT,
+  LLM_NO_MODEL,
+  LLM_NO_OUTPUT,
+  LLM_NO_USAGE,
+  NIL_UUID,
+  TOOL_NO_OUTPUT,
+} from "@/lib/trace-health/sql";
 
 export const GetTraceHealthSchema = z.object({ projectId: z.guid() });
-
-// Payloads of 4 chars or fewer are empty in practice: '', 'null', '[]', '{}', '""'.
-const LLM_NO_INPUT = "span_type = 'LLM' AND length(input) <= 4";
-const LLM_NO_OUTPUT = "span_type = 'LLM' AND length(output) <= 4";
-const TOOL_NO_OUTPUT = "span_type = 'TOOL' AND length(output) <= 4";
-const LLM_NO_MODEL = "span_type = 'LLM' AND model = ''";
-const LLM_NO_USAGE = "span_type = 'LLM' AND total_tokens = 0";
-const LLM_NO_COST = "span_type = 'LLM' AND total_tokens > 0 AND total_cost = 0";
 
 const RECENT_TRACES_QUERY = `
   SELECT id, start_time AS startTime, session_id = '' AS noSession
@@ -62,7 +62,7 @@ const SPAN_CHECKS_QUERY = `
       countIf(${LLM_NO_MODEL}) AS n_llm_no_model,
       countIf(${LLM_NO_USAGE}) AS n_llm_no_usage,
       countIf(${LLM_NO_COST}) AS n_llm_no_cost,
-      countIf(parent_span_id = toUUID('${NIL_UUID}')) AS n_roots
+      countIf(${IS_ROOT}) AS n_roots
     FROM spans
     WHERE trace_id IN ({traceIds: Array(UUID)}) AND start_time >= {oldestStart: String}
     GROUP BY trace_id
