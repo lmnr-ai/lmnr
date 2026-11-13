@@ -129,7 +129,10 @@ export const manageWorkspaceSubscriptionEvent = async ({
     const newTierName = normalizeTierName(newTier?.name);
     const newPaidTier = ["hobby", "pro"].includes(newTierName ?? "") ? (newTierName as PaidTier) : undefined;
     const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
-    const currentTierConfig = currentPaidTier ? TIER_CONFIG[currentPaidTier] : undefined;
+    // Same-tier updates (card change, cancel-at-period-end) keep the allowance rows, and with
+    // them last_notified_at, so owners already past an allowance aren't emailed again.
+    const currentTierConfig =
+      currentPaidTier && currentPaidTier !== newPaidTier ? TIER_CONFIG[currentPaidTier] : undefined;
     // Run limit and Hobby-overage-warning cleanup on every tier transition so that
     // cancellations (Hobby → Free) also clear Hobby-specific defaults. Otherwise a
     // later upgrade to Pro would inherit them.
@@ -356,7 +359,7 @@ const insertNewTierUsageWarnings = async ({
   newTierConfig: TierConfigEntry;
   currentTierConfig?: TierConfigEntry;
 }) => {
-  // Each paid tier warns when its included allowances run out; the old tier's allowance rows go.
+  // Each paid tier warns when its included allowances run out; on a tier change the old tier's rows go.
   if (currentTierConfig) {
     await db
       .delete(workspaceUsageWarnings)
