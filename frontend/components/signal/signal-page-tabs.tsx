@@ -6,12 +6,11 @@ import { signalTabSearch } from "@/components/signal/hooks/signal-tab-search";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { track } from "@/lib/posthog";
 
-export type SignalPageTab = "clusters" | "runs" | "settings";
+export type SignalPageTab = "clusters" | "settings";
 
 const TABS: { value: SignalPageTab; label: string }[] = [
   { value: "clusters", label: "Events" },
-  { value: "runs", label: "Runs" },
-  { value: "settings", label: "Settings" },
+  { value: "settings", label: "Overview" },
 ];
 
 interface Props {
@@ -19,7 +18,7 @@ interface Props {
   active: SignalPageTab;
 }
 
-/** Events | Runs | Settings under the breadcrumb. Events (the clusters view) is the default, so it has no `tab` param. */
+/** Events | Overview, atop the page's left column. Events (the clusters view) is the default, so it has no `tab` param. */
 export default function SignalPageTabs({ signalId, active }: Props) {
   const { projectId } = useParams<{ projectId: string }>();
   const searchParams = useSearchParams();
@@ -35,7 +34,7 @@ export default function SignalPageTabs({ signalId, active }: Props) {
   };
 
   return (
-    <Tabs value={active} onValueChange={onChange} className="ml-5 flex-none">
+    <Tabs value={active} onValueChange={onChange} className="flex-none">
       <TabsList size="sm">
         {TABS.map((t) => (
           <TabsTrigger key={t.value} value={t.value}>

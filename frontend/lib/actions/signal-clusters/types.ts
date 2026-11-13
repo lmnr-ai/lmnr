@@ -5,10 +5,15 @@ export const CLUSTER_WINDOW_DAYS = 30;
 
 export interface ClusterResolution {
   resolvedAt: string;
-  /** Name of the user who resolved it; null when they were removed. */
+  /** Name of the user who resolved it; null when automatic or the user was removed. */
   resolvedBy: string | null;
+  /** Resolved by the auto-resolve job after `AUTO_RESOLVE_DAYS` without events, not by a user. */
+  resolvedAutomatically: boolean;
   reopenedAt: string | null;
+  /** Name of the user who reopened it; null when automatic or the user was removed. */
   reopenedBy: string | null;
+  /** Reopened by app-server when new events arrived (`clustering/private/reopen.rs`), not by a user. */
+  reopenedAutomatically: boolean;
 }
 
 /** A signal's L1 cluster with its state for the current user. */
@@ -21,6 +26,8 @@ export interface SignalCluster {
   total: number;
   /** All-time distinct traces with an event in this cluster. */
   traces: number;
+  /** Mean severity of its events, rounded: 0 Info, 1 Warning, 2 Critical. */
+  severity: number;
   firstSeen: string;
   lastSeen: string;
   /** When clustering created the cluster. */
@@ -76,3 +83,9 @@ export interface ClusterReport {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * Events in 24h bars; `start` is the first bar's start, so a timestamp's bar is `floor((t - start) / 24h)`.
+ * `toNow` when the range ends at "now" (`pastHours`): later timestamps belong on the last bar.
+ */
+export type ClusterDaily = { days: string[]; daily: number[]; start: string; toNow: boolean };

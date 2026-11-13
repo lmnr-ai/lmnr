@@ -31,7 +31,6 @@ export default function ClusterDetail({
   onOpenTrace,
 }: Props) {
   const [tab] = useClusterTab();
-  const resolvable = useSignalStoreContext((state) => state.signal.resolvingEnabled);
   // Without reports there is nothing for a Report tab to hold, so the cluster opens straight to its events.
   const reportsEnabled = useSignalStoreContext((state) => state.signal.reportsEnabled);
   const resolvedAt = openResolutionAt(cluster.resolutions);
@@ -42,20 +41,22 @@ export default function ClusterDetail({
       <div className="flex h-12 flex-none items-center justify-between gap-2 px-4">
         {reportsEnabled ? <ClusterTabs /> : <span />}
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => onSetArchived(!cluster.archived)} className="gap-1.5">
+          <Button
+            variant="ghost"
+            onClick={() => onSetArchived(!cluster.archived)}
+            className="gap-1.5 bg-emphasis-2 hover:overlay-hover active:overlay-selected"
+          >
             {cluster.archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
             {cluster.archived ? "Unarchive" : "Archive"}
           </Button>
-          {resolvable && (
-            <Button
-              variant={resolvedAt ? "outline" : "default"}
-              onClick={() => onSetResolved(!resolvedAt)}
-              className="gap-1.5"
-            >
-              {resolvedAt ? <RotateCcw className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
-              {resolvedAt ? "Reopen" : "Resolve"}
-            </Button>
-          )}
+          <Button
+            variant={resolvedAt ? "outline" : "default"}
+            onClick={() => onSetResolved(!resolvedAt)}
+            className="gap-1.5"
+          >
+            {resolvedAt ? <RotateCcw className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
+            {resolvedAt ? "Reopen" : "Resolve"}
+          </Button>
         </div>
       </div>
       {reportsEnabled && tab === "report" ? (

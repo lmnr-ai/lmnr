@@ -36,7 +36,7 @@ export default function ReportMarkdown({ children, onOpenTrace }: Props) {
   }, [onOpenTrace]);
 
   return (
-    <div className="text-sm [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold">
+    <div className="text-sm [&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_td_[data-slot=span-chip]]:max-w-56">
       <Response isAnimating={false} controls={{ table: false }} components={components}>
         {children}
       </Response>

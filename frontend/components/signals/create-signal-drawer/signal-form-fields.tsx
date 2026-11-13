@@ -1,12 +1,11 @@
 "use client";
 
-import { Info, Loader2 } from "lucide-react";
+import { Info } from "lucide-react";
 import { useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import templates from "@/components/signals/prompts";
 import { getDefaultSchemaFields, jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -16,9 +15,8 @@ import { track } from "@/lib/posthog";
 import { NEW_SIGNAL_SETTINGS, readSignalSettings, type SignalSettings } from "@/lib/signals/settings";
 import { cn, tryParseJson } from "@/lib/utils";
 
-import LlmProfileSection from "./llm-profile-section";
-import ReportsSection from "./reports-section";
-import SamplingSection from "./sampling-section";
+import AdditionalSettingsSection from "./additional-settings-section";
+import SaveBar from "./save-bar";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
 import TriggersSection from "./triggers-section";
@@ -84,17 +82,11 @@ export default function SignalFormFields({
             return (
               <div
                 className={cn(
-                  "flex items-center justify-between gap-4 rounded-lg border p-4 transition-colors",
+                  "flex items-center justify-between gap-4 rounded-lg border px-5 py-4 transition-colors",
                   isActive ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40"
                 )}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={cn(
-                      "inline-flex size-2.5 shrink-0 rounded-full",
-                      isActive ? "bg-primary" : "bg-muted-foreground/40"
-                    )}
-                  />
                   <div className="flex flex-col gap-0.5 min-w-0">
                     <Label htmlFor="signal-enabled" className="text-sm font-medium cursor-pointer">
                       {isActive ? "Active" : "Inactive"}
@@ -131,7 +123,6 @@ export default function SignalFormFields({
         {errors.name && <p className="text-xs text-destructive-text">{errors.name.message}</p>}
       </div>
       {showTemplates && <TemplatePicker onApply={applyTemplate} onClear={clearToBlank} />}
-      <LlmProfileSection />
       <div className="grid gap-1.5">
         <TooltipProvider delayDuration={200}>
           <div className="flex items-center gap-1.5">
@@ -154,7 +145,7 @@ export default function SignalFormFields({
           control={control}
           render={({ field }) => (
             <Textarea
-              className="min-h-24 max-h-48 text-sm"
+              className="min-h-24 max-h-48 text-sm scrollbar-thin"
               id="prompt"
               placeholder="Analyze this trace for failures, errors, or things that went wrong..."
               rows={6}
@@ -167,17 +158,11 @@ export default function SignalFormFields({
       </div>
       <SchemaFieldsBuilder />
       <TriggersSection />
-      <SamplingSection />
-      <ReportsSection />
+      <AdditionalSettingsSection />
       {/*  Temporarily hide test section */}
       {/*<TestSection />*/}
 
-      {variant === "panel" && !showTemplates && (
-        <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
-          <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
-          Save
-        </Button>
-      )}
+      {variant === "panel" && !showTemplates && <SaveBar isDirty={isDirty} isValid={isValid} isLoading={isLoading} />}
     </div>
   );
 }

@@ -47,7 +47,8 @@ Investigate first:
 Then answer with ONLY the report, in Markdown, with exactly these four sections and nothing before or after:
 
 ## Overview
-At most 4 sentences describing the problem.
+At most 4 sentences describing the problem. When the problem is a sequence of steps, write it as a numbered list instead, one step per item.
+Leave out event counts and dates: the page already shows them, and they go stale as new events join the cluster.
 
 ## Consequences
 At most 2 sentences on how it affects users and what it breaks downstream.
@@ -102,7 +103,11 @@ async function writeReport(scope: ClusterScope, sessionId: string) {
  * is being written, when the signal has reports off, when the cluster is archived, or when it already has a report.
  * A failed or stale run is retried.
  */
-export async function startClusterReport(input: ClusterScopeInput): Promise<{ started: boolean }> {
+/** `regenerate` starts a new report even when one is written, as when new events reopen a resolved cluster. */
+export async function startClusterReport(
+  input: ClusterScopeInput,
+  { regenerate = false }: { regenerate?: boolean } = {}
+): Promise<{ started: boolean }> {
   const scope = await resolveClusterScope(input);
   const { projectId, signalId, clusterId } = scope;
   // New clusters request reports unconditionally, so the signal's setting and archiving are enforced here.
@@ -138,7 +143,7 @@ export async function startClusterReport(input: ClusterScopeInput): Promise<{ st
         .where(eq(signalClusterReports.id, latest.id));
       return true;
     }
-    if (latest) return false;
+    if (latest && !(regenerate && latest.status === "done")) return false;
     await tx.insert(signalClusterReports).values({ clusterId, projectId, signalId, status: "pending", sessionId });
     return true;
   });
