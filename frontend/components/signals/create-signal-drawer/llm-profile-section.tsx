@@ -104,7 +104,7 @@ function LlmProfileFields() {
             control={control}
             name="llmProfileId"
             rules={{ validate: (v) => isExisting || !!v || "Select an LLM profile" }}
-            render={({ field }) => {
+            render={({ field, fieldState }) => {
               // Radix Select ignores picking the current value, so clearing is handled on the item itself.
               const clearProfile = () => {
                 field.onChange(null);
@@ -145,6 +145,7 @@ function LlmProfileFields() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldState.error && <p className="mt-1 text-xs text-destructive-text">{fieldState.error.message}</p>}
                 </div>
               );
             }}
@@ -153,7 +154,7 @@ function LlmProfileFields() {
             control={control}
             name="llmModel"
             rules={{ validate: (v) => (isExisting && !getValues("llmProfileId")) || !!v || "Select a model" }}
-            render={({ field }) => (
+            render={({ field, fieldState }) => (
               <div className="min-w-0">
                 <Select value={field.value ?? ""} disabled={!selectedProfile} onValueChange={field.onChange}>
                   <SelectTrigger className="h-8 text-sm">
@@ -167,6 +168,7 @@ function LlmProfileFields() {
                     ))}
                   </SelectContent>
                 </Select>
+                {fieldState.error && <p className="mt-1 text-xs text-destructive-text">{fieldState.error.message}</p>}
               </div>
             )}
           />

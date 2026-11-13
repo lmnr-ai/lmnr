@@ -77,6 +77,9 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
     />
   );
 
+  // Rendering now would show Settings for a frame before the redirect above lands on Runs.
+  if (isLegacyRunsTab) return null;
+
   if (!showOverview) {
     return (
       <>
