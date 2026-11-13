@@ -390,7 +390,22 @@ mod tests {
             severity_counts: [1, 0, 2],
             activity_buckets: vec![],
             example_events: vec![],
+            reopened: false,
+            report: None,
         }
+    }
+
+    #[test]
+    fn reopened_cluster_digest_header() {
+        let mut kind = new_cluster_kind("Bad args", 3);
+        if let NotificationKind::NewCluster { reopened, .. } = &mut kind {
+            *reopened = true;
+        }
+        let v = format_new_cluster_blocks(&[&kind]);
+        assert_eq!(
+            blocks_of(&v)[0]["text"]["text"],
+            "`Failure Detector`: New Events in a Resolved Cluster"
+        );
     }
 
     #[test]
