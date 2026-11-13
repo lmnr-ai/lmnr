@@ -38,7 +38,7 @@ export default function TraceHealthButton() {
               <CheckCheck className="size-4 text-muted-foreground" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Recent traces are all healthy</TooltipContent>
+          <TooltipContent side="right">Recent traces are all healthy</TooltipContent>
         </Tooltip>
       )}
       <TraceHealthDialog open={open} onOpenChange={setOpen} />
