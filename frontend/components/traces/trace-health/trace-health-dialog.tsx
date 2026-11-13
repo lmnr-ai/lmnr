@@ -54,8 +54,8 @@ export default function TraceHealthDialog({ open, onOpenChange }: TraceHealthDia
       <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0">
         <DialogHeader className="px-4 pt-4">
           <div className="flex items-start justify-between gap-3">
-            {/* pt-0.5 centers the title line on the 32px buttons beside it. */}
-            <div className="flex flex-col gap-1 pt-0.5">
+            {/* pt-1 lines the title up with the 32px buttons beside it. */}
+            <div className="flex flex-col gap-1 pt-1">
               <DialogTitle>{fixCount > 0 ? "Tracing issues detected" : "Trace health"}</DialogTitle>
               <DialogDescription className="text-sm text-foreground-200">
                 {data
