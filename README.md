@@ -185,7 +185,9 @@ variable is needed. If the role is absent, the frontend provisions it as before.
 
 To manage the login through Terraform or a database administrator, provision it
 before starting the frontend, with `LOGIN`, `CONNECT` on the target database,
-`statement_timeout` (normally `15s`), and `CONNECTION LIMIT` (normally `10`). The
+`statement_timeout` (normally `15s`), and `CONNECTION LIMIT` (normally `16`; each
+ClickHouse server holds up to 6 for the name dictionaries plus its table reads, so
+raise it when running more than one ClickHouse replica). The
 frontend does not apply `CLICKHOUSE_POSTGRES_STATEMENT_TIMEOUT` or
 `CLICKHOUSE_POSTGRES_CONNECTION_LIMIT` to existing roles. Do not reuse the app's
 login or a role with `SUPERUSER`, `BYPASSRLS`, or `CREATEROLE`. The frontend's
