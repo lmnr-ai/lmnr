@@ -4,7 +4,7 @@ import { TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { DEFAULT_TRACE_HEALTH_RANGE, isBlockingFailure } from "@/lib/trace-health/checks";
+import { isBlockingFailure } from "@/lib/trace-health/checks";
 
 import TraceHealthDialog from "./trace-health-dialog";
 import { useTraceHealth } from "./use-trace-health";
@@ -13,10 +13,10 @@ interface TraceHealthButtonProps {
   onOpenTrace: (traceId: string) => void;
 }
 
-/** Shown next to the traces tabs only when the past day of traces has tracing setup issues. */
+/** Shown next to the traces tabs only when the most recent traces have tracing setup issues. */
 export default function TraceHealthButton({ onOpenTrace }: TraceHealthButtonProps) {
   const [open, setOpen] = useState(false);
-  const { data } = useTraceHealth(DEFAULT_TRACE_HEALTH_RANGE);
+  const { data } = useTraceHealth();
 
   const hasIssues = data?.results.some(isBlockingFailure) ?? false;
   if (!hasIssues && !open) return null;

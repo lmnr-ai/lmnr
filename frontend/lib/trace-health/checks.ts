@@ -131,18 +131,13 @@ export interface TraceHealthCheckResult {
 }
 
 export interface TraceHealthResponse {
+  /** Number of recent traces the checks ran over (at most `TRACE_HEALTH_SAMPLE_SIZE`). */
+  traceCount: number;
   results: TraceHealthCheckResult[];
 }
 
-/** Same shape as the `DateRangeFilter` value: either `pastHours` or an absolute `startDate`/`endDate`. */
-export interface TraceHealthTimeRange {
-  pastHours?: string;
-  startDate?: string;
-  endDate?: string;
-}
-
-/** The button always looks at the past day, independent of the dialog's picker. */
-export const DEFAULT_TRACE_HEALTH_RANGE: TraceHealthTimeRange = { pastHours: "24" };
+/** Checks run over the project's most recent traces. */
+export const TRACE_HEALTH_SAMPLE_SIZE = 100;
 
 export const isBlockingFailure = (result: TraceHealthCheckResult) => {
   const check = TRACE_HEALTH_CHECKS.find((c) => c.id === result.id);

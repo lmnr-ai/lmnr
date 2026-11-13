@@ -1,19 +1,12 @@
 import { Loader2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import RotatingAgentIcon from "@/components/landing/hero/rotating-agent-icon";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  TRACE_HEALTH_CATEGORIES,
-  TRACE_HEALTH_CHECKS,
-  DEFAULT_TRACE_HEALTH_RANGE,
-  type TraceHealthCategory,
-  type TraceHealthTimeRange,
-} from "@/lib/trace-health/checks";
+import { TRACE_HEALTH_CATEGORIES, TRACE_HEALTH_CHECKS, type TraceHealthCategory } from "@/lib/trace-health/checks";
 import { buildFixPrompt } from "@/lib/trace-health/prompt";
 
 import CheckRow from "./check-row";
@@ -27,8 +20,7 @@ interface TraceHealthDialogProps {
 }
 
 export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: TraceHealthDialogProps) {
-  const [range, setRange] = useState<TraceHealthTimeRange>(DEFAULT_TRACE_HEALTH_RANGE);
-  const { data, isLoading, isValidating, error } = useTraceHealth(range, open);
+  const { data, isLoading, error } = useTraceHealth();
 
   const { failing, passing } = useMemo(() => {
     const items = TRACE_HEALTH_CHECKS.flatMap((check) => {
@@ -77,13 +69,11 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
           </div>
         </DialogHeader>
 
-        <div className="flex items-center justify-between gap-3 px-6 pt-4">
-          <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            {data ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found` : "Checking traces…"}
-            {isValidating && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
-          </span>
-          <DateRangeFilter mode="state" value={range} onChange={setRange} className="h-7 text-xs" />
-        </div>
+        <span className="px-6 pt-4 text-sm font-medium text-muted-foreground">
+          {data
+            ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found in the last ${data.traceCount} traces`
+            : "Checking traces…"}
+        </span>
 
         <ScrollArea viewportClassName="scroll-fade-y max-h-[65vh]">
           <div className="flex flex-col gap-5 px-6 pt-4 pb-6">

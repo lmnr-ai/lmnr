@@ -1,8 +1,8 @@
 import { z } from "zod/v4";
 
-import { buildTimeRangeConditions } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import {
+  TRACE_HEALTH_SAMPLE_SIZE,
   type TraceHealthCheckId,
   type TraceHealthCheckResult,
   type TraceHealthResponse,
@@ -10,14 +10,7 @@ import {
 
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
-export const GetTraceHealthSchema = z
-  .object({
-    projectId: z.guid(),
-    pastHours: z.string().regex(/^\d+$/).optional(),
-    startDate: z.iso.datetime().optional(),
-    endDate: z.iso.datetime().optional(),
-  })
-  .refine((r) => r.pastHours || r.startDate, { error: "A time range is required." });
+export const GetTraceHealthSchema = z.object({ projectId: z.guid() });
 
 // Payloads of 4 chars or fewer are empty in practice: '', 'null', '[]', '{}', '""'.
 const LLM_NO_INPUT = "span_type = 'LLM' AND length(input) <= 4";
@@ -27,51 +20,62 @@ const LLM_NO_MODEL = "span_type = 'LLM' AND model = ''";
 const LLM_NO_USAGE = "span_type = 'LLM' AND total_tokens = 0";
 const LLM_NO_COST = "span_type = 'LLM' AND total_tokens > 0 AND total_cost = 0";
 
-const spanChecksQuery = (timeBound: string) => `
-  SELECT
-    countIf(span_type = 'LLM') AS llmSpans,
-    countIf(span_type = 'TOOL') AS toolSpans,
-    countIf(span_type = 'LLM' AND total_tokens > 0) AS llmSpansWithTokens,
-    countIf(${LLM_NO_INPUT}) AS llmNoInput,
-    anyIf(trace_id, ${LLM_NO_INPUT}) AS llmNoInputSample,
-    countIf(${LLM_NO_OUTPUT}) AS llmNoOutput,
-    anyIf(trace_id, ${LLM_NO_OUTPUT}) AS llmNoOutputSample,
-    countIf(${TOOL_NO_OUTPUT}) AS toolNoOutput,
-    anyIf(trace_id, ${TOOL_NO_OUTPUT}) AS toolNoOutputSample,
-    countIf(${LLM_NO_MODEL}) AS llmNoModel,
-    anyIf(trace_id, ${LLM_NO_MODEL}) AS llmNoModelSample,
-    countIf(${LLM_NO_USAGE}) AS llmNoUsage,
-    anyIf(trace_id, ${LLM_NO_USAGE}) AS llmNoUsageSample,
-    countIf(${LLM_NO_COST}) AS llmNoCost,
-    anyIf(trace_id, ${LLM_NO_COST}) AS llmNoCostSample
-  FROM spans
-  WHERE ${timeBound}
+const RECENT_TRACES_QUERY = `
+  SELECT id, start_time AS startTime, session_id = '' AS noSession
+  FROM traces
+  WHERE trace_type = 'DEFAULT'
+  ORDER BY start_time DESC
+  LIMIT ${TRACE_HEALTH_SAMPLE_SIZE}
 `;
 
-// A trace whose context is propagated correctly has exactly one span without a parent.
-const rootSpansQuery = (timeBound: string) => `
+// Per-trace counts first, so the root-span check (a per-trace property) shares the scan with the span checks.
+// A trace's spans never start before the trace, so the oldest trace start bounds the span scan.
+const SPAN_CHECKS_QUERY = `
   SELECT
+    sum(n_llm) AS llmSpans,
+    sum(n_tool) AS toolSpans,
+    sum(n_llm_with_tokens) AS llmSpansWithTokens,
+    sum(n_llm_no_input) AS llmNoInput,
+    anyIf(trace_id, n_llm_no_input > 0) AS llmNoInputSample,
+    sum(n_llm_no_output) AS llmNoOutput,
+    anyIf(trace_id, n_llm_no_output > 0) AS llmNoOutputSample,
+    sum(n_tool_no_output) AS toolNoOutput,
+    anyIf(trace_id, n_tool_no_output > 0) AS toolNoOutputSample,
+    sum(n_llm_no_model) AS llmNoModel,
+    anyIf(trace_id, n_llm_no_model > 0) AS llmNoModelSample,
+    sum(n_llm_no_usage) AS llmNoUsage,
+    anyIf(trace_id, n_llm_no_usage > 0) AS llmNoUsageSample,
+    sum(n_llm_no_cost) AS llmNoCost,
+    anyIf(trace_id, n_llm_no_cost > 0) AS llmNoCostSample,
     count() AS traces,
-    countIf(roots > 1) AS failing,
-    anyIf(trace_id, roots > 1) AS sample
+    countIf(n_roots > 1) AS multiRoot,
+    anyIf(trace_id, n_roots > 1) AS multiRootSample
   FROM (
-    SELECT trace_id, countIf(parent_span_id = toUUID('${NIL_UUID}')) AS roots
+    SELECT
+      trace_id,
+      countIf(span_type = 'LLM') AS n_llm,
+      countIf(span_type = 'TOOL') AS n_tool,
+      countIf(span_type = 'LLM' AND total_tokens > 0) AS n_llm_with_tokens,
+      countIf(${LLM_NO_INPUT}) AS n_llm_no_input,
+      countIf(${LLM_NO_OUTPUT}) AS n_llm_no_output,
+      countIf(${TOOL_NO_OUTPUT}) AS n_tool_no_output,
+      countIf(${LLM_NO_MODEL}) AS n_llm_no_model,
+      countIf(${LLM_NO_USAGE}) AS n_llm_no_usage,
+      countIf(${LLM_NO_COST}) AS n_llm_no_cost,
+      countIf(parent_span_id = toUUID('${NIL_UUID}')) AS n_roots
     FROM spans
-    WHERE ${timeBound}
+    WHERE trace_id IN ({traceIds: Array(UUID)}) AND start_time >= {oldestStart: String}
     GROUP BY trace_id
   )
 `;
 
-const sessionQuery = (timeBound: string) => `
-  SELECT
-    count() AS traces,
-    countIf(session_id = '') AS failing,
-    anyIf(id, session_id = '') AS sample
-  FROM traces
-  WHERE ${timeBound} AND trace_type = 'DEFAULT'
-`;
-
 type Num = number | string;
+
+interface RecentTraceRow {
+  id: string;
+  startTime: string;
+  noSession: Num;
+}
 
 interface SpanChecksRow {
   llmSpans: Num;
@@ -89,12 +93,9 @@ interface SpanChecksRow {
   llmNoUsageSample: string;
   llmNoCost: Num;
   llmNoCostSample: string;
-}
-
-interface TraceCheckRow {
   traces: Num;
-  failing: Num;
-  sample: string;
+  multiRoot: Num;
+  multiRootSample: string;
 }
 
 const result = (id: TraceHealthCheckId, applicable: Num, failing: Num, sample: string): TraceHealthCheckResult => {
@@ -107,25 +108,24 @@ const result = (id: TraceHealthCheckId, applicable: Num, failing: Num, sample: s
   };
 };
 
-/** Runs every trace health check over the project's spans and traces in the given time range. */
+/** Runs every trace health check over the project's most recent traces. */
 export async function getTraceHealth(input: z.infer<typeof GetTraceHealthSchema>): Promise<TraceHealthResponse> {
-  const { projectId, pastHours, startDate, endDate } = GetTraceHealthSchema.parse(input);
-  const { condition, params: parameters } = buildTimeRangeConditions({
-    pastHours,
-    startTime: startDate,
-    endTime: endDate,
+  const { projectId } = GetTraceHealthSchema.parse(input);
+
+  const traces = await executeQuery<RecentTraceRow>({ query: RECENT_TRACES_QUERY, projectId });
+  if (traces.length === 0) return { traceCount: 0, results: [] };
+
+  const noSession = traces.filter((t) => Number(t.noSession) > 0);
+  const results = [result("traces-missing-session", traces.length, noSession.length, noSession[0]?.id ?? "")];
+
+  const [s] = await executeQuery<SpanChecksRow>({
+    query: SPAN_CHECKS_QUERY,
+    parameters: {
+      traceIds: traces.map((t) => t.id),
+      oldestStart: traces.reduce((min, t) => (t.startTime < min ? t.startTime : min), traces[0].startTime),
+    },
+    projectId,
   });
-  const timeBound = condition ?? "1 = 1";
-
-  const [spanRows, rootRows, sessionRows] = await Promise.all([
-    executeQuery<SpanChecksRow>({ query: spanChecksQuery(timeBound), parameters, projectId }),
-    executeQuery<TraceCheckRow>({ query: rootSpansQuery(timeBound), parameters, projectId }),
-    executeQuery<TraceCheckRow>({ query: sessionQuery(timeBound), parameters, projectId }),
-  ]);
-
-  const results: TraceHealthCheckResult[] = [];
-
-  const s = spanRows[0];
   if (s) {
     results.push(
       result("llm-missing-input", s.llmSpans, s.llmNoInput, s.llmNoInputSample),
@@ -133,15 +133,10 @@ export async function getTraceHealth(input: z.infer<typeof GetTraceHealthSchema>
       result("tool-missing-output", s.toolSpans, s.toolNoOutput, s.toolNoOutputSample),
       result("llm-missing-model", s.llmSpans, s.llmNoModel, s.llmNoModelSample),
       result("llm-missing-usage", s.llmSpans, s.llmNoUsage, s.llmNoUsageSample),
-      result("llm-missing-cost", s.llmSpansWithTokens, s.llmNoCost, s.llmNoCostSample)
+      result("llm-missing-cost", s.llmSpansWithTokens, s.llmNoCost, s.llmNoCostSample),
+      result("multiple-root-spans", s.traces, s.multiRoot, s.multiRootSample)
     );
   }
 
-  const r = rootRows[0];
-  if (r) results.push(result("multiple-root-spans", r.traces, r.failing, r.sample));
-
-  const t = sessionRows[0];
-  if (t) results.push(result("traces-missing-session", t.traces, t.failing, t.sample));
-
-  return { results };
+  return { traceCount: traces.length, results };
 }
