@@ -10,7 +10,9 @@ import { TRACE_HEALTH_CATEGORIES, TRACE_HEALTH_CHECKS, type TraceHealthCategory 
 import { buildFixPrompt } from "@/lib/trace-health/prompt";
 
 import CheckRow from "./check-row";
+import HiddenChecks from "./hidden-checks";
 import PassingChecks from "./passing-checks";
+import { useHiddenChecks } from "./use-hidden-checks";
 import { useTraceHealth } from "./use-trace-health";
 
 interface TraceHealthDialogProps {
@@ -21,17 +23,20 @@ interface TraceHealthDialogProps {
 
 export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: TraceHealthDialogProps) {
   const { data, isLoading, error } = useTraceHealth();
+  const { hidden, setHidden } = useHiddenChecks();
 
-  const { failing, passing } = useMemo(() => {
+  const { failing, passing, hiddenItems } = useMemo(() => {
     const items = TRACE_HEALTH_CHECKS.flatMap((check) => {
       const result = data?.results.find((r) => r.id === check.id);
       return result ? [{ check, result }] : [];
     });
+    const visible = items.filter(({ check }) => !hidden.has(check.id));
     return {
-      failing: items.filter(({ result }) => result.failing > 0),
-      passing: items.filter(({ result }) => result.failing === 0),
+      failing: visible.filter(({ result }) => result.failing > 0),
+      passing: visible.filter(({ result }) => result.failing === 0),
+      hiddenItems: items.filter(({ check }) => hidden.has(check.id)),
     };
-  }, [data]);
+  }, [data, hidden]);
 
   const categories = (Object.keys(TRACE_HEALTH_CATEGORIES) as TraceHealthCategory[])
     .map((category) => ({ category, items: failing.filter(({ check }) => check.category === category) }))
@@ -48,7 +53,7 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
       <DialogContent aria-describedby={undefined} className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0">
         <DialogHeader className="px-4 pt-4">
           <div className="flex items-center justify-between gap-3">
-            <DialogTitle>Tracing issues detected</DialogTitle>
+            <DialogTitle>{fixCount > 0 ? "Tracing issues detected" : "Trace health"}</DialogTitle>
             <div className="flex items-center gap-2">
               {failing.length > 0 && (
                 <CopyButton
@@ -89,11 +94,18 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
                   {TRACE_HEALTH_CATEGORIES[category].title}
                 </span>
                 {items.map(({ check, result }) => (
-                  <CheckRow key={check.id} check={check} result={result} onOpenTrace={openTrace} />
+                  <CheckRow
+                    key={check.id}
+                    check={check}
+                    result={result}
+                    onOpenTrace={openTrace}
+                    onHide={() => setHidden(check.id, true)}
+                  />
                 ))}
               </section>
             ))}
             {data && <PassingChecks items={passing} />}
+            {data && <HiddenChecks items={hiddenItems} onUnhide={(check) => setHidden(check.id, false)} />}
           </div>
         </ScrollArea>
       </DialogContent>

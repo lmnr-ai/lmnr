@@ -1,14 +1,18 @@
 export type TraceHealthCategory = "evals" | "cost" | "grouping";
 
-export type TraceHealthCheckId =
-  | "llm-missing-input"
-  | "llm-missing-output"
-  | "tool-missing-output"
-  | "multiple-root-spans"
-  | "llm-missing-model"
-  | "llm-missing-usage"
-  | "llm-missing-cost"
-  | "traces-missing-session";
+/** Stable slugs: they are stored in `projects.settings.hiddenTraceHealthChecks`, so never rename one. */
+export const TRACE_HEALTH_CHECK_IDS = [
+  "llm-missing-input",
+  "llm-missing-output",
+  "tool-missing-output",
+  "multiple-root-spans",
+  "llm-missing-model",
+  "llm-missing-usage",
+  "llm-missing-cost",
+  "traces-missing-session",
+] as const;
+
+export type TraceHealthCheckId = (typeof TRACE_HEALTH_CHECK_IDS)[number];
 
 export interface TraceHealthCheck {
   id: TraceHealthCheckId;

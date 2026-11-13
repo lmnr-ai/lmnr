@@ -32,6 +32,12 @@ const ProjectSettingsSchema = z
     /// map (JSONB `||` shallow-merges top-level keys, so a partial map would
     /// drop the other overrides).
     scoreDirectionOverrides: z.record(z.string(), z.boolean()),
+    /// Trace health check slugs (`lib/trace-health/checks.ts`) hidden for every
+    /// member of the project. Frontend-only. Plain strings rather than an enum
+    /// of current slugs: a slug stored before its check was removed would fail
+    /// the parse and reset every other setting to its default. Write the FULL
+    /// list, for the same `||` reason as `scoreDirectionOverrides`.
+    hiddenTraceHealthChecks: z.array(z.string().max(64)).max(100),
   })
   // `.strict()` rejects unknown keys — a typo in the UI surfaces as 400
   // rather than silently dropping into the JSONB row.
@@ -44,6 +50,7 @@ export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   piiMode: "off",
   scoreDirectionOverrides: {},
+  hiddenTraceHealthChecks: [],
 };
 
 /**

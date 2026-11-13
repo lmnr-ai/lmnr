@@ -1,4 +1,4 @@
-import { ChevronDown, SquareArrowOutUpRight } from "lucide-react";
+import { ChevronDown, EyeOff, SquareArrowOutUpRight } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -16,9 +16,10 @@ interface CheckRowProps {
   check: TraceHealthCheck;
   result: TraceHealthCheckResult;
   onOpenTrace: (traceId: string) => void;
+  onHide: () => void;
 }
 
-export default function CheckRow({ check, result, onOpenTrace }: CheckRowProps) {
+export default function CheckRow({ check, result, onOpenTrace, onHide }: CheckRowProps) {
   const [open, setOpen] = useState(false);
   const { projectId } = useParams<{ projectId: string }>();
   const sampleTraceId = result.sampleTraceId;
@@ -68,6 +69,10 @@ export default function CheckRow({ check, result, onOpenTrace }: CheckRowProps) 
                 <SquareArrowOutUpRight className="ml-1.5 size-3.5" />
               </Button>
             )}
+            <Button variant="ghost" className="text-muted-foreground" onClick={onHide}>
+              <EyeOff className="mr-1.5 size-3.5" />
+              Hide
+            </Button>
           </div>
         </div>
       </CollapsibleContent>
