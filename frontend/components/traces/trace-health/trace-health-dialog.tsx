@@ -78,7 +78,7 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
         </DialogHeader>
 
         <div className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2 text-sm font-medium">
+          <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             {data ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found` : "Checking traces…"}
             {isValidating && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
           </span>
@@ -95,7 +95,9 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
             )}
             {categories.map(({ category, items }) => (
               <section key={category} className="flex flex-col gap-2">
-                <span className="text-sm font-medium">{TRACE_HEALTH_CATEGORIES[category].title}</span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {TRACE_HEALTH_CATEGORIES[category].title}
+                </span>
                 {items.map(({ check, result }) => (
                   <CheckRow key={check.id} check={check} result={result} onOpenTrace={openTrace} />
                 ))}

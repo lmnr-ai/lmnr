@@ -1,9 +1,10 @@
-import { ChevronDown, CircleX, Info, SquareArrowOutUpRight } from "lucide-react";
+import { ChevronDown, SquareArrowOutUpRight } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import RotatingAgentIcon from "@/components/landing/hero/rotating-agent-icon";
+import { SeverityIcon } from "@/components/notifications/notification-panel/severity-icon";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -25,11 +26,7 @@ export default function CheckRow({ check, result, onOpenTrace }: CheckRowProps) 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border">
       <CollapsibleTrigger className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:overlay-hover">
-        {TRACE_HEALTH_CATEGORIES[check.category].advisory ? (
-          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <CircleX className="mt-0.5 size-4 shrink-0 text-destructive-text" />
-        )}
+        <SeverityIcon severity={TRACE_HEALTH_CATEGORIES[check.category].advisory ? 0 : 2} className="mt-0.5 size-4" />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-sm font-medium">{check.title}</span>
           <span className="text-xs text-muted-foreground">{check.impact}</span>
