@@ -430,8 +430,12 @@ export async function getClusterDaily(input: z.input<typeof ClusterDailySchema>)
 
   const now = Date.now();
   const end = endDate ? new Date(endDate).getTime() : now;
-  const start = startDate ? new Date(startDate).getTime() : end - (pastHours ?? CLUSTER_WINDOW_DAYS * 24) * 3_600_000;
-  if (start > end) throw new ApiError("startDate must not be after endDate", 400);
+  const requested = startDate
+    ? new Date(startDate).getTime()
+    : end - (pastHours ?? CLUSTER_WINDOW_DAYS * 24) * 3_600_000;
+  if (requested > end) throw new ApiError("startDate must not be after endDate", 400);
+  // An overlong range keeps its most recent days, so a rolling window still ends at now.
+  const start = Math.max(requested, end - MAX_RANGE_DAYS * DAY_MS);
 
   // The picker's single-day range has start = end at midnight: read it as that whole day.
   const count = Math.min(MAX_RANGE_DAYS, Math.max(1, Math.ceil((end - start) / DAY_MS)));
