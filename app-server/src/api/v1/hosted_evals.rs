@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::{
     audit,
     cache::Cache,
-    ch::evaluation_logs::{self, CHEvaluationLog},
+    ch::evaluation_logs::{self, CHEvaluationLog, LogState},
     db::{DB, project_api_keys::ProjectApiKey},
     env,
     features::{Feature, is_feature_enabled},
@@ -644,14 +644,16 @@ pub async fn append_run_logs(
         })));
     }
     let rows: Vec<CHEvaluationLog> = lines
-        .into_iter()
-        .map(|line| CHEvaluationLog {
-            project_id: project_api_key.project_id,
-            upload_id: *path,
-            seq: line.seq,
-            time: line.time.saturating_mul(1_000_000),
-            text: log_text(&line.text),
-            exit_code: None,
+        .iter()
+        .map(|line| {
+            log_row(
+                project_api_key.project_id,
+                *path,
+                line.seq,
+                line.time.saturating_mul(1_000_000),
+                &line.text,
+                None,
+            )
         })
         .collect();
     Ok(
@@ -685,28 +687,26 @@ pub async fn end_run_logs(
         Err(e) => return Ok(body_error_response(e)),
     };
     let project_id = project_api_key.project_id;
-    let next = match evaluation_logs::next_seq(&clickhouse, &project_id, &path).await {
-        Ok(Some(next)) => next,
-        Ok(None) => return Ok(HttpResponse::NoContent().finish()),
+    let mut seq = match evaluation_logs::log_state(&clickhouse, &project_id, &path).await {
+        Ok(LogState::Open { next_seq }) => next_seq,
+        // A curl retry of a request that was stored.
+        Ok(LogState::Ended) => return Ok(HttpResponse::NoContent().finish()),
         Err(e) => return Ok(upstream_error("log read", e)),
     };
     let time = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
-    let row = |seq: u64, text: String, exit_code: Option<i32>| CHEvaluationLog {
+    let mut rows = Vec::new();
+    for line in String::from_utf8_lossy(&body).lines() {
+        rows.push(log_row(project_id, *path, seq, time, line, None));
+        seq += 1;
+    }
+    rows.push(log_row(
         project_id,
-        upload_id: *path,
+        *path,
         seq,
         time,
-        text,
-        exit_code,
-    };
-    let text = String::from_utf8_lossy(&body);
-    let mut rows: Vec<CHEvaluationLog> = text
-        .lines()
-        .zip(next..)
-        .map(|(line, seq)| row(seq, log_text(line), None))
-        .collect();
-    let exit_seq = next + rows.len() as u64;
-    rows.push(row(exit_seq, String::new(), Some(query.exit_code)));
+        "",
+        Some(query.exit_code),
+    ));
     Ok(
         match evaluation_logs::insert_evaluation_logs(&clickhouse, &rows).await {
             Ok(()) => HttpResponse::NoContent().finish(),
@@ -1045,6 +1045,26 @@ fn invalid_image() -> HttpResponse {
     HttpResponse::BadRequest().json(json!({
         "error": "image must be a sha256 manifest digest"
     }))
+}
+
+/// A row of a run's log. `time` is in nanoseconds; `exit_code` is set on the
+/// run's last row only.
+fn log_row(
+    project_id: Uuid,
+    upload_id: Uuid,
+    seq: u64,
+    time: i64,
+    text: &str,
+    exit_code: Option<i32>,
+) -> CHEvaluationLog {
+    CHEvaluationLog {
+        project_id,
+        upload_id,
+        seq,
+        time,
+        text: log_text(text),
+        exit_code,
+    }
 }
 
 /// A stored log line: control characters stripped (so ANSI colors too), cut at
