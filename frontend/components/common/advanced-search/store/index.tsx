@@ -16,7 +16,7 @@ import { persist } from "zustand/middleware";
 
 import { dataTypeOperationsMap, toFilterDataType } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
+import { Operator, valueForOperator } from "@/lib/actions/common/operators";
 import { track } from "@/lib/posthog";
 
 import {
@@ -214,7 +214,13 @@ function createCoreSlice(
 
     updateTagOperator: (tagId, operator) =>
       set((state) => ({
-        tags: state.tags.map((t) => (t.id === tagId ? { ...t, operator } : t)),
+        tags: state.tags.map((t) =>
+          t.id === tagId && !Array.isArray(t.value)
+            ? { ...t, operator, value: valueForOperator(operator, t.operator, t.value) }
+            : t.id === tagId
+              ? { ...t, operator }
+              : t
+        ),
       })),
 
     updateTagValue: (tagId, value) =>

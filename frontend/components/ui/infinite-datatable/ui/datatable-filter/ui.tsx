@@ -6,6 +6,7 @@ import {
   BOOLEAN_OPERATIONS,
   type ColumnFilter,
   dataTypeOperationsMap,
+  getColumnOperations,
   JSON_OPERATIONS,
   NUMBER_OPERATIONS,
   STRING_OPERATIONS,
@@ -15,7 +16,7 @@ import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
+import { EMPTINESS_OPTIONS, Operator, valueForOperator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils.ts";
 
 interface FilterUIProps {
@@ -96,10 +97,15 @@ const FilterPopover = ({
           [field]: value,
         }));
       } else {
-        setFilter((prev) => ({
-          ...prev,
-          [field]: value,
-        }));
+        setFilter((prev) =>
+          field === "operator"
+            ? {
+                ...prev,
+                operator: value as Operator,
+                value: valueForOperator(value as Operator, prev.operator, prev.value),
+              }
+            : { ...prev, [field]: value }
+        );
       }
     },
     [columns]
@@ -219,7 +225,7 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {dataTypeOperationsMap[dataType].map(({ key, label }) => (
+          {getColumnOperations(column, dataType).map(({ key, label }) => (
             <SelectItem key={key} value={key}>
               {label}
             </SelectItem>
@@ -227,8 +233,28 @@ const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => 
         </SelectContent>
       </Select>
     ),
-    [dataType, filter.operator, onValueChange]
+    [column, dataType, filter.operator, onValueChange]
   );
+
+  if (filter.operator === Operator.Is) {
+    return (
+      <>
+        {renderOperatorSelect()}
+        <Select value={filter.value} onValueChange={(value) => onValueChange({ field: "value", value })}>
+          <SelectTrigger className="font-medium flex-1">
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {EMPTINESS_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </>
+    );
+  }
 
   switch (column?.dataType) {
     case "json":
