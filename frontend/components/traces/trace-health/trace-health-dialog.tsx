@@ -76,7 +76,7 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
         </span>
 
         <ScrollArea viewportClassName="scroll-fade-y max-h-[65vh]">
-          <div className="flex flex-col gap-5 px-4 pt-3 pb-4">
+          <div className="flex flex-col gap-4.5 px-4 pt-3 pb-4">
             {error && !data && <p className="text-sm text-destructive-text">Failed to run trace health checks.</p>}
             {isLoading && !data && (
               <div className="flex justify-center py-8">
