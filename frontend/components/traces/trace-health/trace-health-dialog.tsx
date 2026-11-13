@@ -85,7 +85,7 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
           <DateRangeFilter mode="state" value={range} onChange={setRange} className="h-7 text-xs" />
         </div>
 
-        <ScrollArea className="-mr-3 min-h-0 flex-1" viewportClassName="scroll-fade-y">
+        <ScrollArea className="-mr-3" viewportClassName="scroll-fade-y max-h-[65vh]">
           <div className="flex flex-col gap-5 py-2 pr-3">
             {error && !data && <p className="text-sm text-destructive-text">Failed to run trace health checks.</p>}
             {isLoading && !data && (
