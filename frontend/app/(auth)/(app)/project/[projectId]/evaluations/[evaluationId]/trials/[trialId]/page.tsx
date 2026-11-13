@@ -38,6 +38,7 @@ export default async function EvaluationTrialPage(props: {
 
   return (
     <EvaluationTrial
+      key={trialId}
       evaluation={evaluation as EvaluationType}
       groupEvaluations={groupEvaluations as EvaluationType[]}
       trial={trial}

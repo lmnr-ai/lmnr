@@ -24,6 +24,7 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
+import { runTableParams } from "@/components/evaluation/trial/run-table-params";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
   type EvaluationStatsPayload,
@@ -249,12 +250,17 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     if (isTaskGroupRow(row.original)) row.toggleExpanded();
   }, []);
 
+  const tableQuery = useMemo(() => {
+    const qs = runTableParams(searchParams).toString();
+    return qs ? `?${qs}` : "";
+  }, [searchParams]);
+
   const getRowHref = useCallback(
     (row: Row<EvalRow>) =>
       isTaskGroupRow(row.original)
         ? undefined
-        : `/project/${params.projectId}/evaluations/${evaluationId}/trials/${row.original["id"]}`,
-    [params.projectId, evaluationId]
+        : `/project/${params.projectId}/evaluations/${evaluationId}/trials/${row.original["id"]}${tableQuery}`,
+    [params.projectId, evaluationId, tableQuery]
   );
 
   const handleSort = useCallback(
