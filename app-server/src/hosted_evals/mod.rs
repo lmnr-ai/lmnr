@@ -35,21 +35,8 @@ use sandboxes::CreateError;
 /// Name prefix of the per-run project API keys. The frontend hides keys with it
 /// from the project's key list (`frontend/lib/actions/project-api-keys`).
 pub const RUN_KEY_NAME_PREFIX: &str = "lmnr-internal-evals-";
-// Downloads the archive with the run key, runs the CLI, then deletes the
-// sandbox through the app-server however the run ended. The archive stays: the
-// run's evaluations show its files. Runs under `sh`, with stderr folded into
-// stdout so the provider's command log has everything. The Laminar Harbor
-// plugin records suite and task paths relative to `LMNR_EVALS_ROOT`.
-const ORCHESTRATOR_COMMAND: &str = concat!(
-    r#"exec 2>&1; export LMNR_EVALS_ROOT="$HOME/evals"; "#,
-    r#"mkdir -p "$LMNR_EVALS_ROOT" && cd "$LMNR_EVALS_ROOT" && "#,
-    r#"curl -fsS -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID" -o /tmp/evals.tar.gz && "#,
-    r#"tar -xzf /tmp/evals.tar.gz && rm /tmp/evals.tar.gz && "#,
-    r#"npx -y --package="$LMNR_CLI_PACKAGE" lmnr-cli eval orchestrate; "#,
-    r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/sandboxes/$LMNR_SANDBOX_ID""#,
-);
+/// Runs in the orchestrator sandbox; what it does is commented in the file.
+const ORCHESTRATOR_SCRIPT: &str = include_str!("orchestrator.sh");
 
 /// The sandbox provider and the registry trial images are pushed to. `None`
 /// (hosted evals disabled) unless `DAYTONA_API_KEY` is set.
@@ -245,7 +232,7 @@ async fn launch_orchestrator(
     let started = async {
         sandboxes::wait_until_started(provider, &sandbox.id).await?;
         let command = format!(
-            "export LMNR_SANDBOX_ID={}; {ORCHESTRATOR_COMMAND}",
+            "export LMNR_SANDBOX_ID={}\n{ORCHESTRATOR_SCRIPT}",
             shell_quote(&sandbox.id)
         );
         provider.start_command(&sandbox, &command).await
@@ -287,6 +274,19 @@ mod tests {
         let long = "a".repeat(256);
         for bad in ["", ".", "..", "a/b", "a\\b", "a\nb", long.as_str()] {
             assert!(!is_suite_name(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn orchestrator_script_parses_as_posix_sh() {
+        for shell in ["sh", "dash"] {
+            let Ok(status) = std::process::Command::new(shell)
+                .args(["-n", "-c", ORCHESTRATOR_SCRIPT])
+                .status()
+            else {
+                continue;
+            };
+            assert!(status.success(), "{shell} -n rejects orchestrator.sh");
         }
     }
 

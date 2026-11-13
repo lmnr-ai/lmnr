@@ -11,7 +11,7 @@ use actix_web::{
 use anyhow::anyhow;
 use bytes::{Bytes, BytesMut};
 use futures_util::{Stream, StreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::mpsc::{self, Sender};
 use uuid::Uuid;
@@ -19,6 +19,7 @@ use uuid::Uuid;
 use crate::{
     audit,
     cache::Cache,
+    ch::evaluation_logs::{self, CHEvaluationLog, LogState},
     db::{DB, project_api_keys::ProjectApiKey},
     env,
     features::{Feature, is_feature_enabled},
@@ -30,6 +31,7 @@ use crate::{
     },
     routes::types::ResponseResult,
     storage::{Storage, StorageTrait},
+    utils::sanitize_string,
 };
 
 // Streamed bodies aren't covered by the global HTTP payload limit, so each gets its own.
@@ -39,6 +41,12 @@ const MAX_INDEX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_LAYER_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_LAYERS: usize = 256;
+/// Per `POST /runs/{id}/logs` batch, and per page of `GET /runs/{id}/logs`.
+const MAX_LOG_LINES: usize = 1000;
+/// Longer lines are cut: one runaway line shouldn't cost a page of the log.
+const MAX_LOG_LINE_CHARS: usize = 16 * 1024;
+/// The orchestrator's own output when lmnr-cli never ran (`hosted_evals/orchestrator.sh`).
+const MAX_LOG_TAIL_BYTES: u64 = 1024 * 1024;
 
 pub type HostedEvalsData = web::Data<Option<HostedEvals>>;
 
@@ -57,6 +65,50 @@ pub struct FilePath {
 #[derive(Deserialize)]
 pub struct JobSuite {
     suite: String,
+}
+
+/// One line of a run's output, numbered by the orchestrator (its only writer).
+#[derive(Deserialize)]
+pub struct RunLogLine {
+    seq: u64,
+    /// Milliseconds since the epoch.
+    time: i64,
+    text: String,
+}
+
+#[derive(Deserialize)]
+pub struct RunLogBatch {
+    lines: Vec<RunLogLine>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunEnd {
+    exit_code: i32,
+}
+
+#[derive(Deserialize)]
+pub struct LogsFrom {
+    #[serde(default)]
+    pub from: u64,
+}
+
+#[derive(Serialize)]
+struct RunLogLineOut {
+    seq: u64,
+    /// Milliseconds since the epoch.
+    time: i64,
+    text: String,
+}
+
+/// A page of a run's log: lines from `from` on, `next` to ask for after them, and
+/// the orchestrator's exit code once its last row is in the page.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunLogPage {
+    lines: Vec<RunLogLineOut>,
+    next: u64,
+    exit_code: Option<i32>,
 }
 
 // ---- Images (layers and images also under /v1/cli) ----
@@ -265,11 +317,22 @@ pub async fn get_sandbox(
     hosted: HostedEvalsData,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
+    handle_get_sandbox(&project_api_key.project_id, &path, &hosted, &cache).await
+}
+
+/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) routes;
+/// the CLI polls its run's orchestrator with it while following the run's log.
+pub async fn handle_get_sandbox(
+    project_id: &Uuid,
+    sandbox_id: &str,
+    hosted: &HostedEvalsData,
+    cache: &Cache,
+) -> ResponseResult {
     Ok(with_sandbox(
-        &hosted,
-        &cache,
-        &project_api_key,
-        &path,
+        hosted,
+        cache,
+        project_id,
+        sandbox_id,
         async |provider, sandbox| {
             Ok(HttpResponse::Ok().json(sandboxes::status(provider, &sandbox).await?))
         },
@@ -288,7 +351,7 @@ pub async fn delete_sandbox(
     Ok(with_sandbox(
         &hosted,
         &cache,
-        &project_api_key,
+        &project_api_key.project_id,
         &path,
         async |provider, sandbox| {
             sandboxes::delete(provider, &cache, &project_id, &sandbox.id).await?;
@@ -314,7 +377,7 @@ pub async fn start_command(
     Ok(with_sandbox(
         &hosted,
         &cache,
-        &project_api_key,
+        &project_api_key.project_id,
         &path,
         async |provider, sandbox| {
             let command_id = provider.start_command(&sandbox, &req.command).await?;
@@ -336,7 +399,7 @@ pub async fn get_command(
     Ok(with_sandbox(
         &hosted,
         &cache,
-        &project_api_key,
+        &project_api_key.project_id,
         &sandbox_id,
         async |provider, sandbox| {
             Ok(
@@ -366,7 +429,7 @@ pub async fn upload_file(
     Ok(with_sandbox(
         &hosted,
         &cache,
-        &project_api_key,
+        &project_api_key.project_id,
         &path,
         async move |provider, sandbox| {
             let content = match collect_payload(payload, MAX_FILE_BYTES).await {
@@ -394,7 +457,7 @@ pub async fn download_file(
     Ok(with_sandbox(
         &hosted,
         &cache,
-        &project_api_key,
+        &project_api_key.project_id,
         &path,
         async |provider, sandbox| {
             Ok(match provider.download_file(&sandbox, &query.path).await? {
@@ -561,6 +624,158 @@ pub async fn start_run(
     .await
 }
 
+/// Body: `{lines: [{seq, time, text}]}`, the orchestrator's next lines (run key).
+/// Sent one batch at a time, so a batch is readable before the next is written.
+#[post("/hosted-evals/runs/{upload_id}/logs")]
+pub async fn append_run_logs(
+    path: web::Path<Uuid>,
+    body: Json<RunLogBatch>,
+    project_api_key: ProjectApiKey,
+    hosted: HostedEvalsData,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
+    if hosted.get_ref().is_none() {
+        return Ok(not_enabled());
+    }
+    let RunLogBatch { lines } = body.into_inner();
+    if lines.len() > MAX_LOG_LINES {
+        return Ok(HttpResponse::BadRequest().json(json!({
+            "error": format!("At most {MAX_LOG_LINES} lines per batch")
+        })));
+    }
+    let rows: Vec<CHEvaluationLog> = lines
+        .iter()
+        .map(|line| {
+            log_row(
+                project_api_key.project_id,
+                *path,
+                line.seq,
+                line.time.saturating_mul(1_000_000),
+                &line.text,
+                None,
+            )
+        })
+        .collect();
+    Ok(
+        match evaluation_logs::insert_evaluation_logs(&clickhouse, &rows).await {
+            Ok(()) => HttpResponse::NoContent().finish(),
+            Err(e) => upstream_error("log write", e),
+        },
+    )
+}
+
+/// Ends a run's log with the orchestrator's exit code (`?exitCode=`), sent by
+/// `hosted_evals/orchestrator.sh` once lmnr-cli exits. Body (may be empty): the tail of
+/// the orchestrator's own output when lmnr-cli never got to send any, e.g. a
+/// failed download or npm install. Lines are numbered after the run's last one.
+/// A run that already has its exit code is left as is: curl's `--retry` resends
+/// this after a timeout or 5xx even when the first request was stored.
+#[post("/hosted-evals/runs/{upload_id}/logs/end")]
+pub async fn end_run_logs(
+    path: web::Path<Uuid>,
+    query: web::Query<RunEnd>,
+    payload: web::Payload,
+    project_api_key: ProjectApiKey,
+    hosted: HostedEvalsData,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
+    if hosted.get_ref().is_none() {
+        return Ok(not_enabled());
+    }
+    let body = match collect_payload(payload, MAX_LOG_TAIL_BYTES).await {
+        Ok(body) => body,
+        Err(e) => return Ok(body_error_response(e)),
+    };
+    let project_id = project_api_key.project_id;
+    let mut seq = match evaluation_logs::log_state(&clickhouse, &project_id, &path).await {
+        Ok(LogState::Open { next_seq }) => next_seq,
+        // A curl retry of a request that was stored.
+        Ok(LogState::Ended) => return Ok(HttpResponse::NoContent().finish()),
+        Err(e) => return Ok(upstream_error("log read", e)),
+    };
+    let time = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+    let mut rows = Vec::new();
+    for line in String::from_utf8_lossy(&body).lines() {
+        rows.push(log_row(project_id, *path, seq, time, line, None));
+        seq += 1;
+    }
+    rows.push(log_row(
+        project_id,
+        *path,
+        seq,
+        time,
+        "",
+        Some(query.exit_code),
+    ));
+    Ok(
+        match evaluation_logs::insert_evaluation_logs(&clickhouse, &rows).await {
+            Ok(()) => HttpResponse::NoContent().finish(),
+            Err(e) => upstream_error("log write", e),
+        },
+    )
+}
+
+/// `?from=<seq>` → `{lines: [{seq, time, text}], next, exitCode}`; `exitCode`
+/// stays null until the orchestrator has exited. Followed by `lmnr-cli eval run --remote`.
+#[get("/hosted-evals/runs/{upload_id}/logs")]
+pub async fn get_run_logs(
+    path: web::Path<Uuid>,
+    query: web::Query<LogsFrom>,
+    project_api_key: ProjectApiKey,
+    hosted: HostedEvalsData,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
+    handle_get_run_logs(
+        &project_api_key.project_id,
+        &path,
+        query.from,
+        &hosted,
+        &clickhouse,
+    )
+    .await
+}
+
+/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) log reads.
+pub async fn handle_get_run_logs(
+    project_id: &Uuid,
+    upload_id: &Uuid,
+    from: u64,
+    hosted: &HostedEvalsData,
+    clickhouse: &clickhouse::Client,
+) -> ResponseResult {
+    if hosted.get_ref().is_none() {
+        return Ok(not_enabled());
+    }
+    let rows = match evaluation_logs::get_evaluation_logs(
+        clickhouse,
+        project_id,
+        upload_id,
+        from,
+        MAX_LOG_LINES as u64,
+    )
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => return Ok(upstream_error("log read", e)),
+    };
+    let next = rows.last().map(|row| row.seq + 1).unwrap_or(from);
+    let exit_code = rows.iter().find_map(|row| row.exit_code);
+    let lines = rows
+        .into_iter()
+        .filter(|row| row.exit_code.is_none())
+        .map(|row| RunLogLineOut {
+            seq: row.seq,
+            time: row.time / 1_000_000,
+            text: row.text,
+        })
+        .collect();
+    Ok(HttpResponse::Ok().json(RunLogPage {
+        lines,
+        next,
+        exit_code,
+    }))
+}
+
 /// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) uploads.
 pub async fn handle_create_upload(
     project_id: Uuid,
@@ -696,7 +911,7 @@ pub async fn handle_start_run(
 async fn with_sandbox<F>(
     hosted: &HostedEvalsData,
     cache: &Cache,
-    project_api_key: &ProjectApiKey,
+    project_id: &Uuid,
     sandbox_id: &str,
     f: F,
 ) -> HttpResponse
@@ -708,7 +923,7 @@ where
     };
     let provider = &hosted.provider;
     let result = async {
-        match sandboxes::resolve(provider, cache, &project_api_key.project_id, sandbox_id).await? {
+        match sandboxes::resolve(provider, cache, project_id, sandbox_id).await? {
             Some(sandbox) => f(provider, sandbox).await,
             None => Ok(HttpResponse::NotFound().json(json!({ "error": "Sandbox not found" }))),
         }
@@ -830,6 +1045,36 @@ fn invalid_image() -> HttpResponse {
     HttpResponse::BadRequest().json(json!({
         "error": "image must be a sha256 manifest digest"
     }))
+}
+
+/// A row of a run's log. `time` is in nanoseconds; `exit_code` is set on the
+/// run's last row only.
+fn log_row(
+    project_id: Uuid,
+    upload_id: Uuid,
+    seq: u64,
+    time: i64,
+    text: &str,
+    exit_code: Option<i32>,
+) -> CHEvaluationLog {
+    CHEvaluationLog {
+        project_id,
+        upload_id,
+        seq,
+        time,
+        text: log_text(text),
+        exit_code,
+    }
+}
+
+/// A stored log line: control characters stripped (so ANSI colors too), cut at
+/// `MAX_LOG_LINE_CHARS`.
+fn log_text(line: &str) -> String {
+    let text = sanitize_string(line);
+    match text.char_indices().nth(MAX_LOG_LINE_CHARS) {
+        Some((cut, _)) => format!("{}…", &text[..cut]),
+        None => text,
+    }
 }
 
 fn invalid_suite() -> HttpResponse {
