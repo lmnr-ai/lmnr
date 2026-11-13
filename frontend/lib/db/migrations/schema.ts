@@ -659,6 +659,7 @@ export const agentVersions = pgTable(
     coreLines: bigint("core_lines", { mode: "number" }).array().notNull(),
     systemPrompt: text("system_prompt").default("").notNull(),
     toolDefinitions: text("tool_definitions").default("").notNull(),
+    source: jsonb(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
