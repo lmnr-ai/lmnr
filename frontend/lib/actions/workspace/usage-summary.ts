@@ -39,8 +39,8 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     console.error("Error reading bytes usage from cache:", error);
   }
 
-  // Signal credit classification changes asynchronously in the meter job, so
-  // Signals usage is read from ClickHouse rather than a long-lived cache.
+  // Signals usage is read from ClickHouse rather than a long-lived cache, so it is
+  // always current for the bill estimate and limit checks.
 
   // Fetch project IDs once for ClickHouse usage queries.
   const projectRows = await db.query.projects.findMany({

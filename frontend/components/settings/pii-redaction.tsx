@@ -115,7 +115,7 @@ export default function PiiRedaction({ currentUserRole }: { currentUserRole: Wor
             <>
               <span className="ml-2 inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 <Lock className="size-3" />
-                Pro plan required
+                Scale plan required
               </span>
               {workspace && (
                 <Button asChild size="sm" variant="outline" className="h-7">

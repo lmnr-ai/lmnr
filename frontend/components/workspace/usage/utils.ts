@@ -55,15 +55,9 @@ const knownTier = (tierName?: string): Tier | null => {
   return ["free", "hobby", "starter", "pro"].includes(key) ? normalizeTier(key) : null;
 };
 
-interface SignalCredit {
-  granted: number;
-  remaining: number;
-}
-
 export interface MeterModel {
   used: number;
   included: number | null;
-  credit?: SignalCredit | null;
 }
 
 export interface Compression {
@@ -97,13 +91,8 @@ export const buildUsageModel = (
   const gbUsed = stats?.gbUsedThisMonth ?? 0;
   const gbIncluded = stats?.gbLimit != null && isFinite(stats.gbLimit) ? stats.gbLimit : null;
   const signalUsed = (stats?.signalCostUsedThisMonth ?? 0) / 1_000_000;
-  // Self-serve tiers carry a zero recurring Signals allowance; only the one-time credit offsets cost.
+  // Only Scale includes Signals usage; on other tiers every token is billed.
   const signalIncluded = stats?.signalCostLimit ? stats.signalCostLimit / 1_000_000 : null;
-  const creditGranted = stats?.signalCreditGrantedMicroUsd ?? 0;
-  const signalCredit =
-    creditGranted > 0
-      ? { granted: creditGranted / 1_000_000, remaining: (stats?.signalCreditRemainingMicroUsd ?? 0) / 1_000_000 }
-      : null;
 
   const bill = estimateBill(tier, {
     gbUsed,
@@ -129,7 +118,6 @@ export const buildUsageModel = (
     signals: {
       used: signalUsed,
       included: signalIncluded,
-      credit: signalCredit,
     },
   };
 };

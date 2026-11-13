@@ -2,14 +2,13 @@ import { Head, Html, Img, Link, Preview, Section, Text } from "@react-email/comp
 import type { CSSProperties } from "react";
 
 import { TIER_RETENTION } from "@/lib/billing/retention";
-import { TIERS } from "@/lib/billing/tiers";
 
 import { LAMINAR_LOGO_CID } from "./report-email-layout";
 
 const GET_STARTED_URL = "https://lmnr.ai/docs/getting-started";
 const TRIAL_INCLUDES = [
-  `${TIERS.hobby.includedBytesGB} GB of ingested data with ${TIER_RETENTION.hobby.durationPlural} of data access`,
-  "$5 credit for Signals",
+  `No data cap during the trial, with ${TIER_RETENTION.hobby.durationPlural} of data access`,
+  "Unlimited Signals during the trial",
   "Slack alerts",
   "Unlimited projects and teammates",
 ];
@@ -26,7 +25,7 @@ export default function WelcomeEmail({ trial }: WelcomeEmailProps = {}) {
       </Head>
       <Preview>
         {trial
-          ? `Welcome to Laminar. Your Starter trial runs until ${trial.endsOn}.`
+          ? `Welcome to Laminar. Your Pro trial runs until ${trial.endsOn}.`
           : "Welcome to Laminar - observability purpose-built for AI agents"}
       </Preview>
       <div className="welcome-page" style={page}>
@@ -45,7 +44,7 @@ export default function WelcomeEmail({ trial }: WelcomeEmailProps = {}) {
             <Text style={greeting}>Hey there, it{"'"}s Robert from Laminar. Excited for you to try it out!</Text>
             {trial && (
               <Section style={trialNote}>
-                <Text style={trialNoteTitle}>Your free 14-day Starter trial is on</Text>
+                <Text style={trialNoteTitle}>Your free 14-day Pro trial is on</Text>
                 <Text style={trialNoteText}>No card needed. It runs until {trial.endsOn} and includes:</Text>
                 <table role="presentation" cellPadding="0" cellSpacing="0" style={trialNoteList}>
                   <tbody>
@@ -61,7 +60,7 @@ export default function WelcomeEmail({ trial }: WelcomeEmailProps = {}) {
                   <Link style={link} href={trial.addPaymentUrl} target="_blank">
                     Add a payment method
                   </Link>{" "}
-                  any time to keep Starter after the trial.
+                  any time to keep Pro after the trial.
                 </Text>
               </Section>
             )}

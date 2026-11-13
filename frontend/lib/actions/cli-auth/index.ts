@@ -171,7 +171,7 @@ const resolveDefaultProject = async (
       });
     }
   } catch (e) {
-    console.error(`Failed to start the Starter trial for workspace ${workspaceId}, continuing`, e);
+    console.error(`Failed to start the Pro trial for workspace ${workspaceId}, continuing`, e);
   }
 
   return { projectId, isFirstProject: true };

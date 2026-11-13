@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { getSignalCreditState } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace/usage-summary";
+import { retentionDays } from "@/lib/billing/retention";
 import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
@@ -270,8 +270,6 @@ export interface ProjectDetails {
   gbUsedThisMonth: number;
   gbLimit: number;
   signalCostUsedThisMonth: number;
-  signalCreditGrantedMicroUsd: number;
-  signalCreditRemainingMicroUsd: number;
   logRetentionDays: number;
   isFreeTier: boolean;
   trialEndsAt: string | null;
@@ -327,6 +325,9 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   }
   const tier = tierResult[0];
   const isFreeTier = tier.name.toLowerCase().trim() === "free";
+  // Known tiers follow TIER_RETENTION so the date picker matches the enforced
+  // cutoff; custom tiers (self-hosted `unlimited`, enterprise) keep their DB value.
+  const logRetentionDays = retentionDays(tier.name) ?? tier.logRetentionDays;
 
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
@@ -336,13 +337,11 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       id: project.id,
       name: project.name,
       workspaceId: project.workspaceId,
-      logRetentionDays: tier.logRetentionDays,
+      logRetentionDays,
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
       signalCostUsedThisMonth: 0,
-      signalCreditGrantedMicroUsd: 0,
-      signalCreditRemainingMicroUsd: 0,
       isFreeTier,
       trialEndsAt: workspace.trialEndsAt,
       settings,
@@ -352,18 +351,15 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
   const signalCostUsedThisMonth = usageResult.totalSignalCostMicroUsd;
-  const signalCredit = await getSignalCreditState(project.workspaceId, usageResult.creditedSignalCostMicroUsd);
 
   return {
     id: project.id,
     name: project.name,
     workspaceId: project.workspaceId,
-    logRetentionDays: tier.logRetentionDays,
+    logRetentionDays,
     gbUsedThisMonth,
     gbLimit,
     signalCostUsedThisMonth,
-    signalCreditGrantedMicroUsd: signalCredit.grantedMicroUsd,
-    signalCreditRemainingMicroUsd: signalCredit.remainingMicroUsd,
     isFreeTier,
     trialEndsAt: workspace.trialEndsAt,
     settings,

@@ -11,10 +11,8 @@ export type WorkspaceStats = {
   gbOverLimitCost?: number;
   // Signal cost usage fields, denominated in micro-USD (1e-6 USD)
   signalCostUsedThisMonth: number;
+  // Signals usage included in the plan each billing period.
   signalCostLimit?: number;
-  signalCreditGrantedMicroUsd?: number;
-  signalCreditRemainingMicroUsd?: number;
-  signalCreditAppliedThisPeriodMicroUsd?: number;
   signalCostOverLimit?: number;
   signalCostOverLimitUsd?: number;
 };

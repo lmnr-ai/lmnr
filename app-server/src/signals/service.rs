@@ -87,9 +87,7 @@ pub enum CrudError {
     DuplicateName(String),
     #[error("Signal not found")]
     SignalNotFound,
-    #[error(
-        "Signals aren't included in the Free plan. Upgrade to Starter or Pro to create signals."
-    )]
+    #[error("Signals aren't included in the Free plan. Upgrade to Pro or Scale to create signals.")]
     FreePlan,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),

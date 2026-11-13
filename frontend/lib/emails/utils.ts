@@ -63,7 +63,7 @@ export async function sendWelcomeEmail(email: string, projectId: string) {
   const trial = workspace?.trialEndsAt
     ? { endsOn: formatEmailDate(new Date(workspace.trialEndsAt)), addPaymentUrl: trialPaymentUrl(workspace.id) }
     : undefined;
-  const subject = trial ? "Welcome to Laminar! Your Starter trial has started" : "Welcome to Laminar!";
+  const subject = trial ? "Welcome to Laminar! Your Pro trial has started" : "Welcome to Laminar!";
 
   const { data, error } = await RESEND.emails.send({
     from,
@@ -162,7 +162,7 @@ export async function sendTrialEndingEmail({
   const { error } = await RESEND.emails.send({
     from: "Laminar team <founders@lmnr.ai>",
     to,
-    subject: `Your Laminar Starter trial for ${workspaceName} ends on ${endsOn}`,
+    subject: `Your Laminar Pro trial for ${workspaceName} ends on ${endsOn}`,
     react: TrialEndingEmail({ workspaceName, endsOn, addPaymentUrl: trialPaymentUrl(workspaceId) }),
     attachments: [await laminarLogoAttachment()],
   });
@@ -184,7 +184,7 @@ export async function sendTrialEndedEmail({
   const { error } = await RESEND.emails.send({
     from: "Laminar team <founders@lmnr.ai>",
     to,
-    subject: `Your Laminar Starter trial for ${workspaceName} has ended`,
+    subject: `Your Laminar Pro trial for ${workspaceName} has ended`,
     react: TrialEndedEmail({ workspaceName, upgradeUrl: workspaceBillingUrl(workspaceId) }),
     attachments: [await laminarLogoAttachment()],
   });

@@ -17,17 +17,17 @@ export default function TrialEndedEmail({ workspaceName, upgradeUrl }: { workspa
   return (
     <TrialEmailLayout
       workspaceName={workspaceName}
-      heading="Your Starter trial has ended"
+      heading="Your Pro trial has ended"
       preview={`${workspaceName} is now on the Free plan`}
     >
       <Text style={intro}>
-        Your Starter trial for {workspaceName} has ended, and the workspace is now on the Free plan.
+        Your Pro trial for {workspaceName} has ended, and the workspace is now on the Free plan.
       </Text>
       <Text style={paragraph}>Here{"'"}s what changed:</Text>
       <ChangesList changes={STARTER_TO_FREE_CHANGES} />
-      <Text style={paragraph}>Upgrade to Starter to get these back.</Text>
+      <Text style={paragraph}>Upgrade to Pro to get these back.</Text>
       <Link style={action} href={upgradeUrl} target="_blank">
-        Upgrade to Starter
+        Upgrade to Pro
       </Link>
       <Text style={footnote}>
         <Link href={PRICING_URL} style={footnoteLink} target="_blank">

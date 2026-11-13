@@ -1,3 +1,4 @@
+import { TRIAL_DAYS } from "@/lib/actions/checkout/types";
 import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
 import {
   formatDataIncluded,
@@ -5,8 +6,8 @@ import {
   formatPrice,
   formatProjects,
   formatSeats,
-  formatSignalsCount,
-  formatSignalsCreditLabel,
+  formatSignalsIncluded,
+  formatSignalsIncludedLabel,
   formatSignalsOverageShort,
   formatSupport,
   type Tier,
@@ -37,7 +38,8 @@ const PRICING_COLUMNS: PricingColumnConfig[] = [
     id: "hobby",
     priceSuffix: "/ month",
     blurb: "For small teams shipping their first production agent.",
-    ctaLabel: "Get Started",
+    // New sign-ups start the trial in onboarding, so the CTA can promise it.
+    ctaLabel: `Start ${TRIAL_DAYS}-day free trial`,
     ctaHref: "/sign-up",
   },
   {
@@ -107,19 +109,23 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
   {
     title: "Usage limits",
     rows: [
-      tierRow("Data included", formatDataIncluded),
+      tierRow(
+        "Data included (after dedup)",
+        formatDataIncluded,
+        "Measured after dedup: content repeated across your traces, like system prompts, is stored and counted once."
+      ),
       tierRow("Data overage rate", formatDataOverage),
       tierRow(
-        "One-time Signals credits",
-        (tier) => (tier === "enterprise" ? "Custom" : formatSignalsCount(tier)),
-        "One-time Signals credit on sign-up"
+        "Signals included",
+        formatSignalsIncluded,
+        "Signals usage included every month, reset each billing cycle."
       ),
       // Comparison table is column-constrained, use the short per-1M-token form
       // instead of the verbose rate the cards use. The tooltip is load-bearing:
       // a per-1M-token rate on a page about the reader's own agent reads as
       // their token count unless it says otherwise.
       tierRow(
-        "Signals",
+        "Signals beyond included",
         (tier) => {
           if (tier === "free") return { label: "Not included", muted: true, small: true };
           const label = formatSignalsOverageShort(tier);
@@ -163,6 +169,12 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     title: "Security & compliance",
     rows: [
       { label: "OAuth sign-in", values: { free: true, hobby: true, pro: true, enterprise: true } },
+      {
+        label: "Trace-level RBAC",
+        tooltip: "Control which traces each role can query, enforced in the query engine.",
+        values: { free: false, hobby: false, pro: true, enterprise: true },
+      },
+      { label: "Audit logs", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "SOC 2 Type II", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "HIPAA", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "Server-side PII Removal", values: { free: false, hobby: false, pro: true, enterprise: true } },
@@ -175,7 +187,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       // Cumulative — higher tiers retain access to all lower-tier support channels.
       { label: "Discord", values: { free: true, hobby: true, pro: true, enterprise: true } },
       { label: "Email support", values: { free: false, hobby: true, pro: true, enterprise: true } },
-      { label: "Slack support", values: { free: false, hobby: false, pro: true, enterprise: true } },
+      { label: "Slack support", values: { free: false, hobby: true, pro: true, enterprise: true } },
       { label: "Dedicated support", values: { free: false, hobby: false, pro: false, enterprise: true } },
     ],
   },
@@ -184,6 +196,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
 export interface CardFeature {
   label: string;
   subfeature?: string;
+  // Shown with an X instead of a check; same text color as included features.
   excluded?: boolean;
 }
 
@@ -194,7 +207,7 @@ export interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: "No Signals", excluded: true },
+    { label: formatSignalsIncludedLabel("free"), excluded: true },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
@@ -202,7 +215,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   hobby: [
     { label: `${formatDataIncluded("hobby")} data included`, subfeature: `then ${formatDataOverage("hobby")}` },
-    { label: formatSignalsCreditLabel("hobby") },
+    { label: formatSignalsIncludedLabel("hobby") },
     { label: retentionLabel("hobby") },
     { label: formatProjects("hobby") },
     { label: formatSeats("hobby") },
@@ -210,10 +223,11 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   pro: [
     { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
-    { label: formatSignalsCreditLabel("pro") },
+    { label: formatSignalsIncludedLabel("pro"), subfeature: "monthly, then per token" },
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },
+    ...TIERS.pro.securityFeatures.map((label) => ({ label })),
     { label: formatSupport("pro") },
   ],
   enterprise: [

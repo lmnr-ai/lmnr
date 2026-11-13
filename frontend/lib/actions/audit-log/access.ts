@@ -16,7 +16,7 @@ export const getAuditLogAccess = async (workspaceId: string, userId: string): Pr
 export const auditLogAccessError = (access: Exclude<AuditLogAccess, "allowed">): Response =>
   access === "role_denied"
     ? Response.json({ error: "Only workspace owners and admins can view the audit log" }, { status: 403 })
-    : Response.json({ error: "The audit log is available on the Pro plan", code: "PLAN_REQUIRED" }, { status: 403 });
+    : Response.json({ error: "The audit log is available on the Scale plan", code: "PLAN_REQUIRED" }, { status: 403 });
 
 /** The list/export query parameters shared by both audit-events routes. */
 export const auditQueryFromSearchParams = (params: URLSearchParams) => ({

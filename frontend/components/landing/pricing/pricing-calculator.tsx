@@ -50,9 +50,8 @@ interface TierEstimate {
   available: boolean;
 }
 
-/** A line costs nothing until usage passes its recurring allowance; past it,
- *  the charge IS the difference. The one-time Signals sign-up credit is kept
- *  out of this monthly estimate so it cannot look like a recurring discount. */
+/** A line costs nothing until usage passes its monthly allowance; past it,
+ *  the charge IS the difference. */
 const usageCell = (used: string, included: string, over: number, overageRate: number): UsageCell => {
   const detail = `${used} / ${included}`;
   if (over > 0 && overageRate === 0) return { charge: "Not available", detail };
@@ -60,9 +59,11 @@ const usageCell = (used: string, included: string, over: number, overageRate: nu
   return { charge: cost > 0 ? `$${formatDollars(cost)}` : "Included", detail };
 };
 
-const signalUsageCell = (costUsd: number, included: boolean): UsageCell => ({
-  charge: included ? (costUsd > 0 ? `$${formatDollars(costUsd)}` : "Included") : "Not included",
-});
+const signalUsageCell = (costUsd: number, overUsd: number, includedUsd: number, available: boolean): UsageCell => {
+  if (!available) return { charge: "Not included" };
+  const detail = includedUsd > 0 ? `$${formatDollars(costUsd)} / $${formatDollars(includedUsd)}` : undefined;
+  return { charge: overUsd > 0 ? `$${formatDollars(overUsd)}` : "Included", detail };
+};
 
 const CUSTOM_CELL: UsageCell = { charge: "Custom" };
 
@@ -88,7 +89,7 @@ function buildEstimate(tier: Tier, dataGB: number, signalCostUsd: number): TierE
   const signalOver = signalsIncluded ? Math.max(0, signalCostUsd - t.includedSignalCostUsd) : 0;
 
   const data = usageCell(formatDataSize(dataGB), formatDataSize(t.includedBytesGB), dataOver, t.dataOverageRatePerGB);
-  const signals = signalUsageCell(signalCostUsd, signalsIncluded);
+  const signals = signalUsageCell(signalCostUsd, signalOver, t.includedSignalCostUsd, signalsIncluded);
 
   const totalUsd = t.basePriceMonthly + dataOver * t.dataOverageRatePerGB + signalOver;
   const available = data.charge !== "Not available" && (signalsIncluded || signalCostUsd === 0);
@@ -252,8 +253,7 @@ export default function PricingCalculator() {
         <p className={cn(microLabel, "text-foreground-300 text-sm")}>
           Prices above are estimates only. Storage costs are not proportional to token count due to trace compression.
           Signals are billed by tokens used during analysis by our internal Signals Agent. Signal estimates use measured
-          median flow-1 costs for each trace-size bucket and exclude the one-time $5 sign-up credit; actual billing
-          costs may differ.
+          median flow-1 costs for each trace-size bucket; actual billing costs may differ.
         </p>
       </div>
     </div>

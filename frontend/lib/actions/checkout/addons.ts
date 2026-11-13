@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
+import { tierDisplayName } from "@/lib/billing/tiers";
 import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
 
@@ -104,7 +105,7 @@ export const resolveAndValidate = async (workspaceId: string, addonKey: string) 
   const tierName = workspace[0].tierName.toLowerCase().trim();
   if (!addonConfig.eligibleTiers.includes(tierName)) {
     return {
-      error: `The "${addonConfig.name}" addon requires one of these tiers: ${addonConfig.eligibleTiers.join(", ")}. Current tier: ${workspace[0].tierName}.`,
+      error: `The "${addonConfig.name}" addon requires one of these plans: ${addonConfig.eligibleTiers.map(tierDisplayName).join(", ")}. Current plan: ${tierDisplayName(workspace[0].tierName)}.`,
       status: 400,
     } as const;
   }

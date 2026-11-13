@@ -12,8 +12,9 @@ export type Tier = RetentionTier; // "free" | "hobby" | "pro" | "enterprise"
 // Map an arbitrary tier-name string (as stored on `subscription_tiers.name`)
 // to the `Tier` union, defaulting unknown values to the standard-rate "free".
 // Used by the metering path to select the per-tier signal token rate.
-// "Starter" is the display name of the internal "hobby" tier (renamed 2026-07);
-// DB rows may carry either name during the rollout.
+// Display names differ from the internal keys: "hobby" shows as "Pro" and
+// "pro" shows as "Scale". DB rows may carry "Hobby" or "Starter" (an earlier
+// display name) for the internal "hobby" tier.
 export const normalizeTier = (name: string): Tier => {
   const key = name.trim().toLowerCase();
   if (key === "starter") return "hobby";
@@ -21,7 +22,8 @@ export const normalizeTier = (name: string): Tier => {
 };
 
 // Display name for an arbitrary tier-name string as stored in the DB. Maps
-// known tiers through `TIERS` (so a "Hobby" DB row renders as "Starter");
+// known tiers through `TIERS` (so a "Hobby" DB row renders as "Pro" and a
+// "Pro" row as "Scale");
 // unknown names (e.g. custom enterprise tier rows like "unlimited") pass
 // through unchanged.
 export const tierDisplayName = (name: string): string => {
@@ -37,14 +39,15 @@ interface TierData {
   basePriceMonthly: number | null;
   // 0 for enterprise — rendered as "Custom" by the formatters.
   includedBytesGB: number;
-  // Recurring Signals allowance in USD. Self-serve tiers have no monthly
-  // allowance; the separate workspace sign-up credit is consumed only once.
+  // Signals usage included every billing period, in USD; usage past it is billed per token.
   includedSignalCostUsd: number;
   // 0 for tiers without overage (free, enterprise) — rendered as "—".
   dataOverageRatePerGB: number;
   projects: "1" | "Unlimited";
   seats: "1" | "Unlimited";
   support: "Community" | "Email" | "Slack" | "Dedicated";
+  // Security and compliance features called out on this tier's cards.
+  securityFeatures: string[];
 }
 
 // Published per-million-token rates for signal cost overage, in USD. Every
@@ -54,8 +57,6 @@ const SIGNAL_INPUT_TOKEN_PRICE_PER_MILLION = 0.05;
 const SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILLION = 0.3;
 // Cache-read tokens are a subset of input and are billed at a discounted rate.
 const SIGNAL_CACHE_READ_TOKEN_PRICE_PER_MILLION = 0.01;
-export const SIGNALS_SIGNUP_CREDIT_USD = 5;
-export const SIGNALS_SIGNUP_CREDIT_MICRO_USD = SIGNALS_SIGNUP_CREDIT_USD * 1_000_000;
 
 // Mirror the app-server `env::var(...).parse().ok().unwrap_or(DEFAULT)` logic:
 // an unset or unparseable override falls back to the published default, a valid
@@ -103,28 +104,32 @@ export const TIERS: Record<Tier, TierData> = {
     projects: "1",
     seats: "1",
     support: "Community",
+    securityFeatures: [],
   },
   hobby: {
     // Display name only — the internal key stays "hobby" everywhere (Tier
     // union, Stripe lookup keys, subscription_tiers rows, Rust enum).
-    name: "Starter",
+    name: "Pro",
     basePriceMonthly: 30,
     includedBytesGB: 3,
     includedSignalCostUsd: 0,
     dataOverageRatePerGB: 2,
     projects: "Unlimited",
     seats: "Unlimited",
-    support: "Email",
+    support: "Slack",
+    securityFeatures: [],
   },
   pro: {
-    name: "Pro",
-    basePriceMonthly: 150,
-    includedBytesGB: 10,
-    includedSignalCostUsd: 0,
-    dataOverageRatePerGB: 1.5,
+    // Display name only — the internal key stays "pro".
+    name: "Scale",
+    basePriceMonthly: 250,
+    includedBytesGB: 100,
+    includedSignalCostUsd: 50,
+    dataOverageRatePerGB: 1,
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Slack",
+    securityFeatures: ["Trace-level RBAC", "Audit logs", "SOC 2 Type II & HIPAA"],
   },
   enterprise: {
     name: "Enterprise",
@@ -135,6 +140,7 @@ export const TIERS: Record<Tier, TierData> = {
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Dedicated",
+    securityFeatures: [],
   },
 };
 
@@ -150,7 +156,7 @@ export const signalOutputRate = (): number => SIGNAL_OUTPUT_TOKEN_PRICE_PER_MILL
 
 export const formatSignalTokenRate = (rate: number): string => `$${rate.toFixed(2)}`;
 
-// `$2` for whole-number rates, `$1.50` for one-decimal rates. Centralised so
+// `$2` for whole-number rates, `$1.45` / `$1.50` otherwise. Centralised so
 // every pricing surface uses the same currency formatting (no drift between
 // "$2/GB" on landing and "$2.00/GB" in workspace billing).
 const formatGBRate = (rate: number): string => (rate % 1 === 0 ? `$${rate}` : `$${rate.toFixed(2)}`);
@@ -169,16 +175,25 @@ export const formatDataOverage = (tier: Tier): string => {
   return rate === 0 ? "—" : `${formatGBRate(rate)} / GB`;
 };
 
-// Free has no Signals (nor Slack alerts or clustering); paid tiers and trials get the one-time credit.
+// Free has no Signals (nor Slack alerts or clustering); paid tiers and trials run them.
 export const tierIncludesSignals = (tier: Tier): boolean => tier !== "free";
 
-export const formatSignalsCount = (tier: Tier): string =>
-  tierIncludesSignals(tier) ? `$${SIGNALS_SIGNUP_CREDIT_USD}` : "—";
+// Monthly Signals usage included in the plan: "$50 / mo" on Scale, "None" on Pro.
+export const formatSignalsIncluded = (tier: Tier): string => {
+  if (tier === "enterprise") return "Custom";
+  if (!tierIncludesSignals(tier)) return "—";
+  const usd = TIERS[tier].includedSignalCostUsd;
+  return usd > 0 ? `$${usd} / mo` : "None";
+};
 
-export const formatSignalsCreditLabel = (tier: Tier): string =>
-  tierIncludesSignals(tier) ? `${formatSignalsCount(tier)} one-time Signals credit` : "No Signals or Slack alerts";
+// Card label: "$50 Signals credit included" where the plan has a monthly allowance.
+export const formatSignalsIncludedLabel = (tier: Tier): string => {
+  if (tier === "enterprise") return "Custom Signals pricing";
+  const usd = TIERS[tier].includedSignalCostUsd;
+  return usd > 0 ? `$${usd} Signals credit included` : "Signals";
+};
 
-// Signals usage after the one-time sign-up credit is billed at per-million-token rates.
+// Signals usage past the monthly allowance (if any) is billed at per-million-token rates.
 // Cached input is listed separately because it is a subset of input charged at
 // the lower cache-read rate.
 export const formatSignalsOverage = (tier: Tier): string => {

@@ -59,9 +59,7 @@ export default function PricingCard({
             <div key={feature.label} className="flex flex-col gap-0.5">
               <div className="flex items-start gap-1.5">
                 <Icon className={cn("size-3.5 mt-1 shrink-0", checkColor)} strokeWidth={2.5} />
-                <p className={cn("text-base leading-6", feature.excluded ? suffixColor : featureColor)}>
-                  {feature.label}
-                </p>
+                <p className={cn("text-base leading-6", featureColor)}>{feature.label}</p>
               </div>
               {feature.subfeature && (
                 <p className={cn(microLabel, "text-sm ml-[20px]", isAccent && "text-white/70")}>{feature.subfeature}</p>

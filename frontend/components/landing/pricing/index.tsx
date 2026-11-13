@@ -4,11 +4,18 @@ import { usePostHog } from "posthog-js/react";
 
 import Footer from "@/components/landing/footer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { formatSignalTokenRate, signalCacheReadRate, signalInputRate, signalOutputRate } from "@/lib/billing/tiers";
+import {
+  formatSignalTokenRate,
+  signalCacheReadRate,
+  signalInputRate,
+  signalOutputRate,
+  TIERS,
+} from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { bodyMedium, LANDING_COLUMN_MAX_W, subSection } from "../class-names";
 import Divider from "../sections/divider";
+import BillingHighlights, { AVG_TRACE_ANALYSIS_COST_USD } from "./billing-highlights";
 import CardsVariant from "./cards-variant";
 import PricingCalculator from "./pricing-calculator";
 import PricingTable from "./pricing-table";
@@ -25,7 +32,7 @@ export default function Pricing() {
       id: "data-calculation",
       question: "How is data usage calculated?",
       answer:
-        "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
+        "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets, measured after compression: Laminar stores each unique message and tool definition once per trace, which cuts stored data 2–50x. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
     },
     {
       id: "signals-pricing",
@@ -34,10 +41,12 @@ export default function Pricing() {
         <>
           Signals are billed by the tokens the agent spends to read a trace and generate a structured event:{" "}
           {formatSignalTokenRate(signalInputRate())} per 1M input tokens, {formatSignalTokenRate(signalCacheReadRate())}{" "}
-          per 1M cached input tokens, and {formatSignalTokenRate(signalOutputRate())} per 1M output tokens. Every new
-          workspace receives a one-time $5 credit that carries forward until used; usage past that is billed at the
-          applicable per-token rates. You pay for what a Signal reads and writes, not for the spans your agent emits.
-          Read more in the{" "}
+          per 1M cached input tokens, and {formatSignalTokenRate(signalOutputRate())} per 1M output tokens. The{" "}
+          {TIERS.pro.name} plan includes ${TIERS.pro.includedSignalCostUsd} of Signals usage every month; usage past
+          that, and all Signals usage on {TIERS.hobby.name}, is billed at these rates. During the {TIERS.hobby.name}{" "}
+          free trial, Signals are free and uncapped. On average, analyzing a trace costs about $
+          {AVG_TRACE_ANALYSIS_COST_USD}, and that includes the model inference: there is no separate LLM bill. You pay
+          for what a Signal reads and writes, not for the spans your agent emits. Read more in the{" "}
           <a
             href="https://laminar.sh/docs/signals/introduction"
             target="_blank"
@@ -66,7 +75,7 @@ export default function Pricing() {
       id: "overage",
       question: "What happens if I exceed my plan's included usage?",
       answer:
-        "Paid tiers keep working past their included data and bill overage at the per-GB data rate and the per-token Signals rates listed on each plan. Every new workspace receives a one-time $5 Signals credit that carries forward until used. The Free tier has no overage; once you hit its data cap or spend the credit, you'll need to upgrade to keep going. Enterprise has custom limits and rates negotiated per contract.",
+        "Paid tiers keep working past their included usage and bill overage at the per-GB data rate and the per-token Signals rates listed on each plan. You can set hard limits and email alerts for both from your workspace's usage settings. The Free tier has no overage and no Signals; once you hit its data cap, you'll need to upgrade to keep going. Enterprise has custom limits and rates negotiated per contract.",
     },
   ];
 
@@ -77,6 +86,11 @@ export default function Pricing() {
           {/* Tier cards */}
           <div className="w-full mb-20 md:mb-[160px]">
             <CardsVariant />
+          </div>
+
+          {/* Billing highlights: compressed data, all-in analysis cost */}
+          <div className="w-full max-w-[800px] mb-20 md:mb-[160px]">
+            <BillingHighlights />
           </div>
 
           {/* Calculator. Wider than the old 640px column since it compares four

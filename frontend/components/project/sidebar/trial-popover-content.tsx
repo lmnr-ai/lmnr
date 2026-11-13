@@ -8,9 +8,9 @@ import { TIER_RETENTION } from "@/lib/billing/retention";
 import { TIERS } from "@/lib/billing/tiers";
 
 const TRIAL_INCLUDES = [
-  { icon: Radio, label: "Signals" },
+  { icon: Radio, label: "Unlimited Signals during the trial" },
   { icon: Bell, label: "Slack alerts for critical events" },
-  { icon: Database, label: `${TIERS.hobby.includedBytesGB} GB of data a month` },
+  { icon: Database, label: "No data cap during the trial" },
   { icon: Clock, label: `${TIER_RETENTION.hobby.durationPlural} of data access` },
   { icon: Users, label: "Unlimited teammates and projects" },
 ];
@@ -27,9 +27,9 @@ export default function TrialPopoverContent({ endsAt, convertsToPaid, onNavigate
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <span className="text-[15px] font-medium text-foreground">You&apos;re on a free Starter trial</span>
+        <span className="text-[15px] font-medium text-foreground">You&apos;re on a free Pro trial</span>
         <span className="text-[13px] text-muted-foreground">
-          We upgraded your workspace to Starter for free until {endDate}, so you can try:
+          We upgraded your workspace to Pro for free until {endDate}, so you can try:
         </span>
       </div>
       <ul className="flex flex-col gap-2 text-[13px] text-secondary-foreground">
@@ -43,7 +43,7 @@ export default function TrialPopoverContent({ endsAt, convertsToPaid, onNavigate
       <div className="flex flex-col gap-2 border-t pt-3 text-[13px] leading-snug text-muted-foreground">
         {convertsToPaid ? (
           <span>
-            Starter continues after {endDate} at ${TIERS.hobby.basePriceMonthly}/month on your saved card, with
+            Pro continues after {endDate} at ${TIERS.hobby.basePriceMonthly}/month on your saved card, with
             pay-as-you-go overage past the included data.
           </span>
         ) : (

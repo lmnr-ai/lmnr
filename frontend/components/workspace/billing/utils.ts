@@ -4,7 +4,7 @@ import {
   formatDataOverage,
   formatPrice,
   formatProjectsAndSeats,
-  formatSignalsCreditLabel,
+  formatSignalsIncludedLabel,
   formatSupport,
   type Tier,
   tierIncludesSignals,
@@ -34,7 +34,7 @@ const buildInfo = (tier: TierKey): TierInfo => {
       priceSubtext,
       features: [
         "Custom limits",
-        formatSignalsCreditLabel(tier),
+        formatSignalsIncludedLabel(tier),
         "On-premise",
         formatProjectsAndSeats(tier),
         formatSupport(tier),
@@ -46,9 +46,17 @@ const buildInfo = (tier: TierKey): TierInfo => {
   const hasOverage = CENTRAL_TIERS[tier].dataOverageRatePerGB > 0;
   const rows: [string, string | null][] = [
     [`${formatDataIncluded(tier)} data`, hasOverage ? formatDataOverage(tier) : null],
-    ...(tierIncludesSignals(tier) ? [[formatSignalsCreditLabel(tier), null] as [string, null]] : []),
+    ...(tierIncludesSignals(tier)
+      ? [
+          [
+            formatSignalsIncludedLabel(tier),
+            CENTRAL_TIERS[tier].includedSignalCostUsd > 0 ? "monthly, then per token" : null,
+          ] as [string, string | null],
+        ]
+      : []),
     [retentionLabel(tier), null],
     [formatProjectsAndSeats(tier), null],
+    ...CENTRAL_TIERS[tier].securityFeatures.map((feature): [string, null] => [feature, null]),
     [formatSupport(tier), null],
   ];
   return {

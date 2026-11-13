@@ -8,10 +8,10 @@ import { LAMINAR_LOGO_CID } from "./report-email-layout";
 
 export const PRICING_URL = "https://lmnr.ai/pricing";
 
-// What a workspace loses moving from the Starter trial to Free.
+// What a workspace loses moving from the Pro trial to Free.
 export const STARTER_TO_FREE_CHANGES = [
   `Data access: ${TIER_RETENTION.hobby.durationPlural} → ${TIER_RETENTION.free.durationPlural}`,
-  `Included data: ${TIERS.hobby.includedBytesGB} GB → ${TIERS.free.includedBytesGB} GB a month`,
+  `Data: no cap → ${TIERS.free.includedBytesGB} GB a month`,
   "Signals pause",
   "Slack alerts pause",
   "Teammates lose access, owner keeps it",

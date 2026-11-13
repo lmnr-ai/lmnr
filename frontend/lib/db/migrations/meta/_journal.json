@@ -932,6 +932,13 @@
       "when": 1794493585319,
       "tag": "0132_signal_cluster_auto_resolve",
       "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1794566005461,
+      "tag": "0133_retire_signal_credit",
+      "breakpoints": true
     }
   ]
 }
