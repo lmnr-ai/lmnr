@@ -20,6 +20,9 @@ export interface TraceHealthCheck {
   fix: string;
   /** What `applicable` counts, e.g. "LLM spans". */
   unit: string;
+  /** In-app page that fixes the issue, relative to the project root. */
+  link?: { label: string; path: string };
+  docsUrl?: string;
 }
 
 export interface TraceHealthCategoryInfo {
@@ -104,7 +107,9 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     category: "cost",
     title: "LLM spans have tokens but no cost",
     impact: "Spend totals for traces and projects are incomplete.",
-    fix: "Send gen_ai.system / gen_ai.provider.name and a model name Laminar can price, or send the cost directly as gen_ai.usage.cost.",
+    fix: "Add a custom price under Settings > Model costs. Provider must match gen_ai.system and Model must match the span's model name exactly (a date suffix counts), with prices in dollars per million tokens. Prices apply to spans ingested after you save them. Alternatively, send the cost on the span as gen_ai.usage.input_cost / output_cost / cost.",
+    link: { label: "Open model costs", path: "settings?tab=model-costs" },
+    docsUrl: "https://laminar.sh/docs/platform/custom-model-costs",
     unit: "LLM spans with tokens",
   },
   {

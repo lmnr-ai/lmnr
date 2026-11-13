@@ -11,6 +11,7 @@ const describe = (result: TraceHealthCheckResult) => {
     `## ${check.title}`,
     `${result.failing} of ${result.applicable} ${check.unit} are affected. ${check.impact}`,
     `Fix: ${check.fix}`,
+    ...(check.docsUrl ? [`Docs: ${check.docsUrl}`] : []),
   ].join("\n");
 };
 

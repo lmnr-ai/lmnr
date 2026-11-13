@@ -1,4 +1,6 @@
 import { ChevronDown, CircleX, Info, SquareArrowOutUpRight } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import RotatingAgentIcon from "@/components/landing/hero/rotating-agent-icon";
@@ -17,6 +19,7 @@ interface CheckRowProps {
 
 export default function CheckRow({ check, result, onOpenTrace }: CheckRowProps) {
   const [open, setOpen] = useState(false);
+  const { projectId } = useParams<{ projectId: string }>();
   const sampleTraceId = result.sampleTraceId;
 
   return (
@@ -49,6 +52,14 @@ export default function CheckRow({ check, result, onOpenTrace }: CheckRowProps) 
             >
               Copy prompt
             </CopyButton>
+            {check.link && (
+              <Button asChild variant="ghost" className="text-muted-foreground">
+                <Link href={`/project/${projectId}/${check.link.path}`}>
+                  {check.link.label}
+                  <SquareArrowOutUpRight className="ml-1.5 size-3.5" />
+                </Link>
+              </Button>
+            )}
             {sampleTraceId && (
               <Button variant="ghost" className="text-muted-foreground" onClick={() => onOpenTrace(sampleTraceId)}>
                 View example trace
