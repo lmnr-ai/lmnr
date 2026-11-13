@@ -44,7 +44,7 @@ export function TraceAgentContext(_props: { traceId: string }) {
   return null;
 }
 
-export function TurnIntoEvalButton(_props: { clusterName: string }) {
+export function CreateEvalsButton(_props: { clusterName: string }) {
   return null;
 }
 
