@@ -246,360 +246,93 @@ const toLightweight = (span: TraceViewSpan): TraceViewListSpan => ({
   attributesSnippet: span.attributesSnippet,
 });
 
-const NULL_SPAN_ID = "00000000-0000-0000-0000-000000000000";
-
-type LlmSpanInfo = {
-  spanId: string;
-  parentSpanId: string;
-  spanPath: string;
-  spanPathLength: number;
-  promptHash: string;
-  /** Ancestor span ID distinguishing this invocation from other invocations of the same (path, hash). Filled by `computeInvocationRoots`. */
-  invocationRoot: string;
-  idsPath: string[];
-  inputTokens: number;
-  startTime: string;
-};
-
-export const MAIN_AGENT_SEARCH_WINDOW = 5;
-
-const compositeKey = (parentSpanPath: string, promptHash: string, invocationRoot: string): string =>
-  `${parentSpanPath}\0${promptHash}\0${invocationRoot}`;
-
-const pathHashKey = (parentSpanPath: string, promptHash: string): string => `${parentSpanPath}\0${promptHash}`;
-
-/**
- * For each cluster of LLMs sharing `(parentSpanPath, promptHash)`, return each
- * LLM's invocation root key: a string distinguishing its invocation from other
- * invocations of the same subagent. `""` means one invocation.
- *
- * The key is a structural prefix of `ids_path`; how deep is decided per-span
- * by whether *that span's own* direct parent is a real subagent container or
- * per-iteration noise:
- *  - If the LLM's direct parent holds 2+ of the cluster's LLMs, that parent ran
- *    the subagent (looping internally), so it stays in the key (`ids_path`
- *    minus the LLM itself). This separates sibling subagents that share a name
- *    — hence a `parentSpanPath` — but directly parent their own LLM calls (e.g.
- *    two Claude Code "Agent" tool spans, each making several calls).
- *  - Otherwise the direct parent is a per-call wrapper (some SDKs spawn a fresh
- *    loop body per iteration), so it's dropped with the LLM (`ids_path` minus
- *    the last two); iterations then collapse while divergence higher up still
- *    separates distinct invocations.
- *
- * The decision is per-span, not per-cluster: a cluster can mix container
- * parents and per-iteration wrappers (when they share a name), and each must
- * be trimmed by its own rule. Within a cluster all members share one
- * `parentSpanPath`, hence one `ids_path` length, so container keys (length-1
- * trim) and noise keys (length-2 trim) never collide.
- *
- * Using the full structural prefix (not a single divergence index) correctly
- * partitions a cluster with multiple divergence depths. Falls back to
- * `parent_span_id` when `ids_path` is absent (older instrumentation).
- */
-const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => {
-  const out = new Map<string, string>();
-  if (cluster.length <= 1) {
-    if (cluster[0]) out.set(cluster[0].spanId, "");
-    return out;
-  }
-
-  const directParentId = (s: LlmSpanInfo): string =>
-    s.idsPath.length >= 2 ? s.idsPath[s.idsPath.length - 2] : s.parentSpanId;
-
-  // Count how many of the cluster's LLMs sit under each direct parent.
-  const llmsPerParent = new Map<string, number>();
-  for (const s of cluster) {
-    const p = directParentId(s);
-    llmsPerParent.set(p, (llmsPerParent.get(p) ?? 0) + 1);
-  }
-
-  const structuralPrefix = (s: LlmSpanInfo): string => {
-    const p = directParentId(s);
-    // This span's own parent is a real container (2+ cluster LLMs) → keep it.
-    if ((llmsPerParent.get(p) ?? 0) >= 2) {
-      return s.idsPath.length >= 2 ? s.idsPath.slice(0, -1).join("\0") : p;
-    }
-    // Per-iteration wrapper → drop it (and the LLM) as noise.
-    return s.idsPath.length <= 2 ? "" : s.idsPath.slice(0, -2).join("\0");
-  };
-
-  const keys = cluster.map(structuralPrefix);
-  const firstKey = keys[0];
-  if (keys.every((k) => k === firstKey)) {
-    for (const s of cluster) out.set(s.spanId, "");
-    return out;
-  }
-  for (let i = 0; i < cluster.length; i++) {
-    out.set(cluster[i].spanId, keys[i]);
-  }
-  return out;
-};
-
-/**
- * Subagent grouping output.
- *
- * Each non-main LLM/CACHED span is keyed by `(parentSpanPath, promptHash, invocationRoot)`
- * and mapped to an anchor (the first LLM with that key by start time). The
- * main agent is picked by shortest `spanPath` among the first
- * `MAIN_AGENT_SEARCH_WINDOW` hashed LLMs (ties broken by highest input tokens)
- * and its (path, hash) is excluded across every invocation so it stays inline.
- *
- * `mainAgentAncestors` / `subagentAncestors` record every strict ancestor of
- * each LLM's `ids_path`, used by `buildSpanToAnchorMap` to place non-LLM spans
- * by their deepest claimed ancestor (main wins ties → standalone).
- */
-interface SubagentLlmGrouping {
-  /** LLM/CACHED spanId -> its anchor spanId. Main-agent LLMs are absent. */
-  llmToAnchor: Map<string, string>;
-  /** Span IDs claimed by the main agent (strict ancestors of main-agent LLMs). */
-  mainAgentAncestors: Set<string>;
-  /** Span ID -> anchor IDs of subagents whose LLM has that ID as a strict ancestor. */
-  subagentAncestors: Map<string, Set<string>>;
-  /** Anchor -> sorted LLM start times, for nearest-preceding-LLM tie-breaks. */
-  anchorLlmTimes: Map<string, string[]>;
-}
-
-const computeSubagentBoundaries = (spans: TraceViewSpan[]): SubagentLlmGrouping => {
-  const llmSpans: LlmSpanInfo[] = [];
-
-  for (const span of spans) {
-    if (span.spanType !== "LLM" && span.spanType !== "CACHED") continue;
-
-    const promptHash = (span.attributes?.["lmnr.span.prompt_hash"] as string | undefined) ?? "";
-    const idsPathRaw = span.attributes?.["lmnr.span.ids_path"] as string[] | undefined;
-    const idsPath = Array.isArray(idsPathRaw) ? idsPathRaw.filter((id) => id !== NULL_SPAN_ID) : [];
-
-    const spanPathAttr = span.attributes?.["lmnr.span.path"];
-    const spanPathArr = Array.isArray(spanPathAttr) ? spanPathAttr : [];
-    // Drop the trailing leaf — it can be dynamic (e.g. tool name per call) while
-    // still being the same agent step (mirrors the app-server compression
-    // boundary logic in signals/private/compression/boundaries.rs).
-    const parentSpanPath = spanPathArr.slice(0, -1).join(".");
-
-    llmSpans.push({
-      spanId: span.spanId,
-      parentSpanId: span.parentSpanId ?? "",
-      spanPath: parentSpanPath,
-      spanPathLength: spanPathArr.length,
-      promptHash,
-      invocationRoot: "", // filled in after path+hash clustering below
-      idsPath,
-      inputTokens: span.inputTokens ?? 0,
-      startTime: span.startTime,
-    });
-  }
-
-  if (llmSpans.length === 0) {
-    return {
-      llmToAnchor: new Map(),
-      mainAgentAncestors: new Set(),
-      subagentAncestors: new Map(),
-      anchorLlmTimes: new Map(),
-    };
-  }
-
-  llmSpans.sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-  // Cluster by (path, hash) and fill each LLM's invocation root.
-  const clusters = new Map<string, LlmSpanInfo[]>();
-  for (const s of llmSpans) {
-    const key = pathHashKey(s.spanPath, s.promptHash);
-    let bucket = clusters.get(key);
-    if (!bucket) {
-      bucket = [];
-      clusters.set(key, bucket);
-    }
-    bucket.push(s);
-  }
-  for (const bucket of clusters.values()) {
-    const roots = computeInvocationRoots(bucket);
-    for (const s of bucket) {
-      s.invocationRoot = roots.get(s.spanId) ?? "";
-    }
-  }
-
-  // Main agent: shortest path among the first N hashed LLMs, ties by input tokens.
-  // Hashless spans are never main (unhashed prompts aren't a reliable identity).
-  const hashedSearchWindow = llmSpans.filter((s) => s.promptHash !== "").slice(0, MAIN_AGENT_SEARCH_WINDOW);
-  const mainSpan =
-    hashedSearchWindow.length > 0
-      ? hashedSearchWindow.reduce((best, s) => {
-          if (s.spanPathLength < best.spanPathLength) return s;
-          if (s.spanPathLength === best.spanPathLength && s.inputTokens > best.inputTokens) return s;
-          return best;
-        })
-      : null;
-  // No reliably-identifiable main agent → skip subagent grouping entirely.
-  // Otherwise hashless LLMs would all hash-key to "<path>|" (never === null) and
-  // be promoted into spurious subagent groups.
-  if (mainSpan === null) {
-    return {
-      llmToAnchor: new Map(),
-      mainAgentAncestors: new Set(),
-      subagentAncestors: new Map(),
-      anchorLlmTimes: new Map(),
-    };
-  }
-  // Keyed by (path, hash) only so every main-agent invocation is suppressed.
-  const mainPathHashKey = pathHashKey(mainSpan.spanPath, mainSpan.promptHash);
-  const pathHashKeyOf = (s: LlmSpanInfo) => pathHashKey(s.spanPath, s.promptHash);
-
-  // Anchor = first LLM (by start time) per full composite key, excluding main.
-  const keyToAnchor = new Map<string, string>();
-  for (const s of llmSpans) {
-    if (pathHashKeyOf(s) === mainPathHashKey) continue;
-    const key = compositeKey(s.spanPath, s.promptHash, s.invocationRoot);
-    if (!keyToAnchor.has(key)) keyToAnchor.set(key, s.spanId);
-  }
-
-  // Record each LLM's strict ancestors against its agent (main or sub) so
-  // `buildSpanToAnchorMap` can place non-LLM spans by deepest claimed ancestor.
-  const llmToAnchor = new Map<string, string>();
-  const mainAgentAncestors = new Set<string>();
-  const subagentAncestors = new Map<string, Set<string>>();
-  const anchorLlmTimes = new Map<string, string[]>();
-
-  for (const s of llmSpans) {
-    if (pathHashKeyOf(s) === mainPathHashKey) {
-      for (let i = 0; i < s.idsPath.length - 1; i++) {
-        mainAgentAncestors.add(s.idsPath[i]);
-      }
-      continue;
-    }
-
-    const key = compositeKey(s.spanPath, s.promptHash, s.invocationRoot);
-    const anchor = keyToAnchor.get(key);
-    if (!anchor) continue;
-    llmToAnchor.set(s.spanId, anchor);
-
-    for (let i = 0; i < s.idsPath.length - 1; i++) {
-      const ancestorId = s.idsPath[i];
-      let anchors = subagentAncestors.get(ancestorId);
-      if (!anchors) {
-        anchors = new Set();
-        subagentAncestors.set(ancestorId, anchors);
-      }
-      anchors.add(anchor);
-    }
-
-    let times = anchorLlmTimes.get(anchor);
-    if (!times) {
-      times = [];
-      anchorLlmTimes.set(anchor, times);
-    }
-    times.push(s.startTime);
-  }
-
-  return { llmToAnchor, mainAgentAncestors, subagentAncestors, anchorLlmTimes };
-};
+const isLlmSpan = (span: TraceViewSpan): boolean => span.spanType === "LLM" || span.spanType === "CACHED";
 
 export interface CondensedSubagentGroup {
-  /** Matches transcriptExpandedGroups keys (`group-<boundarySpanId>`). */
+  /** Matches transcriptExpandedGroups keys (`group-<toolSpanId>`). */
   groupId: string;
-  /** All span IDs belonging to this subagent group (any span type). */
+  /** The TOOL span that ran the subagent. It is the parent agent's call-site, so not a member. */
+  toolSpanId: string;
+  /** All span IDs belonging to this subagent group (any span type), in input order. */
   spanIds: string[];
 }
 
 /**
- * Returns `{groupId, spanIds}` per subagent. LLM spans map via
- * `computeSubagentBoundaries`; non-LLM spans are placed by their deepest
- * claimed `ids_path` ancestor (see `buildSpanToAnchorMap`). Shares
- * `group-<anchorSpanId>` naming with `buildTranscriptListEntries` so the
- * condensed timeline can sync collapsed/expanded state.
+ * Groups spans by the subagent that produced them. Every agent integration we
+ * instrument (Claude Agent SDK, OpenAI Agents `asTool`, Google ADK `AgentTool`,
+ * AI SDK, LangChain / deepagents, Mastra, Pydantic AI, MS Agent Framework) runs
+ * a spawned subagent inside the parent's tool call, so a subagent is a TOOL span
+ * with LLM/CACHED descendants and its group is every descendant of that span.
+ * Handoffs (OpenAI Agents, ADK `transfer_to_agent`, LangGraph supervisor) run the
+ * next agent beside the tool rather than under it, so they stay inline.
+ *
+ * Only the outermost spawns become groups because the transcript renders one
+ * level; a nested subagent stays inside its parent's group. When every LLM sits
+ * under spawn tools, no calling agent is visible at that level (e.g. the whole
+ * agent runs inside a tool span), so that layer is peeled and the search
+ * continues inside it.
  */
 export const computeSubagentGroups = (allSpans: TraceViewSpan[]): CondensedSubagentGroup[] => {
-  const grouping = computeSubagentBoundaries(allSpans);
-  if (grouping.llmToAnchor.size === 0) return [];
+  const presentIds = new Set(allSpans.map((s) => s.spanId));
+  const childSpans = getChildSpansMap(allSpans);
+  const children = (span: TraceViewSpan): TraceViewSpan[] => childSpans[span.spanId] ?? [];
 
-  const spanToAnchor = buildSpanToAnchorMap(allSpans, grouping);
+  // LLM/CACHED spans in each subtree, the span itself included.
+  const llmCounts = new Map<string, number>();
+  const countLlms = (span: TraceViewSpan): number => {
+    const cached = llmCounts.get(span.spanId);
+    if (cached !== undefined) return cached;
+    let count = isLlmSpan(span) ? 1 : 0;
+    for (const child of children(span)) count += countLlms(child);
+    llmCounts.set(span.spanId, count);
+    return count;
+  };
+  const sumLlms = (spans: TraceViewSpan[]) => spans.reduce((sum, s) => sum + countLlms(s), 0);
 
-  const groupSpansMap = new Map<string, string[]>();
-  for (const span of allSpans) {
-    const anchor = spanToAnchor.get(span.spanId);
-    if (!anchor) continue;
-    let bucket = groupSpansMap.get(anchor);
-    if (!bucket) {
-      bucket = [];
-      groupSpansMap.set(anchor, bucket);
+  const collectOutermostSpawns = (span: TraceViewSpan, out: TraceViewSpan[]) => {
+    if (span.spanType === "TOOL" && countLlms(span) > 0) {
+      out.push(span);
+      return;
     }
-    bucket.push(span.spanId);
+    for (const child of children(span)) collectOutermostSpawns(child, out);
+  };
+
+  let scope = allSpans.filter((s) => !s.parentSpanId || !presentIds.has(s.parentSpanId));
+  let spawns: TraceViewSpan[];
+  for (;;) {
+    spawns = [];
+    for (const span of scope) collectOutermostSpawns(span, spawns);
+    if (spawns.length === 0) return [];
+    if (sumLlms(spawns) < sumLlms(scope)) break;
+    scope = spawns.flatMap(children);
   }
 
-  return Array.from(groupSpansMap.entries()).map(([anchor, spanIds]) => ({
-    groupId: `group-${anchor}`,
-    spanIds,
+  const spanToTool = new Map<string, string>();
+  const claimDescendants = (span: TraceViewSpan, toolSpanId: string) => {
+    for (const child of children(span)) {
+      spanToTool.set(child.spanId, toolSpanId);
+      claimDescendants(child, toolSpanId);
+    }
+  };
+  for (const spawn of spawns) claimDescendants(spawn, spawn.spanId);
+
+  const groupSpanIds = new Map<string, string[]>(spawns.map((s) => [s.spanId, []]));
+  for (const span of allSpans) {
+    const toolSpanId = spanToTool.get(span.spanId);
+    if (toolSpanId) groupSpanIds.get(toolSpanId)!.push(span.spanId);
+  }
+
+  return spawns.map((spawn) => ({
+    groupId: `group-${spawn.spanId}`,
+    toolSpanId: spawn.spanId,
+    spanIds: groupSpanIds.get(spawn.spanId)!,
   }));
 };
 
 /**
- * Maps every span to its subagent anchor (or `undefined` for standalone).
- *
- * LLM/CACHED spans use `grouping.llmToAnchor` directly. Non-LLM spans walk
- * their `ids_path` strict ancestors (skipping the span's own ID, so a TOOL
- * that wraps a subagent doesn't claim itself) deepest-first and stop at the
- * first claimed ancestor. Main-agent claim wins ties → standalone. Multiple
- * subagent claims at one depth → nearest preceding LLM by start time.
- */
-const buildSpanToAnchorMap = (allSpans: TraceViewSpan[], grouping: SubagentLlmGrouping): Map<string, string> => {
-  const result = new Map<string, string>();
-  for (const span of allSpans) {
-    const anchor = grouping.llmToAnchor.get(span.spanId);
-    if (anchor) result.set(span.spanId, anchor);
-  }
-
-  if (grouping.subagentAncestors.size === 0) return result;
-
-  const resolveSubagent = (idsPath: string[], spanStartTime: string): string | null => {
-    for (let i = idsPath.length - 2; i >= 0; i--) {
-      const ancestorId = idsPath[i];
-      if (grouping.mainAgentAncestors.has(ancestorId)) return null;
-
-      const subClaims = grouping.subagentAncestors.get(ancestorId);
-      if (!subClaims) continue;
-
-      if (subClaims.size === 1) return subClaims.values().next().value!;
-
-      // Multiple subagents claim this ancestor — pick the one whose most
-      // recent LLM iteration started at or before this span.
-      let chosen: string | null = null;
-      let chosenTime = "";
-      for (const anchor of subClaims) {
-        const times = grouping.anchorLlmTimes.get(anchor);
-        if (!times) continue;
-        for (let j = times.length - 1; j >= 0; j--) {
-          if (times[j] <= spanStartTime) {
-            if (times[j] > chosenTime) {
-              chosenTime = times[j];
-              chosen = anchor;
-            }
-            break;
-          }
-        }
-      }
-      return chosen;
-    }
-    return null;
-  };
-
-  for (const span of allSpans) {
-    if (result.has(span.spanId)) continue;
-    if (span.spanType === "LLM" || span.spanType === "CACHED") continue;
-
-    const idsPathAttr = span.attributes?.["lmnr.span.ids_path"] as string[] | undefined;
-    const idsPath = Array.isArray(idsPathAttr) ? idsPathAttr.filter((id) => id !== NULL_SPAN_ID) : [];
-    if (idsPath.length === 0) continue;
-
-    const anchor = resolveSubagent(idsPath, span.startTime);
-    if (anchor) result.set(span.spanId, anchor);
-  }
-
-  return result;
-};
-
-/**
- * Builds the flat list of transcript entries. Non-main LLM/CACHED spans anchor
- * subagent group blocks; non-LLM spans bundle in or stay standalone per
- * `buildSpanToAnchorMap`. Main-agent LLMs render inline.
+ * Builds the flat list of transcript entries. Spans inside a subagent (see
+ * `computeSubagentGroups`) render as one group block at the position of the
+ * group's first span; everything else renders inline.
  */
 export const buildTranscriptListEntries = (
   allSpans: TraceViewSpan[],
@@ -610,12 +343,15 @@ export const buildTranscriptListEntries = (
 
   const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
 
-  const grouping = computeSubagentBoundaries(allSpans);
-  if (grouping.llmToAnchor.size === 0) {
+  const groups = computeSubagentGroups(allSpans);
+  if (groups.length === 0) {
     return listSpans.map((span): TranscriptListEntry => ({ type: "span", span: toLightweight(span) }));
   }
 
-  const spanToAnchor = buildSpanToAnchorMap(allSpans, grouping);
+  const spanToGroup = new Map<string, CondensedSubagentGroup>();
+  for (const group of groups) {
+    for (const spanId of group.spanIds) spanToGroup.set(spanId, group);
+  }
   const spanMap = new Map<string, TraceViewSpan>();
   for (const s of allSpans) spanMap.set(s.spanId, s);
 
@@ -623,12 +359,12 @@ export const buildTranscriptListEntries = (
   // order (the order spans arrive in `listSpans`).
   const groupSpansMap = new Map<string, TraceViewSpan[]>();
   for (const span of listSpans) {
-    const anchor = spanToAnchor.get(span.spanId);
-    if (!anchor) continue;
-    let bucket = groupSpansMap.get(anchor);
+    const group = spanToGroup.get(span.spanId);
+    if (!group) continue;
+    let bucket = groupSpansMap.get(group.groupId);
     if (!bucket) {
       bucket = [];
-      groupSpansMap.set(anchor, bucket);
+      groupSpansMap.set(group.groupId, bucket);
     }
     bucket.push(span);
   }
@@ -636,8 +372,8 @@ export const buildTranscriptListEntries = (
   const emittedGroups = new Set<string>();
   const entries: TranscriptListEntry[] = [];
 
-  const emitGroupBlock = (anchor: string) => {
-    const groupSpans = groupSpansMap.get(anchor);
+  const emitGroupBlock = (group: CondensedSubagentGroup) => {
+    const groupSpans = groupSpansMap.get(group.groupId);
     if (!groupSpans || groupSpans.length === 0) return;
 
     let firstLlm: TraceViewSpan | undefined;
@@ -666,15 +402,15 @@ export const buildTranscriptListEntries = (
       return;
     }
 
-    const anchorSpan = spanMap.get(anchor);
+    const toolSpan = spanMap.get(group.toolSpanId);
     const lightSpans = groupSpans.map((s) => toLightweight(s));
-    const groupId = `group-${anchor}`;
+    const { groupId } = group;
 
     entries.push({
       type: "group",
       groupId,
-      name: anchorSpan?.name ?? groupSpans[0].name,
-      path: anchorSpan?.path ?? "",
+      name: toolSpan?.name ?? groupSpans[0].name,
+      path: toolSpan?.path ?? "",
       firstSpan: lightSpans[0],
       firstLlmSpanId: firstLlm.spanId,
       lastLlmSpanId: lastLlm && lastLlm.spanId !== firstLlm.spanId ? lastLlm.spanId : null,
@@ -699,14 +435,14 @@ export const buildTranscriptListEntries = (
   };
 
   for (const span of listSpans) {
-    const anchor = spanToAnchor.get(span.spanId);
-    if (!anchor) {
+    const group = spanToGroup.get(span.spanId);
+    if (!group) {
       entries.push({ type: "span", span: toLightweight(span) });
       continue;
     }
-    if (emittedGroups.has(anchor)) continue;
-    emittedGroups.add(anchor);
-    emitGroupBlock(anchor);
+    if (emittedGroups.has(group.groupId)) continue;
+    emittedGroups.add(group.groupId);
+    emitGroupBlock(group);
   }
 
   return entries;

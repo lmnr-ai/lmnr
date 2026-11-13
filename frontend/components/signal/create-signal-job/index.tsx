@@ -90,7 +90,7 @@ const CreateSignalJobContent = () => {
       }
 
       setConfirmDialogOpen(false);
-      router.push(`/project/${projectId}/signals/${signal.id}?tab=runs`);
+      router.push(`/project/${projectId}/signals/${signal.id}?tab=settings&section=runs`);
       toast({
         title: "Backfill created",
         description: `Backfill for "${signal.name}" has been queued for ${count?.toLocaleString() ?? "selected"} traces.`,

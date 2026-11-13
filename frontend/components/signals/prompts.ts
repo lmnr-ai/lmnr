@@ -1,4 +1,4 @@
-import { NEW_SIGNAL_SETTINGS, SIGNAL_SETTINGS_OFF, type SignalSettings } from "@/lib/signals/settings";
+import { NEW_SIGNAL_SETTINGS, type SignalSettings } from "@/lib/signals/settings";
 
 export type EventTemplate = SignalSettings & {
   name: string;
@@ -49,7 +49,9 @@ Grounding:
   {
     name: "Intent",
     icon: "target",
-    ...SIGNAL_SETTINGS_OFF,
+    // Intent clusters are intents, not problems: nothing to report on or resolve.
+    reportsEnabled: false,
+    autoResolveEnabled: false,
     prompt: `What was the user trying to accomplish in this session?
 Classify the primary intent.`,
     structuredOutputSchema: JSON.stringify(

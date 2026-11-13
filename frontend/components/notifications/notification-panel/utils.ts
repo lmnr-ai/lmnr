@@ -51,6 +51,7 @@ interface NewClusterPayload {
   alert_name: string;
   first_seen?: string | null;
   last_seen?: string | null;
+  reopened?: boolean;
 }
 
 interface BaseNotification {
@@ -111,7 +112,7 @@ const formatNewClusterPayload = (cluster: NewClusterPayload): NewClusterNotifica
   return {
     kind: "cluster",
     title: cluster.signal_name,
-    summary: "New cluster",
+    summary: cluster.reopened ? "New events in a resolved cluster" : "New cluster",
     clusterLink: `/project/${cluster.project_id}/signals/${cluster.signal_id}?clusterId=${cluster.cluster_id}`,
     details,
   };

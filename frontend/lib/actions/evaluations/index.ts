@@ -208,3 +208,10 @@ export async function deleteEvaluations(input: z.infer<typeof DeleteEvaluationsS
     console.error("Failed to delete evaluation datapoints from ClickHouse:", error);
   }
 }
+
+export async function getGroupEvaluationsInfo(projectId: string, groupId: string) {
+  return db
+    .select({ id: evaluations.id, name: evaluations.name, metadata: evaluations.metadata })
+    .from(evaluations)
+    .where(and(eq(evaluations.projectId, projectId), eq(evaluations.groupId, groupId)));
+}

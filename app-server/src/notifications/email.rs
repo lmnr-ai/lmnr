@@ -9,11 +9,12 @@ use std::{collections::HashMap, ops::Range};
 
 use uuid::Uuid;
 
-use super::NotificationKind;
+use super::email_markdown::markdown_to_email_html;
 use super::utils::{
     build_report_data_from_batch, frontend_url_email, inject_utm_into_links,
     md_links_to_html_escaped, with_utm,
 };
+use super::{NotificationKind, new_cluster_wording};
 use crate::reports::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
@@ -262,11 +263,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 .iter()
                 .filter(|n| matches!(n, NotificationKind::NewCluster { .. }))
                 .collect();
-            let wording = if clusters.len() > 1 {
-                format!("{} new clusters detected", clusters.len())
-            } else {
-                "New cluster detected".to_string()
-            };
+            let wording = new_cluster_wording(&clusters);
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
                 subject: signal_notification_subject(project_name, signal_name, &wording),
@@ -538,6 +535,7 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
         last_seen,
         severity_counts,
         activity_buckets,
+        report,
         ..
     } = kind
     else {
@@ -552,6 +550,25 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
         "new_cluster_alert",
         "view_cluster",
     );
+    let accent = CLUSTER_PALETTE[cluster_color_index(&cluster_id.to_string())];
+    let events = format!(
+        r#"<div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;font-weight:500;color:{text}">Events</p><div style="font-size:28px;font-weight:500;color:{text};line-height:1">{num_signal_events}</div><div style="margin:12px 0 20px">{chart}</div></div>"#,
+        text = TEXT,
+        chart = cluster_activity_chart(
+            activity_buckets,
+            first_seen.as_deref(),
+            last_seen.as_deref(),
+            accent
+        ),
+    );
+    if let Some(report) = report {
+        return format!(
+            r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}{}{events}<div>{}</div></div>"#,
+            breadcrumb(&[project_name, signal_name], &cluster_link),
+            cluster_title(cluster_name, accent),
+            markdown_to_email_html(report),
+        );
+    }
     let rows = vec![
         (
             "Critical".to_string(),
@@ -575,23 +592,12 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
                 .unwrap_or_else(|| "Not available".to_string()),
         ),
     ];
-    let accent = CLUSTER_PALETTE[cluster_color_index(&cluster_id.to_string())];
     let severity_rows = data_rows(&rows[..3]);
     let event_time_rows = data_rows(&rows[3..]);
     format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}{}<div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;font-weight:500;color:{text}">Events</p><div style="font-size:28px;font-weight:500;color:{text};line-height:1">{num_signal_events}</div><div style="margin:12px 0 20px">{chart}</div></div>{severity_rows}<div style="height:8px;line-height:8px;font-size:0">&nbsp;</div>{event_time_rows}</div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}{}{events}{severity_rows}<div style="height:8px;line-height:8px;font-size:0">&nbsp;</div>{event_time_rows}</div>"#,
         breadcrumb(&[project_name, signal_name], &cluster_link),
         cluster_title(cluster_name, accent),
-        text = TEXT,
-        num_signal_events = num_signal_events,
-        chart = cluster_activity_chart(
-            activity_buckets,
-            first_seen.as_deref(),
-            last_seen.as_deref(),
-            accent
-        ),
-        severity_rows = severity_rows,
-        event_time_rows = event_time_rows
     )
 }
 
@@ -617,11 +623,7 @@ fn render_new_cluster_email(clusters: &[&NotificationKind]) -> String {
         "new_cluster_alert",
         "manage_preferences",
     );
-    let title = if clusters.len() == 1 {
-        "New cluster detected".to_string()
-    } else {
-        format!("{} new clusters detected", clusters.len())
-    };
+    let title = new_cluster_wording(clusters);
     let body = format!(
         "{}{}{}",
         banner(project_name, &title, None),
@@ -1029,7 +1031,7 @@ fn cluster_tint_rgba(color: &str) -> String {
     )
 }
 
-fn html_escape(s: &str) -> String {
+pub(super) fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -1184,6 +1186,8 @@ mod tests {
             severity_counts: [0, 0, 1],
             activity_buckets: vec![1],
             example_events: vec![],
+            reopened: false,
+            report: None,
         };
 
         assert_eq!(
@@ -1262,6 +1266,8 @@ mod tests {
             severity_counts: [0, 0, 1],
             activity_buckets: vec![1],
             example_events: vec![],
+            reopened: false,
+            report: None,
         };
         let cluster_html = render_new_cluster_email(&[&cluster]);
 
@@ -1404,6 +1410,8 @@ mod tests {
             severity_counts: [4, 11, 19],
             activity_buckets: vec![1, 0, 3, 0, 0, 5, 0, 2, 0, 0, 4, 19],
             example_events: vec![],
+            reopened: false,
+            report: None,
         }]);
 
         assert!(html.contains("New cluster detected"));
@@ -1423,6 +1431,8 @@ mod tests {
                     severity_counts: [1, 0, 0],
                     activity_buckets: vec![1],
                     example_events: vec![],
+                    reopened: false,
+                    report: None,
                 },
                 &NotificationKind::NewCluster {
                     project_id: Uuid::nil(),
@@ -1438,6 +1448,8 @@ mod tests {
                     severity_counts: [1, 0, 0],
                     activity_buckets: vec![1],
                     example_events: vec![],
+                    reopened: false,
+                    report: None,
                 },
             ])
             .contains("2 new clusters detected")
@@ -1459,6 +1471,90 @@ mod tests {
                 .count(),
             12
         );
+    }
+
+    #[test]
+    fn new_cluster_with_report_keeps_the_event_chart_and_replaces_the_stats() {
+        let cluster_id = Uuid::from_u128(42);
+        let html = render_new_cluster_email(&[&NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            project_name: "Project".into(),
+            signal_id: Uuid::from_u128(1),
+            signal_name: "Signal".into(),
+            cluster_id,
+            cluster_name: "Tool call loops".into(),
+            num_signal_events: 34,
+            alert_name: "Alert".into(),
+            first_seen: Some("Mar 1".into()),
+            last_seen: Some("Mar 4".into()),
+            severity_counts: [4, 11, 19],
+            activity_buckets: vec![1, 0, 3],
+            example_events: vec![],
+            reopened: false,
+            report: Some("## Overview\nThe agent **loops** on `search`.\n\n<img src=x>".into()),
+        }]);
+
+        assert!(html.contains("New cluster detected"));
+        assert!(html.contains("Tool call loops"));
+        assert!(html.contains(&format!("clusterId={cluster_id}")));
+        assert!(html.contains(">Overview</h2>"));
+        assert!(html.contains(r#"<strong style="font-weight:600">loops</strong>"#));
+        assert!(html.contains("&lt;img src=x&gt;"));
+        assert!(html.contains(">34</div>"));
+        assert!(html.contains(r#"<td valign="bottom""#));
+        assert!(!html.contains("First event"));
+        assert!(!html.contains("Critical"));
+    }
+
+    #[test]
+    fn reopened_cluster_email_says_new_events_in_a_resolved_cluster() {
+        let reopened = NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            project_name: "Project".into(),
+            signal_id: Uuid::from_u128(1),
+            signal_name: "Signal".into(),
+            cluster_id: Uuid::from_u128(42),
+            cluster_name: "Tool call loops".into(),
+            num_signal_events: 34,
+            alert_name: "Alert".into(),
+            first_seen: None,
+            last_seen: None,
+            severity_counts: [0; 3],
+            activity_buckets: vec![],
+            example_events: vec![],
+            reopened: true,
+            report: None,
+        };
+        let email = format_email_batch(&[reopened], &Uuid::nil());
+        assert_eq!(
+            email.subject,
+            "Project / Signal - New events detected in a resolved cluster"
+        );
+        let EmailBody::Html(html) = email.body else {
+            panic!("expected HTML");
+        };
+        assert!(html.contains("New events detected in a resolved cluster"));
+        assert!(!html.contains("New cluster detected"));
+    }
+
+    #[test]
+    fn queued_new_cluster_without_report_field_still_deserializes() {
+        let json = serde_json::json!({
+            "NewCluster": {
+                "project_id": Uuid::nil(),
+                "signal_id": Uuid::nil(),
+                "signal_name": "Signal",
+                "cluster_id": Uuid::nil(),
+                "cluster_name": "Cluster",
+                "num_signal_events": 1,
+                "alert_name": "Alert",
+            }
+        });
+        let kind: NotificationKind = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            kind,
+            NotificationKind::NewCluster { report: None, .. }
+        ));
     }
 
     #[test]

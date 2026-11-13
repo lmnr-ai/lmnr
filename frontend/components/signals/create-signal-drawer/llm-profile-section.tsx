@@ -62,6 +62,13 @@ function LlmProfileFields() {
     setValue("llmModel", only.models[0] ?? null, { shouldDirty: true, shouldValidate: true });
   }, [profiles, isExisting, getValues, setValue]);
 
+  // A selected profile always carries a model, so the form never sits in a "select a model" state.
+  const firstModel = models[0];
+  useEffect(() => {
+    if (!selectedProfile || !firstModel || getValues("llmModel")) return;
+    setValue("llmModel", firstModel, { shouldDirty: true, shouldValidate: true });
+  }, [selectedProfile, firstModel, getValues, setValue]);
+
   const settingsLink = (
     <Link
       href={settingsHref("llm-profiles")}
@@ -74,9 +81,9 @@ function LlmProfileFields() {
 
   return (
     <div className="grid gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <TooltipProvider delayDuration={200}>
-          <div className="flex items-center gap-1.5">
+          <div className="flex h-8 shrink-0 items-center gap-1.5">
             <Label className="text-sm font-medium">LLM</Label>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -87,11 +94,85 @@ function LlmProfileFields() {
                   The model that reads each trace and decides whether to report an event. It runs on the LLM
                   profile&apos;s credentials, so usage is billed to that provider account.
                 </p>
+                <p className="mt-1.5">Manage profiles in {settingsLink}</p>
               </TooltipContent>
             </Tooltip>
           </div>
         </TooltipProvider>
-        {settingsLink}
+        <div className="grid min-w-0 max-w-[400px] flex-1 grid-cols-2 gap-2">
+          <Controller
+            control={control}
+            name="llmProfileId"
+            rules={{ validate: (v) => isExisting || !!v || "Select an LLM profile" }}
+            render={({ field, fieldState }) => {
+              // Radix Select ignores picking the current value, so clearing is handled on the item itself.
+              const clearProfile = () => {
+                field.onChange(null);
+                setValue("llmModel", null, { shouldDirty: true, shouldValidate: true });
+              };
+              return (
+                <div className="min-w-0">
+                  <Select
+                    value={field.value ?? ""}
+                    disabled={isEmpty || isLoading}
+                    onValueChange={(v) => {
+                      field.onChange(v);
+                      const next = profiles?.find((p) => p.id === v);
+                      setValue("llmModel", next?.models[0] ?? null, { shouldDirty: true, shouldValidate: true });
+                    }}
+                  >
+                    <SelectTrigger className={cn("h-8 text-sm", selectTriggerWithIconClassName)}>
+                      <SelectValue placeholder={isEmpty ? "No profiles yet" : "Profile"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {profiles?.map((p) => (
+                        <SelectItem
+                          key={p.id}
+                          value={p.id}
+                          onPointerUp={() => p.id === field.value && clearProfile()}
+                          onKeyDown={(e) =>
+                            (e.key === "Enter" || e.key === " ") && p.id === field.value && clearProfile()
+                          }
+                        >
+                          <span className="flex min-w-0 items-center gap-2 leading-none">
+                            <ProviderIcon provider={p.provider} className="shrink-0" />
+                            <span className="truncate">{p.name}</span>
+                            <span className="truncate text-xs text-muted-foreground">
+                              {PROVIDER_LABELS[p.provider]}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {fieldState.error && <p className="mt-1 text-xs text-destructive-text">{fieldState.error.message}</p>}
+                </div>
+              );
+            }}
+          />
+          <Controller
+            control={control}
+            name="llmModel"
+            rules={{ validate: (v) => (isExisting && !getValues("llmProfileId")) || !!v || "Select a model" }}
+            render={({ field, fieldState }) => (
+              <div className="min-w-0">
+                <Select value={field.value ?? ""} disabled={!selectedProfile} onValueChange={field.onChange}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {fieldState.error && <p className="mt-1 text-xs text-destructive-text">{fieldState.error.message}</p>}
+              </div>
+            )}
+          />
+        </div>
       </div>
       {isExisting && !profileId && (
         <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs">
@@ -102,64 +183,6 @@ function LlmProfileFields() {
           </p>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <Controller
-          control={control}
-          name="llmProfileId"
-          rules={{ validate: (v) => isExisting || !!v || "Select an LLM profile" }}
-          render={({ field, fieldState }) => (
-            <div className="grid gap-1.5">
-              <Select
-                value={field.value ?? ""}
-                disabled={isEmpty || isLoading}
-                onValueChange={(v) => {
-                  field.onChange(v);
-                  const next = profiles?.find((p) => p.id === v);
-                  setValue("llmModel", next?.models[0] ?? null, { shouldDirty: true, shouldValidate: true });
-                }}
-              >
-                <SelectTrigger className={cn("h-8 text-sm", selectTriggerWithIconClassName)}>
-                  <SelectValue placeholder={isEmpty ? "No profiles yet" : "Profile"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles?.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="flex items-center gap-2 leading-none">
-                        <ProviderIcon provider={p.provider} />
-                        {p.name}
-                        <span className="text-xs text-muted-foreground">{PROVIDER_LABELS[p.provider]}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
-            </div>
-          )}
-        />
-        <Controller
-          control={control}
-          name="llmModel"
-          rules={{ validate: (v) => (isExisting && !getValues("llmProfileId")) || !!v || "Select a model" }}
-          render={({ field, fieldState }) => (
-            <div className="grid gap-1.5">
-              <Select value={field.value ?? ""} disabled={!selectedProfile} onValueChange={field.onChange}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {fieldState.error && <p className="text-xs text-destructive-text">{fieldState.error.message}</p>}
-            </div>
-          )}
-        />
-      </div>
       {isEmpty && (
         <p className="text-xs text-muted-foreground">
           Add an LLM profile in workspace settings before creating a signal.

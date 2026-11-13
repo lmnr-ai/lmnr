@@ -44,6 +44,10 @@ export function TraceAgentContext(_props: { traceId: string }) {
   return null;
 }
 
+export function CreateEvalsButton(_props: { clusterName: string }) {
+  return null;
+}
+
 export default function LaminarAgent() {
   return null;
 }

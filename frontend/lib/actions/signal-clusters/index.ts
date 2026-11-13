@@ -23,6 +23,7 @@ const archiver = alias(users, "archiver");
 import { ClusterScopeSchema, resolveClusterScope, SignalScopeSchema } from "./scope";
 import {
   type ClusterResolution,
+  type ClusterDaily,
   CLUSTER_WINDOW_DAYS,
   type ClusterVersionMarker,
   type SignalCluster,
@@ -103,6 +104,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
         clusterId: string;
         total: number;
         traces: number;
+        severity: number;
         firstSeen: string;
         lastSeen: string;
         traceIds: string[];
@@ -112,6 +114,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
           cluster_id AS clusterId,
           count() AS total,
           uniqExact(trace_id) AS traces,
+          avg(severity) AS severity,
           formatDateTime(min(timestamp), '%Y-%m-%d %H:%i:%S.%f') AS firstSeen,
           formatDateTime(max(timestamp), '%Y-%m-%d %H:%i:%S.%f') AS lastSeen,
           arraySlice(arrayMap(x -> tupleElement(x, 2), arrayReverseSort(groupArray((timestamp, trace_id)))), 1, ${SAMPLE_TRACES}) AS traceIds
@@ -141,6 +144,8 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
           resolvedBy: resolver.name,
           reopenedAt: signalClusterResolutions.reopenedAt,
           reopenedBy: reopener.name,
+          resolvedAutomatically: signalClusterResolutions.resolvedAutomatically,
+          reopenedAutomatically: signalClusterResolutions.reopenedAutomatically,
         })
         .from(signalClusterResolutions)
         .leftJoin(resolver, eq(resolver.id, signalClusterResolutions.resolvedBy))
@@ -207,6 +212,8 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
       resolvedBy: r.resolvedBy,
       reopenedAt: r.reopenedAt ? new Date(r.reopenedAt).toISOString() : null,
       reopenedBy: r.reopenedBy,
+      resolvedAutomatically: r.resolvedAutomatically,
+      reopenedAutomatically: r.reopenedAutomatically,
     }));
     return [
       {
@@ -215,6 +222,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
         daily: dailyById.get(cluster.id) ?? Array.from({ length: days.length }, () => 0),
         total: Number(s.total),
         traces: Number(s.traces),
+        severity: Math.round(Number(s.severity)),
         firstSeen: chToIso(s.firstSeen),
         lastSeen,
         createdAt: chToIso(cluster.createdAt),
@@ -314,8 +322,7 @@ const SetResolvedSchema = ClusterScopeSchema.extend({ resolved: z.boolean() });
 export async function setClusterResolved(input: z.infer<typeof SetResolvedSchema>): Promise<void> {
   const { resolved } = SetResolvedSchema.parse(input);
   const userId = await requireUserId();
-  const { projectId, signalId, clusterId, signal } = await resolveClusterScope(input);
-  if (!signal.settings.resolvingEnabled) throw new ApiError("Resolving clusters is off for this signal", 409);
+  const { projectId, signalId, clusterId } = await resolveClusterScope(input);
 
   if (resolved) {
     // The partial unique index allows one open resolution per cluster.
@@ -387,4 +394,72 @@ export async function getClusterVersionMarkers(
     const n = numberByHash.get(r.versionHash);
     return n === undefined ? [] : [{ label: `v${n}`, firstSeen: chToIso(r.firstSeen) }];
   });
+}
+
+const MAX_RANGE_DAYS = 366;
+const DAY_MS = 86_400_000;
+
+export const ClusterDailySchema = ClusterScopeSchema.extend({
+  pastHours: z.coerce.number().positive().optional(),
+  startDate: z.iso.datetime().optional(),
+  endDate: z.iso.datetime().optional(),
+  /** The viewer's IANA timezone, for the bars' date labels. */
+  tz: z.string().max(64).optional(),
+});
+
+/** `YYYY-MM-DD` in the viewer's timezone; an unknown zone falls back to UTC. */
+const dateIn = (tz: string | undefined) => {
+  const options = { year: "numeric", month: "2-digit", day: "2-digit" } as const;
+  let format: Intl.DateTimeFormat;
+  try {
+    format = new Intl.DateTimeFormat("en-CA", { ...options, timeZone: tz ?? "UTC" });
+  } catch {
+    format = new Intl.DateTimeFormat("en-CA", { ...options, timeZone: "UTC" });
+  }
+  return (ms: number) => format.format(new Date(ms));
+};
+
+/**
+ * A cluster's events over the picked range (the last `pastHours`, or `startDate`–`endDate`) in 24h bars counted from
+ * the range's start. The bars cover exactly the range the Events table reads, so 720h is 30 bars ending now, and a
+ * picker range (local midnights) is one bar per local day.
+ */
+export async function getClusterDaily(input: z.input<typeof ClusterDailySchema>): Promise<ClusterDaily> {
+  const { pastHours, startDate, endDate, tz, ...scopeInput } = ClusterDailySchema.parse(input);
+  const { projectId, signalId, clusterId } = await resolveClusterScope(scopeInput);
+
+  const now = Date.now();
+  const end = endDate ? new Date(endDate).getTime() : now;
+  const requested = startDate
+    ? new Date(startDate).getTime()
+    : end - (pastHours ?? CLUSTER_WINDOW_DAYS * 24) * 3_600_000;
+  if (requested > end) throw new ApiError("startDate must not be after endDate", 400);
+  // An overlong range keeps its most recent days, so a rolling window still ends at now.
+  const start = Math.max(requested, end - MAX_RANGE_DAYS * DAY_MS);
+
+  // The picker's single-day range has start = end at midnight: read it as that whole day.
+  const count = Math.min(MAX_RANGE_DAYS, Math.max(1, Math.ceil((end - start) / DAY_MS)));
+  const to = start === end ? start + DAY_MS : Math.min(end, start + count * DAY_MS);
+  // Each bar is labelled by the viewer's date at its middle, clamped into the window so a 1h range reads as today.
+  const label = dateIn(tz);
+  const days = Array.from({ length: count }, (_, i) =>
+    label(Math.min(start + i * DAY_MS + DAY_MS / 2, Math.max(start, to - 1)))
+  );
+
+  const chTime = (ms: number) => new Date(ms).toISOString().replace("T", " ").replace("Z", "");
+  const rows = await executeQuery<{ bucket: number; count: number }>({
+    query: `
+      SELECT least(intDiv(dateDiff('millisecond', toDateTime64({from: String}, 9, 'UTC'), timestamp), ${DAY_MS}), {last: Int64}) AS bucket,
+        count() AS count
+      FROM signal_events
+      WHERE signal_id = {signalId: UUID} AND has(leaf_clusters, {clusterId: UUID})
+        AND timestamp >= toDateTime64({from: String}, 9, 'UTC') AND timestamp <= toDateTime64({to: String}, 9, 'UTC')
+      GROUP BY bucket
+    `,
+    parameters: { signalId, clusterId, from: chTime(start), to: chTime(to), last: count - 1 },
+    projectId,
+  });
+  const daily = Array.from({ length: count }, () => 0);
+  for (const r of rows) daily[Number(r.bucket)] += Number(r.count);
+  return { days, daily, start: new Date(start).toISOString(), toNow: !endDate };
 }

@@ -798,6 +798,17 @@ fn main() -> anyhow::Result<()> {
             runtime_handle.spawn(job.run());
         }
 
+        #[cfg(feature = "signals")]
+        {
+            // Does nothing until a signal turns auto-resolving on.
+            log::info!("Starting cluster auto-resolve job");
+            runtime_handle.spawn(clustering::private::auto_resolve::run(
+                db.clone(),
+                clickhouse.clone(),
+                cache.clone(),
+            ));
+        }
+
         let worker_pool = Arc::new(WorkerPool::new(
             queue.clone(),
             shutdown.clone(),
@@ -1858,6 +1869,8 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::hosted_evals::create_upload)
                             .service(api::v1::cli::hosted_evals::upload_index)
                             .service(api::v1::cli::hosted_evals::start_run)
+                            .service(api::v1::cli::hosted_evals::get_run_logs)
+                            .service(api::v1::cli::hosted_evals::get_sandbox)
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
@@ -1996,6 +2009,9 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::hosted_evals::upload_job)
                                     .service(api::v1::hosted_evals::upload_job_index)
                                     .service(api::v1::hosted_evals::start_run)
+                                    .service(api::v1::hosted_evals::append_run_logs)
+                                    .service(api::v1::hosted_evals::end_run_logs)
+                                    .service(api::v1::hosted_evals::get_run_logs)
                                     .service(api::v1::signals::create_signal)
                                     .service(api::v1::signals::list_signals)
                                     .service(api::v1::signals::list_signal_versions)
@@ -2029,6 +2045,9 @@ fn main() -> anyhow::Result<()> {
                                     .service(crate::signals::private::routes::test_signal)
                                     .service(crate::signals::private::routes::eval_signal)
                                     .service(crate::signals::private::routes::eval_signal_prewarm)
+                                    .service(
+                                        crate::clustering::private::routes::send_new_cluster_notification,
+                                    )
                                     .service(crate::agent::toolkit_routes::get_agent_toolkit)
                                     .service(crate::agent::toolkit_routes::call_agent_tool);
                                 scope

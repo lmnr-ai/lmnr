@@ -1,12 +1,11 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { signalVersionsKey } from "@/components/signal/hooks/use-signal-version-markers";
 import { useSignalStoreContext } from "@/components/signal/store";
-import { Accordion } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
@@ -26,6 +25,11 @@ export default function VersionsSection() {
   const entries = useMemo(() => buildChangelog(data?.items ?? []), [data?.items]);
   const versionParam = searchParams.get("version");
 
+  // A toggle only counts for the `?version=` it was made under; otherwise that link, else the latest, starts open.
+  const [toggled, setToggled] = useState<{ param: string | null; version: string | null }>();
+  const expanded =
+    toggled && toggled.param === versionParam ? toggled.version : (versionParam ?? String(entries[0]?.version));
+
   useEffect(() => {
     if (!versionParam || !data) return;
     requestAnimationFrame(() => {
@@ -40,9 +44,9 @@ export default function VersionsSection() {
   if (isLoading || !data) {
     return (
       <div className="flex flex-col gap-3">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
       </div>
     );
   }
@@ -52,16 +56,18 @@ export default function VersionsSection() {
   }
 
   return (
-    <Accordion
-      key={versionParam ?? "none"}
-      type="single"
-      collapsible
-      defaultValue={versionParam ?? undefined}
-      className="w-full"
-    >
-      {entries.map((entry) => (
-        <VersionRow key={entry.version} entry={entry} />
+    <div className="flex flex-col">
+      {entries.map((entry, i) => (
+        <VersionRow
+          key={entry.version}
+          signalId={signalId}
+          entry={entry}
+          isLatest={i === 0}
+          isLast={i === entries.length - 1}
+          open={String(entry.version) === expanded}
+          onOpenChange={(open) => setToggled({ param: versionParam, version: open ? String(entry.version) : null })}
+        />
       ))}
-    </Accordion>
+    </div>
   );
 }

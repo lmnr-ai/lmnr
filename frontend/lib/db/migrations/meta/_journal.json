@@ -925,6 +925,13 @@
       "when": 1794436981763,
       "tag": "0131_signal_cluster_state",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1794493585319,
+      "tag": "0132_signal_cluster_auto_resolve",
+      "breakpoints": true
     }
   ]
 }

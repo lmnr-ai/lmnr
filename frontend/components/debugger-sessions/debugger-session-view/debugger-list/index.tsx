@@ -596,7 +596,6 @@ const FlatRowContent = memo(function FlatRowContent({
               output={previews[row.span.spanId]}
               onSpanSelect={(s) => onSelectSpan({ traceId: row.traceId, spanId: s.spanId })}
               isSelected={isSelected(row.traceId, row.span.spanId)}
-              inGroup
             />
           </CopyFlag>
         </GroupChildWrapper>

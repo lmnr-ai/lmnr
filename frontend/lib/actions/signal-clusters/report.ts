@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { AGENT_AVAILABLE, agentAppUrl, answerHeadlessTurn } from "@/lib/agent";
+import { callAppServer } from "@/lib/api/backend";
+import { ApiError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { signalClusterArchives, signalClusterReports } from "@/lib/db/migrations/schema";
 
@@ -47,7 +49,8 @@ Investigate first:
 Then answer with ONLY the report, in Markdown, with exactly these four sections and nothing before or after:
 
 ## Overview
-At most 4 sentences describing the problem.
+At most 4 sentences describing the problem. When the problem is a sequence of steps, write it as a numbered list instead, one step per item.
+Leave out event counts and dates: the page already shows them, and they go stale as new events join the cluster.
 
 ## Consequences
 At most 2 sentences on how it affects users and what it breaks downstream.
@@ -71,7 +74,47 @@ const settle = (clusterId: string, sessionId: string, values: Partial<typeof sig
     .set({ ...values, updatedAt: sql`now()` })
     .where(and(eq(signalClusterReports.clusterId, clusterId), eq(signalClusterReports.sessionId, sessionId)));
 
-async function writeReport(scope: ClusterScope, sessionId: string) {
+/** Which alert a run app-server started sends once it settles. */
+export type ClusterNotice = "new" | "reopened";
+
+const NOTIFY_RETRY_DELAYS_MS = [2_000, 10_000];
+
+/**
+ * Has app-server send the cluster's alert (new, or new events in a resolved one), with the report when there is one. Lost if this process
+ * restarts mid-run or every attempt fails: an accepted gap, the cluster stays visible on the signal page. A retry
+ * after a partial send can repeat an alert already pushed.
+ */
+async function sendClusterNotification(
+  { projectId, signalId, clusterId }: ClusterScope,
+  notify: ClusterNotice,
+  report: string | null
+) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await callAppServer(`/projects/${projectId}/signals/${signalId}/clusters/${clusterId}/new-cluster-notification`, {
+        method: "POST",
+        body: { report, reopened: notify === "reopened" },
+      });
+      return;
+    } catch (error) {
+      const delay = NOTIFY_RETRY_DELAYS_MS[attempt];
+      // A 4xx won't change on retry.
+      if (error instanceof ApiError || delay === undefined) {
+        console.error(`[cluster-report] ${clusterId} new-cluster notification failed:`, error);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+async function writeReport(scope: ClusterScope, sessionId: string, notify: ClusterNotice | undefined) {
+  const report = await runReport(scope, sessionId);
+  if (notify) await sendClusterNotification(scope, notify, report);
+}
+
+/** Runs the agent and settles the row; returns the report, or null when the run failed. */
+async function runReport(scope: ClusterScope, sessionId: string): Promise<string | null> {
   const { projectId, clusterId } = scope;
   try {
     const { answer, error } = await answerHeadlessTurn({
@@ -85,15 +128,17 @@ async function writeReport(scope: ClusterScope, sessionId: string) {
     });
     if (error || !answer.trim()) {
       await settle(clusterId, sessionId, { status: "failed", error: error ?? "The agent finished without a report" });
-      return;
+      return null;
     }
     await settle(clusterId, sessionId, { status: "done", content: answer, error: null });
+    return answer;
   } catch (error) {
     console.error(`[cluster-report] ${clusterId} failed:`, error);
     await settle(clusterId, sessionId, {
       status: "failed",
       error: error instanceof Error ? error.message : String(error),
-    });
+    }).catch((settleError) => console.error(`[cluster-report] ${clusterId} settle failed:`, settleError));
+    return null;
   }
 }
 
@@ -101,8 +146,15 @@ async function writeReport(scope: ClusterScope, sessionId: string) {
  * Starts the agent on an L1 cluster's report and returns without waiting (a run takes minutes). A no-op while one
  * is being written, when the signal has reports off, when the cluster is archived, or when it already has a report.
  * A failed or stale run is retried.
+ *
+ * `regenerate` starts a new report even when one is written, as when new events reopen a resolved cluster.
+ * `notify`: app-server's request for a new or reopened cluster, whose alert waits for this run. When this returns
+ * `started: false`, app-server sends the alert without a report.
  */
-export async function startClusterReport(input: ClusterScopeInput): Promise<{ started: boolean }> {
+export async function startClusterReport(
+  input: ClusterScopeInput,
+  { regenerate = false, notify }: { regenerate?: boolean; notify?: ClusterNotice } = {}
+): Promise<{ started: boolean }> {
   const scope = await resolveClusterScope(input);
   const { projectId, signalId, clusterId } = scope;
   // New clusters request reports unconditionally, so the signal's setting and archiving are enforced here.
@@ -138,12 +190,12 @@ export async function startClusterReport(input: ClusterScopeInput): Promise<{ st
         .where(eq(signalClusterReports.id, latest.id));
       return true;
     }
-    if (latest) return false;
+    if (latest && !(regenerate && latest.status === "done")) return false;
     await tx.insert(signalClusterReports).values({ clusterId, projectId, signalId, status: "pending", sessionId });
     return true;
   });
   if (!claimed) return { started: false };
 
-  void writeReport(scope, sessionId);
+  void writeReport(scope, sessionId, notify);
   return { started: true };
 }

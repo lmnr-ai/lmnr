@@ -33,7 +33,7 @@ export default function SidebarSignals({ href, icon: Icon }: Props) {
   const signals = data?.items ?? [];
   const { open, openMobile, isMobile } = useSidebar();
   const openCreate = useCreateSignalSheet((state) => state.setOpen);
-  const [rowsOpen, setRowsOpen] = useState(true);
+  const [rowsOpen, setRowsOpen] = useState(false);
   const sidebarOpen = isMobile ? openMobile : open;
   const expanded = sidebarOpen && rowsOpen;
   const hrefFor = (s: SidebarSignal) => `${href}/${s.id}`;
