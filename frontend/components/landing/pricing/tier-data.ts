@@ -170,7 +170,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     rows: [
       { label: "OAuth sign-in", values: { free: true, hobby: true, pro: true, enterprise: true } },
       {
-        label: "Role-based access control",
+        label: "Trace-level RBAC",
         tooltip: "Control which traces each role can query, enforced in the query engine.",
         values: { free: false, hobby: false, pro: true, enterprise: true },
       },
@@ -187,7 +187,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       // Cumulative — higher tiers retain access to all lower-tier support channels.
       { label: "Discord", values: { free: true, hobby: true, pro: true, enterprise: true } },
       { label: "Email support", values: { free: false, hobby: true, pro: true, enterprise: true } },
-      { label: "Slack support", values: { free: false, hobby: false, pro: true, enterprise: true } },
+      { label: "Slack support", values: { free: false, hobby: true, pro: true, enterprise: true } },
       { label: "Dedicated support", values: { free: false, hobby: false, pro: false, enterprise: true } },
     ],
   },
@@ -206,7 +206,7 @@ export interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: "No Signals", excluded: true },
+    { label: formatSignalsIncludedLabel("free") },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
@@ -222,7 +222,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   pro: [
     { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
-    { label: formatSignalsIncludedLabel("pro"), subfeature: "then billed per token" },
+    { label: formatSignalsIncludedLabel("pro"), subfeature: "monthly, then per token" },
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },

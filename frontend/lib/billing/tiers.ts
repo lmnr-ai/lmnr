@@ -116,7 +116,7 @@ export const TIERS: Record<Tier, TierData> = {
     dataOverageRatePerGB: 2,
     projects: "Unlimited",
     seats: "Unlimited",
-    support: "Email",
+    support: "Slack",
     securityFeatures: [],
   },
   pro: {
@@ -129,7 +129,7 @@ export const TIERS: Record<Tier, TierData> = {
     projects: "Unlimited",
     seats: "Unlimited",
     support: "Slack",
-    securityFeatures: ["Role-based access control", "Audit logs", "SOC 2 Type II & HIPAA"],
+    securityFeatures: ["Trace-level RBAC", "Audit logs", "SOC 2 Type II & HIPAA"],
   },
   enterprise: {
     name: "Enterprise",
@@ -186,11 +186,11 @@ export const formatSignalsIncluded = (tier: Tier): string => {
   return usd > 0 ? `$${usd} / mo` : "None";
 };
 
+// Card label: "$50 Signals credit included" where the plan has a monthly allowance.
 export const formatSignalsIncludedLabel = (tier: Tier): string => {
   if (tier === "enterprise") return "Custom Signals pricing";
-  if (!tierIncludesSignals(tier)) return "No Signals or Slack alerts";
   const usd = TIERS[tier].includedSignalCostUsd;
-  return usd > 0 ? `$${usd} / mo Signals included` : "Signals, billed per token";
+  return usd > 0 ? `$${usd} Signals credit included` : "Signals";
 };
 
 // Signals usage past the monthly allowance (if any) is billed at per-million-token rates.

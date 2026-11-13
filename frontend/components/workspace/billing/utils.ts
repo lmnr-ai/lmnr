@@ -50,7 +50,7 @@ const buildInfo = (tier: TierKey): TierInfo => {
       ? [
           [
             formatSignalsIncludedLabel(tier),
-            CENTRAL_TIERS[tier].includedSignalCostUsd > 0 ? "then billed per token" : null,
+            CENTRAL_TIERS[tier].includedSignalCostUsd > 0 ? "monthly, then per token" : null,
           ] as [string, string | null],
         ]
       : []),
