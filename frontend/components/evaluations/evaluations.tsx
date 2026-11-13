@@ -210,7 +210,7 @@ function EvaluationsContent() {
   });
   const { defaultLayout: chartLayout, onLayoutChanged: onChartLayoutChanged } = useDefaultLayout({
     id: "evaluations-chart-layout",
-    storage: layoutStorage,
+    storage: browserLayoutStorage,
   });
 
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
