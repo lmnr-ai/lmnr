@@ -59,7 +59,7 @@ export default function TraceHealthDialog({ open, onOpenChange }: TraceHealthDia
               <DialogTitle>{fixCount > 0 ? "Tracing issues detected" : "Trace health"}</DialogTitle>
               <DialogDescription className="text-sm text-foreground-200">
                 {data
-                  ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found in the last ${data.traceCount} traces`
+                  ? `${fixCount} ${fixCount === 1 ? "issue" : "issues"} found in the last ${data.traceCount} traces`
                   : "Checking traces…"}
               </DialogDescription>
             </div>
