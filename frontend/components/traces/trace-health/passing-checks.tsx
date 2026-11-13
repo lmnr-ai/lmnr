@@ -28,7 +28,7 @@ export default function PassingChecks({ items }: PassingChecksProps) {
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-        <div className="flex flex-col gap-1.5 px-3 pb-3 pl-10">
+        <div className="flex flex-col gap-2.5 px-3 pb-3 pl-10">
           {items.map(({ check, result }) => (
             <div key={check.id} className="flex items-center justify-between gap-3 text-xs">
               <span className="text-secondary-foreground">{check.name}</span>
