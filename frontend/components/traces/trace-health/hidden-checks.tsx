@@ -27,7 +27,6 @@ export default function HiddenChecks({ items, onUnhide }: HiddenChecksProps) {
           <span className="text-sm font-medium">
             {items.length} hidden {items.length === 1 ? "check" : "checks"}
           </span>
-          <span className="text-xs text-muted-foreground">Hidden for everyone in this project.</span>
         </div>
         <ChevronDown
           className={cn("mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}

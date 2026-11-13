@@ -25,7 +25,6 @@ export default function PassingChecks({ items }: PassingChecksProps) {
           <span className="text-sm font-medium">
             {items.length} {items.length === 1 ? "check looks" : "checks look"} good
           </span>
-          <span className="text-xs text-muted-foreground">Nothing to change here.</span>
         </div>
         <ChevronDown
           className={cn("mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
