@@ -13,6 +13,7 @@ import FilesLogsPanel from "./files-logs-panel";
 import TrialHeader from "./header";
 import { PANELS } from "./panels";
 import TrialTrace from "./trial-trace";
+import { useLiveTrial } from "./use-live-trial";
 
 interface EvaluationTrialProps {
   evaluation: EvaluationType;
@@ -26,8 +27,10 @@ interface EvaluationTrialProps {
  * One trial on its own page. The bar on top is the trial's own (scores, and for remote runs a Files
  * toggle); below it is the trace, with the trial's task files / Harbor logs in a panel under it.
  */
-export default function EvaluationTrial({ evaluation, groupEvaluations, trial, scoreNames }: EvaluationTrialProps) {
+export default function EvaluationTrial(props: EvaluationTrialProps) {
+  const { evaluation, groupEvaluations } = props;
   const projectId = evaluation.projectId;
+  const { trial, scoreNames } = useLiveTrial(projectId, evaluation.id, props.trial, props.scoreNames);
   const isHosted = !!evaluation.hostedMetadata;
   useReportAgentContextName("evaluation", evaluation.name);
   // Null: the panel is closed.
