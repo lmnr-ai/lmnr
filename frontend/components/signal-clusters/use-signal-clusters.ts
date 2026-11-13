@@ -85,8 +85,8 @@ export function useSignalClusters(projectId: string, signalId: string) {
             resolvedBy: me,
             reopenedAt: null,
             reopenedBy: null,
+            resolvedAutomatically: false,
             reopenedAutomatically: false,
-            automatic: false,
           };
           return { ...i, status: "resolved", resolutions: [...i.resolutions, resolution] };
         }

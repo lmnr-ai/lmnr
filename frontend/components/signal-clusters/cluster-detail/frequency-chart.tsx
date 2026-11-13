@@ -5,7 +5,7 @@ import { crosshair } from "@tanstack/charts/crosshair";
 import { Chart } from "@tanstack/charts/react/tooltip";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { portal } from "@tanstack/charts/tooltip/portal";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 import useSWR from "swr";
 
 import "@/components/chart-builder/charts/cartesian-chart/styles.css";
@@ -24,9 +24,6 @@ const REOPENED_COLOR = "var(--color-yellow-text)";
 // Same muting as dashboard bars.
 const BAR_OPACITY = 0.7;
 const LABEL_FONT = 10;
-
-const identity = (v: string) => v;
-const X_LABELS = { time: false, formatTick: identity, formatTooltip: identity };
 
 interface Marker {
   x: string;
@@ -54,10 +51,10 @@ interface Props {
 }
 
 /** Markers on the bar their timestamp falls in; ones outside the window have no bar to sit on. */
-const markersAt = (bar: (iso: string) => number, days: string[], items: { at: string; label: string }[]): Marker[] =>
+const markersAt = (bar: (iso: string) => number, items: { at: string; label: string }[]): Marker[] =>
   items.flatMap(({ at, label }) => {
     const i = bar(at);
-    return i >= 0 ? [{ x: dayLabel(days[i]), label }] : [];
+    return i >= 0 ? [{ x: String(i), label }] : [];
   });
 
 /** Daily event counts, drawn with TanStack Charts like dashboards, plus agent-version and resolution rules. */
@@ -80,13 +77,15 @@ export default function FrequencyChart({
     swrFetcher
   );
 
+  // Bars are keyed by index: at a DST change two 24h bars can share a local date, and x values must be unique.
+  const formatX = useCallback((i: string) => dayLabel(days[Number(i)] ?? ""), [days]);
+
   const { definition, present } = useMemo(() => {
-    const rows: SeriesRow[] = daily.map((value, i) => ({ x: dayLabel(days[i]), series: "Events", value }));
+    const rows: SeriesRow[] = daily.map((value, i) => ({ x: String(i), series: "Events", value }));
     const top = fixedCountTicks(Math.max(1, ...daily), 5).at(-1)!;
     const bar = (iso: string) => barIndexOf(days, iso, start, toNow);
     const versions = markersAt(
       bar,
-      days,
       (versionData ?? []).map((v) => ({ at: v.firstSeen, label: v.label }))
     );
     // One marker per bar, for that bar's latest change, so a resolve/reopen/resolve in one day draws one line.
@@ -99,12 +98,10 @@ export default function FrequencyChart({
     const latestPerDay = [...new Map(changes.map((c) => [bar(c.at), c])).values()];
     const resolved = markersAt(
       bar,
-      days,
       latestPerDay.filter((c) => c.label === "Resolved")
     );
     const reopened = markersAt(
       bar,
-      days,
       latestPerDay.filter((c) => c.label === "Reopened")
     );
     // Resolution labels sit above the plot and version labels just inside it, so the rows never collide.
@@ -132,7 +129,7 @@ export default function FrequencyChart({
         label(reopened, REOPENED_COLOR, "above"),
       ],
       margin: { top: 20 },
-      scales: { x: xScale("bar", X_LABELS), y: yScale(top) },
+      scales: { x: xScale("bar", { time: false, formatTick: formatX, formatTooltip: formatX }), y: yScale(top) },
       color: { domain: ["Events"], range: [color] },
       focus: "group-x",
       focusRing: false,
@@ -150,7 +147,7 @@ export default function FrequencyChart({
     });
     const present = { versions: versions.length > 0, resolved: resolved.length > 0, reopened: reopened.length > 0 };
     return { definition, present };
-  }, [daily, resolutions, days, start, toNow, versionData, color, barOpacity]);
+  }, [daily, resolutions, days, start, toNow, versionData, color, barOpacity, formatX]);
 
   const legend = present.versions || present.resolved || present.reopened;
 
@@ -173,7 +170,7 @@ export default function FrequencyChart({
           ariaLabel="Events per day"
           style={{ height: "100%" }}
           renderTooltipBody={({ points }) => (
-            <TooltipBody points={points as readonly ChartPoint<SeriesRow, string, number>[]} formatX={identity} />
+            <TooltipBody points={points as readonly ChartPoint<SeriesRow, string, number>[]} formatX={formatX} />
           )}
         />
       </div>

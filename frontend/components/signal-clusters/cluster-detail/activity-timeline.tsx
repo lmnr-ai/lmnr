@@ -84,7 +84,7 @@ export default function ActivityTimeline({ cluster, reports, shownReportId, writ
         at: r.resolvedAt,
         node: line(
           <Check className="text-success" />,
-          r.automatic ? (
+          r.resolvedAutomatically ? (
             <>Resolved automatically after {AUTO_RESOLVE_DAYS} days without events</>
           ) : (
             <>{actor(r.resolvedBy)} marked this resolved</>

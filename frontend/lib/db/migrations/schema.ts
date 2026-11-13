@@ -249,7 +249,8 @@ export const signalClusterResolutions = pgTable(
     resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     reopenedBy: uuid("reopened_by"),
     reopenedAt: timestamp("reopened_at", { withTimezone: true, mode: "string" }),
-    automatic: boolean().default(false).notNull(),
+    resolvedAutomatically: boolean("resolved_automatically").default(false).notNull(),
+    reopenedAutomatically: boolean("reopened_automatically").default(false).notNull(),
   },
   (table) => [
     index("signal_cluster_resolutions_project_signal_idx").using(

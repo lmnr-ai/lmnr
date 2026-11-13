@@ -6173,8 +6173,15 @@
           "primaryKey": false,
           "notNull": false
         },
-        "automatic": {
-          "name": "automatic",
+        "resolved_automatically": {
+          "name": "resolved_automatically",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "reopened_automatically": {
+          "name": "reopened_automatically",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,

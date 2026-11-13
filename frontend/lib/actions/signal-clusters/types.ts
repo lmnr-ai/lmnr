@@ -5,14 +5,15 @@ export const CLUSTER_WINDOW_DAYS = 30;
 
 export interface ClusterResolution {
   resolvedAt: string;
-  /** Name of the user who resolved it; null when they were removed. */
+  /** Name of the user who resolved it; null when automatic or the user was removed. */
   resolvedBy: string | null;
+  /** Resolved by the auto-resolve job after `AUTO_RESOLVE_DAYS` without events, not by a user. */
+  resolvedAutomatically: boolean;
   reopenedAt: string | null;
+  /** Name of the user who reopened it; null when automatic or the user was removed. */
   reopenedBy: string | null;
   /** Reopened by app-server when new events arrived (`clustering/private/reopen.rs`), not by a user. */
   reopenedAutomatically: boolean;
-  /** Resolved by the auto-resolve job after `AUTO_RESOLVE_DAYS` without events, not by a user. */
-  automatic: boolean;
 }
 
 /** A signal's L1 cluster with its state for the current user. */
