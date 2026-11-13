@@ -3,14 +3,7 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   TRACE_HEALTH_CATEGORIES,
@@ -57,10 +50,10 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-4">
+      <DialogContent aria-describedby={undefined} className="flex max-h-[85vh] max-w-2xl flex-col gap-4">
         <DialogHeader>
           <div className="flex items-center justify-between gap-3">
-            <DialogTitle>Trace health</DialogTitle>
+            <DialogTitle>Tracing issues detected</DialogTitle>
             <div className="flex items-center gap-2">
               {failing.length > 0 && (
                 <CopyButton text={buildFixPrompt(failing.map(({ result }) => result))} iconClassName="size-3.5">
@@ -74,9 +67,6 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
               </DialogClose>
             </div>
           </div>
-          <DialogDescription>
-            Trace health flags tracing setup issues that limit your evals and insights.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-center justify-between gap-3">

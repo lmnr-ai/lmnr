@@ -32,7 +32,7 @@ export interface TraceHealthCategoryInfo {
 export const TRACE_HEALTH_CATEGORIES: Record<TraceHealthCategory, TraceHealthCategoryInfo> = {
   evals: {
     title: "Affects evals",
-    description: "Judges and signals may score runs they can't fully see.",
+    description: "Evaluations and signals run on incomplete data.",
     advisory: false,
   },
   cost: {
@@ -53,7 +53,7 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     name: "LLM span input",
     category: "evals",
     title: "LLM spans are missing input",
-    impact: "Judges can't see what the model was asked.",
+    impact: "Evals and signals can't see what the model was asked.",
     fix: "Record the request messages on each LLM span (gen_ai.input.messages, or lmnr.span.input via the Laminar SDK).",
     unit: "LLM spans",
   },
@@ -62,7 +62,7 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     name: "LLM span output",
     category: "evals",
     title: "LLM spans are missing output",
-    impact: "Judges can't see what the model answered.",
+    impact: "Evals and signals can't see what the model answered.",
     fix: "Record the response messages on each LLM span (gen_ai.output.messages, or lmnr.span.output via the Laminar SDK).",
     unit: "LLM spans",
   },
@@ -71,7 +71,7 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     name: "Tool span output",
     category: "evals",
     title: "Tool spans are missing output",
-    impact: "Judges can't tell what a tool call returned.",
+    impact: "Evals and signals can't see what a tool call returned.",
     fix: "Record the tool result on each tool span (gen_ai.tool.call.result, or wrap the tool with Laminar's observe so its return value is captured).",
     unit: "tool spans",
   },
