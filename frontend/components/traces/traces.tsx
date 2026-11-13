@@ -81,7 +81,7 @@ function TracesContent() {
           value={tracesTab}
           onValueChange={(value) => resetUrlParams(value)}
         >
-          <div className="mx-4 flex items-center gap-2">
+          <div className="mx-4 flex items-center gap-5">
             <TabsList className="h-8">
               <TabsTrigger className="text-xs" value="traces">
                 Traces

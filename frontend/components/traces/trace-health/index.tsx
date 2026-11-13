@@ -23,7 +23,11 @@ export default function TraceHealthButton({ onOpenTrace }: TraceHealthButtonProp
 
   return (
     <>
-      <Button variant="outline" className="h-8 text-xs" onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        className="h-8 border-amber-500/10 bg-yellow-500/5 text-xs hover:bg-yellow-500/10"
+        onClick={() => setOpen(true)}
+      >
         <TriangleAlert className="mr-1.5 size-3.5 text-amber-500" />
         Tracing issues detected
       </Button>
