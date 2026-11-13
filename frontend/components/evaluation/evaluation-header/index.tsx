@@ -1,7 +1,7 @@
 import { ArrowRight, Database, Download, Edit, Ellipsis, Trash } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
@@ -24,11 +24,13 @@ interface EvaluationHeader {
   name?: string;
   urlKey: string;
   datasets: LinkedDataset[];
+  /** Extra controls before the overflow menu. */
+  actions?: ReactNode;
 }
 
 const DOWNLOAD_FORMATS = ["csv", "json"] as const;
 
-const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHeader) => {
+const EvaluationHeader = ({ evaluations, name, urlKey, datasets, actions }: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
@@ -123,6 +125,7 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {actions}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button aria-label="More options" variant="secondary" className="h-7 w-7 p-0">
