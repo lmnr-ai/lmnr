@@ -551,7 +551,6 @@ export default function SessionList() {
                     isSelected={
                       !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
                     }
-                    inGroup
                   />
                 </GroupChildWrapper>
               ) : row.type === "tree-span" ? (
