@@ -45,7 +45,7 @@ const MAX_LAYERS: usize = 256;
 const MAX_LOG_LINES: usize = 1000;
 /// Longer lines are cut: one runaway line shouldn't cost a page of the log.
 const MAX_LOG_LINE_CHARS: usize = 16 * 1024;
-/// The orchestrator's own output when lmnr-cli never ran (`ORCHESTRATOR_COMMAND`).
+/// The orchestrator's own output when lmnr-cli never ran (`hosted_evals/orchestrator.sh`).
 const MAX_LOG_TAIL_BYTES: u64 = 1024 * 1024;
 
 pub type HostedEvalsData = web::Data<Option<HostedEvals>>;
@@ -663,7 +663,7 @@ pub async fn append_run_logs(
 }
 
 /// Ends a run's log with the orchestrator's exit code (`?exitCode=`), sent by
-/// `ORCHESTRATOR_COMMAND` once lmnr-cli exits. Body (may be empty): the tail of
+/// `hosted_evals/orchestrator.sh` once lmnr-cli exits. Body (may be empty): the tail of
 /// the orchestrator's own output when lmnr-cli never got to send any, e.g. a
 /// failed download or npm install. Lines are numbered after the run's last one.
 /// A run that already has its exit code is left as is: curl's `--retry` resends
