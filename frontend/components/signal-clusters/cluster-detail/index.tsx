@@ -1,5 +1,6 @@
 import { Archive, ArchiveRestore, CheckCircle2, RotateCcw } from "lucide-react";
 
+import { TurnIntoEvalButton } from "@/components/agent";
 import ClusterTabs, { useClusterTab } from "@/components/signal-clusters/cluster-detail/cluster-tabs";
 import { openResolutionAt } from "@/components/signal-clusters/cluster-detail/dates";
 import EventsPage from "@/components/signal-clusters/cluster-detail/events-page";
@@ -41,6 +42,7 @@ export default function ClusterDetail({
       <div className="flex h-12 flex-none items-center justify-between gap-2 px-4">
         {reportsEnabled ? <ClusterTabs /> : <span />}
         <div className="flex items-center gap-2">
+          <TurnIntoEvalButton clusterName={cluster.name} />
           <Button
             variant="ghost"
             onClick={() => onSetArchived(!cluster.archived)}
