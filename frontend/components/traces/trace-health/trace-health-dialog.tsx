@@ -46,7 +46,7 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby={undefined} className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0">
-        <DialogHeader className="px-6 pt-6">
+        <DialogHeader className="px-4 pt-4">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle>Tracing issues detected</DialogTitle>
             <div className="flex items-center gap-2">
@@ -69,14 +69,14 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
           </div>
         </DialogHeader>
 
-        <span className="px-6 pt-4 text-sm font-medium text-muted-foreground">
+        <span className="px-4 pt-3 text-sm font-medium text-muted-foreground">
           {data
             ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found in the last ${data.traceCount} traces`
             : "Checking traces…"}
         </span>
 
         <ScrollArea viewportClassName="scroll-fade-y max-h-[65vh]">
-          <div className="flex flex-col gap-5 px-6 pt-4 pb-6">
+          <div className="flex flex-col gap-5 px-4 pt-3 pb-4">
             {error && !data && <p className="text-sm text-destructive-text">Failed to run trace health checks.</p>}
             {isLoading && !data && (
               <div className="flex justify-center py-8">
