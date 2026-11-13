@@ -53,8 +53,8 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined} className="flex max-h-[85vh] max-w-2xl flex-col gap-4">
-        <DialogHeader>
+      <DialogContent aria-describedby={undefined} className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0">
+        <DialogHeader className="px-6 pt-6">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle>Tracing issues detected</DialogTitle>
             <div className="flex items-center gap-2">
@@ -77,7 +77,7 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
           </div>
         </DialogHeader>
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 px-6 pt-4">
           <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             {data ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found` : "Checking traces…"}
             {isValidating && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
@@ -85,8 +85,8 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
           <DateRangeFilter mode="state" value={range} onChange={setRange} className="h-7 text-xs" />
         </div>
 
-        <ScrollArea className="-mr-3" viewportClassName="scroll-fade-y max-h-[65vh]">
-          <div className="flex flex-col gap-5 py-2 pr-3">
+        <ScrollArea viewportClassName="scroll-fade-y max-h-[65vh]">
+          <div className="flex flex-col gap-5 px-6 pt-4 pb-6">
             {error && !data && <p className="text-sm text-destructive-text">Failed to run trace health checks.</p>}
             {isLoading && !data && (
               <div className="flex justify-center py-8">
