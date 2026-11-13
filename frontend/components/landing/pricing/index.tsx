@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 import { bodyMedium, LANDING_COLUMN_MAX_W, subSection } from "../class-names";
 import Divider from "../sections/divider";
+import BillingHighlights, { AVG_TRACE_ANALYSIS_COST_USD } from "./billing-highlights";
 import CardsVariant from "./cards-variant";
 import PricingCalculator from "./pricing-calculator";
 import PricingTable from "./pricing-table";
@@ -31,7 +32,7 @@ export default function Pricing() {
       id: "data-calculation",
       question: "How is data usage calculated?",
       answer:
-        "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets, measured after dedup: content repeated across your traces, like system prompts, is counted once. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
+        "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets, measured after compression: Laminar stores each unique message and tool definition once per trace, which cuts stored data about 20x on average. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
     },
     {
       id: "signals-pricing",
@@ -43,8 +44,9 @@ export default function Pricing() {
           per 1M cached input tokens, and {formatSignalTokenRate(signalOutputRate())} per 1M output tokens. The{" "}
           {TIERS.pro.name} plan includes ${TIERS.pro.includedSignalCostUsd} of Signals usage every month; usage past
           that, and all Signals usage on {TIERS.hobby.name}, is billed at these rates. During the {TIERS.hobby.name}{" "}
-          free trial, Signals are free and uncapped. You pay for what a Signal reads and writes, not for the spans your
-          agent emits. Read more in the{" "}
+          free trial, Signals are free and uncapped. On average, analyzing a trace costs about $
+          {AVG_TRACE_ANALYSIS_COST_USD}, and that includes the model inference: there is no separate LLM bill. You pay
+          for what a Signal reads and writes, not for the spans your agent emits. Read more in the{" "}
           <a
             href="https://laminar.sh/docs/signals/introduction"
             target="_blank"
@@ -84,6 +86,11 @@ export default function Pricing() {
           {/* Tier cards */}
           <div className="w-full mb-20 md:mb-[160px]">
             <CardsVariant />
+          </div>
+
+          {/* What keeps the bill small: compressed data, all-in analysis cost */}
+          <div className="w-full max-w-[800px] mb-20 md:mb-[160px]">
+            <BillingHighlights />
           </div>
 
           {/* Calculator. Wider than the old 640px column since it compares four
