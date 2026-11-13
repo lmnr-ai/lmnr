@@ -80,7 +80,14 @@ export function useSignalClusters(projectId: string, signalId: string) {
         if (resolved) {
           if (i.status === "resolved") return i;
           const now = new Date().toISOString();
-          const resolution = { resolvedAt: now, resolvedBy: me, reopenedAt: null, reopenedBy: null, automatic: false };
+          const resolution = {
+            resolvedAt: now,
+            resolvedBy: me,
+            reopenedAt: null,
+            reopenedBy: null,
+            reopenedAutomatically: false,
+            automatic: false,
+          };
           return { ...i, status: "resolved", resolutions: [...i.resolutions, resolution] };
         }
         const now = new Date().toISOString();

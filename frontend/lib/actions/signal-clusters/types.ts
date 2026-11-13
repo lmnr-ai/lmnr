@@ -9,6 +9,8 @@ export interface ClusterResolution {
   resolvedBy: string | null;
   reopenedAt: string | null;
   reopenedBy: string | null;
+  /** Reopened by app-server when new events arrived (`clustering/private/reopen.rs`), not by a user. */
+  reopenedAutomatically: boolean;
   /** Resolved by the auto-resolve job after `AUTO_RESOLVE_DAYS` without events, not by a user. */
   automatic: boolean;
 }

@@ -99,7 +99,11 @@ export default function ActivityTimeline({ cluster, reports, shownReportId, writ
               at: r.reopenedAt,
               node: line(
                 <RotateCcw className="text-amber-500" />,
-                <>{actor(r.reopenedBy)} reopened this</>,
+                r.reopenedAutomatically ? (
+                  <>Reopened when new events arrived</>
+                ) : (
+                  <>{actor(r.reopenedBy)} reopened this</>
+                ),
                 r.reopenedAt
               ),
             },

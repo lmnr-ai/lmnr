@@ -144,6 +144,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
           resolvedBy: resolver.name,
           reopenedAt: signalClusterResolutions.reopenedAt,
           reopenedBy: reopener.name,
+          reopenedById: signalClusterResolutions.reopenedBy,
           automatic: signalClusterResolutions.automatic,
         })
         .from(signalClusterResolutions)
@@ -211,6 +212,7 @@ export async function getSignalClusters(input: z.infer<typeof SignalScopeSchema>
       resolvedBy: r.resolvedBy,
       reopenedAt: r.reopenedAt ? new Date(r.reopenedAt).toISOString() : null,
       reopenedBy: r.reopenedBy,
+      reopenedAutomatically: r.reopenedAt !== null && r.reopenedById === null,
       automatic: r.automatic,
     }));
     return [
