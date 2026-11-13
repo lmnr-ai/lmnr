@@ -24,25 +24,21 @@ export interface TraceHealthCheck {
 
 export interface TraceHealthCategoryInfo {
   title: string;
-  description: string;
   /** Advisory categories are listed in the dialog but don't light up the "issues detected" button. */
   advisory: boolean;
 }
 
 export const TRACE_HEALTH_CATEGORIES: Record<TraceHealthCategory, TraceHealthCategoryInfo> = {
   evals: {
-    title: "Affects evals",
-    description: "Evaluations and signals run on incomplete data.",
+    title: "General",
     advisory: false,
   },
   cost: {
-    title: "Affects cost tracking",
-    description: "Spend and usage totals are incomplete. Evals aren't affected.",
+    title: "Cost tracking",
     advisory: false,
   },
   grouping: {
     title: "Suggestions",
-    description: "Optional, but unlocks session-level views.",
     advisory: true,
   },
 };
@@ -130,14 +126,18 @@ export interface TraceHealthCheckResult {
 }
 
 export interface TraceHealthResponse {
-  pastHours: number;
   results: TraceHealthCheckResult[];
 }
 
-export const TRACE_HEALTH_RANGES = [
-  { pastHours: 24, label: "Past 24 hours" },
-  { pastHours: 24 * 7, label: "Past 7 days" },
-] as const;
+/** Same shape as the `DateRangeFilter` value: either `pastHours` or an absolute `startDate`/`endDate`. */
+export interface TraceHealthTimeRange {
+  pastHours?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+/** The button always looks at the past day, independent of the dialog's picker. */
+export const DEFAULT_TRACE_HEALTH_RANGE: TraceHealthTimeRange = { pastHours: "24" };
 
 export const isBlockingFailure = (result: TraceHealthCheckResult) => {
   const check = TRACE_HEALTH_CHECKS.find((c) => c.id === result.id);

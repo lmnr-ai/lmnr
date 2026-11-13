@@ -1,15 +1,18 @@
 import { Loader2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import RotatingAgentIcon from "@/components/landing/hero/rotating-agent-icon";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   TRACE_HEALTH_CATEGORIES,
   TRACE_HEALTH_CHECKS,
-  TRACE_HEALTH_RANGES,
+  DEFAULT_TRACE_HEALTH_RANGE,
   type TraceHealthCategory,
+  type TraceHealthTimeRange,
 } from "@/lib/trace-health/checks";
 import { buildFixPrompt } from "@/lib/trace-health/prompt";
 
@@ -24,8 +27,8 @@ interface TraceHealthDialogProps {
 }
 
 export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: TraceHealthDialogProps) {
-  const [pastHours, setPastHours] = useState<number>(TRACE_HEALTH_RANGES[0].pastHours);
-  const { data, isLoading, isValidating, error } = useTraceHealth(pastHours, open);
+  const [range, setRange] = useState<TraceHealthTimeRange>(DEFAULT_TRACE_HEALTH_RANGE);
+  const { data, isLoading, isValidating, error } = useTraceHealth(range, open);
 
   const { failing, passing } = useMemo(() => {
     const items = TRACE_HEALTH_CHECKS.flatMap((check) => {
@@ -56,7 +59,12 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
             <DialogTitle>Tracing issues detected</DialogTitle>
             <div className="flex items-center gap-2">
               {failing.length > 0 && (
-                <CopyButton text={buildFixPrompt(failing.map(({ result }) => result))} iconClassName="size-3.5">
+                <CopyButton
+                  variant="default"
+                  text={buildFixPrompt(failing.map(({ result }) => result))}
+                  iconClassName="size-3.5"
+                  icon={<RotatingAgentIcon className="mr-2 size-3.5 text-current" />}
+                >
                   Copy prompt
                 </CopyButton>
               )}
@@ -74,42 +82,28 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
             {data ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found` : "Checking traces…"}
             {isValidating && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
           </span>
-          <Select value={String(pastHours)} onValueChange={(v) => setPastHours(Number(v))}>
-            <SelectTrigger className="h-7 w-36 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TRACE_HEALTH_RANGES.map((r) => (
-                <SelectItem key={r.pastHours} value={String(r.pastHours)} className="text-xs">
-                  {r.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DateRangeFilter mode="state" value={range} onChange={setRange} className="h-7 text-xs" />
         </div>
 
-        <div className="-mr-2 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-2 pb-1">
-          {error && !data && <p className="text-sm text-destructive-text">Failed to run trace health checks.</p>}
-          {isLoading && !data && (
-            <div className="flex justify-center py-8">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {categories.map(({ category, items }) => (
-            <section key={category} className="flex flex-col gap-2">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium">
-                  {TRACE_HEALTH_CATEGORIES[category].title} · {items.length}
-                </span>
-                <span className="text-xs text-muted-foreground">{TRACE_HEALTH_CATEGORIES[category].description}</span>
+        <ScrollArea className="-mr-3 min-h-0 flex-1" viewportClassName="scroll-fade-y">
+          <div className="flex flex-col gap-5 py-2 pr-3">
+            {error && !data && <p className="text-sm text-destructive-text">Failed to run trace health checks.</p>}
+            {isLoading && !data && (
+              <div className="flex justify-center py-8">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
               </div>
-              {items.map(({ check, result }) => (
-                <CheckRow key={check.id} check={check} result={result} onOpenTrace={openTrace} />
-              ))}
-            </section>
-          ))}
-          {data && <PassingChecks items={passing} />}
-        </div>
+            )}
+            {categories.map(({ category, items }) => (
+              <section key={category} className="flex flex-col gap-2">
+                <span className="text-sm font-medium">{TRACE_HEALTH_CATEGORIES[category].title}</span>
+                {items.map(({ check, result }) => (
+                  <CheckRow key={check.id} check={check} result={result} onOpenTrace={openTrace} />
+                ))}
+              </section>
+            ))}
+            {data && <PassingChecks items={passing} />}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

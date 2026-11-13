@@ -1,6 +1,7 @@
 import { ChevronDown, CircleX, Info, SquareArrowOutUpRight } from "lucide-react";
 import { useState } from "react";
 
+import RotatingAgentIcon from "@/components/landing/hero/rotating-agent-icon";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -37,18 +38,24 @@ export default function CheckRow({ check, result, onOpenTrace }: CheckRowProps) 
           className={cn("mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-3 px-3 pb-3 pl-10">
-        <p className="text-xs text-secondary-foreground">Fix: {check.fix}</p>
-        <div className="flex items-center gap-2">
-          <CopyButton text={buildFixPrompt([result])} iconClassName="size-3.5">
-            Copy prompt
-          </CopyButton>
-          {sampleTraceId && (
-            <Button variant="ghost" className="text-muted-foreground" onClick={() => onOpenTrace(sampleTraceId)}>
-              View example trace
-              <SquareArrowOutUpRight className="ml-1.5 size-3.5" />
-            </Button>
-          )}
+      <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+        <div className="flex flex-col gap-3 px-3 pb-3 pl-10">
+          <p className="text-xs text-secondary-foreground">Fix: {check.fix}</p>
+          <div className="flex items-center gap-2">
+            <CopyButton
+              text={buildFixPrompt([result])}
+              iconClassName="size-3.5"
+              icon={<RotatingAgentIcon className="mr-2 size-3.5 text-current" />}
+            >
+              Copy prompt
+            </CopyButton>
+            {sampleTraceId && (
+              <Button variant="ghost" className="text-muted-foreground" onClick={() => onOpenTrace(sampleTraceId)}>
+                View example trace
+                <SquareArrowOutUpRight className="ml-1.5 size-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
       </CollapsibleContent>
     </Collapsible>

@@ -3,7 +3,14 @@ import { apiHandler } from "@/lib/api/api-handler";
 
 export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
   const { projectId } = await ctx.params;
-  const pastHours = req.nextUrl.searchParams.get("pastHours") ?? "24";
+  const params = req.nextUrl.searchParams;
 
-  return Response.json(await getTraceHealth({ projectId, pastHours: Number(pastHours) }));
+  return Response.json(
+    await getTraceHealth({
+      projectId,
+      pastHours: params.get("pastHours") ?? undefined,
+      startDate: params.get("startDate") ?? undefined,
+      endDate: params.get("endDate") ?? undefined,
+    })
+  );
 });

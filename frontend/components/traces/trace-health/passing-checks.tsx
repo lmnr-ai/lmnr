@@ -27,15 +27,17 @@ export default function PassingChecks({ items }: PassingChecksProps) {
           className={cn("mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-1.5 px-3 pb-3 pl-10">
-        {items.map(({ check, result }) => (
-          <div key={check.id} className="flex items-center justify-between gap-3 text-xs">
-            <span className="text-secondary-foreground">{check.name}</span>
-            <span className="shrink-0 text-muted-foreground">
-              {result.applicable === 0 ? `No ${check.unit}` : `${result.applicable.toLocaleString()} ${check.unit}`}
-            </span>
-          </div>
-        ))}
+      <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+        <div className="flex flex-col gap-1.5 px-3 pb-3 pl-10">
+          {items.map(({ check, result }) => (
+            <div key={check.id} className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-secondary-foreground">{check.name}</span>
+              <span className="shrink-0 text-muted-foreground">
+                {result.applicable === 0 ? `No ${check.unit}` : `${result.applicable.toLocaleString()} ${check.unit}`}
+              </span>
+            </div>
+          ))}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );

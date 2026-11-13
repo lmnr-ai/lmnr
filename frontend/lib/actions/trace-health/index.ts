@@ -1,8 +1,8 @@
 import { z } from "zod/v4";
 
+import { buildTimeRangeConditions } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import {
-  TRACE_HEALTH_RANGES,
   type TraceHealthCheckId,
   type TraceHealthCheckResult,
   type TraceHealthResponse,
@@ -10,15 +10,14 @@ import {
 
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
-const ALLOWED_PAST_HOURS: number[] = TRACE_HEALTH_RANGES.map((r) => r.pastHours);
-
-export const GetTraceHealthSchema = z.object({
-  projectId: z.guid(),
-  pastHours: z.coerce
-    .number()
-    .int()
-    .refine((h) => ALLOWED_PAST_HOURS.includes(h), { error: "Unsupported time range." }),
-});
+export const GetTraceHealthSchema = z
+  .object({
+    projectId: z.guid(),
+    pastHours: z.string().regex(/^\d+$/).optional(),
+    startDate: z.iso.datetime().optional(),
+    endDate: z.iso.datetime().optional(),
+  })
+  .refine((r) => r.pastHours || r.startDate, { error: "A time range is required." });
 
 // Payloads of 4 chars or fewer are empty in practice: '', 'null', '[]', '{}', '""'.
 const LLM_NO_INPUT = "span_type = 'LLM' AND length(input) <= 4";
@@ -28,9 +27,7 @@ const LLM_NO_MODEL = "span_type = 'LLM' AND model = ''";
 const LLM_NO_USAGE = "span_type = 'LLM' AND total_tokens = 0";
 const LLM_NO_COST = "span_type = 'LLM' AND total_tokens > 0 AND total_cost = 0";
 
-const TIME_BOUND = "start_time >= now() - INTERVAL {pastHours:UInt32} HOUR";
-
-const SPAN_CHECKS_QUERY = `
+const spanChecksQuery = (timeBound: string) => `
   SELECT
     countIf(span_type = 'LLM') AS llmSpans,
     countIf(span_type = 'TOOL') AS toolSpans,
@@ -48,11 +45,11 @@ const SPAN_CHECKS_QUERY = `
     countIf(${LLM_NO_COST}) AS llmNoCost,
     anyIf(trace_id, ${LLM_NO_COST}) AS llmNoCostSample
   FROM spans
-  WHERE ${TIME_BOUND}
+  WHERE ${timeBound}
 `;
 
 // A trace whose context is propagated correctly has exactly one span without a parent.
-const ROOT_SPANS_QUERY = `
+const rootSpansQuery = (timeBound: string) => `
   SELECT
     count() AS traces,
     countIf(roots > 1) AS failing,
@@ -60,18 +57,18 @@ const ROOT_SPANS_QUERY = `
   FROM (
     SELECT trace_id, countIf(parent_span_id = toUUID('${NIL_UUID}')) AS roots
     FROM spans
-    WHERE ${TIME_BOUND}
+    WHERE ${timeBound}
     GROUP BY trace_id
   )
 `;
 
-const SESSION_QUERY = `
+const sessionQuery = (timeBound: string) => `
   SELECT
     count() AS traces,
     countIf(session_id = '') AS failing,
     anyIf(id, session_id = '') AS sample
   FROM traces
-  WHERE ${TIME_BOUND} AND trace_type = 'DEFAULT'
+  WHERE ${timeBound} AND trace_type = 'DEFAULT'
 `;
 
 type Num = number | string;
@@ -110,15 +107,20 @@ const result = (id: TraceHealthCheckId, applicable: Num, failing: Num, sample: s
   };
 };
 
-/** Runs every trace health check over the project's recent spans and traces. */
+/** Runs every trace health check over the project's spans and traces in the given time range. */
 export async function getTraceHealth(input: z.infer<typeof GetTraceHealthSchema>): Promise<TraceHealthResponse> {
-  const { projectId, pastHours } = GetTraceHealthSchema.parse(input);
-  const parameters = { pastHours };
+  const { projectId, pastHours, startDate, endDate } = GetTraceHealthSchema.parse(input);
+  const { condition, params: parameters } = buildTimeRangeConditions({
+    pastHours,
+    startTime: startDate,
+    endTime: endDate,
+  });
+  const timeBound = condition ?? "1 = 1";
 
   const [spanRows, rootRows, sessionRows] = await Promise.all([
-    executeQuery<SpanChecksRow>({ query: SPAN_CHECKS_QUERY, parameters, projectId }),
-    executeQuery<TraceCheckRow>({ query: ROOT_SPANS_QUERY, parameters, projectId }),
-    executeQuery<TraceCheckRow>({ query: SESSION_QUERY, parameters, projectId }),
+    executeQuery<SpanChecksRow>({ query: spanChecksQuery(timeBound), parameters, projectId }),
+    executeQuery<TraceCheckRow>({ query: rootSpansQuery(timeBound), parameters, projectId }),
+    executeQuery<TraceCheckRow>({ query: sessionQuery(timeBound), parameters, projectId }),
   ]);
 
   const results: TraceHealthCheckResult[] = [];
@@ -141,5 +143,5 @@ export async function getTraceHealth(input: z.infer<typeof GetTraceHealthSchema>
   const t = sessionRows[0];
   if (t) results.push(result("traces-missing-session", t.traces, t.failing, t.sample));
 
-  return { pastHours, results };
+  return { results };
 }
