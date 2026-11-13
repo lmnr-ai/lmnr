@@ -27,8 +27,6 @@ use crate::{
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
 const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
-#[cfg(feature = "signals")]
-const SIGNALS_SIGNUP_CREDIT_MICRO_USD: i64 = 5_000_000;
 
 /// TTL for cached usage warnings per workspace. The cache is explicitly cleared
 /// by the frontend whenever warnings are added or removed, so a long TTL is fine.
@@ -49,13 +47,8 @@ const HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS: u64 = 60 * 5; // 5 minutes
 /// Only Free stops at the data allowance. Trials ingest past it like paid Pro (an
 /// acquisition choice) yet are never billed: they carry no metered prices, and
 /// conversion restarts the usage window at the trial end.
-fn is_bytes_capped_at_allowance(project_info: &ProjectWithWorkspaceBillingInfo) -> bool {
+fn is_capped_at_allowance(project_info: &ProjectWithWorkspaceBillingInfo) -> bool {
     project_info.tier_name.is_free()
-}
-
-/// Free and trials run Signals only on the one-time credit; paid tiers bill past it.
-fn is_signals_capped_at_credit(project_info: &ProjectWithWorkspaceBillingInfo) -> bool {
-    project_info.tier_name.is_free() || project_info.trialing
 }
 
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
@@ -63,7 +56,7 @@ fn is_signals_capped_at_credit(project_info: &ProjectWithWorkspaceBillingInfo) -
 /// - For free tier: always uses the tier limit (custom limits are not allowed).
 /// - For paid tiers and trials: uses custom limit when set, else no limit is enforced.
 fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
-    if is_bytes_capped_at_allowance(project_info) {
+    if is_capped_at_allowance(project_info) {
         return Some(project_info.bytes_limit);
     }
     project_info.custom_bytes_limit
@@ -194,38 +187,12 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         return Ok(true);
     }
 
-    let is_capped = is_signals_capped_at_credit(&project_info);
-    let effective_limit = project_info.signal_cost_hard_limit_micro_usd;
-    if !is_capped && effective_limit.is_none() {
+    // Paid tiers and trials run Signals until a user-configured hard limit.
+    let Some(effective_limit) = project_info.signal_cost_hard_limit_micro_usd else {
         return Ok(false);
-    }
+    };
 
     let workspace_id = project_info.workspace_id;
-    if is_capped {
-        let persisted_credit =
-            db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
-        let remaining_credit = persisted_credit.unwrap_or(0);
-        let credit_exhausted = remaining_credit == 0;
-        log::debug!(
-            "Workspace Signals credit check: {} micro-USD remaining",
-            remaining_credit,
-        );
-        if credit_exhausted {
-            check_notify_hard_limit(
-                db,
-                cache,
-                queue,
-                workspace_id,
-                project_info.reset_time,
-                UsageItem::SignalCredit,
-                SIGNALS_SIGNUP_CREDIT_MICRO_USD - remaining_credit,
-                persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
-            )
-            .await;
-        }
-        return Ok(credit_exhausted);
-    }
-
     let billing_start = current_billing_period_start(project_info.reset_time);
     let WorkspaceSignalTokens {
         input_tokens,
@@ -243,7 +210,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     let signal_cost =
         crate::utils::signal_token_cost_micro_usd(input_tokens, cache_read_tokens, output_tokens)
             as i64;
-    let effective_limit = effective_limit.expect("paid workspace limit checked above");
     log::debug!(
         "Workspace signal cost check: {}/{} micro-USD",
         signal_cost,
@@ -382,9 +348,8 @@ pub async fn update_workspace_bytes_ingested(
     Ok(())
 }
 
-/// Re-read uncredited Signals usage after a completed run and fire any
-/// soft-limit warnings the derived micro-USD cost crosses. This billing value
-/// is derived from per-run credit decisions and is not cached.
+/// Re-read Signals usage after a completed run and fire any soft-limit warnings
+/// and the hard-limit email the derived micro-USD cost crosses. Not cached.
 #[cfg(feature = "signals")]
 pub async fn check_workspace_signal_usage(
     db: Arc<DB>,
@@ -466,36 +431,17 @@ pub async fn check_workspace_signal_usage(
     )
     .await;
 
-    if is_signals_capped_at_credit(&project_info) {
-        let persisted_credit =
-            db::projects::get_signal_credit_remaining(&db.pool, workspace_id).await?;
-        let remaining_credit = persisted_credit.unwrap_or(0);
-        if remaining_credit == 0 || current_cost >= remaining_credit {
-            check_notify_hard_limit(
-                db,
-                cache,
-                queue,
-                workspace_id,
-                project_info.reset_time,
-                UsageItem::SignalCredit,
-                current_cost,
-                persisted_credit.map(|_| SIGNALS_SIGNUP_CREDIT_MICRO_USD),
-            )
-            .await;
-        }
-    } else {
-        check_notify_hard_limit(
-            db,
-            cache,
-            queue,
-            workspace_id,
-            project_info.reset_time,
-            UsageItem::SignalCost,
-            current_cost,
-            project_info.signal_cost_hard_limit_micro_usd,
-        )
-        .await;
-    }
+    check_notify_hard_limit(
+        db,
+        cache,
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::SignalCost,
+        current_cost,
+        project_info.signal_cost_hard_limit_micro_usd,
+    )
+    .await;
 
     Ok(())
 }
@@ -586,10 +532,7 @@ async fn send_soft_limit_notification(
 
     let tier_included = match usage_item {
         UsageItem::Bytes => tier_name.included_bytes(),
-        // Signals no longer has a recurring tier allowance. The one-time
-        // workspace credit is reconciled separately and is never represented
-        // by a monthly warning row.
-        UsageItem::SignalCost | UsageItem::SignalCredit => None,
+        UsageItem::SignalCost => tier_name.included_signal_cost_micro_usd(),
     };
     let at_tier_included_allowance = tier_included == Some(limit_value);
     let overage_billable =
@@ -648,9 +591,8 @@ async fn send_soft_limit_notification(
     }
 }
 
-/// Check the hard limit and enqueue a notification the first time it is reached.
-/// Recurring limits deduplicate per billing cycle; the one-time Signals credit
-/// deduplicates permanently under its own usage-item key.
+/// Check the hard limit and enqueue a notification the first time it is reached
+/// in a billing cycle.
 #[allow(clippy::too_many_arguments)]
 async fn check_notify_hard_limit(
     db: Arc<DB>,
@@ -662,15 +604,11 @@ async fn check_notify_hard_limit(
     current_value: i64,
     effective_limit: Option<i64>,
 ) {
-    let one_time_credit_exhausted = usage_item == UsageItem::SignalCredit;
     let limit = match effective_limit {
         Some(l) => l,
         None => return,
     };
-    if one_time_credit_exhausted && limit == 0 {
-        return;
-    }
-    if !one_time_credit_exhausted && current_value < limit {
+    if current_value < limit {
         return;
     }
 
@@ -683,15 +621,15 @@ async fn check_notify_hard_limit(
     // caching "not notified" would widen the duplicate-enqueue race window from
     // milliseconds to the cache TTL, past what the consumer-side send lock covers.
     if let Ok(Some(t)) = cache.get::<DateTime<Utc>>(&cache_key).await {
-        if one_time_credit_exhausted || t >= billing_start {
+        if t >= billing_start {
             return;
         }
     }
 
     match usage_warnings::get_hard_limit_last_notified_at(&db.pool, workspace_id, &usage_item).await
     {
-        Ok(Some(t)) if one_time_credit_exhausted || t >= billing_start => {
-            // Already notified for this one-time event or billing cycle; seed the cache so subsequent
+        Ok(Some(t)) if t >= billing_start => {
+            // Already notified for this billing cycle; seed the cache so subsequent
             // blocked requests skip the DB read.
             if let Err(e) = cache
                 .insert_with_ttl(&cache_key, t, HARD_LIMIT_NOTIFIED_CACHE_TTL_SECONDS)
@@ -741,7 +679,6 @@ async fn check_notify_hard_limit(
             usage_label,
             formatted_limit,
             usage_item: usage_item.to_string(),
-            one_time_credit_exhausted,
         }],
     };
 
@@ -800,7 +737,7 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
             };
             ("Data ingestion".to_string(), formatted)
         }
-        UsageItem::SignalCost | UsageItem::SignalCredit => {
+        UsageItem::SignalCost => {
             // limit_value is in micro-USD (1e-6 USD); render as dollars.
             let dollars = limit_value as f64 / 1_000_000.0;
             ("Signals cost".to_string(), format!("${:.2}", dollars))
@@ -901,10 +838,9 @@ mod tests {
     }
 
     #[test]
-    fn trial_ingests_past_the_data_allowance_but_signals_stop_at_the_credit() {
+    fn trial_ingests_past_the_data_allowance() {
         let trial = billing_info(WorkspaceTierName::Hobby, true);
-        assert!(!is_bytes_capped_at_allowance(&trial));
-        assert!(is_signals_capped_at_credit(&trial));
+        assert!(!is_capped_at_allowance(&trial));
         assert_eq!(get_effective_bytes_limit(&trial), None);
 
         let with_custom_limit = ProjectWithWorkspaceBillingInfo {
@@ -918,17 +854,25 @@ mod tests {
     }
 
     #[test]
-    fn paid_pro_bills_past_the_signals_credit() {
-        let paid = billing_info(WorkspaceTierName::Hobby, false);
-        assert!(!is_bytes_capped_at_allowance(&paid));
-        assert!(!is_signals_capped_at_credit(&paid));
+    fn free_stays_capped_at_the_tier_allowance() {
+        let free = billing_info(WorkspaceTierName::Free, false);
+        assert!(is_capped_at_allowance(&free));
+        assert_eq!(get_effective_bytes_limit(&free), Some(free.bytes_limit));
     }
 
     #[test]
-    fn free_stays_capped_at_the_tier_allowance() {
-        let free = billing_info(WorkspaceTierName::Free, false);
-        assert!(is_bytes_capped_at_allowance(&free));
-        assert!(is_signals_capped_at_credit(&free));
-        assert_eq!(get_effective_bytes_limit(&free), Some(free.bytes_limit));
+    fn only_scale_includes_signals_usage() {
+        assert_eq!(
+            WorkspaceTierName::Pro.included_signal_cost_micro_usd(),
+            Some(50_000_000)
+        );
+        assert_eq!(
+            WorkspaceTierName::Hobby.included_signal_cost_micro_usd(),
+            None
+        );
+        assert_eq!(
+            WorkspaceTierName::Free.included_signal_cost_micro_usd(),
+            None
+        );
     }
 }

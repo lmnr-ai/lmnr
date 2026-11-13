@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { getSignalCreditState } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace/usage-summary";
 import { retentionDays } from "@/lib/billing/retention";
 import { cache, PROJECT_API_KEY_CACHE_KEY, PROJECT_CACHE_KEY } from "@/lib/cache";
@@ -271,8 +270,6 @@ export interface ProjectDetails {
   gbUsedThisMonth: number;
   gbLimit: number;
   signalCostUsedThisMonth: number;
-  signalCreditGrantedMicroUsd: number;
-  signalCreditRemainingMicroUsd: number;
   logRetentionDays: number;
   isFreeTier: boolean;
   trialEndsAt: string | null;
@@ -345,8 +342,6 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       gbUsedThisMonth: 0,
       gbLimit,
       signalCostUsedThisMonth: 0,
-      signalCreditGrantedMicroUsd: 0,
-      signalCreditRemainingMicroUsd: 0,
       isFreeTier,
       trialEndsAt: workspace.trialEndsAt,
       settings,
@@ -356,7 +351,6 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
   const signalCostUsedThisMonth = usageResult.totalSignalCostMicroUsd;
-  const signalCredit = await getSignalCreditState(project.workspaceId, usageResult.creditedSignalCostMicroUsd);
 
   return {
     id: project.id,
@@ -366,8 +360,6 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     gbUsedThisMonth,
     gbLimit,
     signalCostUsedThisMonth,
-    signalCreditGrantedMicroUsd: signalCredit.grantedMicroUsd,
-    signalCreditRemainingMicroUsd: signalCredit.remainingMicroUsd,
     isFreeTier,
     trialEndsAt: workspace.trialEndsAt,
     settings,

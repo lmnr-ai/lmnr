@@ -312,7 +312,6 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             usage_label,
             formatted_limit,
             usage_item,
-            one_time_credit_exhausted,
         } => EmailContent {
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
             subject: format!(
@@ -325,7 +324,6 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 usage_item,
                 formatted_limit,
                 usage_label,
-                *one_time_credit_exhausted,
             )),
         },
         NotificationKind::SignalEmptyTrace {
@@ -696,50 +694,26 @@ fn render_usage_hard_limit_email(
     usage_item: &str,
     formatted_limit: &str,
     usage_label: &str,
-    one_time_credit_exhausted: bool,
 ) -> String {
     let (blocked, meter) = match usage_item {
         "bytes" => ("Data ingestion", "data ingested"),
-        "signal_cost" | "signal_credit" => ("Signal runs", "signals cost"),
+        "signal_cost" => ("Signal runs", "signals cost"),
         _ => ("Usage", "usage"),
-    };
-    // No limit to raise once the credit is gone (a trial, in practice: paid tiers
-    // bill past it), so point at billing, where the paid plan starts.
-    let (tab, campaign, cta, footer_cta) = if one_time_credit_exhausted {
-        (
-            "billing",
-            "start_subscription",
-            "Go to Billing",
-            "Manage billing",
-        )
-    } else {
-        (
-            "usage",
-            "manage_limits",
-            "Manage limit",
-            "Manage usage limits",
-        )
     };
     let link = with_utm(
         &format!(
-            "{}/workspace/{}?tab={}",
+            "{}/workspace/{}?tab=usage",
             frontend_url_email(),
-            workspace_id,
-            tab
+            workspace_id
         ),
         "email",
         "usage_hard_limit",
-        campaign,
+        "manage_limits",
     );
-    let copy = if one_time_credit_exhausted {
-        "Your workspace has used its one-time Signals credit. Start your Pro plan to keep Signals running."
-            .to_string()
-    } else {
-        format!(
-            "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
-            meter
-        )
-    };
+    let copy = format!(
+        "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
+        meter
+    );
     let rows = vec![
         ("Hard limit".to_string(), html_escape(formatted_limit)),
         ("Usage".to_string(), html_escape(usage_label)),
@@ -750,7 +724,7 @@ fn render_usage_hard_limit_email(
         TEXT,
         html_escape(&copy),
         data_rows(&rows),
-        action(&link, cta)
+        action(&link, "Manage limit")
     );
     let subtitle = format!("{} has paused", blocked);
     let body = format!(
@@ -760,7 +734,7 @@ fn render_usage_hard_limit_email(
         footer(
             "This notification was generated automatically by Laminar.",
             &link,
-            footer_cta
+            "Manage usage limits"
         )
     );
     email_document(
@@ -1278,14 +1252,8 @@ mod tests {
             "Free",
             false,
         );
-        let hard_limit_html = render_usage_hard_limit_email(
-            "Workspace",
-            Uuid::nil(),
-            "bytes",
-            "3 GiB",
-            "3 GiB",
-            false,
-        );
+        let hard_limit_html =
+            render_usage_hard_limit_email("Workspace", Uuid::nil(), "bytes", "3 GiB", "3 GiB");
 
         assert!(warning_html.contains(EMAIL_PRIMARY_50));
         assert!(warning_html.contains("View usage"));
@@ -1294,23 +1262,20 @@ mod tests {
     }
 
     #[test]
-    fn signals_credit_exhaustion_does_not_promise_a_monthly_reset() {
-        let html = render_usage_hard_limit_email(
+    fn signals_allowance_warning_names_the_scale_plan() {
+        let html = render_usage_warning_email(
             "Workspace",
             Uuid::nil(),
-            "signal_credit",
-            "$5.00",
-            "$5.00",
+            "signal_cost",
+            "$50.00",
+            "Signals cost",
+            true,
+            "Scale",
             true,
         );
 
-        assert!(html.contains("Signal runs has paused"));
-        assert!(html.contains("used its one-time Signals credit"));
-        assert!(html.contains("Start your Pro plan to keep Signals running"));
-        assert!(html.contains("Go to Billing"));
-        assert!(html.contains("tab=billing"));
-        assert!(!html.contains("Manage limit"));
-        assert!(!html.contains("billing cycle resets"));
+        assert!(html.contains("used all Signals usage included in the Scale plan"));
+        assert!(html.contains("billed at the overage rate"));
     }
 
     #[test]
