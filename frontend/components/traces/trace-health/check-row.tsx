@@ -61,6 +61,7 @@ export default function CheckRow({ check, result, oldestStart, onNavigate, onHid
           <p className="text-xs text-muted-foreground">Fix: {check.fix}</p>
           <div className="flex w-fit cursor-default items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <CopyButton
+              className="bg-transparent"
               text={buildFixPrompt([result])}
               iconClassName="size-3.5"
               icon={<RotatingAgentIcon className="mr-2 size-3.5 text-foreground-200" />}
