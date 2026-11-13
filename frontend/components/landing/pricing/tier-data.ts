@@ -196,6 +196,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
 export interface CardFeature {
   label: string;
   subfeature?: string;
+  // Shown with an X instead of a check; same text color as included features.
   excluded?: boolean;
 }
 
@@ -206,7 +207,7 @@ export interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: formatSignalsIncludedLabel("free") },
+    { label: formatSignalsIncludedLabel("free"), excluded: true },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
