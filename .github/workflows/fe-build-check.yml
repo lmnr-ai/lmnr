@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install pnpm
-        uses: pnpm/setup@v3.1.1 # immutable tag
+        uses: pnpm/setup@v3.1.2 # immutable tag
         with:
           version: 12.14.0
           runtime: node@24

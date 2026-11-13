@@ -91,18 +91,46 @@ const isTimeBound = (filter: Filter): boolean =>
 // Form state for a saved or reverse-parsed structure.
 export const toFormValues = (structure: QueryStructure, chartType: ChartType | undefined): QueryStructure => {
   // Strip the dashboard's own time bounds. The editor re-appends them at execute time for
-  // Table/HorizontalBar charts (see Form.tsx), and SQL reverse-parsed by convertSqlToJson still
+  // Table/HorizontalBar/Value charts (see Form.tsx), and SQL reverse-parsed by convertSqlToJson still
   // carries them, so keeping them would duplicate. A user's own filter on that column stays.
   const timeColumn = getTimeColumn(structure.table);
+  // Value hides Group By, Order and Limit, so drop them rather than keep a grouping the user can't see.
+  const isValue = chartType === ChartType.Value;
   return {
     table: structure.table,
     metrics: structure.metrics,
-    dimensions: structure.dimensions,
+    dimensions: isValue ? [] : structure.dimensions,
     filters: (structure.filters || []).filter((filter) => !(filter.field === timeColumn && isTimeBound(filter))),
     timeRange: structure.timeRange,
-    orderBy: structure.orderBy,
+    orderBy: isValue ? [] : structure.orderBy,
     // Table charts never carry a LIMIT — pagination is applied at fetch time in the executor.
-    limit: chartType === ChartType.Table ? undefined : structure.limit,
+    limit: chartType === ChartType.Table || isValue ? undefined : structure.limit,
+  };
+};
+
+// The structure the visual form sends to `/sql/from-json` for its current values.
+export const buildQueryStructure = (values: QueryStructure, chartType: ChartType | undefined): QueryStructure => {
+  const { table, metrics, dimensions, filters, orderBy, limit } = values;
+  const allFilters = [...(filters || [])];
+
+  // Non-time-series charts (Table, HorizontalBar, Value) carry no timeRange, so they'd otherwise
+  // pull every row ever: scope them to the dashboard's selected range. Line/Bar get the same bounds from timeRange.
+  if (chartType && !needsTimeSeries(chartType)) {
+    const timeColumn = getTimeColumn(table);
+    allFilters.push(
+      { field: timeColumn, op: "gte", stringValue: "{start_time:DateTime64}" },
+      { field: timeColumn, op: "lte", stringValue: "{end_time:DateTime64}" }
+    );
+  }
+
+  return {
+    table,
+    metrics: injectIdMetrics(metrics, dimensions, table, chartType),
+    dimensions: dimensions || [],
+    filters: allFilters,
+    orderBy: orderBy || [],
+    limit,
+    ...(needsTimeSeries(chartType) && { timeRange: getDefaultTimeRange(table) }),
   };
 };
 
@@ -111,6 +139,7 @@ export const toFormValues = (structure: QueryStructure, chartType: ChartType | u
 //   - Table rows are bare columns, no aggregation, no limit
 //   - Non-Table charts need an aggregate metric by default
 //   - Line/Bar order by timeRange, not explicit orderBy
+//   - Value is one aggregate over the whole range: no group by, order or limit
 export const transformFormForChartType = (
   current: QueryStructure,
   newType: ChartType,
@@ -128,13 +157,16 @@ export const transformFormForChartType = (
     };
   }
 
-  if (previousType === ChartType.Table) {
-    return {
-      ...current,
-      metrics: [{ fn: "count", column: "*", alias: "count", args: [] }],
-      orderBy: [],
-    };
+  const base =
+    previousType === ChartType.Table
+      ? { ...current, metrics: [{ fn: "count" as const, column: "*", alias: "count", args: [] }], orderBy: [] }
+      : current;
+
+  if (newType === ChartType.Value) {
+    return { ...base, dimensions: [], orderBy: [], limit: undefined };
   }
+
+  if (previousType === ChartType.Table) return base;
 
   if (newType === ChartType.LineChart || newType === ChartType.BarChart) {
     return { ...current, orderBy: [] };

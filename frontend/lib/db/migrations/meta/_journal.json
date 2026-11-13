@@ -890,6 +890,48 @@
       "when": 1793811230839,
       "tag": "0126_agent_session_sandboxes",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1794004455783,
+      "tag": "0127_agent_definitions",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1794243512429,
+      "tag": "0128_signal_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1794244833695,
+      "tag": "0129_drop_environment_ingest_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1794397175267,
+      "tag": "0130_evaluations_hosted_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1794436981763,
+      "tag": "0131_signal_cluster_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1794493585319,
+      "tag": "0132_signal_cluster_auto_resolve",
+      "breakpoints": true
     }
   ]
 }

@@ -6,15 +6,18 @@ import { withBasePath } from "@/lib/utils";
 
 const SAFE_DESTINATIONS = new Set(["/projects", "/sign-in"]);
 
+// Behind a proxy, route handlers see the server's bind address in request.url (e.g. 0.0.0.0:3000),
+// so a relative Location lets the browser resolve it against the origin it is actually on.
+const relativeRedirect = (path: string) =>
+  new NextResponse(null, { status: 307, headers: { Location: withBasePath(path) } });
+
 export async function GET(request: NextRequest) {
   const session = await getServerSession();
   if (!session) {
-    // NextResponse.redirect does NOT apply basePath, and new URL(path, base)
-    // overrides the path entirely (dropping the prefix) — prefix manually.
-    return NextResponse.redirect(new URL(withBasePath("/sign-in"), request.url));
+    return relativeRedirect("/sign-in");
   }
   await clearOnboardingState();
   const to = request.nextUrl.searchParams.get("to") ?? "/projects";
   const destination = SAFE_DESTINATIONS.has(to) ? to : "/projects";
-  return NextResponse.redirect(new URL(withBasePath(destination), request.url));
+  return relativeRedirect(destination);
 }

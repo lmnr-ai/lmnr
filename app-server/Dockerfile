@@ -1,15 +1,12 @@
 # Build stage with cargo chef for dependency caching
-FROM rust:1.96-slim-trixie AS chef
+FROM rust:1.98-slim-trixie AS chef
 WORKDIR /app-server
 
 # Install build dependencies and cargo-chef
 RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
-    libssl-dev \
     protobuf-compiler \
-    libfontconfig1-dev \
-    libfontconfig \
     libclang-dev \
     && rm -rf /var/lib/apt/lists/* \
     && cargo install cargo-chef
@@ -24,6 +21,14 @@ FROM chef AS builder
 COPY --from=planner /app-server/recipe.json recipe.json
 # Build dependencies
 RUN cargo chef cook --release --recipe-path recipe.json
+# Cooked twice on purpose: `[dev-dependencies]` activates tokio's `test-util`,
+# which the binary's resolution does not, so `cargo test` needs a second set of
+# dependency fingerprints (73 of the 533 crates — tokio and everything
+# downstream of it; the rest are reused from the cook above). Without this layer
+# every CI run rebuilds those 73 before it can start the tests. Keep the plain
+# cook first: it is what the binary links, and dropping it moves the rebuild
+# into the uncached application layer. See docs/internal/backend-ci.md.
+RUN cargo chef cook --release --tests --recipe-path recipe.json
 
 # Build application
 COPY . .
@@ -35,8 +40,6 @@ WORKDIR /app-server
 
 # Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
-    libssl3 \
-    libfontconfig1 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 

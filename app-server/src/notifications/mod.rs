@@ -19,6 +19,7 @@ use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;
 mod email;
+mod email_markdown;
 pub mod slack;
 pub(crate) mod utils;
 
@@ -173,6 +174,13 @@ pub enum NotificationKind {
         activity_buckets: Vec<u64>,
         #[serde(default)]
         example_events: Vec<ClusterExampleEvent>,
+        /// New events reopened this resolved cluster; it isn't new.
+        #[serde(default)]
+        reopened: bool,
+        /// The Laminar Agent's Markdown report on the cluster. When set, the
+        /// email shows it in place of the stats summary; Slack ignores it.
+        #[serde(default)]
+        report: Option<String>,
     },
     SignalsReport {
         workspace_name: String,
@@ -257,6 +265,19 @@ pub struct NotificationMessage {
 }
 
 /// Push a notification message to the notifications queue.
+/// The headline for a digest of `NewCluster` notifications, e.g. "New cluster detected".
+pub fn new_cluster_wording(clusters: &[&NotificationKind]) -> String {
+    let all_reopened = clusters
+        .iter()
+        .all(|n| matches!(n, NotificationKind::NewCluster { reopened: true, .. }));
+    match (all_reopened, clusters.len()) {
+        (true, 1) => "New events detected in a resolved cluster".to_string(),
+        (true, n) => format!("New events detected in {n} resolved clusters"),
+        (false, 1) => "New cluster detected".to_string(),
+        (false, n) => format!("{n} new clusters detected"),
+    }
+}
+
 pub async fn push_to_notification_queue(
     message: NotificationMessage,
     queue: Arc<MessageQueue>,
@@ -657,6 +678,8 @@ mod tests {
             severity_counts: [0; 3],
             activity_buckets: Vec::new(),
             example_events: Vec::new(),
+            reopened: false,
+            report: None,
         }
     }
 

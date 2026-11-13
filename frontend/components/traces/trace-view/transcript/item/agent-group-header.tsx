@@ -76,8 +76,8 @@ function AgentGroupHeaderInner({
     >
       <div className={cn("flex flex-col flex-1 min-w-0 px-2 py-2", collapsed && "gap-1")}>
         <div className="flex gap-2 items-center min-w-0">
-          <div className="flex items-center justify-center z-10 rounded shrink-0 bg-subagent/70 size-5 min-w-5 min-h-5">
-            <Bot size={14} />
+          <div className="flex items-center justify-center z-10 rounded shrink-0 bg-subagent-icon-background size-5 min-w-5 min-h-5">
+            <Bot size={14} className="text-white" />
           </div>
           <span className="font-medium text-[13px] whitespace-nowrap truncate">{displayName}</span>
           <div className="flex items-center shrink-0 ml-auto gap-2">

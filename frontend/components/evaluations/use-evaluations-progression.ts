@@ -5,6 +5,8 @@ import { type AggregationFunction } from "@/lib/clickhouse/types";
 import { type ScoreRange } from "@/lib/colors";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 
+import { describeMetadataKeys, type MetadataKeyInfo } from "./progression-chart/grouping";
+
 interface UseEvaluationsProgressionResult {
   /** Raw whole-group progression (one point per run), or undefined while loading. */
   progression: EvaluationTimeProgression[] | undefined;
@@ -17,6 +19,8 @@ interface UseEvaluationsProgressionResult {
   scoreRanges: Record<string, ScoreRange>;
   /** Every run id in the group (whole group, not just the loaded table page). */
   allRunIds: string[];
+  /** Groupable metadata keys (dot paths to scalar values) across the group's runs. */
+  metadataKeys: MetadataKeyInfo[];
 }
 
 /**
@@ -90,5 +94,7 @@ export function useEvaluationsProgression(
     return out;
   }, [scoreNames, scoresByEvalId]);
 
-  return { progression, isLoading, scoreNames, scoresByEvalId, scoreRanges, allRunIds };
+  const metadataKeys = useMemo(() => describeMetadataKeys(progression ?? []), [progression]);
+
+  return { progression, isLoading, scoreNames, scoresByEvalId, scoreRanges, allRunIds, metadataKeys };
 }

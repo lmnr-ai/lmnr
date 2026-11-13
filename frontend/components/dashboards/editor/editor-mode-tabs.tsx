@@ -34,7 +34,7 @@ export default function EditorModeTabs() {
   const switchToStandard = async () => {
     if (!query.trim()) return startFresh();
     setIsParsing(true);
-    const structure = await parseVisualStructure(query, projectId);
+    const structure = await parseVisualStructure(query, projectId, chartType);
     setIsParsing(false);
     if (!structure) return setConfirmOpen(true);
     reset(toFormValues(structure, chartType));
@@ -51,7 +51,7 @@ export default function EditorModeTabs() {
   return (
     <>
       <Tabs value={editorMode} onValueChange={handleChange}>
-        <TabsList className="w-full h-8">
+        <TabsList className="w-full max-w-80 h-8">
           <TabsTrigger value="visual" className="text-xs" disabled={isParsing}>
             Standard
           </TabsTrigger>

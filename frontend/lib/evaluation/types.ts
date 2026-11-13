@@ -7,6 +7,8 @@ export type Evaluation = {
   name: string;
   projectId: string;
   metadata: Record<string, unknown> | null;
+  /** Set for evaluations from a remote run (`lmnr-cli eval run --remote`), whose evals folder can be browsed. */
+  hostedMetadata?: { uploadId: string; suitePath: string } | null;
 };
 
 /** A dataset an evaluation's Trials are linked to. */
@@ -46,4 +48,6 @@ export type EvaluationTimeProgression = {
   evaluationId: string;
   names: string[];
   values: string[];
+  name?: string;
+  metadata?: Record<string, unknown> | null;
 };

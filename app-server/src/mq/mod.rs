@@ -3,13 +3,12 @@ use lapin::{
     Acker,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
 };
-// pub mod connection;
-pub mod rabbit;
+pub mod rabbitmq;
 pub mod stream;
 pub mod tokio_mpsc;
 pub mod utils;
 
-use rabbit::{RabbitMQ, RabbitMQDelivery, RabbitMQReceiver};
+use rabbitmq::{RabbitMQ, RabbitMQDelivery, RabbitMQReceiver};
 use tokio_mpsc::{TokioMpscDelivery, TokioMpscQueue, TokioMpscReceiver};
 
 #[enum_dispatch]

@@ -9,11 +9,13 @@ import {
   useState,
 } from "react";
 
-import { type SearchableSource } from "@/components/traces/span-view/searchable";
+import { byDomOrder, type SearchableSource } from "@/components/traces/span-view/searchable";
 
 interface RegisteredSource {
   source: SearchableSource;
   matchCount: number;
+  /** The term `matchCount` is for. */
+  term: string;
 }
 
 interface SpanSearchStateContextValue {
@@ -25,7 +27,7 @@ interface SpanSearchStateContextValue {
   goToPrev: () => void;
 }
 
-interface SpanSearchRegistrationContextValue {
+export interface SpanSearchRegistrationContextValue {
   registerSource: (source: SearchableSource) => void;
   unregisterSource: (id: string) => void;
 }
@@ -36,78 +38,33 @@ const SpanSearchRegistrationContext = createContext<SpanSearchRegistrationContex
 export const useSpanSearchState = () => useContext(SpanSearchStateContext);
 export const useSpanSearchRegistration = () => useContext(SpanSearchRegistrationContext);
 
+/** Lets a virtualized list collect its mounted editors per row instead of registering each one here. */
+export const SpanSearchRegistrationScope = SpanSearchRegistrationContext.Provider;
+
 export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChildren<{ initialSearchTerm?: string }>) {
   const sources = useRef<Map<string, RegisteredSource>>(new Map());
   const searchTermRef = useRef(initialSearchTerm ?? "");
   const [searchTerm, setSearchTermState] = useState(initialSearchTerm ?? "");
   const [totalMatches, setTotalMatches] = useState(0);
   const [currentGlobalIndex, setCurrentGlobalIndex] = useState(0);
+  // A new term jumps to its first match, as soon as one is counted (sources can register after the term is set).
+  const jumpPending = useRef(!!initialSearchTerm);
+  // The current match by source, not global position: sources re-register (format or tab switches) and shift it.
+  const active = useRef<{ id: string; localIndex: number } | null>(null);
 
   const setSearchTerm = useCallback((term: string) => {
     searchTermRef.current = term;
+    jumpPending.current = term.trim().length > 0;
+    active.current = null;
     setCurrentGlobalIndex(0);
     setSearchTermState(term);
   }, []);
-
-  const syncTotals = useCallback(() => {
-    let total = 0;
-    sources.current.forEach((entry) => {
-      total += entry.matchCount;
-    });
-    setTotalMatches(total);
-    setCurrentGlobalIndex((prev) => {
-      if (total === 0) return 0;
-      return Math.min(prev, total);
-    });
-  }, []);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      sources.current.forEach((entry) => {
-        entry.matchCount = entry.source.apply(searchTerm);
-      });
-      syncTotals();
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [searchTerm, syncTotals]);
-
-  const registerSource = useCallback(
-    (source: SearchableSource) => {
-      const existing = sources.current.get(source.id);
-      if (existing && existing.source !== source) {
-        existing.source.destroy();
-      }
-
-      const matchCount = source.apply(searchTermRef.current);
-      sources.current.set(source.id, { source, matchCount });
-      requestAnimationFrame(() => syncTotals());
-    },
-    [syncTotals]
-  );
-
-  const unregisterSource = useCallback(
-    (id: string) => {
-      const entry = sources.current.get(id);
-      if (entry) {
-        entry.source.destroy();
-        sources.current.delete(id);
-        requestAnimationFrame(() => syncTotals());
-      }
-    },
-    [syncTotals]
-  );
 
   const getSortedSources = useCallback(
     (): RegisteredSource[] =>
       Array.from(sources.current.values())
         .filter((e) => e.matchCount > 0)
-        .sort((a, b) => {
-          if (a.source.messageIndex !== b.source.messageIndex) {
-            return a.source.messageIndex - b.source.messageIndex;
-          }
-          return a.source.contentPartIndex - b.source.contentPartIndex;
-        }),
+        .sort((a, b) => byDomOrder(a.source, b.source)),
     []
   );
 
@@ -138,6 +95,7 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
 
       const { entry, localIndex } = result;
 
+      active.current = { id: entry.source.id, localIndex };
       setCurrentGlobalIndex(globalIndex + 1);
 
       sources.current.forEach((other) => {
@@ -149,6 +107,74 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
       entry.source.goTo(localIndex);
     },
     [getSourceForGlobalIndex]
+  );
+
+  const syncTotals = useCallback(() => {
+    let total = 0;
+    sources.current.forEach((entry) => {
+      total += entry.matchCount;
+    });
+    setTotalMatches(total);
+    // Re-derived from the source holding the current match: sources before it may have registered or changed count.
+    let position = 0;
+    let found = false;
+    for (const entry of getSortedSources()) {
+      if (entry.source.id === active.current?.id) {
+        found = active.current.localIndex < entry.matchCount;
+        position += active.current.localIndex + 1;
+        break;
+      }
+      position += entry.matchCount;
+    }
+    if (!found) active.current = null;
+    setCurrentGlobalIndex(found ? position : 0);
+    if (total > 0 && jumpPending.current) {
+      jumpPending.current = false;
+      goToGlobalMatch(0);
+    }
+  }, [getSortedSources, goToGlobalMatch]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      // Sources that registered with this term already have it: applying it again would clear the match jumped to.
+      sources.current.forEach((entry) => {
+        if (entry.term === searchTerm) return;
+        entry.matchCount = entry.source.apply(searchTerm);
+        entry.term = searchTerm;
+      });
+      syncTotals();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [searchTerm, syncTotals]);
+
+  const registerSource = useCallback(
+    (source: SearchableSource) => {
+      const existing = sources.current.get(source.id);
+      if (existing && existing.source !== source) {
+        existing.source.destroy();
+      }
+      // Applying the term clears the source's current match.
+      if (active.current?.id === source.id) active.current = null;
+
+      const term = searchTermRef.current;
+      sources.current.set(source.id, { source, matchCount: source.apply(term), term });
+      requestAnimationFrame(() => syncTotals());
+    },
+    [syncTotals]
+  );
+
+  const unregisterSource = useCallback(
+    (id: string) => {
+      const entry = sources.current.get(id);
+      if (entry) {
+        entry.source.destroy();
+        sources.current.delete(id);
+        if (active.current?.id === id) active.current = null;
+        requestAnimationFrame(() => syncTotals());
+      }
+    },
+    [syncTotals]
   );
 
   const goToNext = useCallback(() => {

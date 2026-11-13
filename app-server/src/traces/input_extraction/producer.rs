@@ -117,6 +117,8 @@ struct InputContender {
     state: WinnerState,
     path: Vec<String>,
     rollout_session_id: Option<String>,
+    /// Routes the agent_input event to the live session view's channel.
+    session_id: Option<String>,
     span_id: Uuid,
 }
 
@@ -187,6 +189,7 @@ pub async fn process_user_task_candidates(
         };
         let content_hash = candidate.content_hash.clone();
         let rollout_session_id = rollout_session_id_from_attributes(&ctx.attributes);
+        let session_id = ctx.attributes.session_id();
         let state = WinnerState {
             // Empty for a span with no system message: ungroupable, so they
             // all share one bucket.
@@ -206,6 +209,7 @@ pub async fn process_user_task_candidates(
                 state,
                 path: path.clone(),
                 rollout_session_id,
+                session_id,
                 span_id: ctx.span_id,
             });
     }
@@ -410,6 +414,7 @@ async fn process_trace_inputs(
         let state = challenger.state.clone();
         let candidate = &challenger.candidate;
         let rollout_session_id = challenger.rollout_session_id.clone();
+        let session_id = challenger.session_id.clone();
 
         if !user_task_agent_enabled {
             write_lock_merged(&cache, &lock_key, &lock, trace_id).await;
@@ -481,6 +486,7 @@ async fn process_trace_inputs(
                     project_id,
                     value,
                     rollout_session_id.clone(),
+                    session_id.clone(),
                     queue.clone(),
                     db.clone(),
                     cache.clone(),
@@ -509,6 +515,7 @@ async fn process_trace_inputs(
                     fingerprint: candidate.fingerprint.clone(),
                     winner_state: Some(state.clone()),
                     rollout_session_id: rollout_session_id.clone(),
+                    session_id: session_id.clone(),
                 };
                 match push_to_input_extraction_queue(message, queue.clone()).await {
                     Ok(enqueued) => enqueued,
@@ -643,6 +650,7 @@ mod tests {
             state: winner("contenthash"),
             path: Vec::new(),
             rollout_session_id: None,
+            session_id: None,
             span_id: Uuid::new_v4(),
         }
     }

@@ -1,8 +1,10 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -14,9 +16,12 @@ export default function SamplingSection() {
   const { control, watch, setValue } = useFormContext<ManageSignalForm>();
   const sampleRate = watch("sampleRate");
   const isEnabled = sampleRate !== null && sampleRate !== undefined;
+  // Keeps the last rate on screen while the panel animates closed (sampleRate is already null by then).
+  const [lastRate, setLastRate] = useState(sampleRate ?? 25);
+  if (isEnabled && sampleRate !== lastRate) setLastRate(sampleRate);
 
   return (
-    <div className="grid gap-1.5">
+    <Collapsible open={isEnabled}>
       <div className="flex items-center justify-between">
         <TooltipProvider delayDuration={200}>
           <div className="flex items-center gap-1.5">
@@ -41,8 +46,8 @@ export default function SamplingSection() {
           }}
         />
       </div>
-      {isEnabled && (
-        <div className="rounded-md border p-3 space-y-3">
+      <CollapsibleContent className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
+        <div className="space-y-3 pt-1.5">
           <Controller
             name="sampleRate"
             control={control}
@@ -61,8 +66,8 @@ export default function SamplingSection() {
             )}
           />
           <p className="text-xs text-muted-foreground">
-            {sampleRate}% of all traces will be processed. When user_id is set, traces are sampled evenly across users
-            so each gets equal coverage.{" "}
+            {lastRate}% of all traces will be processed. When user_id is set, traces are sampled evenly across users so
+            each gets equal coverage.{" "}
             <a
               href="https://laminar.sh/docs/tracing/structure/user-id"
               target="_blank"
@@ -73,7 +78,7 @@ export default function SamplingSection() {
             </a>
           </p>
         </div>
-      )}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

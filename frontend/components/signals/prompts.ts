@@ -1,8 +1,8 @@
-export type EventTemplate = {
+import { NEW_SIGNAL_SETTINGS, type SignalSettings } from "@/lib/signals/settings";
+
+export type EventTemplate = SignalSettings & {
   name: string;
-  shortName: string;
-  icon: "alert-circle" | "check-circle" | "frown" | "target";
-  description: string;
+  icon: "alert-circle" | "frown" | "target";
   prompt: string;
   structuredOutputSchema: string;
 };
@@ -10,10 +10,9 @@ export type EventTemplate = {
 const templates: EventTemplate[] = [
   {
     // Keep in sync with DEFAULT_SIGNAL in lib/db/default-signals.ts.
-    name: "Failure Detector",
-    shortName: "Failure",
+    name: "Issues",
     icon: "alert-circle",
-    description: "Spot errors, loops and wrong tool usage",
+    ...NEW_SIGNAL_SETTINGS,
     prompt: `Report every distinct error the agent made in this run that meets the bar below. One finding per distinct error. [IMPORTANT]: If nothing meets the bar, submit no findings. A clean run is a valid outcome, and an unsupported finding is worse than no finding.
 
 Reportable:
@@ -48,10 +47,11 @@ Grounding:
     ),
   },
   {
-    name: "Intent Classifier",
-    shortName: "Intent",
+    name: "Intent",
     icon: "target",
-    description: "Classify what the user was trying to accomplish",
+    // Intent clusters are intents, not problems: nothing to report on or resolve.
+    reportsEnabled: false,
+    autoResolveEnabled: false,
     prompt: `What was the user trying to accomplish in this session?
 Classify the primary intent.`,
     structuredOutputSchema: JSON.stringify(
@@ -75,38 +75,9 @@ Classify the primary intent.`,
     ),
   },
   {
-    name: "Task Evaluator",
-    shortName: "Task",
-    icon: "check-circle",
-    description: "Evaluate if the agent completed the user's request",
-    prompt: `Did the agent successfully complete what the user asked for?
-Consider whether the output matches the user's intent and is correct.`,
-    structuredOutputSchema: JSON.stringify(
-      {
-        type: "object",
-        required: ["success", "description"],
-        properties: {
-          success: {
-            type: "string",
-            enum: ["full", "partial", "failed"],
-            description: "Level of task completion",
-          },
-          description: {
-            type: "string",
-            description:
-              "Description of task completion status. If the task was not completed, describe what went wrong.",
-          },
-        },
-      },
-      null,
-      2
-    ),
-  },
-  {
-    name: "Friction Detector",
-    shortName: "User friction",
+    name: "Friction",
     icon: "frown",
-    description: "Identify user frustration and poor UX",
+    ...NEW_SIGNAL_SETTINGS,
     prompt: `Analyze this session for signs of user frustration or friction.
 Look for confusion, repeated attempts, or poor user experience.`,
     structuredOutputSchema: JSON.stringify(

@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use aws_config::SdkConfig;
 use chrono::{Duration, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -35,22 +35,8 @@ use sandboxes::CreateError;
 /// Name prefix of the per-run project API keys. The frontend hides keys with it
 /// from the project's key list (`frontend/lib/actions/project-api-keys`).
 pub const RUN_KEY_NAME_PREFIX: &str = "lmnr-internal-evals-";
-// Downloads the archive with the run key, runs the CLI, then deletes the
-// archive and the sandbox through the app-server however the run ended. Runs
-// under `sh`, with stderr folded into stdout so the provider's command log has
-// everything.
-const ORCHESTRATOR_COMMAND: &str = concat!(
-    r#"exec 2>&1; "#,
-    r#"mkdir -p "$HOME/evals" && cd "$HOME/evals" && "#,
-    r#"curl -fsS -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID" -o /tmp/evals.tar.gz && "#,
-    r#"tar -xzf /tmp/evals.tar.gz && rm /tmp/evals.tar.gz && "#,
-    r#"npx -y --package="$LMNR_CLI_PACKAGE" lmnr-cli eval orchestrate; "#,
-    r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID"; "#,
-    r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/sandboxes/$LMNR_SANDBOX_ID""#,
-);
+/// Runs in the orchestrator sandbox; what it does is commented in the file.
+const ORCHESTRATOR_SCRIPT: &str = include_str!("orchestrator.sh");
 
 /// The sandbox provider and the registry trial images are pushed to. `None`
 /// (hosted evals disabled) unless `DAYTONA_API_KEY` is set.
@@ -98,6 +84,67 @@ impl From<anyhow::Error> for RunError {
 
 pub fn archive_key(project_id: &Uuid, upload_id: &Uuid) -> String {
     format!("hosted-evals/{project_id}/{upload_id}.tar.gz")
+}
+
+pub fn index_key(project_id: &Uuid, upload_id: &Uuid) -> String {
+    format!("hosted-evals/{project_id}/{upload_id}.index.json")
+}
+
+/// One suite's Harbor job output (its trial dirs), packed like the run's archive.
+/// `suite` must pass [`is_suite_name`].
+pub fn job_archive_key(project_id: &Uuid, upload_id: &Uuid, suite: &str) -> String {
+    format!("hosted-evals/{project_id}/{upload_id}/jobs/{suite}.tar.gz")
+}
+
+pub fn job_index_key(project_id: &Uuid, upload_id: &Uuid, suite: &str) -> String {
+    format!("hosted-evals/{project_id}/{upload_id}/jobs/{suite}.index.json")
+}
+
+/// A suite is a directory directly inside the evals folder, so its name is one
+/// path segment. It goes into S3 keys, hence no separators or dot segments.
+pub fn is_suite_name(suite: &str) -> bool {
+    !suite.is_empty()
+        && suite.len() <= 255
+        && suite != "."
+        && suite != ".."
+        && !suite
+            .chars()
+            .any(|c| c == '/' || c == '\\' || c.is_control())
+}
+
+/// Where each file sits in an uploaded archive (written by lmnr-cli's
+/// `pack.ts`), so the frontend reads one file with a ranged GET instead of the
+/// whole archive. Parsed here only to reject a malformed index; it is stored as
+/// sent and read by the frontend (`lib/hosted-evals`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveIndex {
+    #[allow(dead_code)]
+    files: Vec<IndexedFile>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+struct IndexedFile {
+    /// POSIX path relative to the archive root.
+    path: String,
+    size: u64,
+    /// Byte range of the gzip member holding the file.
+    offset: u64,
+    length: u64,
+    /// Where the file's content starts in the decompressed member.
+    data_offset: u64,
+}
+
+/// What links an evaluation to the remote run that produced it
+/// (`evaluations.hosted_metadata`), set by the Laminar Harbor plugin.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HostedMetadata {
+    pub upload_id: Uuid,
+    /// The suite dir, relative to the archive root.
+    pub suite_path: String,
 }
 
 /// POSIX single-quoting, safe for sh, bash and zsh.
@@ -185,7 +232,7 @@ async fn launch_orchestrator(
     let started = async {
         sandboxes::wait_until_started(provider, &sandbox.id).await?;
         let command = format!(
-            "export LMNR_SANDBOX_ID={}; {ORCHESTRATOR_COMMAND}",
+            "export LMNR_SANDBOX_ID={}\n{ORCHESTRATOR_SCRIPT}",
             shell_quote(&sandbox.id)
         );
         provider.start_command(&sandbox, &command).await
@@ -216,6 +263,30 @@ mod tests {
         );
         for bad in ["", "0.5.3; rm -rf /", "$(id)", "1 2", "a/b"] {
             assert!(cli_package(bad).is_none(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn suite_names_are_one_path_segment() {
+        for good in ["support", "my suite", "évals-2", ".hidden"] {
+            assert!(is_suite_name(good), "{good}");
+        }
+        let long = "a".repeat(256);
+        for bad in ["", ".", "..", "a/b", "a\\b", "a\nb", long.as_str()] {
+            assert!(!is_suite_name(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn orchestrator_script_parses_as_posix_sh() {
+        for shell in ["sh", "dash"] {
+            let Ok(status) = std::process::Command::new(shell)
+                .args(["-n", "-c", ORCHESTRATOR_SCRIPT])
+                .status()
+            else {
+                continue;
+            };
+            assert!(status.success(), "{shell} -n rejects orchestrator.sh");
         }
     }
 

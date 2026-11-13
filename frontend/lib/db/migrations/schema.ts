@@ -188,6 +188,211 @@ export const signalVersions = pgTable(
   ]
 );
 
+// Reviewer notes. Every write mints a signal version that snapshots the full list.
+export const signalNotes = pgTable(
+  "signal_notes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    content: text().notNull(),
+    createdBy: uuid("created_by"),
+    updatedBy: uuid("updated_by"),
+    // ClickHouse signal_events row the note responds to; no FK across stores.
+    sourceEventId: uuid("source_event_id"),
+    sourceTraceId: uuid("source_trace_id"),
+    sourceEventSnapshot: jsonb("source_event_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_notes_project_signal_created_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_notes_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_notes_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "signal_notes_created_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [users.id],
+      name: "signal_notes_updated_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+// One row per time a cluster was marked resolved; reopening stamps reopened_at. A cluster
+// can be resolved many times, and is resolved now iff it has a row with reopened_at null.
+// cluster_id is a ClickHouse signal_event_clusters id (L1+, which are never deleted); no FK.
+export const signalClusterResolutions = pgTable(
+  "signal_cluster_resolutions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    resolvedBy: uuid("resolved_by"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    reopenedBy: uuid("reopened_by"),
+    reopenedAt: timestamp("reopened_at", { withTimezone: true, mode: "string" }),
+    resolvedAutomatically: boolean("resolved_automatically").default(false).notNull(),
+    reopenedAutomatically: boolean("reopened_automatically").default(false).notNull(),
+  },
+  (table) => [
+    index("signal_cluster_resolutions_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    uniqueIndex("signal_cluster_resolutions_one_open_idx")
+      .using("btree", table.clusterId.asc().nullsLast().op("uuid_ops"))
+      .where(sql`(reopened_at IS NULL)`),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_resolutions_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_resolutions_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.resolvedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_resolutions_resolved_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.reopenedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_resolutions_reopened_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+// Archived clusters: hidden from Active and Resolved and never get new reports. Unarchiving deletes the row.
+export const signalClusterArchives = pgTable(
+  "signal_cluster_archives",
+  {
+    clusterId: uuid("cluster_id").primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    archivedBy: uuid("archived_by"),
+    archivedAt: timestamp("archived_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_cluster_archives_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_archives_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_archives_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.archivedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_archives_archived_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+// When each user last opened each cluster's report. A cluster is unread for a user when it
+// has events newer than last_viewed_at, or no row at all.
+export const signalClusterViews = pgTable(
+  "signal_cluster_views",
+  {
+    userId: uuid("user_id").notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    lastViewedAt: timestamp("last_viewed_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.clusterId], name: "signal_cluster_views_pkey" }),
+    index("signal_cluster_views_user_project_idx").using(
+      "btree",
+      table.userId.asc().nullsLast().op("uuid_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "signal_cluster_views_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_views_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_views_signal_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+// The Laminar Agent's report on an L1 cluster: one per cluster, rewritten when regenerated.
+export const signalClusterReports = pgTable(
+  "signal_cluster_reports",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    status: text().notNull(),
+    content: text(),
+    error: text(),
+    sessionId: uuid("session_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_cluster_reports_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    index("signal_cluster_reports_cluster_created_idx").using(
+      "btree",
+      table.clusterId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.desc().nullsFirst().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_reports_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_reports_signal_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const tracesAgentMessages = pgTable(
   "traces_agent_messages",
   {
@@ -261,14 +466,11 @@ export const githubIntegrations = pgTable(
 );
 
 // One per project: what the Laminar Agent's sandbox is set up with.
-// `ingest_api_key` is the AEAD blob ({nonce, value} hex, AAD = environment id) of an ingest-only project key.
 export const projectEnvironments = pgTable(
   "project_environments",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
-    ingestApiKeyId: uuid("ingest_api_key_id"),
-    ingestApiKey: jsonb("ingest_api_key"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
@@ -278,11 +480,6 @@ export const projectEnvironments = pgTable(
       foreignColumns: [projects.id],
       name: "project_environments_project_id_fkey",
     }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.ingestApiKeyId],
-      foreignColumns: [projectApiKeys.id],
-      name: "project_environments_ingest_api_key_id_fkey",
-    }).onDelete("set null"),
     unique("project_environments_project_id_key").on(table.projectId),
   ]
 );
@@ -441,6 +638,7 @@ export const agents = pgTable(
     ingestedUntil: bigint("ingested_until", { mode: "number" }),
     currentVersionId: uuid("current_version_id"),
     releaseMode: boolean("release_mode").default(false).notNull(),
+    definition: jsonb(),
   },
   (table) => [
     foreignKey({
@@ -1054,6 +1252,7 @@ export const evaluations = pgTable(
     name: text().notNull(),
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
+    hostedMetadata: jsonb("hosted_metadata"),
   },
   (table) => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),

@@ -1,22 +1,28 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
+import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, type PropsWithChildren, type RefObject, useCallback, useEffect } from "react";
 
-import { columns } from "@/components/traces/sessions-table/columns";
-import { FETCH_SIZE } from "@/components/traces/sessions-table/constants";
+import { FETCH_SIZE, REALTIME_STORAGE_KEY } from "@/components/traces/sessions-table/constants";
+import { useSessionsRealtime } from "@/components/traces/sessions-table/use-sessions-realtime";
 import SearchWiderRangeButton from "@/components/ui/date-range-filter/search-wider-range-button";
 import { type DateRange } from "@/components/ui/date-range-filter/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type SessionRow } from "@/lib/traces/types";
 
+const ROW_HEIGHT = 48;
+
 export interface SessionsTableContentsProps {
   refetchRef: RefObject<() => void>;
+  columnDefs: ColumnDef<SessionRow>[];
+  /** JSON custom-column payload for the API; undefined when the view has none. */
+  customColumns?: string;
   filter: string[];
   textSearchFilter: string | null;
   sortBy?: string;
@@ -31,6 +37,8 @@ export interface SessionsTableContentsProps {
 export const SessionsTableContents = memo(function SessionsTableContents({
   children,
   refetchRef,
+  columnDefs,
+  customColumns,
   filter,
   textSearchFilter,
   sortBy,
@@ -61,6 +69,7 @@ export const SessionsTableContents = memo(function SessionsTableContents({
         if (endDate != null) urlParams.set("endDate", endDate);
 
         filter.forEach((f) => urlParams.append("filter", f));
+        if (customColumns) urlParams.set("customColumns", customColumns);
 
         if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
           urlParams.set("search", textSearchFilter);
@@ -89,7 +98,7 @@ export const SessionsTableContents = memo(function SessionsTableContents({
         throw error;
       }
     },
-    [endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter, toast]
+    [customColumns, endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter, toast]
   );
 
   const {
@@ -100,15 +109,42 @@ export const SessionsTableContents = memo(function SessionsTableContents({
     error,
     fetchNextPage,
     refetch,
+    updateData,
   } = useInfiniteScroll<SessionRow>({
     fetchFn: fetchSessions,
     enabled: shouldFetch && !isViewLoading,
-    deps: [endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter],
+    deps: [customColumns, endDate, filter, pastHours, projectId, sortBy, sortDirection, startDate, textSearchFilter],
   });
 
   useEffect(() => {
     refetchRef.current = refetch;
   }, [refetch, refetchRef]);
+
+  // `refetch` would clear the table and scroll; the live check only needs the first page's rows.
+  const fetchFirstPage = useCallback(
+    () =>
+      fetchSessions(0).then(
+        (page) => page.items,
+        () => undefined
+      ),
+    [fetchSessions]
+  );
+
+  const [realtimeEnabled] = useLocalStorage(REALTIME_STORAGE_KEY, false);
+  const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
+  // Live rows are patched client-side, which can't evaluate filters or search; those views stay static.
+  useSessionsRealtime({
+    projectId: String(projectId),
+    enabled:
+      realtimeEnabled &&
+      shouldFetch &&
+      !isViewLoading &&
+      isCurrentTimestampIncluded &&
+      filter.length === 0 &&
+      !textSearchFilter,
+    updateData,
+    fetchFirstPage,
+  });
 
   const searchWiderRange = useCallback(
     (range: DateRange) => {
@@ -135,10 +171,14 @@ export const SessionsTableContents = memo(function SessionsTableContents({
   return (
     <InfiniteDataTable<SessionRow>
       className="w-full"
-      columns={columns}
+      columns={columnDefs}
       data={sessions}
       getRowId={(session) => session.sessionId}
       onRowClick={handleRowClick}
+      // Fixed height so a 1-line and a 3-line Input don't make rows uneven.
+      estimatedRowHeight={ROW_HEIGHT}
+      // Cells are h-full by default; sizing them to content lets their my-auto center them vertically.
+      getRowClassName={() => "h-[48px] [&>td]:h-auto"}
       hasMore={hasMore}
       isFetching={isFetching}
       isLoading={isLoading || !shouldFetch || isViewLoading}

@@ -54,14 +54,16 @@ export function LinkChip({
       // these onto the surface ramp, and the chip has nothing else stable to
       // select on. Purely additive — no rule in shipping CSS matches it.
       data-slot="span-chip"
+      title={name}
       className={cn(
-        "inline-flex items-center gap-1 rounded px-1 py-0.25 align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer",
+        // Always one line: a long name truncates instead of wrapping the chip.
+        "inline-flex max-w-full min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap rounded px-1 py-0.25 text-left align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer",
         !icon && "pl-1.5"
       )}
     >
       {icon}
-      <span className={`text-sm text-secondary-foreground ${loading ? "opacity-60" : ""}`}>{name}</span>
-      <ArrowUpRight className="w-3.5 h-3.5 text-foreground-400" />
+      <span className={cn("min-w-0 truncate text-sm text-secondary-foreground", loading && "opacity-60")}>{name}</span>
+      <ArrowUpRight className="size-3.5 shrink-0 text-foreground-400" />
     </button>
   );
 }

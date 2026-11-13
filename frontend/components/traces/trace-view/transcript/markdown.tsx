@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { MarkdownSpanBadge, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
+import { paragraphTag } from "@/lib/markdown/paragraph-tag";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils.ts";
 
@@ -35,37 +36,40 @@ const Markdown = ({ output, className, contentClassName, spanRefCallbacks }: Mar
           className="rounded text-wrap"
           rehypePlugins={[defaultRehypePlugins.raw, defaultRehypePlugins.sanitize, defaultRehypePlugins.harden]}
           components={{
-            h1: ({ children, className, ...props }) => (
+            h1: ({ node: _node, children, className, ...props }) => (
               <h1 {...props} className={cn(className, "text-sm")}>
                 {children}
               </h1>
             ),
-            p: ({ children, className, ...props }) => (
-              <p {...props} className={cn(className, "text-[13px]")}>
-                {children}
-              </p>
-            ),
-            li: ({ children, className, ...props }) => (
+            p: ({ node, children, className, ...props }) => {
+              const Tag = paragraphTag(node);
+              return (
+                <Tag {...props} className={cn(className, "text-[13px]")}>
+                  {children}
+                </Tag>
+              );
+            },
+            li: ({ node: _node, children, className, ...props }) => (
               <li {...props} className={cn(className, "text-[13px]")}>
                 {children}
               </li>
             ),
-            ul: ({ children, className, ...props }) => (
+            ul: ({ node: _node, children, className, ...props }) => (
               <ul {...props} className={cn(className, "text-[13px] list-disc pl-6")}>
                 {children}
               </ul>
             ),
-            ol: ({ children, className, ...props }) => (
+            ol: ({ node: _node, children, className, ...props }) => (
               <ol {...props} className={cn(className, "text-[13px] list-decimal pl-6")}>
                 {children}
               </ol>
             ),
-            code: ({ children, className, ...props }) => (
+            code: ({ node: _node, children, className, ...props }) => (
               <code {...props} className={cn(className, "text-[13px] font-mono whitespace-pre-wrap")}>
                 {children}
               </code>
             ),
-            a: ({ href, children, ...props }) => {
+            a: ({ node: _node, href, children, ...props }) => {
               if (spanRefCallbacks && href) {
                 // Reuse the markdown-link parser by re-wrapping the bare href.
                 const [link] = parseSpanLinks(`[x](${href})`);

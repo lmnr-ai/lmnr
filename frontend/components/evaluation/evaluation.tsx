@@ -3,7 +3,7 @@
 import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
+import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
@@ -25,6 +25,10 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
+import TaskFiles from "@/components/evaluation/task-files";
+import PanelToggle, { PANELS } from "@/components/evaluation/task-files/panel-toggle";
+import { taskNameOf, taskPathOf, trialNameOf } from "@/components/evaluation/task-files/utils";
+import TrialLog from "@/components/evaluation/trial-log";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
   type EvaluationStatsPayload,
@@ -264,6 +268,14 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // shared links carried traceId without trialId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
+  // Remote-run evaluations can show each trial's task folder or its Harbor output instead of its trace.
+  const isHosted = !isShared && !!evaluations.find((e) => e.id === evaluationId)?.hostedMetadata;
+  const [panel, setPanel] = useQueryState("panel", parseAsStringLiteral(PANELS).withDefault("trace"));
+  const shownPanel = isHosted ? panel : "trace";
+  const taskPath = taskPathOf(selectedRow);
+  const trialName = trialNameOf(selectedRow);
+  const taskName = taskNameOf(selectedRow);
+
   const handleRowClick = useCallback(
     (row: Row<EvalRow>) => {
       if (isTaskGroupRow(row.original)) {
@@ -371,18 +383,40 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
             }
             traceColumn={
               <div className="flex h-full flex-col overflow-hidden rounded-tl-lg border-l border-t bg-background">
-                <div className="flex-none border-b px-3 py-2">
-                  <RowScoreChips
-                    projectId={params.projectId}
-                    evaluations={evaluations}
-                    currentEvaluationId={evaluationId}
-                    scoreNames={scoreNames}
-                    row={selectedRow}
-                  />
+                <div className="flex flex-none items-center gap-2 border-b px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <RowScoreChips
+                      projectId={params.projectId}
+                      evaluations={evaluations}
+                      currentEvaluationId={evaluationId}
+                      scoreNames={scoreNames}
+                      row={selectedRow}
+                    />
+                  </div>
+                  {isHosted && <PanelToggle value={panel} onChange={setPanel} />}
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
+                  {/* Task and Log wait for the trial: before it loads there's no task path or trial name, which isn't "not uploaded". */}
+                  {shownPanel === "task" && selectedRow && (
+                    <TaskFiles
+                      key={taskPath ?? "none"}
+                      projectId={params.projectId}
+                      evaluationId={evaluationId}
+                      taskPath={taskPath}
+                      taskName={taskName}
+                    />
+                  )}
+                  {shownPanel === "log" && selectedRow && (
+                    <TrialLog
+                      key={trialName ?? "none"}
+                      projectId={params.projectId}
+                      evaluationId={evaluationId}
+                      trialName={trialName}
+                      taskName={taskName}
+                    />
+                  )}
                   {/* No onClose ⇒ always-open: the trace header shows no close button. */}
-                  {traceId && <TraceView key={traceId} traceId={traceId} />}
+                  {shownPanel === "trace" && traceId && <TraceView key={traceId} traceId={traceId} urlState />}
                 </div>
               </div>
             }

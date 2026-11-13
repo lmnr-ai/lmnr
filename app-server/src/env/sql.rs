@@ -1,7 +1,7 @@
 //! Read-only SQL query (`/v1/sql`) execution guards. Both are passed straight
 //! into CH settings, so they're modeled as strings.
 
-use super::{NumEnv, StringEnv};
+use super::{BoolEnv, NumEnv, StringEnv};
 
 /// `max_execution_time` for ad-hoc SQL queries, in seconds.
 pub const MAX_EXECUTION_TIME: StringEnv = StringEnv::new("SQL_QUERY_MAX_EXECUTION_TIME", "120");
@@ -38,3 +38,19 @@ pub const MIN_BYTES_TO_USE_DIRECT_IO: StringEnv =
 /// before 25.4 where they do not exist and an unknown setting fails the query.
 pub const MAX_LIMIT_FOR_LAZY_MATERIALIZATION: NumEnv<u64> =
     NumEnv::new("SQL_QUERY_MAX_LIMIT_FOR_LAZY_MATERIALIZATION", 10000);
+
+/// Whether the read-only SQL client sends `use_skip_indexes_if_final = 1` and
+/// [`SKIP_INDEXES_IF_FINAL_EXACT_MODE`] with every query. `false` sends neither,
+/// leaving the server's defaults; required before ClickHouse 25.5, where exact
+/// mode does not exist and an unknown setting fails the query.
+pub const SKIP_INDEXES_IF_FINAL: BoolEnv = BoolEnv::new("SQL_QUERY_SKIP_INDEXES_IF_FINAL", true);
+
+/// `use_skip_indexes_if_final_exact_mode` for the read-only SQL client. Exact
+/// mode keeps `FINAL` reads correct when a skip-indexed column differs between
+/// versions of a row, by
+/// adding every granule of other parts that overlaps a match in the sort key; with
+/// many parts that is most of the table. Turning it off is only safe while every
+/// skip index reachable through a `FINAL` view is on a column identical across
+/// versions. Today `clusters.parent_id` is not (it is set once, after creation).
+pub const SKIP_INDEXES_IF_FINAL_EXACT_MODE: BoolEnv =
+    BoolEnv::new("SQL_QUERY_SKIP_INDEXES_IF_FINAL_EXACT_MODE", true);

@@ -26,7 +26,7 @@ use super::{
     provider::convert_span_to_provider_format,
 };
 use crate::{
-    agent_versioning::ingest::agent_prompt,
+    agent_versioning::{identity::AgentResolver, ingest::agent_prompt},
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     data_plane::get_workspace_deployment,
@@ -46,11 +46,12 @@ use crate::{
 };
 
 /// System prompt of an LLM span with its hashes: the skeleton (naive
-/// signature), the first-sentence agent identity, and the byte-identity hash
-/// (memo key for classification).
+/// signature), the agent identity (`None` when no defined agent matches, see
+/// `agent_versioning::identity`), and the byte-identity hash (memo key for
+/// classification).
 struct SystemPromptVerdict {
     skeleton_hash: String,
-    agent_hash: String,
+    agent_hash: Option<String>,
     full_prompt_hash: String,
     text: String,
 }
@@ -83,7 +84,11 @@ struct DedupVerdicts {
 /// On success, replaces `span.input` / `span.output` with `None` whenever a
 /// dedup verdict was produced — the verdict carries the full hash list, the
 /// storage-miss content, and the trace-new positions for search.
-async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdicts {
+async fn preprocess_for_queue(
+    span: &mut Span,
+    cache: Arc<Cache>,
+    agents: &AgentResolver<'_>,
+) -> DedupVerdicts {
     span.parse_and_enrich_attributes();
     convert_span_to_provider_format(span);
 
@@ -92,17 +97,20 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         if let Some((system_text, _)) = span.input.as_ref().and_then(|v| extract_system_message(v))
         {
             let hashes = prompt_hashes(&system_text);
+            let agent_hash = agents.agent_hash(&system_text, hashes.first_sentence).await;
             span.attributes.raw_attributes.insert(
                 SPAN_PROMPT_HASH.to_string(),
                 serde_json::Value::String(hashes.skeleton.clone()),
             );
-            span.attributes.raw_attributes.insert(
-                SPAN_AGENT_HASH.to_string(),
-                serde_json::Value::String(hashes.first_sentence.clone()),
-            );
+            if let Some(agent_hash) = &agent_hash {
+                span.attributes.raw_attributes.insert(
+                    SPAN_AGENT_HASH.to_string(),
+                    serde_json::Value::String(agent_hash.clone()),
+                );
+            }
             system_prompt = Some(SystemPromptVerdict {
                 skeleton_hash: hashes.skeleton,
-                agent_hash: hashes.first_sentence,
+                agent_hash,
                 full_prompt_hash: sp_similarity::full_prompt_hash(&system_text),
                 text: system_text,
             });
@@ -110,12 +118,14 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     }
 
     // Capture the user-task candidate while `span.input` is still
-    // populated (the dedup strip below may null it). It keys on the
-    // first-sentence hash, not the skeleton, so permutations of the system
-    // prompt's XML scaffolding don't re-trigger regex generation.
+    // populated (the dedup strip below may null it). It keys on the agent,
+    // not the skeleton, so permutations of the system prompt's XML
+    // scaffolding don't re-trigger regex generation.
     let user_task = crate::traces::input_extraction::capture_user_task_candidate(
         span,
-        system_prompt.as_ref().map(|sp| sp.agent_hash.as_str()),
+        system_prompt
+            .as_ref()
+            .and_then(|sp| sp.agent_hash.as_deref()),
     );
 
     // Session first: every verdict below keys storage by the span's group.
@@ -180,11 +190,12 @@ pub async fn publish_span_messages(
         Option<crate::traces::input_extraction::UserTaskCandidate>,
         Option<crate::traces::input_extraction::OutputCandidate>,
     )> = Vec::new();
+    let agents = AgentResolver::new(&db, &cache, project_id);
     for (idx, msg) in messages.iter_mut().enumerate() {
         if msg.pre_processed {
             continue;
         }
-        let verdicts = preprocess_for_queue(&mut msg.span, cache.clone()).await;
+        let verdicts = preprocess_for_queue(&mut msg.span, cache.clone(), &agents).await;
         msg.pre_processed = true;
         msg.input_dedup = verdicts.input;
         msg.output_dedup = verdicts.output;
@@ -195,8 +206,14 @@ pub async fn publish_span_messages(
                 .as_mut()
                 .and_then(|tools| tools.versioning_text.take())
                 .unwrap_or_default();
-            msg.agent_prompt =
-                agent_prompt(&msg.span, &verdict.agent_hash, &verdict.text, &tool_text);
+            // An unlabelled span's prompt is stored with an empty agent:
+            // it is what detection samples.
+            msg.agent_prompt = agent_prompt(
+                &msg.span,
+                verdict.agent_hash.as_deref().unwrap_or_default(),
+                &verdict.text,
+                &tool_text,
+            );
             static_prompt_candidates.push(StaticPromptCandidate {
                 project_id,
                 trace_id: msg.span.trace_id,

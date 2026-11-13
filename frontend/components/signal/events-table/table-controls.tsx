@@ -3,6 +3,7 @@
 import AdvancedSearch from "@/components/common/advanced-search";
 import ClustersSection from "@/components/signal/clusters-section";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
@@ -19,6 +20,11 @@ interface EventsTableControlsProps {
   searchValue: { filters: Filter[]; search: string };
   onSearchChange: (value: { filters: Filter[]; search: string }) => void;
   onRefresh: () => void;
+  /**
+   * Scoped to one cluster (the cluster report's Events tab): no cluster strip, and the time range sits
+   * inline because the table is the only time-scoped thing there.
+   */
+  scopedToCluster?: boolean;
 }
 
 export function EventsTableControls({
@@ -31,6 +37,7 @@ export function EventsTableControls({
   searchValue,
   onSearchChange,
   onRefresh,
+  scopedToCluster = false,
 }: EventsTableControlsProps) {
   return (
     // Order matters and is the point: the cluster navigation and the chart come
@@ -38,11 +45,12 @@ export function EventsTableControls({
     // here is TABLE-scoped, so it sits directly above the table; the time range
     // is page-scoped and lives up beside the tabs.
     <>
-      <ClustersSection className="pb-2" />
+      {!scopedToCluster && <ClustersSection className="pb-2" />}
       <div className="flex w-full shrink-0 gap-2">
         <DataTableFilter columns={filterColumns} filters={activeFilters} onFiltersChange={onFiltersChange} />
         <ColumnsMenu columnLabels={columnLabels} />
         <ViewsToolbar projectId={projectId} resource={`signal-events:${signalId}`} />
+        {scopedToCluster && <DateRangeFilter />}
         {/* Refreshes the clusters and chart stats as well as the rows. */}
         <RefreshButton onClick={onRefresh} variant="outline" />
       </div>

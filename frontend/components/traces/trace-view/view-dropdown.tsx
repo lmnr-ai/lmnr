@@ -2,6 +2,7 @@ import { shallow } from "zustand/shallow";
 
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import TemplateViewToggle from "@/components/traces/trace-view/template-view-toggle";
+import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
 import ViewToggle, { type ViewTab } from "@/components/traces/trace-view/view-toggle";
 import { track } from "@/lib/posthog";
 
@@ -12,10 +13,9 @@ interface ViewDropdownProps {
 }
 
 export default function ViewDropdown({ tabs = ["tree", "transcript", "custom"] }: ViewDropdownProps) {
-  const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewBaseStore(
+  const [tab, setTab] = useTraceViewTab();
+  const { showTreeContent, setShowTreeContent } = useTraceViewBaseStore(
     (state) => ({
-      tab: state.tab,
-      setTab: state.setTab,
       showTreeContent: state.showTreeContent,
       setShowTreeContent: state.setShowTreeContent,
     }),

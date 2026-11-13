@@ -13,7 +13,8 @@ export default function CondensedTimelineControls({ enabled, setEnabled, classNa
   return (
     <div
       className={cn(
-        "absolute z-40 top-full flex items-center overflow-hidden transition-all duration-200",
+        // Opaque base: the button floats over the timeline, and its emphasis tint alone would let rows show through.
+        "absolute z-40 top-full flex items-center overflow-hidden bg-surface transition-all duration-200",
         enabled ? "right-0 h-[26px] w-[26px] rounded-none rounded-bl" : "right-2 h-[26px] rounded-md",
         className
       )}
@@ -23,7 +24,7 @@ export default function CondensedTimelineControls({ enabled, setEnabled, classNa
         variant="ghost"
         size="icon"
         className={cn(
-          "bg-emphasis-1 transition-all duration-200 hover:overlay-hover active:overlay-selected",
+          "bg-emphasis-2 transition-all duration-200 hover:overlay-hover active:overlay-selected",
           enabled ? "size-[26px] min-w-[26px] rounded-none rounded-bl" : "h-full w-auto px-2 py-0 text-xs"
         )}
       >

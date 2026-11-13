@@ -5,16 +5,24 @@ import { cn } from "@/lib/utils";
 
 export type IconVariant = "boxes" | "box" | "circle-dashed";
 
+const BOX_OPACITY = {
+  new: { idle: { fill: 0.1, stroke: 0.7 }, selected: { fill: 0.5, stroke: 1 } },
+  viewed: { idle: { fill: 0.05, stroke: 0.4 }, selected: { fill: 0.3, stroke: 0.7 } },
+} as const;
+
 export default function ClusterIcon({
   iconVariant,
   color,
   isSelected,
+  isViewed,
   iconClassName,
   size,
 }: {
   iconVariant: IconVariant;
   color: string;
   isSelected?: boolean;
+  /** Box only: already-viewed clusters recede so unviewed ones stand out. */
+  isViewed?: boolean;
   /** Overrides the glyph's own size. The three variants are sized differently
    * on purpose, so this merges over whichever one is drawn rather than setting
    * one size for all of them. */
@@ -42,8 +50,8 @@ export default function ClusterIcon({
         <CircleDashed size={size} className={cn("shrink-0", !sized && "size-3.5", iconClassName)} stroke={color} />
       ) : (
         <Box
-          fill={isSelected ? withOpacity(color, 0.5) : withOpacity(color, 0.1)}
-          stroke={isSelected ? color : withOpacity(color, 0.7)}
+          fill={withOpacity(color, BOX_OPACITY[isViewed ? "viewed" : "new"][isSelected ? "selected" : "idle"].fill)}
+          stroke={withOpacity(color, BOX_OPACITY[isViewed ? "viewed" : "new"][isSelected ? "selected" : "idle"].stroke)}
           size={size}
           className={cn("shrink-0", !sized && "size-3.5", iconClassName)}
           strokeWidth={1.5}

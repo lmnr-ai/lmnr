@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import RevokeDialog from "../revoke-dialog";
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
 import { DisplayKeyDialogContent } from "./display-key-dialog-content";
+import { ExpiresCell } from "./expires-cell";
 import { GenerateKeyDialogContent } from "./generate-key-dialog-content";
 
 interface ApiKeysProps {
@@ -156,7 +157,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
               </Badge>
             </td>
             <td className="px-4 text-sm text-muted-foreground whitespace-nowrap">
-              {apiKey.expiresAt ? new Date(apiKey.expiresAt).toLocaleDateString() : "Never"}
+              <ExpiresCell expiresAt={apiKey.expiresAt} />
             </td>
             <td className="px-4">
               <div className="flex justify-end">

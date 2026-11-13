@@ -13,6 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import EnumValuesInput from "./enum-values-input";
 import { type ManageSignalForm } from "./types";
 
+// setValue, unlike Controller's field.onChange, leaves the form clean unless asked.
+const DIRTY = { shouldDirty: true, shouldValidate: true } as const;
+
 export default function SchemaFieldRow({
   index,
   onRemove,
@@ -35,9 +38,9 @@ export default function SchemaFieldRow({
 
   const handleTypeChange = useCallback(
     (newType: string) => {
-      setValue(`schemaFields.${index}.type`, newType as "string" | "number" | "boolean" | "enum");
+      setValue(`schemaFields.${index}.type`, newType as "string" | "number" | "boolean" | "enum", DIRTY);
       if (newType !== "enum") {
-        setValue(`schemaFields.${index}.enumValues`, undefined);
+        setValue(`schemaFields.${index}.enumValues`, undefined, DIRTY);
       }
     },
     [setValue, index]
@@ -45,7 +48,7 @@ export default function SchemaFieldRow({
 
   const handleEnumValuesChange = useCallback(
     (values: string[] | undefined) => {
-      setValue(`schemaFields.${index}.enumValues`, values);
+      setValue(`schemaFields.${index}.enumValues`, values, DIRTY);
     },
     [setValue, index]
   );
@@ -66,13 +69,13 @@ export default function SchemaFieldRow({
           render={({ field }) => <Input {...field} placeholder="Field name" className="w-32 text-sm" />}
         />
         {fieldType === "enum" ? (
-          <div className="flex flex-col gap-1 w-28">
+          <div className="flex flex-col gap-1 w-34">
             <Controller
               name={`schemaFields.${index}.type`}
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={handleTypeChange}>
-                  <SelectTrigger className="w-28">
+                  <SelectTrigger className="w-34">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -93,7 +96,7 @@ export default function SchemaFieldRow({
             control={control}
             render={({ field }) => (
               <Select value={field.value} onValueChange={handleTypeChange}>
-                <SelectTrigger className="w-28">
+                <SelectTrigger className="w-34">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

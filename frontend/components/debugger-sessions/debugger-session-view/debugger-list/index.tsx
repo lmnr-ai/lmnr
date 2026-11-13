@@ -4,10 +4,10 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/rea
 import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import TraceCollapsedBody from "@/components/traces/session-view/session-panel/trace-collapsed-body";
-import TraceItem from "@/components/traces/session-view/session-panel/trace-item";
-import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
-import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
+import { useSessionViewBaseStore } from "@/components/debugger-sessions/debugger-session-view/store/base";
+import TraceCollapsedBody from "@/components/debugger-sessions/debugger-session-view/trace-card/trace-collapsed-body";
+import TraceItem from "@/components/debugger-sessions/debugger-session-view/trace-card/trace-item";
+import { useSessionSpanPreviews } from "@/components/debugger-sessions/debugger-session-view/trace-card/use-session-span-previews";
 import {
   AgentGroupHeader,
   GroupChildWrapper,

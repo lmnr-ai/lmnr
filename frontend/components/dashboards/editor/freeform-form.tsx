@@ -4,14 +4,16 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import { ChartType } from "@/components/chart-builder/types";
 import ChartPreviewContent from "@/components/dashboards/editor/chart-preview-content";
 import ChartPreviewPane from "@/components/dashboards/editor/chart-preview-pane";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
+import EditorLayout from "@/components/dashboards/editor/editor-layout";
 import EditorSidebar from "@/components/dashboards/editor/editor-sidebar";
-import FreeformFields from "@/components/dashboards/editor/freeform-fields";
+import FreeformAxes from "@/components/dashboards/editor/freeform-axes";
+import FreeformSqlField from "@/components/dashboards/editor/freeform-sql-field";
 import { toTimeParameters, useDashboardTimeRange } from "@/components/dashboards/time-range";
 import { BUILT_IN_PARAMETERS, deriveParameters } from "@/components/sql/parameters";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function FreeformForm() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -44,15 +46,20 @@ export default function FreeformForm() {
   useHotkeys("meta+enter,ctrl+enter", runQuery, { enableOnFormTags: ["input"], enableOnContentEditable: true });
 
   return (
-    <>
-      <ScrollArea className="rounded border bg-secondary">
-        <EditorSidebar saveDisabled={!chart.settings.config.type}>
-          <FreeformFields onRun={runQuery} canRun={canRun} issue={issue} />
+    <EditorLayout
+      sidebar={
+        <EditorSidebar
+          saveDisabled={!chart.settings.config.type}
+          display={chart.settings.config.type !== ChartType.Table && <FreeformAxes />}
+        >
+          <FreeformSqlField onRun={runQuery} canRun={canRun} issue={issue} />
         </EditorSidebar>
-      </ScrollArea>
-      <ChartPreviewPane name={chart.name}>
-        <ChartPreviewContent config={chart.settings.config} />
-      </ChartPreviewPane>
-    </>
+      }
+      preview={
+        <ChartPreviewPane name={chart.name}>
+          <ChartPreviewContent config={chart.settings.config} />
+        </ChartPreviewPane>
+      }
+    />
   );
 }

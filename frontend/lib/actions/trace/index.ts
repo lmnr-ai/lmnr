@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { executeQuery } from "@/lib/actions/sql";
+import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { sharedTraces } from "@/lib/db/migrations/schema";
 
@@ -21,6 +22,15 @@ export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVi
   const { traceId, projectId, visibility } = UpdateTraceVisibilitySchema.parse(params);
 
   if (visibility === "public") {
+    // Public readers trust the marker's project, so only a trace of this project may get one.
+    const [trace] = await executeQuery<{ id: string }>({
+      query: "SELECT id FROM traces WHERE id = {traceId: UUID} LIMIT 1",
+      projectId,
+      parameters: { traceId },
+    });
+    if (!trace) {
+      throw new NotFoundError("Trace not found");
+    }
     await db.insert(sharedTraces).values({ id: traceId, projectId }).onConflictDoNothing();
   } else {
     await db.delete(sharedTraces).where(and(eq(sharedTraces.id, traceId), eq(sharedTraces.projectId, projectId)));

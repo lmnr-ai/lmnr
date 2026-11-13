@@ -1,11 +1,12 @@
 import { AlertTriangle, CirclePlay } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
+import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,13 +31,12 @@ interface TracePanelProps {
   isLoading: boolean;
 }
 
-export default function TracePanel({ traceId, handleClose, handleSpanSelect, fetchSpans, isLoading }: TracePanelProps) {
+function TracePanel({ traceId, handleClose, handleSpanSelect, fetchSpans, isLoading }: TracePanelProps) {
   const {
     trace,
     spans,
     traceError,
     spansError,
-    tab,
     browserSession,
     setBrowserSession,
     langGraph,
@@ -53,7 +53,6 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
       spans: state.spans,
       traceError: state.traceError,
       spansError: state.spansError,
-      tab: state.tab,
       browserSession: state.browserSession,
       setBrowserSession: state.setBrowserSession,
       langGraph: state.langGraph,
@@ -68,6 +67,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
     shallow
   );
 
+  const [tab] = useTraceViewTab();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph, spans]);
   const filteredSpansForStats = useMemo(() => {
     if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
@@ -203,3 +203,5 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
     </TemplatePickerProvider>
   );
 }
+
+export default memo(TracePanel);

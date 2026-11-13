@@ -2,16 +2,15 @@
 //! Progress times are nanoseconds, matching ClickHouse.
 
 use anyhow::Result;
-use sqlx::{FromRow, PgPool};
+use serde::{Deserialize, Serialize};
+use sqlx::{FromRow, PgPool, types::Json};
 use uuid::Uuid;
 
-use crate::utils::sanitize_string;
+use crate::{agent_versioning::definition::Definition, utils::sanitize_string};
 
 #[derive(Debug, FromRow)]
 pub struct Agent {
     pub id: Uuid,
-    /// `None` until generated or set by a user.
-    pub name: Option<String>,
     /// Traces starting up to here are tagged (by start time); frozen in release
     /// mode.
     pub tagged_until: Option<i64>,
@@ -24,18 +23,20 @@ pub struct Agent {
     pub release_mode: bool,
 }
 
-/// Get or create the agent for `agent_hash`.
-pub async fn upsert_agent(pool: &PgPool, project_id: Uuid, agent_hash: &str) -> Result<Agent> {
-    // The no-op `DO UPDATE` makes `RETURNING` yield the existing row too.
+/// The agent for `agent_hash`, if it has a definition.
+pub async fn get_defined_agent(
+    pool: &PgPool,
+    project_id: Uuid,
+    agent_hash: &str,
+) -> Result<Option<Agent>> {
     let agent = sqlx::query_as::<_, Agent>(
-        "INSERT INTO agents (project_id, agent_hash)
-         VALUES ($1, $2)
-         ON CONFLICT (project_id, agent_hash) DO UPDATE SET agent_hash = EXCLUDED.agent_hash
-         RETURNING id, name, tagged_until, ingested_until, current_version_id, release_mode",
+        "SELECT id, tagged_until, ingested_until, current_version_id, release_mode
+         FROM agents
+         WHERE project_id = $1 AND agent_hash = $2 AND definition IS NOT NULL",
     )
     .bind(project_id)
     .bind(agent_hash)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
     Ok(agent)
 }
@@ -69,13 +70,81 @@ pub async fn set_release_mode(pool: &PgPool, agent_id: Uuid) -> Result<()> {
     Ok(())
 }
 
-/// Set a generated name, never overwriting one a user already set.
-pub async fn set_agent_name(pool: &PgPool, agent_id: Uuid, name: &str) -> Result<()> {
-    sqlx::query("UPDATE agents SET name = $2 WHERE id = $1 AND name IS NULL")
+/// An agent with the definition ingest identifies its spans by.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct DefinedAgent {
+    pub id: Uuid,
+    pub agent_hash: String,
+    pub name: Option<String>,
+    pub definition: Json<Definition>,
+}
+
+/// The project's defined agents, oldest first: ingest takes the first match.
+pub async fn get_defined_agents(pool: &PgPool, project_id: Uuid) -> Result<Vec<DefinedAgent>> {
+    let agents = sqlx::query_as::<_, DefinedAgent>(
+        "SELECT id, agent_hash, name, definition FROM agents
+         WHERE project_id = $1 AND definition IS NOT NULL
+         ORDER BY created_at, id",
+    )
+    .bind(project_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(agents)
+}
+
+pub async fn insert_defined_agent(
+    pool: &PgPool,
+    project_id: Uuid,
+    agent_id: Uuid,
+    agent_hash: &str,
+    name: &str,
+    definition: &Definition,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO agents (id, project_id, agent_hash, name, definition)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(agent_id)
+    .bind(project_id)
+    .bind(agent_hash)
+    .bind(sanitize_string(name))
+    .bind(Json(definition))
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Adds `added`'s alternatives to the definition as stored now. The row is
+/// locked while merging, so rules users add or remove meanwhile are kept.
+pub async fn extend_agent_definition(
+    pool: &PgPool,
+    project_id: Uuid,
+    agent_id: Uuid,
+    added: &Definition,
+) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    let current = sqlx::query_scalar::<_, Option<Json<Definition>>>(
+        "SELECT definition FROM agents WHERE project_id = $1 AND id = $2 FOR UPDATE",
+    )
+    .bind(project_id)
+    .bind(agent_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    // The agent was deleted since detection read it.
+    let Some(current) = current else {
+        return Ok(());
+    };
+    let definition = match current {
+        Some(Json(current)) => current.extended(added),
+        None => added.clone(),
+    };
+    sqlx::query("UPDATE agents SET definition = $3 WHERE project_id = $1 AND id = $2")
+        .bind(project_id)
         .bind(agent_id)
-        .bind(sanitize_string(name))
-        .execute(pool)
+        .bind(Json(&definition))
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 
