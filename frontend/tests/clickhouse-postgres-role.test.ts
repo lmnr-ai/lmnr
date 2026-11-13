@@ -70,7 +70,7 @@ test("missing roles still receive login provisioning, settings, CONNECT, and app
   const statements = execute.mock.calls.map((call) => call.arguments[0]).filter((query) => typeof query === "string");
   assert.ok(statements.some((query) => query.includes('CREATE ROLE "external_reader" LOGIN')));
   assert.ok(statements.some((query) => query.includes('ALTER ROLE "external_reader" LOGIN PASSWORD')));
-  assert.ok(statements.some((query) => query.includes("CONNECTION LIMIT 10")));
+  assert.ok(statements.some((query) => query.includes("CONNECTION LIMIT 16")));
   assert.ok(statements.some((query) => query.includes("statement_timeout = '15s'")));
   assert.ok(statements.some((query) => query.includes('GRANT CONNECT ON DATABASE "laminar"')));
   assert.ok(statements.some((query) => query.includes("CREATE POLICY clickhouse_ro_select")));
@@ -101,6 +101,7 @@ test("external role still configures the ClickHouse connection with the supplied
     assert.ok(dict.includes("HOST 'pgbouncer.internal'"));
     assert.ok(dict.includes("SCHEMA 'laminar'"));
     assert.ok(dict.includes("USER 'external_reader'"));
+    assert.ok(dict.includes("MAX_THREADS_FOR_UPDATES 2"));
     assert.ok(!dict.includes("DB 'pg'"));
   }
 });

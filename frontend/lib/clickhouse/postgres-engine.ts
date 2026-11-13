@@ -60,7 +60,7 @@ function getConfig() {
       "CLICKHOUSE_POSTGRES_USER and CLICKHOUSE_POSTGRES_PASSWORD are not set (see README, SQL access to Postgres entities)"
     );
   }
-  const connectionLimit = Number(envOr("CLICKHOUSE_POSTGRES_CONNECTION_LIMIT", "10"));
+  const connectionLimit = Number(envOr("CLICKHOUSE_POSTGRES_CONNECTION_LIMIT", "16"));
   if (!Number.isInteger(connectionLimit) || connectionLimit < 1) {
     throw new Error("CLICKHOUSE_POSTGRES_CONNECTION_LIMIT must be a positive integer");
   }
@@ -281,6 +281,10 @@ export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHo
  * Postgres itself, not a `pg` table: a dict over a PostgreSQL-engine table makes
  * ClickHouse connect to Postgres at startup and exit if that fails. Cloud creates
  * these by hand (LOCAL_DB is off).
+ *
+ * Each update thread keeps one connection open, so the three dicts hold up to 6
+ * per ClickHouse server, inside the role's CONNECTION LIMIT next to the `pg`
+ * table reads. The default 4 threads let the dicts take the whole limit.
  */
 async function ensurePgEntityDicts(
   clickhouseClient: ClickHouseClient,
@@ -306,7 +310,7 @@ async function ensurePgEntityDicts(
             SCHEMA ${chStr(cfg.schema)}
             TABLE ${chStr(table)}
           ))
-          LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 100000))
+          LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 100000 MAX_THREADS_FOR_UPDATES 2))
           LIFETIME(MIN 30 MAX 60)
         `,
       });
