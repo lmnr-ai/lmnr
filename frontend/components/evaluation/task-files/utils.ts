@@ -61,6 +61,22 @@ export const buildFileTree = (files: { path: string; size: number }[], root: str
   return sortNodes(top);
 };
 
+const dirOf = (path: string) => path.slice(0, path.lastIndexOf("/") + 1);
+
+/**
+ * What every trial of the suite at `suitePath` shares, from the whole evals folder: everything but task
+ * dirs (any dir holding a `task.toml`) and other suites (top-level dirs holding a `harbor.yaml`).
+ */
+export const sharedFilesOf = <T extends { path: string }>(files: T[], suitePath: string): T[] => {
+  const hidden = files
+    .filter(
+      (f) =>
+        f.path.endsWith("/task.toml") || (/^[^/]+\/harbor\.yaml$/.test(f.path) && !f.path.startsWith(`${suitePath}/`))
+    )
+    .map((f) => dirOf(f.path));
+  return files.filter((f) => !hidden.some((dir) => f.path.startsWith(dir)));
+};
+
 export const flattenFiles = (nodes: FileNode[]): FileNode[] =>
   nodes.flatMap((node) => (node.children ? flattenFiles(node.children) : [node]));
 

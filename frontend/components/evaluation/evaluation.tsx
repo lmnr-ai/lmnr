@@ -2,18 +2,17 @@
 
 import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
-import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
+import { useParams, useSearchParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
 import { useReportAgentContextName } from "@/components/agent";
-import EvalTraceLayout from "@/components/evaluation/eval-trace-layout";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import EvaluationTrialsTable from "@/components/evaluation/evaluation-trials-table";
-import RowScoreChips from "@/components/evaluation/row-score-chips";
 import RunScoreCard from "@/components/evaluation/run-score-card";
+import FilesDrawer from "@/components/evaluation/shared-files/files-drawer";
 import {
   buildColumnDefs,
   buildFetchParams,
@@ -25,10 +24,7 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
-import TaskFiles from "@/components/evaluation/task-files";
-import PanelToggle, { PANELS } from "@/components/evaluation/task-files/panel-toggle";
-import { taskNameOf, taskPathOf, trialNameOf } from "@/components/evaluation/task-files/utils";
-import TrialLog from "@/components/evaluation/trial-log";
+import { runTableParams } from "@/components/evaluation/trial/run-table-params";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
   type EvaluationStatsPayload,
@@ -49,8 +45,6 @@ import {
 } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 
-import TraceView from "../traces/trace-view";
-
 interface EvaluationProps {
   evaluations: EvaluationType[];
   evaluationId: string;
@@ -65,7 +59,6 @@ const PAGE_SIZE = 50;
 const RESOURCE = "evaluation-v1.1";
 
 function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
-  const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
 
@@ -250,53 +243,24 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     eventHandlers: realtimeHandlers,
   });
 
-  // Selection is DERIVED from the URL, not stored — so a deep link whose
-  // Trial hasn't loaded yet, a filter that drops the selected row, or a
-  // back/forward nav can never leave the always-open panel blank or stale.
-  // `trialId` is the source of truth; `traceId` follows the resolved row.
-  const [trialId, setTrialId] = useQueryState("trialId", parseAsString);
-  const [traceIdParam, setTraceIdParam] = useQueryState("traceId", parseAsString);
+  // Set by the trial page's back link, so the table reopens on the trial the user came from.
+  const [trialId] = useQueryState("trialId", parseAsString);
 
-  const firstRow = allTrials?.[0] as EvalRow | undefined;
-  // The open Trial: the URL-linked row if it's loaded, else the first row.
-  const selectedRow = useMemo(() => {
-    const byId = trialId ? allTrials?.find((r) => r["id"] === trialId) : undefined;
-    return byId ?? firstRow;
-  }, [allTrials, trialId, firstRow]);
+  const handleRowClick = useCallback((row: Row<EvalRow>) => {
+    if (isTaskGroupRow(row.original)) row.toggleExpanded();
+  }, []);
 
-  // Prefer the resolved row's trace; fall back to a bare `?traceId` link (older
-  // shared links carried traceId without trialId).
-  const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
-
-  // Remote-run evaluations can show each trial's task folder or its Harbor output instead of its trace.
-  const isHosted = !isShared && !!evaluations.find((e) => e.id === evaluationId)?.hostedMetadata;
-  const [panel, setPanel] = useQueryState("panel", parseAsStringLiteral(PANELS).withDefault("trace"));
-  const shownPanel = isHosted ? panel : "trace";
-  const taskPath = taskPathOf(selectedRow);
-  const trialName = trialNameOf(selectedRow);
-  const taskName = taskNameOf(selectedRow);
-
-  const handleRowClick = useCallback(
-    (row: Row<EvalRow>) => {
-      if (isTaskGroupRow(row.original)) {
-        row.toggleExpanded();
-        return;
-      }
-      setTrialId(row.original["id"] as string);
-      setTraceIdParam(row.original["traceId"] as string);
-    },
-    [setTrialId, setTraceIdParam]
-  );
+  const tableQuery = useMemo(() => {
+    const qs = runTableParams(searchParams).toString();
+    return qs ? `?${qs}` : "";
+  }, [searchParams]);
 
   const getRowHref = useCallback(
-    (row: Row<EvalRow>) => {
-      if (isTaskGroupRow(row.original)) return undefined;
-      const next = new URLSearchParams(searchParams.toString());
-      next.set("traceId", row.original["traceId"] as string);
-      next.set("trialId", row.original["id"] as string);
-      return `${pathName}?${next.toString()}`;
-    },
-    [pathName, searchParams]
+    (row: Row<EvalRow>) =>
+      isTaskGroupRow(row.original)
+        ? undefined
+        : `/project/${params.projectId}/evaluations/${evaluationId}/trials/${row.original["id"]}${tableQuery}`,
+    [params.projectId, evaluationId, tableQuery]
   );
 
   const handleSort = useCallback(
@@ -312,6 +276,9 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
     (columnId: string) => removeCustomColumn(columnId.replace("custom:", "")),
     [removeCustomColumn]
   );
+
+  // Remote runs uploaded their evals folder; its shared files (images, scripts, harbor.yaml) are browsable.
+  const isHosted = !isShared && !!evaluations.find((e) => e.id === evaluationId)?.hostedMetadata;
 
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
@@ -330,7 +297,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
       isComparison={isComparison}
       scoreRanges={scoreRanges}
       runningTrials={targetId ? undefined : statsData?.runningTrials}
-      trialId={(selectedRow?.["id"] as string | undefined) ?? undefined}
+      trialId={trialId ?? undefined}
       handleRowClick={handleRowClick}
       getRowHref={getRowHref}
       sortBy={sortBy}
@@ -354,74 +321,21 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
         urlKey={statsUrl}
         evaluations={evaluations}
         datasets={datasets}
+        actions={isHosted && <FilesDrawer projectId={params.projectId} evaluationId={evaluationId} />}
       />
-      <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
-        {/* Left + top padding only: the trace panel must run flush to the right
-            and bottom edges when open, so those paddings live on the pieces that
-            need them (the table's right padding in EvalTraceLayout) rather than
-            the wrapper. */}
-        <div className="flex flex-col gap-2 flex-1 overflow-hidden pl-4 pt-2">
-          {/* Split view. LEFT = run aggregate card (score picker) above the table.
-              RIGHT = the selected Trial's score pills above its always-open
-              trace view, flush to the right + bottom edges with a rounded top-left. */}
-          <EvalTraceLayout
-            table={
-              <div className="flex h-full w-full flex-col gap-6 overflow-hidden pb-4">
-                <RunScoreCard
-                  projectId={params.projectId}
-                  evaluationId={evaluationId}
-                  scoreNames={scoreNames}
-                  allStatistics={statsData?.allStatistics}
-                  allDistributions={statsData?.allDistributions}
-                  comparedAllStatistics={targetStatsData?.allStatistics}
-                  comparedAllDistributions={targetStatsData?.allDistributions}
-                  isComparison={isComparison}
-                  scoreDirections={scoreDirections}
-                />
-                <div className="flex min-h-0 flex-1 overflow-hidden">{table}</div>
-              </div>
-            }
-            traceColumn={
-              <div className="flex h-full flex-col overflow-hidden rounded-tl-lg border-l border-t bg-background">
-                <div className="flex flex-none items-center gap-2 border-b px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <RowScoreChips
-                      projectId={params.projectId}
-                      evaluations={evaluations}
-                      currentEvaluationId={evaluationId}
-                      scoreNames={scoreNames}
-                      row={selectedRow}
-                    />
-                  </div>
-                  {isHosted && <PanelToggle value={panel} onChange={setPanel} />}
-                </div>
-                <div className="flex min-h-0 flex-1 overflow-hidden">
-                  {/* Task and Log wait for the trial: before it loads there's no task path or trial name, which isn't "not uploaded". */}
-                  {shownPanel === "task" && selectedRow && (
-                    <TaskFiles
-                      key={taskPath ?? "none"}
-                      projectId={params.projectId}
-                      evaluationId={evaluationId}
-                      taskPath={taskPath}
-                      taskName={taskName}
-                    />
-                  )}
-                  {shownPanel === "log" && selectedRow && (
-                    <TrialLog
-                      key={trialName ?? "none"}
-                      projectId={params.projectId}
-                      evaluationId={evaluationId}
-                      trialName={trialName}
-                      taskName={taskName}
-                    />
-                  )}
-                  {/* No onClose ⇒ always-open: the trace header shows no close button. */}
-                  {shownPanel === "trace" && traceId && <TraceView key={traceId} traceId={traceId} urlState />}
-                </div>
-              </div>
-            }
-          />
-        </div>
+      <div className="flex flex-1 flex-col gap-6 overflow-hidden px-4 pt-2 pb-4">
+        <RunScoreCard
+          projectId={params.projectId}
+          evaluationId={evaluationId}
+          scoreNames={scoreNames}
+          allStatistics={statsData?.allStatistics}
+          allDistributions={statsData?.allDistributions}
+          comparedAllStatistics={targetStatsData?.allStatistics}
+          comparedAllDistributions={targetStatsData?.allDistributions}
+          isComparison={isComparison}
+          scoreDirections={scoreDirections}
+        />
+        <div className="flex min-h-0 flex-1 overflow-hidden">{table}</div>
       </div>
     </>
   );
