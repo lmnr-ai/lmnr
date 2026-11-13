@@ -5,8 +5,8 @@ export type TierConfigEntry = {
   overageMegabytesLookupKey: string;
   overageSignalCostLookupKey: string;
   includedBytes: number;
-  // Recurring Signals allowance in micro-USD. Self-serve tiers have no monthly
-  // allowance; the separate workspace sign-up credit is consumed only once.
+  // Signals usage included every billing period, in micro-USD. Must match
+  // `subscription_tiers.signal_cost_included_micro_usd` and `TIERS[*].includedSignalCostUsd`.
   includedSignalCostMicroUsd: number;
 };
 
@@ -22,8 +22,8 @@ export const TIER_CONFIG = {
     lookupKey: "pro_monthly_2026_02",
     overageMegabytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
     overageSignalCostLookupKey: "pro_monthly_2026_06_overage_signal_cost",
-    includedBytes: 10 * 1024 ** 3,
-    includedSignalCostMicroUsd: 0,
+    includedBytes: 100 * 1024 ** 3,
+    includedSignalCostMicroUsd: 50_000_000,
   },
 } as const;
 

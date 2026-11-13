@@ -3,22 +3,41 @@ import test from "node:test";
 
 import { TIER_CONFIG } from "../lib/actions/checkout/types";
 import {
+  formatSignalsIncluded,
   formatSignalsOverage,
   formatSignalsOverageShort,
-  SIGNALS_SIGNUP_CREDIT_MICRO_USD,
-  SIGNALS_SIGNUP_CREDIT_USD,
   signalTokenCostMicroUsd,
   TIERS,
 } from "../lib/billing/tiers";
+import { billableSignalCostMicroUsd } from "../lib/billing/usage-estimate";
 
-test("uses one $5 sign-up credit instead of recurring tier allowances", () => {
-  assert.equal(SIGNALS_SIGNUP_CREDIT_USD, 5);
-  assert.equal(SIGNALS_SIGNUP_CREDIT_MICRO_USD, 5_000_000);
+test("only Scale includes Signals usage, $50 every billing period", () => {
   assert.equal(TIERS.free.includedSignalCostUsd, 0);
   assert.equal(TIERS.hobby.includedSignalCostUsd, 0);
-  assert.equal(TIERS.pro.includedSignalCostUsd, 0);
+  assert.equal(TIERS.pro.includedSignalCostUsd, 50);
   assert.equal(TIER_CONFIG.hobby.includedSignalCostMicroUsd, 0);
-  assert.equal(TIER_CONFIG.pro.includedSignalCostMicroUsd, 0);
+  assert.equal(TIER_CONFIG.pro.includedSignalCostMicroUsd, TIERS.pro.includedSignalCostUsd * 1_000_000);
+  assert.equal(formatSignalsIncluded("hobby"), "None");
+  assert.equal(formatSignalsIncluded("pro"), "$50 / mo");
+});
+
+test("bills Signals only past the monthly allowance", () => {
+  assert.equal(billableSignalCostMicroUsd(30_000_000, 50_000_000), 0);
+  assert.equal(billableSignalCostMicroUsd(72_500_000, 50_000_000), 22_500_000);
+  assert.equal(billableSignalCostMicroUsd(1_200_000, 0), 1_200_000);
+});
+
+test("tier allowances match the published pricing", () => {
+  assert.equal(TIER_CONFIG.hobby.includedBytes, TIERS.hobby.includedBytesGB * 1024 ** 3);
+  assert.equal(TIER_CONFIG.pro.includedBytes, TIERS.pro.includedBytesGB * 1024 ** 3);
+  assert.deepEqual(
+    [TIERS.hobby.basePriceMonthly, TIERS.hobby.includedBytesGB, TIERS.hobby.dataOverageRatePerGB],
+    [30, 3, 2]
+  );
+  assert.deepEqual(
+    [TIERS.pro.basePriceMonthly, TIERS.pro.includedBytesGB, TIERS.pro.dataOverageRatePerGB],
+    [250, 100, 1]
+  );
 });
 
 test("uses unified signal rates", () => {

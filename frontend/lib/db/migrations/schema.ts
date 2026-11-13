@@ -935,7 +935,7 @@ export const workspaces = pgTable(
       .default(sql`'0'`)
       .notNull(),
     resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    signalCreditRemainingMicroUsd: bigint("signal_credit_remaining_micro_usd", { mode: "number" }).default(5_000_000),
+    signalCreditRemainingMicroUsd: bigint("signal_credit_remaining_micro_usd", { mode: "number" }),
     settings: jsonb().default({}).notNull(),
     trialEndsAt: timestamp("trial_ends_at", { withTimezone: true, mode: "string" }),
   },

@@ -11,7 +11,6 @@ import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 import { FREE_PLAN_SIGNALS_ERROR } from "./plan-gates";
-import { getSignalCreditState } from "./signal-credit";
 
 interface ProjectBillingInfo {
   id: string;
@@ -22,7 +21,6 @@ interface ProjectBillingInfo {
   workspaceProjectIds: string[];
   bytesLimit: number;
   signalCostHardLimitMicroUsd?: number | null;
-  trialing?: boolean;
 }
 
 interface BillingInfo {
@@ -31,8 +29,6 @@ interface BillingInfo {
   resetTime: string;
   workspaceProjectIds: string[];
   signalCostHardLimitMicroUsd: number | null;
-  // A trial runs Signals only on the one-time credit.
-  trialing: boolean;
 }
 
 async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
@@ -47,7 +43,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
         workspaceProjectIds: cached.workspaceProjectIds,
         signalCostHardLimitMicroUsd:
           cached.signalCostHardLimitMicroUsd != null ? Number(cached.signalCostHardLimitMicroUsd) : null,
-        trialing: cached.trialing ?? false,
       };
     }
   } catch {
@@ -59,7 +54,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       workspaceId: workspaces.id,
       resetTime: workspaces.resetTime,
       tierName: subscriptionTiers.name,
-      trialEndsAt: workspaces.trialEndsAt,
     })
     .from(projects)
     .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
@@ -93,7 +87,6 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
     signalCostHardLimitMicroUsd: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
-    trialing: row.trialEndsAt !== null,
   };
 }
 
@@ -112,14 +105,7 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     return;
   }
 
-  const {
-    workspaceId,
-    tierName,
-    resetTime,
-    workspaceProjectIds,
-    signalCostHardLimitMicroUsd: customSignalCostLimit,
-    trialing,
-  } = info;
+  const { tierName, resetTime, workspaceProjectIds, signalCostHardLimitMicroUsd: customSignalCostLimit } = info;
   const isFree = tierName.trim().toLowerCase() === "free";
 
   const formatUsd = (microUsd: number) =>
@@ -129,18 +115,9 @@ export async function checkSignalRunsLimit(projectId: string): Promise<void> {
     throw new Error(FREE_PLAN_SIGNALS_ERROR);
   }
 
-  if (trialing) {
-    const credit = await getSignalCreditState(workspaceId, 0);
-    if (credit.remainingMicroUsd === 0) {
-      throw new Error(
-        `One-time Signals credit exhausted. This workspace has used its ${formatUsd(credit.grantedMicroUsd)} sign-up credit. Start your Pro plan from Billing to keep Signals running.`
-      );
-    }
-    return;
-  }
-
-  // Paid tiers only need this preflight path when the owner configured a
-  // monthly safety cap.
+  // Paid tiers and trials only need this preflight path when the workspace has a
+  // monthly safety cap. Trial Signals are otherwise unlimited (an acquisition
+  // choice); their usage is never billed.
   if (customSignalCostLimit == null) {
     return;
   }

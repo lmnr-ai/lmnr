@@ -1,13 +1,12 @@
 import { Gift } from "lucide-react";
 
 import { type ActiveTrialInfo } from "@/lib/actions/checkout/types";
-import { SIGNALS_SIGNUP_CREDIT_USD } from "@/lib/billing/tiers";
 
 const formatEndDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
-// A trial isn't capped at the data allowance, runs Signals only on the one-time credit, and is
-// never billed; the paid period counts usage from zero.
+// A trial caps neither data nor Signals (only hard limits the owner sets) and is never billed;
+// the paid period counts usage from zero.
 export default function TrialUsageNotice({ trial }: { trial: ActiveTrialInfo }) {
   const endsOn = formatEndDate(trial.endsAt);
 
@@ -18,8 +17,8 @@ export default function TrialUsageNotice({ trial }: { trial: ActiveTrialInfo }) 
         <span className="font-medium">Pro free trial until {endsOn}</span>
         <span className="text-secondary-foreground">
           {trial.convertsToPaid
-            ? `Data isn't capped at the included amount during the trial, and none of it is billed. Signals run on the $${SIGNALS_SIGNUP_CREDIT_USD} credit and pause when it's used up. Pro starts on ${endsOn} with usage counted from zero. Start it today from Billing.`
-            : `You won't be billed. Data isn't capped at the included amount during the trial. Signals run on the $${SIGNALS_SIGNUP_CREDIT_USD} credit and pause when it's used up.`}
+            ? `Data and Signals aren't capped during the trial, and none of it is billed. Pro starts on ${endsOn} with usage counted from zero. Start it today from Billing.`
+            : "You won't be billed. Data and Signals aren't capped during the trial."}
         </span>
       </div>
     </div>

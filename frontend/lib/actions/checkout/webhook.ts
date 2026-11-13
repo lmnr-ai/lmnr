@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
@@ -356,14 +356,23 @@ const insertNewTierUsageWarnings = async ({
   newTierConfig: TierConfigEntry;
   currentTierConfig?: TierConfigEntry;
 }) => {
+  // Each paid tier warns when its included allowances run out; the old tier's allowance rows go.
   if (currentTierConfig) {
     await db
       .delete(workspaceUsageWarnings)
       .where(
         and(
           eq(workspaceUsageWarnings.workspaceId, workspaceId),
-          eq(workspaceUsageWarnings.usageItem, "bytes"),
-          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedBytes)
+          or(
+            and(
+              eq(workspaceUsageWarnings.usageItem, "bytes"),
+              eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedBytes)
+            ),
+            and(
+              eq(workspaceUsageWarnings.usageItem, "signal_cost"),
+              eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalCostMicroUsd)
+            )
+          )
         )
       );
   }
@@ -375,6 +384,13 @@ const insertNewTierUsageWarnings = async ({
       limitValue: newTierConfig.includedBytes,
     },
   ];
+  if (newTierConfig.includedSignalCostMicroUsd > 0) {
+    values.push({
+      workspaceId,
+      usageItem: "signal_cost",
+      limitValue: newTierConfig.includedSignalCostMicroUsd,
+    });
+  }
   if (newTierName === "hobby") {
     values.push(
       {
