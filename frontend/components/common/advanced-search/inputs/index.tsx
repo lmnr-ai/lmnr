@@ -2,6 +2,7 @@
 
 import { type Ref, useCallback } from "react";
 
+import { EMPTINESS_OPTIONS, Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext } from "../store";
@@ -25,6 +26,7 @@ interface ValueInputProps {
 const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: ValueInputProps) => {
   const getTagFocusState = useAdvancedSearchContext((state) => state.getTagFocusState);
   const setTagFocusState = useAdvancedSearchContext((state) => state.setTagFocusState);
+  const operator = useAdvancedSearchContext((state) => state.tags.find((t) => t.id === tagId)?.operator);
 
   const focusState = getTagFocusState(tagId);
   const dataType = columnFilter.dataType;
@@ -41,6 +43,9 @@ const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: Va
   );
 
   const renderInput = () => {
+    if (operator === Operator.Is) {
+      return <EnumValueInput ref={ref} tagId={tagId} options={EMPTINESS_OPTIONS} />;
+    }
     switch (dataType) {
       case "enum":
         return <EnumValueInput ref={ref} tagId={tagId} options={columnFilter.options} />;

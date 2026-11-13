@@ -37,6 +37,7 @@ const createAgentIoFilter = (column: "agent_input"): ColumnFilterProcessor =>
   );
 
 const tracesColumnFilterConfig: ColumnFilterConfig = {
+  anyOfColumns: new Set(["id"]),
   processors: new Map([
     ["id", createStringFilter],
     ["session_id", createStringFilter],
@@ -216,7 +217,7 @@ const buildFilterConfigWithCustomColumns = (customColumns?: CustomColumn[]): Col
     processors.set(col.id, processor);
   }
 
-  return { processors };
+  return { ...tracesColumnFilterConfig, processors };
 };
 
 export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): QueryResult => {

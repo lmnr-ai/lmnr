@@ -1,6 +1,6 @@
 import { uniqueId } from "lodash";
 
-import { type ColumnFilter, dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type ColumnFilter, getColumnOperations } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
 import { type Operator } from "@/lib/actions/common/operators";
 
@@ -62,9 +62,10 @@ export function getOperationsForField(
   field: string,
   fallbackDataType: FilterDataType = "string"
 ) {
-  const columnFilter = filters.find((f) => f.key === field);
-  if (!columnFilter) return dataTypeOperationsMap[fallbackDataType];
-  return dataTypeOperationsMap[columnFilter.dataType];
+  return getColumnOperations(
+    filters.find((f) => f.key === field),
+    fallbackDataType
+  );
 }
 
 export function getColumnFilter(filters: ColumnFilter[], field: string): ColumnFilter | undefined {

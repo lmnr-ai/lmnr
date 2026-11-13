@@ -52,6 +52,9 @@ export type ColumnFilterProcessor = (filter: Filter, paramKey: string) => Condit
 export interface ColumnFilterConfig {
   processors: Map<string, ColumnFilterProcessor>;
   defaultProcessor?: ColumnFilterProcessor;
+  /// Identifier columns whose `=` filters match ANY of the values. Two `id = X`
+  /// filters ANDed can only ever match nothing, so OR is the only useful reading.
+  anyOfColumns?: Set<string>;
 }
 
 const buildTimeRangeConditions = (options: TimeRangeOptions): ConditionResult => {
@@ -152,6 +155,9 @@ const buildTimeRangeWithFill = (
 
 const createStringFilter: ColumnFilterProcessor = (filter, paramKey) => {
   const { column, operator, value } = filter;
+  if (operator === Operator.Is) {
+    return { condition: `${value === "empty" ? "empty" : "notEmpty"}(${column})`, params: {} };
+  }
   const opSymbol = OperatorLabelMap[operator];
 
   return {
@@ -217,17 +223,30 @@ const createCustomFilter =
   });
 
 const buildColumnFilters = (filters: Filter[], config: ColumnFilterConfig): ConditionResult => {
-  const results = filters
+  const isAnyOf = (filter: Filter) => filter.operator === Operator.Eq && !!config.anyOfColumns?.has(filter.column);
+  const processed = filters
     .map((filter, index) => {
       const safeColumn = filter.column.replace(/[^a-zA-Z0-9_]/g, "_");
       const paramKey = `${safeColumn}_${index}`;
       const processor = config.processors.get(filter.column) || config.defaultProcessor;
 
-      return processor ? processor(filter, paramKey) : null;
+      return processor ? { filter, result: processor(filter, paramKey) } : null;
     })
-    .filter((result): result is ConditionResult => result !== null && result.condition !== null);
+    .filter((p): p is { filter: Filter; result: ConditionResult } => p !== null && p.result.condition !== null);
+  const results = processed.map((p) => p.result);
 
-  const conditions = results.map((r) => r.condition).filter(Boolean) as string[];
+  const anyOfGroups = new Map<string, string[]>();
+  const conditions: string[] = [];
+  for (const { filter, result } of processed) {
+    if (isAnyOf(filter)) {
+      anyOfGroups.set(filter.column, [...(anyOfGroups.get(filter.column) ?? []), result.condition as string]);
+    } else {
+      conditions.push(result.condition as string);
+    }
+  }
+  for (const group of anyOfGroups.values()) {
+    conditions.push(group.length === 1 ? group[0] : `(${group.join(" OR ")})`);
+  }
   const params = results.reduce((acc, r) => ({ ...acc, ...r.params }), {});
 
   return {

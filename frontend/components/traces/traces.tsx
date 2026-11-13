@@ -93,7 +93,7 @@ function TracesContent() {
                 Sessions
               </TabsTrigger>
             </TabsList>
-            <TraceHealthButton onOpenTrace={openTrace} />
+            <TraceHealthButton />
           </div>
           <TabsContent value="traces" asChild>
             <TracesTable />

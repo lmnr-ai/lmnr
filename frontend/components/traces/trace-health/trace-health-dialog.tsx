@@ -4,7 +4,14 @@ import { useMemo } from "react";
 import RotatingAgentIcon from "@/components/landing/hero/rotating-agent-icon";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
-import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TRACE_HEALTH_CATEGORIES, TRACE_HEALTH_CHECKS, type TraceHealthCategory } from "@/lib/trace-health/checks";
 import { buildFixPrompt } from "@/lib/trace-health/prompt";
@@ -18,10 +25,9 @@ import { useTraceHealth } from "./use-trace-health";
 interface TraceHealthDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onOpenTrace: (traceId: string) => void;
 }
 
-export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: TraceHealthDialogProps) {
+export default function TraceHealthDialog({ open, onOpenChange }: TraceHealthDialogProps) {
   const { data, isLoading, error } = useTraceHealth();
   const { hidden, setHidden } = useHiddenChecks();
 
@@ -43,17 +49,20 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
     .filter(({ items }) => items.length > 0);
   const fixCount = failing.filter(({ check }) => !TRACE_HEALTH_CATEGORIES[check.category].advisory).length;
 
-  const openTrace = (traceId: string) => {
-    onOpenChange(false);
-    onOpenTrace(traceId);
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined} className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0">
+      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0">
         <DialogHeader className="px-4 pt-4">
-          <div className="flex items-center justify-between gap-3">
-            <DialogTitle>{fixCount > 0 ? "Tracing issues detected" : "Trace health"}</DialogTitle>
+          <div className="flex items-start justify-between gap-3">
+            {/* pt-0.5 centers the title line on the 32px buttons beside it. */}
+            <div className="flex flex-col gap-1 pt-0.5">
+              <DialogTitle>{fixCount > 0 ? "Tracing issues detected" : "Trace health"}</DialogTitle>
+              <DialogDescription className="text-sm text-foreground-200">
+                {data
+                  ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found in the last ${data.traceCount} traces`
+                  : "Checking traces…"}
+              </DialogDescription>
+            </div>
             <div className="flex items-center gap-2">
               {failing.length > 0 && (
                 <CopyButton
@@ -74,14 +83,8 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
           </div>
         </DialogHeader>
 
-        <span className="px-4 pt-3 text-sm font-medium text-muted-foreground">
-          {data
-            ? `${fixCount} ${fixCount === 1 ? "fix" : "fixes"} found in the last ${data.traceCount} traces`
-            : "Checking traces…"}
-        </span>
-
         <ScrollArea viewportClassName="scroll-fade-y max-h-[65vh]">
-          <div className="flex flex-col gap-4.5 px-4 pt-3 pb-4">
+          <div className="flex flex-col gap-4.5 px-4 pt-4 pb-4">
             {error && !data && <p className="text-sm text-destructive-text">Failed to run trace health checks.</p>}
             {isLoading && !data && (
               <div className="flex justify-center py-8">
@@ -98,7 +101,8 @@ export default function TraceHealthDialog({ open, onOpenChange, onOpenTrace }: T
                     key={check.id}
                     check={check}
                     result={result}
-                    onOpenTrace={openTrace}
+                    oldestStart={data?.oldestStart ?? null}
+                    onNavigate={() => onOpenChange(false)}
                     onHide={() => setHidden(check.id, true)}
                   />
                 ))}

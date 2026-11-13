@@ -11,12 +11,8 @@ import TraceHealthDialog from "./trace-health-dialog";
 import { useHiddenChecks } from "./use-hidden-checks";
 import { useTraceHealth } from "./use-trace-health";
 
-interface TraceHealthButtonProps {
-  onOpenTrace: (traceId: string) => void;
-}
-
 /** Next to the traces tabs: a warning button when recent traces have unhidden setup issues, else a quiet icon. */
-export default function TraceHealthButton({ onOpenTrace }: TraceHealthButtonProps) {
+export default function TraceHealthButton() {
   const [open, setOpen] = useState(false);
   const { data } = useTraceHealth();
   const { hidden } = useHiddenChecks();
@@ -45,7 +41,7 @@ export default function TraceHealthButton({ onOpenTrace }: TraceHealthButtonProp
           <TooltipContent>Recent traces are all healthy</TooltipContent>
         </Tooltip>
       )}
-      <TraceHealthDialog open={open} onOpenChange={setOpen} onOpenTrace={onOpenTrace} />
+      <TraceHealthDialog open={open} onOpenChange={setOpen} />
     </>
   );
 }

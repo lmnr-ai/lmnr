@@ -17,6 +17,7 @@ import {
 import { tryParseJson } from "@/lib/utils.ts";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
+  anyOfColumns: new Set(["span_id", "trace_id"]),
   processors: new Map([
     ["span_id", createStringFilter],
     ["trace_id", createStringFilter],
