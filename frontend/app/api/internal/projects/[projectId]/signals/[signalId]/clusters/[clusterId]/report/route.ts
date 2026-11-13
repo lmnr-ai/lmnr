@@ -6,12 +6,11 @@ import { handlerNoAudit } from "@/lib/audit";
 
 const BodySchema = z.object({
   regenerate: z.boolean().optional(),
-  notifyNewCluster: z.boolean().optional(),
+  notify: z.enum(["new", "reopened"]).optional(),
 });
 
-// app-server asks for a report on every new L1 cluster (`notifyNewCluster`: the started run sends the cluster's
-// new-cluster alert when it settles), and a fresh one when new events reopen a resolved cluster
-// (`clustering/private/reports.rs`).
+// app-server asks for a report on every new L1 cluster, and a fresh one when new events reopen a resolved cluster
+// (`clustering/private/reports.rs`). With `notify`, the started run sends the cluster's alert when it settles.
 export const POST = handlerNoAudit(
   "Cluster reports Laminar starts itself; the agent's writes are audited as they happen",
   internalApiHandler<{ projectId: string; signalId: string; clusterId: string }>(async (req, { params }) => {

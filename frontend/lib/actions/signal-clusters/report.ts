@@ -74,19 +74,26 @@ const settle = (clusterId: string, sessionId: string, values: Partial<typeof sig
     .set({ ...values, updatedAt: sql`now()` })
     .where(and(eq(signalClusterReports.clusterId, clusterId), eq(signalClusterReports.sessionId, sessionId)));
 
+/** Which alert a run app-server started sends once it settles. */
+export type ClusterNotice = "new" | "reopened";
+
 const NOTIFY_RETRY_DELAYS_MS = [2_000, 10_000];
 
 /**
- * Has app-server send the cluster's new-cluster alert, with the report when there is one. Lost if this process
+ * Has app-server send the cluster's alert (new, or new events in a resolved one), with the report when there is one. Lost if this process
  * restarts mid-run or every attempt fails: an accepted gap, the cluster stays visible on the signal page. A retry
  * after a partial send can repeat an alert already pushed.
  */
-async function sendNewClusterNotification({ projectId, signalId, clusterId }: ClusterScope, report: string | null) {
+async function sendClusterNotification(
+  { projectId, signalId, clusterId }: ClusterScope,
+  notify: ClusterNotice,
+  report: string | null
+) {
   for (let attempt = 0; ; attempt++) {
     try {
       await callAppServer(`/projects/${projectId}/signals/${signalId}/clusters/${clusterId}/new-cluster-notification`, {
         method: "POST",
-        body: { report },
+        body: { report, reopened: notify === "reopened" },
       });
       return;
     } catch (error) {
@@ -101,9 +108,9 @@ async function sendNewClusterNotification({ projectId, signalId, clusterId }: Cl
   }
 }
 
-async function writeReport(scope: ClusterScope, sessionId: string, notifyNewCluster: boolean) {
+async function writeReport(scope: ClusterScope, sessionId: string, notify: ClusterNotice | undefined) {
   const report = await runReport(scope, sessionId);
-  if (notifyNewCluster) await sendNewClusterNotification(scope, report);
+  if (notify) await sendClusterNotification(scope, notify, report);
 }
 
 /** Runs the agent and settles the row; returns the report, or null when the run failed. */
@@ -141,12 +148,12 @@ async function runReport(scope: ClusterScope, sessionId: string): Promise<string
  * A failed or stale run is retried.
  *
  * `regenerate` starts a new report even when one is written, as when new events reopen a resolved cluster.
- * `notifyNewCluster`: app-server's request for a new cluster, whose new-cluster alert waits for this run. When this
- * returns `started: false`, app-server sends the alert without a report.
+ * `notify`: app-server's request for a new or reopened cluster, whose alert waits for this run. When this returns
+ * `started: false`, app-server sends the alert without a report.
  */
 export async function startClusterReport(
   input: ClusterScopeInput,
-  { regenerate = false, notifyNewCluster = false }: { regenerate?: boolean; notifyNewCluster?: boolean } = {}
+  { regenerate = false, notify }: { regenerate?: boolean; notify?: ClusterNotice } = {}
 ): Promise<{ started: boolean }> {
   const scope = await resolveClusterScope(input);
   const { projectId, signalId, clusterId } = scope;
@@ -189,6 +196,6 @@ export async function startClusterReport(
   });
   if (!claimed) return { started: false };
 
-  void writeReport(scope, sessionId, notifyNewCluster);
+  void writeReport(scope, sessionId, notify);
   return { started: true };
 }
