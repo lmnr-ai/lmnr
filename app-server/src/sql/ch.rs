@@ -32,11 +32,44 @@ fn is_memory_limit_exception(exception: &str) -> bool {
     exception.trim_start().starts_with("Code: 241")
 }
 
-/// True when the deployment has no `pg` database, i.e. `CLICKHOUSE_POSTGRES_*` was
-/// not set. User SQL can name no database but `default`, so an unknown database (81)
-/// is `pg`; the name columns hit it through their dicts, which wrap it in a 510.
-fn is_postgres_entity_exception(exception: &str) -> bool {
-    exception.contains("Code: 81.")
+/// Tables behind the `<table>_dict` name-column dicts (`postgres-engine.ts`).
+const PG_ENTITY_DICT_TABLES: [&str; 3] = ["signals", "evaluations", "datasets"];
+
+#[derive(Debug, PartialEq)]
+enum PgEntityFailure {
+    /// No `pg` database or entity dicts: `CLICKHOUSE_POSTGRES_*` unset or refused.
+    NotConfigured,
+    /// ClickHouse cannot connect to Postgres.
+    Unreachable,
+}
+
+/// Matched on message prefixes, like `is_memory_limit_exception`, because some
+/// messages echo the user's query later on. User SQL can name no database but
+/// `default`, so an unknown database (81) is `pg`.
+fn postgres_entity_failure(exception: &str) -> Option<PgEntityFailure> {
+    let exception = exception.trim_start();
+    let names_pg_dict = |rest: &str| {
+        PG_ENTITY_DICT_TABLES
+            .iter()
+            .any(|table| rest.starts_with(&format!("{table}_dict")))
+    };
+    if exception.starts_with("Code: 614.")
+        // A pooled connection that broke, before the pool reports 614.
+        || exception.starts_with("std::exception. Code: 1001, type: pqxx::")
+        || exception
+            .strip_prefix("Code: 510. DB::Exception: Update failed for dictionary 'default.")
+            .is_some_and(names_pg_dict)
+    {
+        Some(PgEntityFailure::Unreachable)
+    } else if exception.starts_with("Code: 81.")
+        || exception
+            .strip_prefix("Code: 36. DB::Exception: Dictionary (`default.")
+            .is_some_and(names_pg_dict)
+    {
+        Some(PgEntityFailure::NotConfigured)
+    } else {
+        None
+    }
 }
 
 pub async fn query(
@@ -117,6 +150,7 @@ pub async fn query(
             let msg = error.exception.unwrap_or_default();
             span.record_error(&std::io::Error::new(std::io::ErrorKind::Other, e));
             span.end();
+            let pg_failure = postgres_entity_failure(&msg);
             // Memory-limit hits stay at `warn` (it's still a client error — `error` only made
             // Sentry noisy), but keep the query: the cap is a capacity signal that's unactionable
             // without the SQL.
@@ -125,18 +159,24 @@ pub async fn query(
                     "User SQL query exceeded ClickHouse memory limit. project_id: {project_id}, error: {msg}, query: {}",
                     utils::truncate_chars(&query, LOGGED_QUERY_MAX_CHARS)
                 );
+            } else if pg_failure == Some(PgEntityFailure::Unreachable) {
+                log::error!("ClickHouse cannot reach Postgres, pg entities are unavailable: {msg}");
             } else {
                 log::warn!("Error executing user SQL query: {}", &msg);
             }
-            if is_postgres_entity_exception(&msg) {
-                return SqlQueryError::Unavailable(
+            match pg_failure {
+                Some(PgEntityFailure::NotConfigured) => SqlQueryError::Unavailable(
                     "pg entities are not available on this deployment: ClickHouse \
                      cannot read them from Postgres. On a self-hosted deployment, set \
                      CLICKHOUSE_POSTGRES_USER and CLICKHOUSE_POSTGRES_PASSWORD (see the README)."
                         .to_string(),
-                );
+                ),
+                Some(PgEntityFailure::Unreachable) => SqlQueryError::Unavailable(
+                    "pg entities are temporarily unavailable: ClickHouse cannot reach Postgres."
+                        .to_string(),
+                ),
+                None => SqlQueryError::BadResponseError(msg),
             }
-            SqlQueryError::BadResponseError(msg)
         }
         _ => {
             span.record_error(&e);
@@ -153,7 +193,7 @@ pub async fn query(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_memory_limit_exception, is_postgres_entity_exception};
+    use super::{PgEntityFailure, is_memory_limit_exception, postgres_entity_failure};
 
     #[test]
     fn detects_per_query_memory_limit() {
@@ -188,18 +228,74 @@ mod tests {
     }
 
     #[test]
-    fn detects_missing_pg_database() {
-        assert!(is_postgres_entity_exception(
-            "Code: 81. DB::Exception: Database pg does not exist. (UNKNOWN_DATABASE) \
-             (version 26.5.7.64 (official build))"
-        ));
-        assert!(is_postgres_entity_exception(
-            "Code: 510. DB::Exception: Update failed for dictionary 'default.signals_dict \
-             (87656b27-e7f7-4c06-a88d-d675310f12c0)': Code: 81. DB::Exception: Database pg does \
-             not exist. (UNKNOWN_DATABASE)"
-        ));
-        assert!(!is_postgres_entity_exception(
-            "Code: 47. DB::Exception: Unknown expression identifier 'foo'. (UNKNOWN_IDENTIFIER)"
-        ));
+    fn detects_pg_entities_not_configured() {
+        assert_eq!(
+            postgres_entity_failure(
+                "Code: 81. DB::Exception: Database pg does not exist. (UNKNOWN_DATABASE) \
+                 (version 25.10.7.6 (official build))"
+            ),
+            Some(PgEntityFailure::NotConfigured)
+        );
+        assert_eq!(
+            postgres_entity_failure(
+                "Code: 36. DB::Exception: Dictionary (`default.signals_dict`) not found: In scope \
+                 SELECT dictGetOrDefault('default.signals_dict', 'name', (e.project_id, \
+                 e.signal_id), '') AS signal_name FROM signal_events. (BAD_ARGUMENTS)"
+            ),
+            Some(PgEntityFailure::NotConfigured)
+        );
+    }
+
+    #[test]
+    fn detects_postgres_unreachable() {
+        assert_eq!(
+            postgres_entity_failure(
+                "Code: 614. DB::Exception: Try 2. Connection to `postgres:5432` failed with \
+                 error: could not translate host name \"postgres\" to address: Name or service \
+                 not known\n\n. (POSTGRESQL_CONNECTION_FAILURE)"
+            ),
+            Some(PgEntityFailure::Unreachable)
+        );
+        assert_eq!(
+            postgres_entity_failure(
+                "std::exception. Code: 1001, type: pqxx::broken_connection, e.what() = Lost \
+                 connection to the database server. (version 25.10.7.6 (official build))"
+            ),
+            Some(PgEntityFailure::Unreachable)
+        );
+        assert_eq!(
+            postgres_entity_failure(
+                "Code: 510. DB::Exception: Update failed for dictionary 'default.signals_dict \
+                 (8fff6647-34f9-4f4d-be4c-2033a58fe5ea)': Code: 510. DB::Exception: Update failed \
+                 for dictionary default.signals_dict (8fff6647-34f9-4f4d-be4c-2033a58fe5ea) : \
+                 Code: 614. DB::Exception: Try 2. Connection to `postgres:5432` failed. \
+                 (POSTGRESQL_CONNECTION_FAILURE),. (CACHE_DICTIONARY_UPDATE_FAIL)"
+            ),
+            Some(PgEntityFailure::Unreachable)
+        );
+    }
+
+    #[test]
+    fn ignores_other_and_forged_pg_errors() {
+        assert_eq!(
+            postgres_entity_failure(
+                "Code: 47. DB::Exception: Unknown expression identifier 'foo'. (UNKNOWN_IDENTIFIER)"
+            ),
+            None
+        );
+        assert_eq!(
+            postgres_entity_failure(
+                "Code: 36. DB::Exception: Dictionary (`default.clusters_dict`) not found. \
+                 (BAD_ARGUMENTS)"
+            ),
+            None
+        );
+        assert_eq!(
+            postgres_entity_failure(
+                "Code: 62. DB::Exception: Syntax error: failed at position 8: Code: 614. \
+                 (SYNTAX_ERROR)"
+            ),
+            None
+        );
     }
 }

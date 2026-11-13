@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import { db, getDatabaseConfig, getPostgresSchema } from "@/lib/db/drizzle";
 
 /**
- * Boot wiring for the `pg` ClickHouse database, the dictionaries over it, and the
+ * Boot wiring for the `pg` ClickHouse database, the entity dictionaries, and the
  * Postgres role behind it. Nothing here may throw — `instrumentation.ts` awaits every export
  * unguarded, and an unreachable Postgres must cost these three tables, not the
  * whole frontend. See `docs/internal/sql-query-engine.md`.
@@ -207,17 +207,24 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
 }
 
 async function dropPgDatabase(clickhouseClient: ClickHouseClient): Promise<void> {
-  try {
-    await clickhouseClient.command({ query: "DROP DATABASE IF EXISTS pg SYNC" });
-  } catch (error) {
-    warnFailure("Could not drop the ClickHouse `pg` database", error);
+  const queries = [
+    ...Object.keys(PG_ENTITY_DICTS).map((table) => `DROP DICTIONARY IF EXISTS ${table}_dict SYNC`),
+    "DROP DATABASE IF EXISTS pg SYNC",
+  ];
+  for (const query of queries) {
+    try {
+      await clickhouseClient.command({ query });
+    } catch (error) {
+      warnFailure(`Could not run \`${query}\``, error);
+    }
   }
 }
 
 /**
- * Host/port are from the ClickHouse server's perspective (`postgres:5432` under
- * compose, not the host's localhost:5433). Recreated on every boot so it always
- * carries the configured password, including externally managed rotations; it stores nothing.
+ * Creates the `pg` database and the entity dicts. Host/port are from the ClickHouse
+ * server's perspective (`postgres:5432` under compose, not the host's localhost:5433).
+ * Recreated on every boot so they always carry the configured password, including
+ * externally managed rotations; they store nothing.
  *
  * Migration 73 survives a failure here — ClickHouse does not resolve a view's
  * source database at `CREATE VIEW` time. Never logs the statement: the engine
@@ -231,7 +238,7 @@ export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHo
     return;
   }
 
-  // So does a refused role. A check that merely failed keeps the existing `pg`.
+  // So does a refused role. A check that merely failed keeps the existing `pg` and dicts.
   try {
     if (!(await getPostgresRoleState(cfg.user)).dedicated) {
       warnFailure("Turning off the ClickHouse `pg` database", privilegedRoleMessage(cfg.user));
@@ -263,19 +270,22 @@ export async function ensureClickhousePostgresDatabase(clickhouseClient: ClickHo
       error
     );
   }
+
+  await ensurePgEntityDicts(clickhouseClient, cfg);
 }
 
 /**
  * Cache-layout dicts: a dictGet fetches only the keys it misses from Postgres
- * (`WHERE (project_id, id) IN (...)`, pushed through `pg`), and each key stays
- * valid for LIFETIME. Postgres is never read unless a query selects a name
- * column, so a missing `pg` fails only those queries. Cloud creates these by
- * hand (LOCAL_DB is off).
+ * (`WHERE (project_id, id) IN (...)`), and each key stays valid for LIFETIME.
+ * Postgres is never read unless a query selects a name column. The source is
+ * Postgres itself, not a `pg` table: a dict over a PostgreSQL-engine table makes
+ * ClickHouse connect to Postgres at startup and exit if that fails. Cloud creates
+ * these by hand (LOCAL_DB is off).
  */
-export async function ensurePgEntityDicts(clickhouseClient: ClickHouseClient): Promise<void> {
-  const user = process.env.CLICKHOUSE_USER || "ch_user";
-  const password = process.env.CLICKHOUSE_PASSWORD || "ch_passwd";
-
+async function ensurePgEntityDicts(
+  clickhouseClient: ClickHouseClient,
+  cfg: ReturnType<typeof getConfig>
+): Promise<void> {
   for (const [table, attributes] of Object.entries(PG_ENTITY_DICTS)) {
     try {
       await clickhouseClient.command({
@@ -287,10 +297,13 @@ export async function ensurePgEntityDicts(clickhouseClient: ClickHouseClient): P
             ${attributes.map((attribute) => `${attribute} String`).join(",\n            ")}
           )
           PRIMARY KEY project_id, id
-          SOURCE(CLICKHOUSE(
-            USER ${chStr(user)}
-            PASSWORD ${chStr(password)}
-            DB 'pg'
+          SOURCE(POSTGRESQL(
+            HOST ${chStr(cfg.host)}
+            PORT ${cfg.port}
+            USER ${chStr(cfg.user)}
+            PASSWORD ${chStr(cfg.password)}
+            DB ${chStr(cfg.database)}
+            SCHEMA ${chStr(cfg.schema)}
             TABLE ${chStr(table)}
           ))
           LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 100000))
@@ -306,9 +319,9 @@ export async function ensurePgEntityDicts(clickhouseClient: ClickHouseClient): P
 /**
  * Second layer behind the query-engine validator, on the user the query API
  * connects as: no off-box table functions, and no read on `pg`, which mirrors the
- * whole Postgres schema. `signals_v0` is `SQL SECURITY DEFINER` and the entity
- * dicts load as the admin user, so the views in `default` are the only route to
- * the entity data.
+ * whole Postgres schema. `signals_v0` is `SQL SECURITY DEFINER` and a dictGet
+ * does not check the source privilege, so the views in `default` are the only
+ * route to the entity data.
  */
 export async function ensureClickhouseReadonlyGrants(clickhouseClient: ClickHouseClient): Promise<void> {
   const roUser = process.env.CLICKHOUSE_RO_USER?.trim();
