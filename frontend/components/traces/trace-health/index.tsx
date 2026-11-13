@@ -1,6 +1,6 @@
 "use client";
 
-import { HeartPulse, TriangleAlert } from "lucide-react";
+import { CheckCheck, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ export default function TraceHealthButton() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Trace health" onClick={() => setOpen(true)}>
-              <HeartPulse className="size-4 text-muted-foreground" />
+              <CheckCheck className="size-4 text-muted-foreground" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Recent traces are all healthy</TooltipContent>
