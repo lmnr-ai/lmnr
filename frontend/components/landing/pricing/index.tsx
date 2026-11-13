@@ -32,7 +32,7 @@ export default function Pricing() {
       id: "data-calculation",
       question: "How is data usage calculated?",
       answer:
-        "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets, measured after compression: Laminar stores each unique message and tool definition once per trace, which cuts stored data about 20x on average. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
+        "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets, measured after compression: Laminar stores each unique message and tool definition once per trace, which cuts stored data 2–50x. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
     },
     {
       id: "signals-pricing",
@@ -88,7 +88,7 @@ export default function Pricing() {
             <CardsVariant />
           </div>
 
-          {/* What keeps the bill small: compressed data, all-in analysis cost */}
+          {/* Billing highlights: compressed data, all-in analysis cost */}
           <div className="w-full max-w-[800px] mb-20 md:mb-[160px]">
             <BillingHighlights />
           </div>
