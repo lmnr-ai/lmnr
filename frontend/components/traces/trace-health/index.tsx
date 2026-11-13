@@ -38,7 +38,7 @@ export default function TraceHealthButton() {
               variant="ghost"
               size="icon"
               aria-label="Trace health"
-              className="hover:bg-emphasis-0.5 active:bg-emphasis-1"
+              className="size-8 hover:bg-emphasis-0.5 active:bg-emphasis-1"
               onClick={() => setOpen(true)}
             >
               <CheckCheck className="size-4 text-muted-foreground" />
