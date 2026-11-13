@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { AGENT_AVAILABLE, agentAppUrl, answerHeadlessTurn } from "@/lib/agent";
+import { callAppServer } from "@/lib/api/backend";
+import { ApiError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { signalClusterArchives, signalClusterReports } from "@/lib/db/migrations/schema";
 
@@ -72,7 +74,40 @@ const settle = (clusterId: string, sessionId: string, values: Partial<typeof sig
     .set({ ...values, updatedAt: sql`now()` })
     .where(and(eq(signalClusterReports.clusterId, clusterId), eq(signalClusterReports.sessionId, sessionId)));
 
-async function writeReport(scope: ClusterScope, sessionId: string) {
+const NOTIFY_RETRY_DELAYS_MS = [2_000, 10_000];
+
+/**
+ * Has app-server send the cluster's new-cluster alert, with the report when there is one. Lost if this process
+ * restarts mid-run or every attempt fails: an accepted gap, the cluster stays visible on the signal page. A retry
+ * after a partial send can repeat an alert already pushed.
+ */
+async function sendNewClusterNotification({ projectId, signalId, clusterId }: ClusterScope, report: string | null) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await callAppServer(`/projects/${projectId}/signals/${signalId}/clusters/${clusterId}/new-cluster-notification`, {
+        method: "POST",
+        body: { report },
+      });
+      return;
+    } catch (error) {
+      const delay = NOTIFY_RETRY_DELAYS_MS[attempt];
+      // A 4xx won't change on retry.
+      if (error instanceof ApiError || delay === undefined) {
+        console.error(`[cluster-report] ${clusterId} new-cluster notification failed:`, error);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+async function writeReport(scope: ClusterScope, sessionId: string, notifyNewCluster: boolean) {
+  const report = await runReport(scope, sessionId);
+  if (notifyNewCluster) await sendNewClusterNotification(scope, report);
+}
+
+/** Runs the agent and settles the row; returns the report, or null when the run failed. */
+async function runReport(scope: ClusterScope, sessionId: string): Promise<string | null> {
   const { projectId, clusterId } = scope;
   try {
     const { answer, error } = await answerHeadlessTurn({
@@ -86,15 +121,17 @@ async function writeReport(scope: ClusterScope, sessionId: string) {
     });
     if (error || !answer.trim()) {
       await settle(clusterId, sessionId, { status: "failed", error: error ?? "The agent finished without a report" });
-      return;
+      return null;
     }
     await settle(clusterId, sessionId, { status: "done", content: answer, error: null });
+    return answer;
   } catch (error) {
     console.error(`[cluster-report] ${clusterId} failed:`, error);
     await settle(clusterId, sessionId, {
       status: "failed",
       error: error instanceof Error ? error.message : String(error),
-    });
+    }).catch((settleError) => console.error(`[cluster-report] ${clusterId} settle failed:`, settleError));
+    return null;
   }
 }
 
@@ -102,11 +139,14 @@ async function writeReport(scope: ClusterScope, sessionId: string) {
  * Starts the agent on an L1 cluster's report and returns without waiting (a run takes minutes). A no-op while one
  * is being written, when the signal has reports off, when the cluster is archived, or when it already has a report.
  * A failed or stale run is retried.
+ *
+ * `regenerate` starts a new report even when one is written, as when new events reopen a resolved cluster.
+ * `notifyNewCluster`: app-server's request for a new cluster, whose new-cluster alert waits for this run. When this
+ * returns `started: false`, app-server sends the alert without a report.
  */
-/** `regenerate` starts a new report even when one is written, as when new events reopen a resolved cluster. */
 export async function startClusterReport(
   input: ClusterScopeInput,
-  { regenerate = false }: { regenerate?: boolean } = {}
+  { regenerate = false, notifyNewCluster = false }: { regenerate?: boolean; notifyNewCluster?: boolean } = {}
 ): Promise<{ started: boolean }> {
   const scope = await resolveClusterScope(input);
   const { projectId, signalId, clusterId } = scope;
@@ -149,6 +189,6 @@ export async function startClusterReport(
   });
   if (!claimed) return { started: false };
 
-  void writeReport(scope, sessionId);
+  void writeReport(scope, sessionId, notifyNewCluster);
   return { started: true };
 }

@@ -2040,6 +2040,9 @@ fn main() -> anyhow::Result<()> {
                                     .service(crate::signals::private::routes::test_signal)
                                     .service(crate::signals::private::routes::eval_signal)
                                     .service(crate::signals::private::routes::eval_signal_prewarm)
+                                    .service(
+                                        crate::clustering::private::routes::send_new_cluster_notification,
+                                    )
                                     .service(crate::agent::toolkit_routes::get_agent_toolkit)
                                     .service(crate::agent::toolkit_routes::call_agent_tool);
                                 scope

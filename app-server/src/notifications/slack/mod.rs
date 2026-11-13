@@ -390,6 +390,7 @@ mod tests {
             severity_counts: [1, 0, 2],
             activity_buckets: vec![],
             example_events: vec![],
+            report: None,
         }
     }
 

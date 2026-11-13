@@ -19,6 +19,7 @@ use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;
 mod email;
+mod email_markdown;
 pub mod slack;
 pub(crate) mod utils;
 
@@ -173,6 +174,10 @@ pub enum NotificationKind {
         activity_buckets: Vec<u64>,
         #[serde(default)]
         example_events: Vec<ClusterExampleEvent>,
+        /// The Laminar Agent's Markdown report on the cluster. When set, the
+        /// email shows it in place of the stats summary; Slack ignores it.
+        #[serde(default)]
+        report: Option<String>,
     },
     SignalsReport {
         workspace_name: String,
@@ -657,6 +662,7 @@ mod tests {
             severity_counts: [0; 3],
             activity_buckets: Vec::new(),
             example_events: Vec::new(),
+            report: None,
         }
     }
 
