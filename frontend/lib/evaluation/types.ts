@@ -48,4 +48,6 @@ export type EvaluationTimeProgression = {
   evaluationId: string;
   names: string[];
   values: string[];
+  name?: string;
+  metadata?: Record<string, unknown> | null;
 };
