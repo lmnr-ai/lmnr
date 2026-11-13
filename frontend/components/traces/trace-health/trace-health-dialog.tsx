@@ -93,7 +93,7 @@ export default function TraceHealthDialog({ open, onOpenChange }: TraceHealthDia
             )}
             {categories.map(({ category, items }) => (
               <section key={category} className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-muted-foreground">
+                <span className="text-sm font-medium text-foreground-200">
                   {TRACE_HEALTH_CATEGORIES[category].title}
                 </span>
                 {items.map(({ check, result }) => (
