@@ -32,9 +32,6 @@ fn is_memory_limit_exception(exception: &str) -> bool {
     exception.trim_start().starts_with("Code: 241")
 }
 
-/// Tables behind the `<table>_dict` name-column dicts (`postgres-engine.ts`).
-const PG_ENTITY_DICT_TABLES: [&str; 3] = ["signals", "evaluations", "datasets"];
-
 #[derive(Debug, PartialEq)]
 enum PgEntityFailure {
     /// No `pg` database or entity dicts: `CLICKHOUSE_POSTGRES_*` unset or refused.
@@ -44,27 +41,22 @@ enum PgEntityFailure {
 }
 
 /// Matched on message prefixes, like `is_memory_limit_exception`, because some
-/// messages echo the user's query later on. User SQL can name no database but
-/// `default`, so an unknown database (81) is `pg`.
+/// messages echo the user's query later on; a 510 carries its source's error, not
+/// the query. User SQL can name no database but `default`, so an unknown database
+/// (81) is `pg`, and it cannot call `dictGet`, so a missing dict is one of the
+/// entity dicts boot drops with `pg`.
 fn postgres_entity_failure(exception: &str) -> Option<PgEntityFailure> {
     let exception = exception.trim_start();
-    let names_pg_dict = |rest: &str| {
-        PG_ENTITY_DICT_TABLES
-            .iter()
-            .any(|table| rest.starts_with(&format!("{table}_dict")))
-    };
+    let postgres_cause =
+        |e: &str| e.contains("POSTGRESQL_CONNECTION_FAILURE") || e.contains("pqxx::");
     if exception.starts_with("Code: 614.")
         // A pooled connection that broke, before the pool reports 614.
         || exception.starts_with("std::exception. Code: 1001, type: pqxx::")
-        || exception
-            .strip_prefix("Code: 510. DB::Exception: Update failed for dictionary 'default.")
-            .is_some_and(names_pg_dict)
+        || (exception.starts_with("Code: 510.") && postgres_cause(exception))
     {
         Some(PgEntityFailure::Unreachable)
     } else if exception.starts_with("Code: 81.")
-        || exception
-            .strip_prefix("Code: 36. DB::Exception: Dictionary (`default.")
-            .is_some_and(names_pg_dict)
+        || exception.starts_with("Code: 36. DB::Exception: Dictionary (`")
     {
         Some(PgEntityFailure::NotConfigured)
     } else {
@@ -285,8 +277,9 @@ mod tests {
         );
         assert_eq!(
             postgres_entity_failure(
-                "Code: 36. DB::Exception: Dictionary (`default.clusters_dict`) not found. \
-                 (BAD_ARGUMENTS)"
+                "Code: 510. DB::Exception: Update failed for dictionary 'default.unique_content_dict \
+                 (8fff6647-34f9-4f4d-be4c-2033a58fe5ea)': Code: 241. DB::Exception: Memory limit \
+                 exceeded. (MEMORY_LIMIT_EXCEEDED),. (CACHE_DICTIONARY_UPDATE_FAIL)"
             ),
             None
         );
