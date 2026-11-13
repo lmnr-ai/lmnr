@@ -34,7 +34,13 @@ export default function TraceHealthButton() {
       ) : (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Trace health" onClick={() => setOpen(true)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Trace health"
+              className="hover:bg-emphasis-0.5 active:bg-emphasis-1"
+              onClick={() => setOpen(true)}
+            >
               <CheckCheck className="size-4 text-muted-foreground" />
             </Button>
           </TooltipTrigger>
