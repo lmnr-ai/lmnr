@@ -13,4 +13,14 @@ INSERT INTO "workspace_usage_warnings" ("workspace_id", "usage_item", "limit_val
 SELECT ws."id", 'signal_cost', 50000000
 FROM "workspaces" ws JOIN "subscription_tiers" t ON t."id" = ws."tier_id"
 WHERE lower(t."name") = 'pro'
-ON CONFLICT DO NOTHING;
+ON CONFLICT DO NOTHING;--> statement-breakpoint
+-- Existing Pro (internal "hobby") workspaces: the default Signals warning moves from $100 to $25,
+-- matching new Pro subscriptions. Drop the $100 row where a webhook already added the $25 one,
+-- otherwise lower it in place; last_notified_at stays, since a $100 alert already sent covers $25.
+DELETE FROM "workspace_usage_warnings" AS w
+USING "workspaces" ws JOIN "subscription_tiers" t ON t."id" = ws."tier_id"
+WHERE w."workspace_id" = ws."id" AND lower(t."name") IN ('hobby', 'starter') AND w."usage_item" = 'signal_cost' AND w."limit_value" = 100000000
+  AND EXISTS (SELECT 1 FROM "workspace_usage_warnings" x WHERE x."workspace_id" = w."workspace_id" AND x."usage_item" = 'signal_cost' AND x."limit_value" = 25000000);--> statement-breakpoint
+UPDATE "workspace_usage_warnings" AS w SET "limit_value" = 25000000
+FROM "workspaces" ws JOIN "subscription_tiers" t ON t."id" = ws."tier_id"
+WHERE w."workspace_id" = ws."id" AND lower(t."name") IN ('hobby', 'starter') AND w."usage_item" = 'signal_cost' AND w."limit_value" = 100000000;
