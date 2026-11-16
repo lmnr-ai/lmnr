@@ -38,10 +38,14 @@ export const EVAL_COLUMN_SQL = {
 
 const SCORE_PREFIX = "score:";
 
-export const scoreColumnSql = (name: string): EvalColumnSql => ({
-  sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
-  dbType: "Float64",
-});
+// NULL when the Trial has no such score; simpleJSONExtractFloat alone reads a missing key as 0.
+export const scoreColumnSql = (name: string): EvalColumnSql => {
+  const key = `'${name.replace(/[\\']/g, "\\$&")}'`;
+  return {
+    sql: `if(simpleJSONHas(scores, ${key}), simpleJSONExtractFloat(scores, ${key}), NULL)`,
+    dbType: "Float64",
+  };
+};
 
 /** Built-in and score columns for `ids`, with server-side SQL. Other ids (custom SQL columns) are dropped. */
 export const resolveEvalColumns = (ids: string[], scoreNames: string[]): EvalQueryColumn[] =>

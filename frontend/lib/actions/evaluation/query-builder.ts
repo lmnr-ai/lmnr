@@ -132,11 +132,6 @@ function taskSortExpression(sortBy: string, sortSql: string | undefined, columns
   if (sortBy === "taskId") return "task_id";
   const col = columns.find((c) => c.id === sortBy);
   const expr = sortSql ?? col?.sql ?? "`index`";
-  // simpleJSONExtractFloat reads a missing score as 0; skip those Trials like the displayed mean does.
-  if (sortBy.startsWith("score:")) {
-    const name = sortBy.slice("score:".length).replace(/[\\']/g, "\\$&");
-    return `avgIf(${expr}, simpleJSONHas(scores, '${name}'))`;
-  }
   return col?.dbType === "Float64" ? `avg(${expr})` : `min(${expr})`;
 }
 

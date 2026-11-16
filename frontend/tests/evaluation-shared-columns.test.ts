@@ -24,12 +24,12 @@ describe("resolveEvalColumns", () => {
       columns.map((c) => c.id),
       ["score:acc"]
     );
-    assert.equal(columns[0].sql, "simpleJSONExtractFloat(scores, 'acc')");
+    assert.equal(columns[0].sql, "if(simpleJSONHas(scores, 'acc'), simpleJSONExtractFloat(scores, 'acc'), NULL)");
   });
 
   it("escapes quotes in real score names", () => {
     const [column] = resolveEvalColumns(["score:it's"], ["it's"]);
-    assert.equal(column.sql, "simpleJSONExtractFloat(scores, 'it\\'s')");
+    assert.equal(column.sql, "if(simpleJSONHas(scores, 'it\\'s'), simpleJSONExtractFloat(scores, 'it\\'s'), NULL)");
   });
 
   it("builds a trials query with no subquery from the request", () => {
