@@ -213,7 +213,6 @@ export interface CardFeature {
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
-    { label: formatSignalsIncludedLabel("free"), excluded: true },
     { label: retentionLabel("free") },
     { label: formatProjects("free") },
     { label: formatSeats("free") },
@@ -229,7 +228,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   ],
   pro: [
     { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
-    { label: formatSignalsIncludedLabel("pro"), subfeature: "monthly, then per token" },
+    { label: formatSignalsIncludedLabel("pro"), subfeature: "" },
     { label: retentionLabel("pro") },
     { label: formatProjects("pro") },
     { label: formatSeats("pro") },

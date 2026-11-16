@@ -73,8 +73,10 @@ export default function PricingCard({
           variant={isAccent ? "solid" : "outline"}
           size="sm"
           className={cn(
-            "h-10 w-full md:h-auto",
-            isAccent && "bg-white text-primary-400 border border-white/40 hover:bg-white/90"
+            "h-10 w-full md:h-auto font-medium",
+            isAccent
+              ? "bg-white text-primary-400 border border-white/40 hover:bg-white/90"
+              : "text-white outline-foreground-500"
           )}
         >
           {ctaLabel}

@@ -22,15 +22,15 @@ const HIGHLIGHTS: Highlight[] = [
     stat: "2–50x",
     statCaption: "reduction in stored data",
     title: "Data is billed after compression",
-    body: "Agents resend their whole history on every LLM call, so raw traces grow quadratically. Laminar stores each unique message and tool definition once per trace, and bills only those bytes.",
+    body: "Agents resend their whole history on every LLM call. Laminar stores unique message once per trace, and bills only those bytes.",
     link: { label: "How trace compression works", href: COMPRESSION_BLOG_URL },
   },
   {
     stat: `$${AVG_TRACE_ANALYSIS_COST_USD}`,
-    statCaption: "average cost to analyze a trace",
-    title: "Analysis cost includes model run",
-    body: "That's the full Signals run, model inference included. There's no per-evaluation fee on top of a separate LLM bill, and no API key to bring.",
-    link: { label: "Why analysis costs this little", href: FLOW_ONE_BLOG_URL },
+    statCaption: "average cost of Signal run, model inference included",
+    title: "flow-1 makes trace analysis scalable",
+    body: "With our RL-trained custom model we can deliver frontier level of trace analysis at fraction of the cost.",
+    link: { label: "Read more about flow-1", href: FLOW_ONE_BLOG_URL },
   },
 ];
 
