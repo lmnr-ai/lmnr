@@ -27,15 +27,4 @@ WHERE w."workspace_id" = ws."id" AND lower(t."name") IN ('hobby', 'starter') AND
   AND EXISTS (SELECT 1 FROM "workspace_usage_warnings" x WHERE x."workspace_id" = w."workspace_id" AND x."usage_item" = 'signal_cost' AND x."limit_value" = 25000000);--> statement-breakpoint
 UPDATE "workspace_usage_warnings" AS w SET "limit_value" = 25000000
 FROM "workspaces" ws JOIN "subscription_tiers" t ON t."id" = ws."tier_id"
-WHERE w."workspace_id" = ws."id" AND lower(t."name") IN ('hobby', 'starter') AND w."usage_item" = 'signal_cost' AND w."limit_value" = 100000000;--> statement-breakpoint
--- Existing Pro workspaces: drop the legacy $100 Signals hard limit (no plan has a default cap now and
--- trial Signals are uncapped) with its once-per-cycle dedup row, as clearLegacyHobbyHardLimit does.
-WITH removed AS (
-  DELETE FROM "workspace_usage_limits" AS l
-  USING "workspaces" ws JOIN "subscription_tiers" t ON t."id" = ws."tier_id"
-  WHERE l."workspace_id" = ws."id" AND lower(t."name") IN ('hobby', 'starter') AND l."limit_type" = 'signal_cost' AND l."limit_value" = 100000000
-  RETURNING l."workspace_id"
-)
-DELETE FROM "workspace_hard_limit_notifications" AS n
-USING removed r
-WHERE n."workspace_id" = r."workspace_id" AND n."usage_item" = 'signal_cost';
+WHERE w."workspace_id" = ws."id" AND lower(t."name") IN ('hobby', 'starter') AND w."usage_item" = 'signal_cost' AND w."limit_value" = 100000000;
