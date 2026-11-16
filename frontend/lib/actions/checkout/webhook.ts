@@ -342,9 +342,9 @@ export const handleInvoiceFinalized = async (
 const HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 25_000_000;
 const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
 
-// Earlier Hobby defaults still present on existing workspaces: a $100 Signals
-// warning and a $100 Signals hard limit. New Hobby workspaces get neither, but
-// both are still cleared when a workspace leaves Hobby.
+// Earlier Hobby defaults: a $100 Signals warning and a $100 Signals hard limit.
+// Migration 0133 converted or removed them on Hobby workspaces; leaving Hobby still
+// clears any left from a workspace that changed tier before the migration ran.
 const LEGACY_HOBBY_OVERAGE_WARNING_SIGNAL_COST_MICRO_USD = 100_000_000;
 const LEGACY_HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_COST_MICRO_USD = 100_000_000;
 
