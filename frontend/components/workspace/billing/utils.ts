@@ -46,14 +46,7 @@ const buildInfo = (tier: TierKey): TierInfo => {
   const hasOverage = CENTRAL_TIERS[tier].dataOverageRatePerGB > 0;
   const rows: [string, string | null][] = [
     [`${formatDataIncluded(tier)} data`, hasOverage ? formatDataOverage(tier) : null],
-    ...(tierIncludesSignals(tier)
-      ? [
-          [
-            formatSignalsIncludedLabel(tier),
-            CENTRAL_TIERS[tier].includedSignalCostUsd > 0 ? "monthly, then per token" : null,
-          ] as [string, string | null],
-        ]
-      : []),
+    ...(tierIncludesSignals(tier) ? [[formatSignalsIncludedLabel(tier), null] as [string, null]] : []),
     [retentionLabel(tier), null],
     [formatProjectsAndSeats(tier), null],
     ...CENTRAL_TIERS[tier].securityFeatures.map((feature): [string, null] => [feature, null]),

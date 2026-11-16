@@ -167,7 +167,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       { label: "Browser session recording", values: { free: true, hobby: true, pro: true, enterprise: true } },
       { label: "Agent debugger", values: { free: true, hobby: true, pro: true, enterprise: true } },
       { label: "MCP access", values: { free: true, hobby: true, pro: true, enterprise: true } },
-      { label: "Slack alerts", values: { free: true, hobby: true, pro: true, enterprise: true } },
+      // assertWorkspaceHasSlack blocks Slack alerts on Free.
+      { label: "Slack alerts", values: { free: false, hobby: true, pro: true, enterprise: true } },
       { label: "Email alerts", values: { free: true, hobby: true, pro: true, enterprise: true } },
     ],
   },

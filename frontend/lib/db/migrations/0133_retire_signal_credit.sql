@@ -9,6 +9,10 @@ UPDATE "workspace_usage_warnings" AS w SET "limit_value" = 107374182400, "last_n
 FROM "workspaces" ws JOIN "subscription_tiers" t ON t."id" = ws."tier_id"
 WHERE w."workspace_id" = ws."id" AND lower(t."name") = 'pro' AND w."usage_item" = 'bytes' AND w."limit_value" = 10737418240
   AND NOT EXISTS (SELECT 1 FROM "workspace_usage_warnings" x WHERE x."workspace_id" = w."workspace_id" AND x."usage_item" = 'bytes' AND x."limit_value" = 107374182400);--> statement-breakpoint
+-- A 10 GiB row left over had a 100 GiB sibling already; it would fire well inside the allowance.
+DELETE FROM "workspace_usage_warnings" AS w
+USING "workspaces" ws JOIN "subscription_tiers" t ON t."id" = ws."tier_id"
+WHERE w."workspace_id" = ws."id" AND lower(t."name") = 'pro' AND w."usage_item" = 'bytes' AND w."limit_value" = 10737418240;--> statement-breakpoint
 INSERT INTO "workspace_usage_warnings" ("workspace_id", "usage_item", "limit_value")
 SELECT ws."id", 'signal_cost', 50000000
 FROM "workspaces" ws JOIN "subscription_tiers" t ON t."id" = ws."tier_id"
