@@ -21,6 +21,7 @@ import {
   json,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { type PgTableExtraConfigValue } from "drizzle-orm/pg-core";
 
 export const spanType = pgEnum("span_type", [
   "DEFAULT",
@@ -1256,7 +1257,7 @@ export const evaluations = pgTable(
     evalAgentVersionId: uuid("eval_agent_version_id"),
     taskSetVersionId: uuid("task_set_version_id"),
   },
-  (table) => [
+  (table): PgTableExtraConfigValue[] => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
     index("evaluations_task_set_version_id_idx").on(table.taskSetVersionId),
     foreignKey({
@@ -1297,7 +1298,7 @@ export const evalAgents = pgTable(
     headVersionId: uuid("head_version_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
-  (table) => [
+  (table): PgTableExtraConfigValue[] => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
@@ -1323,7 +1324,7 @@ export const evalAgentVersions = pgTable(
     gitSha: text("git_sha"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
-  (table) => [
+  (table): PgTableExtraConfigValue[] => [
     foreignKey({
       columns: [table.evalAgentId],
       foreignColumns: [evalAgents.id],
@@ -1349,7 +1350,7 @@ export const taskSets = pgTable(
     headVersionId: uuid("head_version_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
-  (table) => [
+  (table): PgTableExtraConfigValue[] => [
     foreignKey({
       columns: [table.evalAgentId],
       foreignColumns: [evalAgents.id],
@@ -1380,7 +1381,7 @@ export const taskSetVersions = pgTable(
     hash: text().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
-  (table) => [
+  (table): PgTableExtraConfigValue[] => [
     foreignKey({
       columns: [table.taskSetId],
       foreignColumns: [taskSets.id],
@@ -1411,7 +1412,7 @@ export const tasks = pgTable(
     digest: text().notNull(),
     metadata: jsonb(),
   },
-  (table) => [
+  (table): PgTableExtraConfigValue[] => [
     foreignKey({
       columns: [table.taskSetVersionId],
       foreignColumns: [taskSetVersions.id],
