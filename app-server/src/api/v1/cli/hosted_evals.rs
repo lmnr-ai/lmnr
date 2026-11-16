@@ -7,10 +7,18 @@ use actix_web::{
 use uuid::Uuid;
 
 use crate::{
-    api::v1::hosted_evals::{
-        CreateImageRequest, HostedEvalsData, LayersRequest, LogsFrom, handle_create_image,
-        handle_create_upload, handle_get_run_logs, handle_get_sandbox, handle_missing_layers,
-        handle_start_run, handle_upload_index, handle_upload_layer,
+    api::v1::{
+        hosted_evals::{
+            CreateImageRequest, HostedEvalsData, LayersRequest, LogsFrom, handle_create_image,
+            handle_get_run_logs, handle_get_sandbox, handle_missing_layers, handle_start_run,
+            handle_upload_layer,
+        },
+        task_sets::{
+            AgentPath, BlobPart, CreateAgentVersionRequest, CreateTaskSetVersionRequest,
+            TaskSetPath, handle_create_agent_version, handle_create_task_set_version,
+            handle_get_blob, handle_list_agents, handle_list_task_set_versions, handle_put_blob,
+            handle_put_blob_index,
+        },
     },
     auth::cli_user::CliProjectAuth,
     cache::Cache,
@@ -55,25 +63,78 @@ pub async fn create_image(
     handle_create_image(auth.project_id, req.into_inner(), &hosted, &cache).await
 }
 
-#[post("/hosted-evals/uploads")]
-pub async fn create_upload(
+#[put("/hosted-evals/uploads/blobs/{hash}")]
+pub async fn put_blob(
+    path: web::Path<String>,
     auth: CliProjectAuth,
     payload: web::Payload,
-    hosted: HostedEvalsData,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
-    handle_create_upload(auth.project_id, payload, &hosted, &storage).await
+    handle_put_blob(auth.project_id, &path, payload, &storage).await
 }
 
-#[put("/hosted-evals/uploads/{upload_id}/index")]
-pub async fn upload_index(
-    path: web::Path<Uuid>,
+#[put("/hosted-evals/uploads/blobs/{hash}/index")]
+pub async fn put_blob_index(
+    path: web::Path<String>,
     auth: CliProjectAuth,
     payload: web::Payload,
-    hosted: HostedEvalsData,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
-    handle_upload_index(auth.project_id, &path, payload, &hosted, &storage).await
+    handle_put_blob_index(auth.project_id, &path, payload, &storage).await
+}
+
+#[get("/hosted-evals/uploads/blobs/{hash}")]
+pub async fn get_blob(
+    path: web::Path<String>,
+    auth: CliProjectAuth,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    handle_get_blob(auth.project_id, &path, BlobPart::Archive, &storage).await
+}
+
+#[get("/hosted-evals/uploads/blobs/{hash}/index")]
+pub async fn get_blob_index(
+    path: web::Path<String>,
+    auth: CliProjectAuth,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    handle_get_blob(auth.project_id, &path, BlobPart::Index, &storage).await
+}
+
+#[get("/hosted-evals/agents")]
+pub async fn list_agents(auth: CliProjectAuth, db: web::Data<DB>) -> ResponseResult {
+    handle_list_agents(auth.project_id, &db).await
+}
+
+#[get("/hosted-evals/agents/{agent}/task-sets/{task_set}/versions")]
+pub async fn list_task_set_versions(
+    path: web::Path<TaskSetPath>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_list_task_set_versions(auth.project_id, &path, &db).await
+}
+
+#[post("/hosted-evals/agents/{agent}/versions")]
+pub async fn create_agent_version(
+    path: web::Path<AgentPath>,
+    body: Json<CreateAgentVersionRequest>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    handle_create_agent_version(auth.project_id, &path, body.into_inner(), &db, &storage).await
+}
+
+#[post("/hosted-evals/agents/{agent}/task-sets/{task_set}/versions")]
+pub async fn create_task_set_version(
+    path: web::Path<TaskSetPath>,
+    body: Json<CreateTaskSetVersionRequest>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    handle_create_task_set_version(auth.project_id, &path, body.into_inner(), &db, &storage).await
 }
 
 #[post("/hosted-evals/runs")]
@@ -84,7 +145,6 @@ pub async fn start_run(
     hosted: HostedEvalsData,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
     handle_start_run(
         &req,
@@ -93,13 +153,12 @@ pub async fn start_run(
         &hosted,
         &db,
         &cache,
-        &storage,
     )
     .await
 }
 
 /// The run's log, followed by `lmnr-cli eval run --remote`.
-#[get("/hosted-evals/runs/{upload_id}/logs")]
+#[get("/hosted-evals/runs/{run_id}/logs")]
 pub async fn get_run_logs(
     path: web::Path<Uuid>,
     query: web::Query<LogsFrom>,

@@ -35,9 +35,9 @@ use crate::{
 };
 
 // Streamed bodies aren't covered by the global HTTP payload limit, so each gets its own.
-const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024;
+pub(super) const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_JOB_ARCHIVE_BYTES: u64 = 256 * 1024 * 1024;
-const MAX_INDEX_BYTES: u64 = 64 * 1024 * 1024;
+pub(super) const MAX_INDEX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_LAYER_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_LAYERS: usize = 256;
@@ -51,7 +51,7 @@ const MAX_LOG_TAIL_BYTES: u64 = 1024 * 1024;
 pub type HostedEvalsData = web::Data<Option<HostedEvals>>;
 
 #[derive(Debug)]
-enum BodyError {
+pub(super) enum BodyError {
     Empty,
     TooLarge(u64),
     Payload(PayloadError),
@@ -63,8 +63,9 @@ pub struct FilePath {
 }
 
 #[derive(Deserialize)]
-pub struct JobSuite {
-    suite: String,
+#[serde(rename_all = "camelCase")]
+pub struct JobTaskSet {
+    task_set: String,
 }
 
 /// One line of a run's output, numbered by the orchestrator (its only writer).
@@ -471,71 +472,15 @@ pub async fn download_file(
     .await)
 }
 
-// ---- Remote runs (uploads and runs also under /v1/cli) ----
+// ---- Remote runs (runs also under /v1/cli) ----
 
-/// Body: the `.tar.gz` of the `evals/` folder's contents, streamed to S3.
-#[post("/hosted-evals/uploads")]
-pub async fn create_upload(
-    payload: web::Payload,
-    project_api_key: ProjectApiKey,
-    hosted: HostedEvalsData,
-    storage: web::Data<Arc<Storage>>,
-) -> ResponseResult {
-    handle_create_upload(project_api_key.project_id, payload, &hosted, &storage).await
-}
-
-/// The orchestrator sandbox downloads its run's archive here with the run key.
-#[get("/hosted-evals/uploads/{upload_id}")]
-pub async fn download_upload(
-    path: web::Path<Uuid>,
-    project_api_key: ProjectApiKey,
-    hosted: HostedEvalsData,
-    storage: web::Data<Arc<Storage>>,
-) -> ResponseResult {
-    let Some(bucket) = uploads_bucket(&hosted) else {
-        return Ok(not_enabled());
-    };
-    let key = hosted_evals::archive_key(&project_api_key.project_id, &path);
-    let stream = match storage.exists(&bucket, &key).await {
-        Ok(true) => storage.get_stream(&bucket, &key).await,
-        Ok(false) => {
-            return Ok(HttpResponse::NotFound().json(json!({ "error": "Upload not found" })));
-        }
-        Err(e) => Err(e),
-    };
-    Ok(match stream {
-        Ok(stream) => HttpResponse::Ok()
-            .content_type("application/gzip")
-            .streaming(stream.map(Ok::<_, actix_web::Error>)),
-        Err(e) => upstream_error("archive download", e),
-    })
-}
-
-/// Body: the archive's file index (JSON, `hosted_evals::ArchiveIndex`).
-#[put("/hosted-evals/uploads/{upload_id}/index")]
-pub async fn upload_index(
-    path: web::Path<Uuid>,
-    payload: web::Payload,
-    project_api_key: ProjectApiKey,
-    hosted: HostedEvalsData,
-    storage: web::Data<Arc<Storage>>,
-) -> ResponseResult {
-    handle_upload_index(
-        project_api_key.project_id,
-        &path,
-        payload,
-        &hosted,
-        &storage,
-    )
-    .await
-}
-
-/// Body: one suite's Harbor job output (`.tar.gz` of its trial dirs, packed like
-/// the run's archive), sent by the run's orchestrator once the suite ends.
-#[put("/hosted-evals/uploads/{upload_id}/jobs")]
+/// Body: one task set's Harbor job output (`.tar.gz` of its trial dirs, packed
+/// like a blob), sent by the run's orchestrator once the task set's Harbor run
+/// ends. Under `uploads/` for the deployment's nginx body-size rule.
+#[put("/hosted-evals/uploads/jobs/{run_id}")]
 pub async fn upload_job(
     path: web::Path<Uuid>,
-    query: web::Query<JobSuite>,
+    query: web::Query<JobTaskSet>,
     payload: web::Payload,
     project_api_key: ProjectApiKey,
     hosted: HostedEvalsData,
@@ -544,23 +489,10 @@ pub async fn upload_job(
     let Some(bucket) = uploads_bucket(&hosted) else {
         return Ok(not_enabled());
     };
-    if !hosted_evals::is_suite_name(&query.suite) {
-        return Ok(invalid_suite());
+    if !hosted_evals::is_name(&query.task_set) {
+        return Ok(invalid_task_set());
     }
-    let project_id = project_api_key.project_id;
-    // Only a run's own upload gets job output.
-    match storage
-        .exists(&bucket, &hosted_evals::archive_key(&project_id, &path))
-        .await
-    {
-        Ok(true) => {}
-        Ok(false) => {
-            return Ok(HttpResponse::NotFound().json(json!({ "error": "Upload not found" })));
-        }
-        Err(e) => return Ok(upstream_error("archive check", e)),
-    }
-
-    let key = hosted_evals::job_archive_key(&project_id, &path, &query.suite);
+    let key = hosted_evals::job_archive_key(&project_api_key.project_id, &path, &query.task_set);
     let (tx, rx) = mpsc::channel(4);
     let (received, stored) = futures_util::join!(
         forward_payload(payload, tx, MAX_JOB_ARCHIVE_BYTES),
@@ -575,11 +507,11 @@ pub async fn upload_job(
     })
 }
 
-/// Body: the index of the suite's job archive (JSON, `hosted_evals::ArchiveIndex`).
-#[put("/hosted-evals/uploads/{upload_id}/jobs/index")]
+/// Body: the index of the task set's job archive (JSON, `hosted_evals::ArchiveIndex`).
+#[put("/hosted-evals/uploads/jobs/{run_id}/index")]
 pub async fn upload_job_index(
     path: web::Path<Uuid>,
-    query: web::Query<JobSuite>,
+    query: web::Query<JobTaskSet>,
     payload: web::Payload,
     project_api_key: ProjectApiKey,
     hosted: HostedEvalsData,
@@ -588,15 +520,15 @@ pub async fn upload_job_index(
     let Some(bucket) = uploads_bucket(&hosted) else {
         return Ok(not_enabled());
     };
-    if !hosted_evals::is_suite_name(&query.suite) {
-        return Ok(invalid_suite());
+    if !hosted_evals::is_name(&query.task_set) {
+        return Ok(invalid_task_set());
     }
     let project_id = project_api_key.project_id;
     store_index(
         &storage,
         &bucket,
-        &hosted_evals::job_archive_key(&project_id, &path, &query.suite),
-        &hosted_evals::job_index_key(&project_id, &path, &query.suite),
+        &hosted_evals::job_archive_key(&project_id, &path, &query.task_set),
+        &hosted_evals::job_index_key(&project_id, &path, &query.task_set),
         payload,
     )
     .await
@@ -610,7 +542,6 @@ pub async fn start_run(
     hosted: HostedEvalsData,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
-    storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
     handle_start_run(
         &req,
@@ -619,14 +550,13 @@ pub async fn start_run(
         &hosted,
         &db,
         &cache,
-        &storage,
     )
     .await
 }
 
 /// Body: `{lines: [{seq, time, text}]}`, the orchestrator's next lines (run key).
 /// Sent one batch at a time, so a batch is readable before the next is written.
-#[post("/hosted-evals/runs/{upload_id}/logs")]
+#[post("/hosted-evals/runs/{run_id}/logs")]
 pub async fn append_run_logs(
     path: web::Path<Uuid>,
     body: Json<RunLogBatch>,
@@ -670,7 +600,7 @@ pub async fn append_run_logs(
 /// failed download or npm install. Lines are numbered after the run's last one.
 /// A run that already has its exit code is left as is: curl's `--retry` resends
 /// this after a timeout or 5xx even when the first request was stored.
-#[post("/hosted-evals/runs/{upload_id}/logs/end")]
+#[post("/hosted-evals/runs/{run_id}/logs/end")]
 pub async fn end_run_logs(
     path: web::Path<Uuid>,
     query: web::Query<RunEnd>,
@@ -717,7 +647,7 @@ pub async fn end_run_logs(
 
 /// `?from=<seq>` → `{lines: [{seq, time, text}], next, exitCode}`; `exitCode`
 /// stays null until the orchestrator has exited. Followed by `lmnr-cli eval run --remote`.
-#[get("/hosted-evals/runs/{upload_id}/logs")]
+#[get("/hosted-evals/runs/{run_id}/logs")]
 pub async fn get_run_logs(
     path: web::Path<Uuid>,
     query: web::Query<LogsFrom>,
@@ -738,7 +668,7 @@ pub async fn get_run_logs(
 /// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) log reads.
 pub async fn handle_get_run_logs(
     project_id: &Uuid,
-    upload_id: &Uuid,
+    run_id: &Uuid,
     from: u64,
     hosted: &HostedEvalsData,
     clickhouse: &clickhouse::Client,
@@ -749,7 +679,7 @@ pub async fn handle_get_run_logs(
     let rows = match evaluation_logs::get_evaluation_logs(
         clickhouse,
         project_id,
-        upload_id,
+        run_id,
         from,
         MAX_LOG_LINES as u64,
     )
@@ -776,58 +706,9 @@ pub async fn handle_get_run_logs(
     }))
 }
 
-/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) uploads.
-pub async fn handle_create_upload(
-    project_id: Uuid,
-    payload: web::Payload,
-    hosted: &HostedEvalsData,
-    storage: &Storage,
-) -> ResponseResult {
-    let Some(bucket) = uploads_bucket(hosted) else {
-        return Ok(not_enabled());
-    };
-    let upload_id = Uuid::new_v4();
-    let key = hosted_evals::archive_key(&project_id, &upload_id);
-
-    // `web::Payload` isn't `Send`, so it's pumped through a channel the upload reads.
-    let (tx, rx) = mpsc::channel(4);
-    let (received, stored) = futures_util::join!(
-        forward_payload(payload, tx, MAX_ARCHIVE_BYTES),
-        storage.upload_stream(&bucket, &key, rx)
-    );
-    if let Err(e) = received {
-        return Ok(body_error_response(e));
-    }
-    Ok(match stored {
-        Ok(_) => HttpResponse::Ok().json(json!({ "uploadId": upload_id })),
-        Err(e) => upstream_error("archive upload", e),
-    })
-}
-
-/// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) index uploads.
-pub async fn handle_upload_index(
-    project_id: Uuid,
-    upload_id: &Uuid,
-    payload: web::Payload,
-    hosted: &HostedEvalsData,
-    storage: &Storage,
-) -> ResponseResult {
-    let Some(bucket) = uploads_bucket(hosted) else {
-        return Ok(not_enabled());
-    };
-    store_index(
-        storage,
-        &bucket,
-        &hosted_evals::archive_key(&project_id, upload_id),
-        &hosted_evals::index_key(&project_id, upload_id),
-        payload,
-    )
-    .await
-}
-
 /// Stores an archive's index next to it, after checking it parses and that the
 /// archive exists.
-async fn store_index(
+pub(super) async fn store_index(
     storage: &Storage,
     bucket: &str,
     archive_key: &str,
@@ -868,27 +749,13 @@ pub async fn handle_start_run(
     hosted: &HostedEvalsData,
     db: &DB,
     cache: &Cache,
-    storage: &Storage,
 ) -> ResponseResult {
-    let (Some(bucket), Some(hosted)) = (uploads_bucket(hosted), hosted.get_ref()) else {
+    let Some(hosted) = hosted.get_ref() else {
         return Ok(not_enabled());
     };
-    let key = hosted_evals::archive_key(&project_id, &req.upload_id);
-    match storage.exists(&bucket, &key).await {
-        Ok(true) => {}
-        Ok(false) => {
-            return Ok(HttpResponse::BadRequest().json(json!({
-                "error": "No archive uploaded for this uploadId"
-            })));
-        }
-        Err(e) => return Ok(upstream_error("archive check", e)),
-    }
-
-    // A failed start keeps the archive: the 429/502 answers invite a retry with
-    // the same uploadId. The bucket's lifecycle rule removes it otherwise.
     let started = hosted_evals::start_run(&hosted.provider, db, cache, &project_id, &req).await;
-    let sandbox_id = match started {
-        Ok(id) => id,
+    let run = match started {
+        Ok(run) => run,
         Err(RunError::InvalidCliVersion) => {
             return Ok(HttpResponse::BadRequest().json(json!({
                 "error": format!("Invalid cliVersion {:?}", req.cli_version)
@@ -897,11 +764,18 @@ pub async fn handle_start_run(
         Err(RunError::Sandbox(e)) => return Ok(create_error_response(e)),
         Err(RunError::Internal(e)) => return Err(e.into()),
     };
-    log::info!("Started hosted eval run for project {project_id} in sandbox {sandbox_id}");
-    // The evaluation is created later, by the orchestrator; the sandbox is the run.
-    audit::target_named(http_req, &sandbox_id, None);
+    log::info!(
+        "Started hosted eval run {} for project {project_id} in sandbox {}",
+        run.run_id,
+        run.sandbox_id
+    );
+    // The evaluations are created later, by the orchestrator; the sandbox is the run.
+    audit::target_named(http_req, &run.sandbox_id, None);
 
-    Ok(HttpResponse::Accepted().json(json!({ "sandboxId": sandbox_id })))
+    Ok(HttpResponse::Accepted().json(json!({
+        "runId": run.run_id,
+        "sandboxId": run.sandbox_id,
+    })))
 }
 
 // ---- Helpers ----
@@ -934,7 +808,7 @@ where
 
 /// Pumps `payload` into `tx` up to `max_bytes`. Any failure sends an `Err`
 /// down the channel so the upload aborts instead of storing a partial object.
-async fn forward_payload<S>(
+pub(super) async fn forward_payload<S>(
     mut payload: S,
     tx: Sender<anyhow::Result<Bytes>>,
     max_bytes: u64,
@@ -966,7 +840,7 @@ where
     result
 }
 
-async fn collect_payload<S>(mut payload: S, max_bytes: u64) -> Result<Bytes, BodyError>
+pub(super) async fn collect_payload<S>(mut payload: S, max_bytes: u64) -> Result<Bytes, BodyError>
 where
     S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
@@ -981,7 +855,7 @@ where
     Ok(body.freeze())
 }
 
-fn body_error_response(error: BodyError) -> HttpResponse {
+pub(super) fn body_error_response(error: BodyError) -> HttpResponse {
     match error {
         BodyError::Empty => HttpResponse::BadRequest().json(json!({ "error": "Empty body" })),
         BodyError::TooLarge(max) => HttpResponse::PayloadTooLarge().json(json!({
@@ -1015,7 +889,7 @@ fn create_error_response(error: CreateError) -> HttpResponse {
 
 /// The sandbox provider, registry or S3 failed. Their errors can carry upstream
 /// response bodies, so the client only gets a generic message.
-fn upstream_error(operation: &str, error: anyhow::Error) -> HttpResponse {
+pub(super) fn upstream_error(operation: &str, error: anyhow::Error) -> HttpResponse {
     log::error!("Hosted evals {operation} failed: {error:?}");
     HttpResponse::build(StatusCode::BAD_GATEWAY).json(json!({
         "error": format!("Hosted evals {operation} failed upstream. Retry shortly.")
@@ -1051,7 +925,7 @@ fn invalid_image() -> HttpResponse {
 /// run's last row only.
 fn log_row(
     project_id: Uuid,
-    upload_id: Uuid,
+    run_id: Uuid,
     seq: u64,
     time: i64,
     text: &str,
@@ -1059,7 +933,7 @@ fn log_row(
 ) -> CHEvaluationLog {
     CHEvaluationLog {
         project_id,
-        upload_id,
+        upload_id: run_id,
         seq,
         time,
         text: log_text(text),
@@ -1077,9 +951,9 @@ fn log_text(line: &str) -> String {
     }
 }
 
-fn invalid_suite() -> HttpResponse {
+fn invalid_task_set() -> HttpResponse {
     HttpResponse::BadRequest().json(json!({
-        "error": "suite must be a suite directory name"
+        "error": "taskSet must be a task set name"
     }))
 }
 

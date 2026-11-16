@@ -22,6 +22,7 @@ pub mod signal_triggers;
 pub mod signals;
 pub mod slack_integrations;
 pub mod spans;
+pub mod task_sets;
 pub mod trace;
 pub mod usage_warnings;
 pub mod users;

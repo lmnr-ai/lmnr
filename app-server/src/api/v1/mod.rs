@@ -15,5 +15,6 @@ pub mod signals;
 pub mod spans;
 pub mod sql;
 pub mod tag;
+pub mod task_sets;
 pub mod traces;
 pub mod traces_metadata;

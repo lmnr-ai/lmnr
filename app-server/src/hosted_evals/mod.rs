@@ -61,13 +61,19 @@ impl HostedEvals {
 }
 
 /// A remote run (`lmnr-cli eval run --remote`). `spec` is opaque here: the CLI that requested the run wrote
-/// it and the same CLI version reads it back in the orchestrator.
+/// it (which agent scripts and task-set versions to run) and the same CLI version reads it back in the
+/// orchestrator.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunRequest {
-    pub upload_id: Uuid,
     pub cli_version: String,
     pub spec: Value,
+}
+
+/// A run whose orchestrator has started.
+pub struct StartedRun {
+    pub run_id: Uuid,
+    pub sandbox_id: String,
 }
 
 pub enum RunError {
@@ -82,40 +88,43 @@ impl From<anyhow::Error> for RunError {
     }
 }
 
-pub fn archive_key(project_id: &Uuid, upload_id: &Uuid) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}.tar.gz")
+/// A content-addressed blob: the packed files of one agent-scripts or task-set version. Kept until
+/// deleted (no lifecycle rule on `eval-store/`), unlike run output under `hosted-evals/`.
+pub fn blob_archive_key(project_id: &Uuid, hash: &str) -> String {
+    format!("eval-store/{project_id}/{hash}.tar.gz")
 }
 
-pub fn index_key(project_id: &Uuid, upload_id: &Uuid) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}.index.json")
+pub fn blob_index_key(project_id: &Uuid, hash: &str) -> String {
+    format!("eval-store/{project_id}/{hash}.index.json")
 }
 
-/// One suite's Harbor job output (its trial dirs), packed like the run's archive.
-/// `suite` must pass [`is_suite_name`].
-pub fn job_archive_key(project_id: &Uuid, upload_id: &Uuid, suite: &str) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}/jobs/{suite}.tar.gz")
+/// One task set's Harbor job output (its trial dirs) from a run, packed like a blob.
+/// `task_set` must pass [`is_name`].
+pub fn job_archive_key(project_id: &Uuid, run_id: &Uuid, task_set: &str) -> String {
+    format!("hosted-evals/{project_id}/{run_id}/jobs/{task_set}.tar.gz")
 }
 
-pub fn job_index_key(project_id: &Uuid, upload_id: &Uuid, suite: &str) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}/jobs/{suite}.index.json")
+pub fn job_index_key(project_id: &Uuid, run_id: &Uuid, task_set: &str) -> String {
+    format!("hosted-evals/{project_id}/{run_id}/jobs/{task_set}.index.json")
 }
 
-/// A suite is a directory directly inside the evals folder, so its name is one
-/// path segment. It goes into S3 keys, hence no separators or dot segments.
-pub fn is_suite_name(suite: &str) -> bool {
-    !suite.is_empty()
-        && suite.len() <= 255
-        && suite != "."
-        && suite != ".."
-        && !suite
-            .chars()
-            .any(|c| c == '/' || c == '\\' || c.is_control())
+/// Agent and task-set names: folder names in `evals/` and URL path segments, and task-set names go
+/// into S3 keys.
+pub fn is_name(name: &str) -> bool {
+    let mut bytes = name.bytes();
+    name.len() <= 100
+        && bytes.next().is_some_and(|b| b.is_ascii_alphanumeric())
+        && bytes.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-/// Where each file sits in an uploaded archive (written by lmnr-cli's
-/// `pack.ts`), so the frontend reads one file with a ranged GET instead of the
-/// whole archive. Parsed here only to reject a malformed index; it is stored as
-/// sent and read by the frontend (`lib/hosted-evals`).
+/// A blob or version hash: lowercase hex sha256, computed by lmnr-cli.
+pub fn is_hash(hash: &str) -> bool {
+    hash.len() == 64 && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// Where each file sits in a blob (written by lmnr-cli's `pack.ts`), so the
+/// frontend reads one file with a ranged GET instead of the whole archive.
+/// Parsed here only to reject a malformed index; it is stored as sent.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchiveIndex {
@@ -137,14 +146,19 @@ struct IndexedFile {
     data_offset: u64,
 }
 
-/// What links an evaluation to the remote run that produced it
-/// (`evaluations.hosted_metadata`), set by the Laminar Harbor plugin.
+/// What links an evaluation to the agent scripts and task set it ran
+/// (`evaluations.hosted_metadata`, plus the two version columns), set by the
+/// Laminar Harbor plugin for runs started by lmnr-cli.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HostedMetadata {
-    pub upload_id: Uuid,
-    /// The suite dir, relative to the archive root.
-    pub suite_path: String,
+    /// Remote runs only: keys the run's log and job output.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_version_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_set_version_id: Option<Uuid>,
 }
 
 /// POSIX single-quoting, safe for sh, bash and zsh.
@@ -152,19 +166,20 @@ pub fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', r"'\''"))
 }
 
-/// Mints the run's project API key, creates the orchestrator sandbox and starts
-/// the run in it. Returns the sandbox id.
+/// Mints the run's id and project API key, creates the orchestrator sandbox and
+/// starts the run in it.
 pub async fn start_run(
     provider: &SandboxProvider,
     db: &DB,
     cache: &Cache,
     project_id: &Uuid,
     request: &RunRequest,
-) -> Result<String, RunError> {
+) -> Result<StartedRun, RunError> {
     let cli_package = cli_package(&request.cli_version).ok_or(RunError::InvalidCliVersion)?;
 
     // The sandbox (and the user code in it) gets a key of its own that dies with
     // the run, never one of the project's user-facing keys.
+    let run_id = Uuid::new_v4();
     let run_key = project_api_keys::generate_api_key();
     let max_run_minutes = env::hosted_evals::MAX_RUN_MINUTES.get();
     let now = Utc::now();
@@ -188,16 +203,15 @@ pub async fn start_run(
                 "LMNR_BASE_URL".to_string(),
                 env::hosted_evals::LMNR_BASE_URL.get(),
             ),
-            (
-                "LMNR_EVAL_UPLOAD_ID".to_string(),
-                request.upload_id.to_string(),
-            ),
+            ("LMNR_EVAL_RUN_ID".to_string(), run_id.to_string()),
             ("LMNR_EVAL_RUN".to_string(), request.spec.to_string()),
             ("LMNR_CLI_PACKAGE".to_string(), cli_package),
         ]),
         ttl_minutes: max_run_minutes,
     };
-    let result = launch_orchestrator(provider, cache, spec).await;
+    let result = launch_orchestrator(provider, cache, spec)
+        .await
+        .map(|sandbox_id| StartedRun { run_id, sandbox_id });
     if result.is_err()
         && let Err(e) = db::project_api_keys::delete_api_key_by_hash(&db.pool, &run_key.hash).await
     {
@@ -267,13 +281,38 @@ mod tests {
     }
 
     #[test]
-    fn suite_names_are_one_path_segment() {
-        for good in ["support", "my suite", "évals-2", ".hidden"] {
-            assert!(is_suite_name(good), "{good}");
+    fn names_are_safe_path_segments() {
+        for good in ["support-bot", "checkout_timeouts", "v1.2", "A"] {
+            assert!(is_name(good), "{good}");
         }
-        let long = "a".repeat(256);
-        for bad in ["", ".", "..", "a/b", "a\\b", "a\nb", long.as_str()] {
-            assert!(!is_suite_name(bad), "{bad}");
+        let long = "a".repeat(101);
+        for bad in [
+            "",
+            ".",
+            "..",
+            ".hidden",
+            "-x",
+            "a/b",
+            "a\\b",
+            "a b",
+            "évals",
+            long.as_str(),
+        ] {
+            assert!(!is_name(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn hashes_are_lowercase_sha256_hex() {
+        assert!(is_hash(&"a1".repeat(32)));
+        for bad in [
+            "",
+            "abc",
+            &"A1".repeat(32),
+            &"g1".repeat(32),
+            &"a1".repeat(33),
+        ] {
+            assert!(!is_hash(bad), "{bad}");
         }
     }
 

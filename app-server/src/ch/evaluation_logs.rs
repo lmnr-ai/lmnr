@@ -1,5 +1,5 @@
 //! Output of remote eval runs' orchestrators (`evaluation_logs`, migration 85),
-//! keyed by the run's upload id and read back in `seq` order.
+//! keyed by the run's id and read back in `seq` order.
 
 use anyhow::Result;
 use clickhouse::Row;
@@ -12,6 +12,7 @@ use uuid::Uuid;
 pub struct CHEvaluationLog {
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
+    /// The run's id; the column predates runs having their own id.
     #[serde(with = "clickhouse::serde::uuid")]
     pub upload_id: Uuid,
     pub seq: u64,

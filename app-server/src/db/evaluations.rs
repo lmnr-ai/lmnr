@@ -34,9 +34,13 @@ pub async fn create_evaluation(
     metadata: &Option<Value>,
     hosted_metadata: Option<&HostedMetadata>,
 ) -> Result<Evaluation> {
+    // Version ids from another project are dropped, not linked.
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "INSERT INTO evaluations (name, project_id, group_id, metadata, hosted_metadata)
-        VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO evaluations (name, project_id, group_id, metadata, hosted_metadata,
+            eval_agent_version_id, task_set_version_id)
+        VALUES ($1, $2, $3, $4, $5,
+            (SELECT id FROM eval_agent_versions WHERE id = $6 AND project_id = $2),
+            (SELECT id FROM task_set_versions WHERE id = $7 AND project_id = $2))
         RETURNING
             id,
             created_at,
@@ -50,6 +54,8 @@ pub async fn create_evaluation(
     .bind(group_id)
     .bind(metadata)
     .bind(hosted_metadata.map(Json))
+    .bind(hosted_metadata.and_then(|h| h.agent_version_id))
+    .bind(hosted_metadata.and_then(|h| h.task_set_version_id))
     .fetch_one(pool)
     .await?;
 
