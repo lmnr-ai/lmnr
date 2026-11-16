@@ -382,6 +382,7 @@ const backtickEscape = (id: string): string => `\`${id.replace(/`/g, "``")}\``;
 
 export {
   backtickEscape,
+  buildColumnFilters,
   buildSelectQuery,
   buildTimeRangeWithFill,
   buildWhereClause,
