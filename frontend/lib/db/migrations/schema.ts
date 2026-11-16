@@ -1253,9 +1253,12 @@ export const evaluations = pgTable(
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
     hostedMetadata: jsonb("hosted_metadata"),
+    evalAgentVersionId: uuid("eval_agent_version_id"),
+    taskSetVersionId: uuid("task_set_version_id"),
   },
   (table) => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
+    index("evaluations_task_set_version_id_idx").on(table.taskSetVersionId),
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
@@ -1263,12 +1266,164 @@ export const evaluations = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    foreignKey({
+      columns: [table.evalAgentVersionId],
+      foreignColumns: [evalAgentVersions.id],
+      name: "evaluations_eval_agent_version_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.taskSetVersionId],
+      foreignColumns: [taskSetVersions.id],
+      name: "evaluations_task_set_version_id_fkey",
+    }).onDelete("set null"),
     pgPolicy("select_by_next_api_key", {
       as: "permissive",
       for: "select",
       to: ["anon", "authenticated"],
       using: sql`is_evaluation_id_accessible_for_api_key(api_key(), id)`,
     }),
+  ]
+);
+
+// Hosted evals: an agent's scripts (`evals/<agent>/` minus `task_sets/`) and its
+// task sets, each versioned. A version's files are one content-addressed blob in
+// S3 (`eval-store/<project>/<hash>`). `number` is null for run snapshots.
+export const evalAgents = pgTable(
+  "eval_agents",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    headVersionId: uuid("head_version_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "eval_agents_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.headVersionId],
+      foreignColumns: [evalAgentVersions.id],
+      name: "eval_agents_head_version_id_fkey",
+    }).onDelete("set null"),
+    unique("eval_agents_project_id_name_key").on(table.projectId, table.name),
+  ]
+);
+
+export const evalAgentVersions = pgTable(
+  "eval_agent_versions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    evalAgentId: uuid("eval_agent_id").notNull(),
+    number: integer(),
+    hash: text().notNull(),
+    gitSha: text("git_sha"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.evalAgentId],
+      foreignColumns: [evalAgents.id],
+      name: "eval_agent_versions_eval_agent_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "eval_agent_versions_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("eval_agent_versions_eval_agent_id_hash_key").on(table.evalAgentId, table.hash),
+    unique("eval_agent_versions_eval_agent_id_number_key").on(table.evalAgentId, table.number),
+  ]
+);
+
+export const taskSets = pgTable(
+  "task_sets",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    evalAgentId: uuid("eval_agent_id").notNull(),
+    name: text().notNull(),
+    headVersionId: uuid("head_version_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.evalAgentId],
+      foreignColumns: [evalAgents.id],
+      name: "task_sets_eval_agent_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "task_sets_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.headVersionId],
+      foreignColumns: [taskSetVersions.id],
+      name: "task_sets_head_version_id_fkey",
+    }).onDelete("set null"),
+    unique("task_sets_eval_agent_id_name_key").on(table.evalAgentId, table.name),
+  ]
+);
+
+export const taskSetVersions = pgTable(
+  "task_set_versions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    taskSetId: uuid("task_set_id").notNull(),
+    parentId: uuid("parent_id"),
+    number: integer(),
+    hash: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.taskSetId],
+      foreignColumns: [taskSets.id],
+      name: "task_set_versions_task_set_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "task_set_versions_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.parentId],
+      foreignColumns: [table.id],
+      name: "task_set_versions_parent_id_fkey",
+    }).onDelete("set null"),
+    unique("task_set_versions_task_set_id_hash_key").on(table.taskSetId, table.hash),
+    unique("task_set_versions_task_set_id_number_key").on(table.taskSetId, table.number),
+  ]
+);
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    taskSetVersionId: uuid("task_set_version_id").notNull(),
+    name: text().notNull(),
+    digest: text().notNull(),
+    metadata: jsonb(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.taskSetVersionId],
+      foreignColumns: [taskSetVersions.id],
+      name: "tasks_task_set_version_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "tasks_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("tasks_task_set_version_id_name_key").on(table.taskSetVersionId, table.name),
+    index("tasks_project_id_digest_idx").on(table.projectId, table.digest),
   ]
 );
 
