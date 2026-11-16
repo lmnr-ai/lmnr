@@ -217,6 +217,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
     { label: formatProjects("free") },
     { label: formatSeats("free") },
     { label: formatSupport("free") },
+    { label: `${TIERS.hobby.name} ${TRIAL_DAYS}-day free trial` },
   ],
   hobby: [
     { label: `${formatDataIncluded("hobby")} data included`, subfeature: `then ${formatDataOverage("hobby")}` },
