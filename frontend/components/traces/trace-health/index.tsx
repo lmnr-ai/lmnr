@@ -4,14 +4,13 @@ import { CheckCheck, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { isBlockingFailure } from "@/lib/trace-health/checks";
 
 import TraceHealthDialog from "./trace-health-dialog";
 import { useHiddenChecks } from "./use-hidden-checks";
 import { useTraceHealth } from "./use-trace-health";
 
-/** Next to the traces tabs: a warning button when recent traces have unhidden setup issues, else a quiet icon. */
+/** Next to the traces tabs: a warning button when recent traces have unhidden setup issues, else a quiet "healthy" button. */
 export default function TraceHealthButton() {
   const [open, setOpen] = useState(false);
   const { data } = useTraceHealth();
@@ -32,20 +31,14 @@ export default function TraceHealthButton() {
           Tracing issues detected
         </Button>
       ) : (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Trace health"
-              className="size-8 hover:bg-emphasis-0.5 active:bg-emphasis-1"
-              onClick={() => setOpen(true)}
-            >
-              <CheckCheck className="size-4 text-muted-foreground" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Recent traces are all healthy</TooltipContent>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          className="h-8 text-xs text-muted-foreground hover:bg-emphasis-0.5 active:bg-emphasis-1"
+          onClick={() => setOpen(true)}
+        >
+          <CheckCheck className="mr-1.5 size-3.5" />
+          Tracing is healthy
+        </Button>
       )}
       <TraceHealthDialog open={open} onOpenChange={setOpen} />
     </>
