@@ -147,6 +147,14 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     ],
   },
   {
+    // Matches tierIncludesSignals: every paid tier runs Signals and clustering, Free runs neither.
+    title: "Trace intelligence",
+    rows: [
+      { label: "Signals", values: { free: false, hobby: true, pro: true, enterprise: true } },
+      { label: "Signal event clusters", values: { free: false, hobby: true, pro: true, enterprise: true } },
+    ],
+  },
+  {
     title: "Platform",
     rows: [
       { label: "Trace ingestion (OTLP)", values: { free: true, hobby: true, pro: true, enterprise: true } },
@@ -161,14 +169,6 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       { label: "MCP access", values: { free: true, hobby: true, pro: true, enterprise: true } },
       { label: "Slack alerts", values: { free: true, hobby: true, pro: true, enterprise: true } },
       { label: "Email alerts", values: { free: true, hobby: true, pro: true, enterprise: true } },
-    ],
-  },
-  {
-    // Matches tierIncludesSignals: every paid tier runs Signals and clustering, Free runs neither.
-    title: "Trace intelligence",
-    rows: [
-      { label: "Signals", values: { free: false, hobby: true, pro: true, enterprise: true } },
-      { label: "Signal event clusters", values: { free: false, hobby: true, pro: true, enterprise: true } },
     ],
   },
   {
