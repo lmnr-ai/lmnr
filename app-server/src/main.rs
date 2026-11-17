@@ -156,6 +156,7 @@ mod next_api;
 mod notifications;
 mod opentelemetry_proto;
 mod pii_redactor;
+mod posthog;
 mod project_api_keys;
 mod pubsub;
 mod query_engine;
@@ -1747,6 +1748,12 @@ fn main() -> anyhow::Result<()> {
                         mq_for_http.clone(),
                     ));
 
+                    let posthog = web::Data::new(posthog::PostHog::new(
+                        http_client_for_http.clone(),
+                        db_for_http.clone(),
+                        cache_for_http.clone(),
+                    ));
+
                     // Shared in-process JWKS cache for the CLI user-token surface.
                     // Built once outside the HttpServer closure so all workers share it.
                     let jwks_cache = web::Data::new(Arc::new(auth::cli_user::JwksCache::from_env(
@@ -1822,6 +1829,7 @@ fn main() -> anyhow::Result<()> {
                                     ),
                             )
                             .wrap(actix_web::middleware::from_fn(audit::middleware::audit_v1))
+                            .wrap(actix_web::middleware::from_fn(posthog::usage::usage_v1))
                             .wrap(Logger::default().exclude("/health").exclude("/ready"))
                             .wrap(NormalizePath::trim())
                             .app_data(JsonConfig::default().limit(http_payload_limit))
@@ -1836,6 +1844,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
                             .app_data(hosted_evals.clone())
+                            .app_data(posthog.clone())
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
