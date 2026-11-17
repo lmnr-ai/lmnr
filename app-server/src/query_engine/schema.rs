@@ -762,6 +762,30 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "table_views",
+        description: "Saved views of the UI's data tables, stored in Postgres and shared by the project. A view is its table's column layout plus filters, search and sort.",
+        columns: &[
+            col("id", "UUID", "Unique id of the view"),
+            col(
+                "resource",
+                "String",
+                "Table the view belongs to: traces, spans, sessions, evaluations, evaluation-v1.1 (an evaluation's datapoints), datasets, dataset (a dataset's datapoints), queues, playgrounds, debugger-sessions, signal-runs, or signal-events:<signal id>",
+            ),
+            col("name", "String", "View name, unique per resource"),
+            col(
+                "config",
+                "String",
+                "View as a JSON object: columnOrder (column ids), columnVisibility ({id: bool}, every column), columnSizing ({id: px}), customColumns ([{name, sql, dataType}]), filters ([{column, operator, value}]), search, sortBy, sortDirection (asc/desc), and isDefault (true on the one view per resource teammates land on). Custom column ids are custom:<name>",
+            ),
+            col("created_at", "DateTime64(6)", "When the view was created"),
+            col(
+                "updated_at",
+                "DateTime64(6)",
+                "When the view was last saved",
+            ),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -851,6 +875,7 @@ mod tests {
             "alerts",
             "alert_targets",
             "alert_filters",
+            "table_views",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

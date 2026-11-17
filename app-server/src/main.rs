@@ -167,6 +167,7 @@ mod search;
 mod signals;
 mod sql;
 mod storage;
+mod table_views;
 mod traces;
 mod utils;
 mod worker;
@@ -1896,7 +1897,10 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::dashboards::rename_dashboard)
                             .service(api::v1::cli::dashboards::delete_dashboard)
                             .service(api::v1::cli::dashboards::upsert_charts)
-                            .service(api::v1::cli::dashboards::delete_charts);
+                            .service(api::v1::cli::dashboards::delete_charts)
+                            .service(api::v1::cli::table_views::create_view)
+                            .service(api::v1::cli::table_views::update_view)
+                            .service(api::v1::cli::table_views::delete_view);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));

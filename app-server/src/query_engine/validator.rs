@@ -724,6 +724,14 @@ impl TableRegistry {
             "created_at",
         ];
         let alert_filters_columns = ["id", "alert_id", "value", "created_at"];
+        let table_views_columns = [
+            "id",
+            "resource",
+            "name",
+            "config",
+            "created_at",
+            "updated_at",
+        ];
         let dashboard_charts_columns = [
             "id",
             "dashboard_id",
@@ -769,6 +777,7 @@ impl TableRegistry {
         tables.insert("alerts", schema(&alerts_columns));
         tables.insert("alert_targets", schema(&alert_targets_columns));
         tables.insert("alert_filters", schema(&alert_filters_columns));
+        tables.insert("table_views", schema(&table_views_columns));
         tables.insert("dashboard_charts", schema(&dashboard_charts_columns));
 
         Self { tables }

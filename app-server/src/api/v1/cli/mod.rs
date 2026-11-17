@@ -13,6 +13,7 @@ pub mod llm_profiles;
 pub mod rollouts;
 pub mod signals;
 pub mod sql;
+pub mod table_views;
 pub mod tag;
 
 use actix_web::{HttpResponse, get, post, web};

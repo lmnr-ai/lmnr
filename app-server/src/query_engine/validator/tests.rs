@@ -58,6 +58,7 @@ fn test_default_tables_registered() {
     assert!(reg.is_table_allowed("alerts"));
     assert!(reg.is_table_allowed("alert_targets"));
     assert!(reg.is_table_allowed("alert_filters"));
+    assert!(reg.is_table_allowed("table_views"));
     // The PostgreSQL engine mirrors the whole schema — never allowlist it.
     assert!(!reg.is_table_allowed("pg"));
     assert!(!reg.is_table_allowed("users"));

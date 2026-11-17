@@ -10,7 +10,7 @@ import { db, getDatabaseConfig, getPostgresSchema } from "@/lib/db/drizzle";
  * whole frontend. See `docs/internal/sql-query-engine.md`.
  */
 
-/** Must match the `signals_v0` / `evaluations_v0` / `datasets_v0` views (CH migration 73), `dashboards_v0` / `dashboard_charts_v0` (78), `alerts_v0` / `alert_targets_v0` / `alert_filters_v0` (81), and the dict sources below. `project_id` is granted to filter and key on, never exposed. */
+/** Must match the `signals_v0` / `evaluations_v0` / `datasets_v0` views (CH migration 73), `dashboards_v0` / `dashboard_charts_v0` (78), `alerts_v0` / `alert_targets_v0` / `alert_filters_v0` (81), `table_views_v0` (86), and the dict sources below. `project_id` is granted to filter and key on, never exposed. */
 const PG_ENTITY_COLUMNS: Record<string, string[]> = {
   signals: [
     "id",
@@ -30,6 +30,7 @@ const PG_ENTITY_COLUMNS: Record<string, string[]> = {
   alerts: ["id", "project_id", "name", "type", "source_id", "metadata", "created_at"],
   alert_targets: ["id", "project_id", "alert_id", "type", "channel_id", "channel_name", "email", "created_at"],
   alert_filters: ["id", "project_id", "alert_id", "value", "created_at"],
+  table_views: ["id", "project_id", "resource", "name", "config", "created_at", "updated_at"],
 };
 
 /** Attributes resolved by `dictGetOrDefault` in the `_v0` views of CH migration 73, keyed by `(project_id, id)`. */
