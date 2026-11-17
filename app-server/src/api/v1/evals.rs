@@ -33,7 +33,7 @@ pub struct InitEvalRequest {
     pub group_name: Option<String>,
     #[serde(default)]
     pub metadata: Option<Value>,
-    /// Set by the Laminar Harbor plugin in a remote run's orchestrator.
+    /// Set by the Laminar Harbor plugin for runs started by lmnr-cli.
     #[serde(default)]
     pub hosted_metadata: Option<HostedMetadata>,
 }
@@ -51,6 +51,7 @@ pub async fn init_eval(
     let group_name = body.group_name.unwrap_or("default".to_string());
     let project_id = project_api_key.project_id;
     let metadata = body.metadata;
+    let hosted_metadata = body.hosted_metadata.map(HostedMetadata::validated);
     let name = if let Some(name) = body.name {
         name
     } else {
@@ -63,7 +64,7 @@ pub async fn init_eval(
         project_id,
         &group_name,
         &metadata,
-        body.hosted_metadata.as_ref(),
+        hosted_metadata.as_ref(),
     )
     .await?;
     audit::target_named(&req, evaluation.id, evaluation.name.clone());

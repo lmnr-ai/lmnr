@@ -1,6 +1,6 @@
-//! Hosted-evals agents, task sets and their versions (LAM-2543). A version's
-//! files are one content-addressed blob that lmnr-cli packs and uploads before
-//! creating the version. Blob routes sit under `/hosted-evals/uploads/` for the
+//! Hosted-evals task sets and their versions (LAM-2543). A version's files are
+//! one content-addressed blob that lmnr-cli packs and uploads before pushing
+//! the version; runs upload their task sets and scripts as blobs too. Blob routes sit under `/hosted-evals/uploads/` for the
 //! deployment's nginx body-size rule. Every handler is shared with the CLI
 //! twins (`api::v1::cli::hosted_evals`). See `docs/internal/hosted-evals.md`.
 
@@ -36,14 +36,6 @@ use crate::{
 const MAX_TASKS: usize = 10_000;
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateAgentVersionRequest {
-    hash: String,
-    #[serde(default)]
-    git_sha: Option<String>,
-}
-
-#[derive(Deserialize)]
 pub struct TaskRequest {
     name: String,
     digest: String,
@@ -55,21 +47,19 @@ pub struct TaskRequest {
 #[serde(rename_all = "camelCase")]
 pub struct CreateTaskSetVersionRequest {
     hash: String,
-    push: bool,
     #[serde(default)]
     base: Option<Uuid>,
     tasks: Vec<TaskRequest>,
 }
 
 #[derive(Deserialize)]
-pub struct AgentPath {
-    agent: String,
+pub struct TaskSetPath {
+    task_set: String,
 }
 
 #[derive(Deserialize)]
-pub struct TaskSetPath {
+pub struct LatestScriptsQuery {
     agent: String,
-    task_set: String,
 }
 
 // ---- Blobs ----
@@ -210,14 +200,14 @@ pub async fn handle_get_blob(
     })
 }
 
-// ---- Agents, task sets, versions ----
+// ---- Task sets, versions, scripts ----
 
-#[get("/hosted-evals/agents")]
-pub async fn list_agents(project_api_key: ProjectApiKey, db: web::Data<DB>) -> ResponseResult {
-    handle_list_agents(project_api_key.project_id, &db).await
+#[get("/hosted-evals/task-sets")]
+pub async fn list_task_sets(project_api_key: ProjectApiKey, db: web::Data<DB>) -> ResponseResult {
+    handle_list_task_sets(project_api_key.project_id, &db).await
 }
 
-#[get("/hosted-evals/agents/{agent}/task-sets/{task_set}/versions")]
+#[get("/hosted-evals/task-sets/{task_set}/versions")]
 pub async fn list_task_set_versions(
     path: web::Path<TaskSetPath>,
     project_api_key: ProjectApiKey,
@@ -226,25 +216,7 @@ pub async fn list_task_set_versions(
     handle_list_task_set_versions(project_api_key.project_id, &path, &db).await
 }
 
-#[post("/hosted-evals/agents/{agent}/versions")]
-pub async fn create_agent_version(
-    path: web::Path<AgentPath>,
-    body: Json<CreateAgentVersionRequest>,
-    project_api_key: ProjectApiKey,
-    db: web::Data<DB>,
-    storage: web::Data<Arc<Storage>>,
-) -> ResponseResult {
-    handle_create_agent_version(
-        project_api_key.project_id,
-        &path,
-        body.into_inner(),
-        &db,
-        &storage,
-    )
-    .await
-}
-
-#[post("/hosted-evals/agents/{agent}/task-sets/{task_set}/versions")]
+#[post("/hosted-evals/task-sets/{task_set}/versions")]
 pub async fn create_task_set_version(
     path: web::Path<TaskSetPath>,
     body: Json<CreateTaskSetVersionRequest>,
@@ -262,9 +234,18 @@ pub async fn create_task_set_version(
     .await
 }
 
-pub async fn handle_list_agents(project_id: Uuid, db: &DB) -> ResponseResult {
-    let agents = task_sets::list_agents(&db.pool, &project_id).await?;
-    Ok(HttpResponse::Ok().json(json!({ "agents": agents })))
+#[get("/hosted-evals/scripts/latest")]
+pub async fn latest_scripts(
+    query: web::Query<LatestScriptsQuery>,
+    project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_latest_scripts(project_api_key.project_id, &query, &db).await
+}
+
+pub async fn handle_list_task_sets(project_id: Uuid, db: &DB) -> ResponseResult {
+    let task_sets = task_sets::list_task_sets(&db.pool, &project_id).await?;
+    Ok(HttpResponse::Ok().json(json!({ "taskSets": task_sets })))
 }
 
 pub async fn handle_list_task_set_versions(
@@ -272,39 +253,13 @@ pub async fn handle_list_task_set_versions(
     path: &TaskSetPath,
     db: &DB,
 ) -> ResponseResult {
-    let versions =
-        task_sets::list_task_set_versions(&db.pool, &project_id, &path.agent, &path.task_set)
-            .await?;
+    let versions = task_sets::list_task_set_versions(&db.pool, &project_id, &path.task_set).await?;
     if versions.is_empty() {
         return Ok(HttpResponse::NotFound().json(json!({
-            "error": format!("Task set {}/{} not found", path.agent, path.task_set)
+            "error": format!("Task set {} not found", path.task_set)
         })));
     }
     Ok(HttpResponse::Ok().json(json!({ "versions": versions })))
-}
-
-pub async fn handle_create_agent_version(
-    project_id: Uuid,
-    path: &AgentPath,
-    req: CreateAgentVersionRequest,
-    db: &DB,
-    storage: &Storage,
-) -> ResponseResult {
-    if !hosted_evals::is_name(&path.agent) {
-        return Ok(invalid_name());
-    }
-    if let Some(response) = check_blob(&project_id, &req.hash, storage).await {
-        return Ok(response);
-    }
-    let version = task_sets::create_agent_version(
-        &db.pool,
-        &project_id,
-        &path.agent,
-        &req.hash,
-        req.git_sha.as_deref(),
-    )
-    .await?;
-    Ok(HttpResponse::Ok().json(version))
 }
 
 pub async fn handle_create_task_set_version(
@@ -314,7 +269,7 @@ pub async fn handle_create_task_set_version(
     db: &DB,
     storage: &Storage,
 ) -> ResponseResult {
-    if !hosted_evals::is_name(&path.agent) || !hosted_evals::is_name(&path.task_set) {
+    if !hosted_evals::is_name(&path.task_set) {
         return Ok(invalid_name());
     }
     if let Some(response) = check_tasks(&req.tasks) {
@@ -336,12 +291,10 @@ pub async fn handle_create_task_set_version(
         &db.pool,
         &project_id,
         &NewTaskSetVersion {
-            agent: &path.agent,
             task_set: &path.task_set,
             hash: &req.hash,
             base: req.base,
             tasks: &tasks,
-            push: req.push,
         },
     )
     .await?;
@@ -349,12 +302,30 @@ pub async fn handle_create_task_set_version(
         TaskSetPush::Done(version) => HttpResponse::Ok().json(version),
         TaskSetPush::HeadMoved(head) => HttpResponse::Conflict().json(json!({
             "error": format!(
-                "Task set {}/{} changed since your base version: pull, then push again",
-                path.agent, path.task_set
+                "Task set {} changed since your base version: pull, then push again",
+                path.task_set
             ),
             "head": head,
         })),
     })
+}
+
+pub async fn handle_latest_scripts(
+    project_id: Uuid,
+    query: &LatestScriptsQuery,
+    db: &DB,
+) -> ResponseResult {
+    if !hosted_evals::is_name(&query.agent) {
+        return Ok(invalid_name());
+    }
+    Ok(
+        match task_sets::latest_scripts(&db.pool, &project_id, &query.agent).await? {
+            Some(scripts) => HttpResponse::Ok().json(scripts),
+            None => HttpResponse::NotFound().json(json!({
+                "error": format!("No evaluation of agent {} has recorded its scripts", query.agent)
+            })),
+        },
+    )
 }
 
 /// `None` when the blob for `hash` is fully uploaded (its index is stored last).
@@ -399,7 +370,7 @@ fn check_tasks(tasks: &[TaskRequest]) -> Option<HttpResponse> {
     None
 }
 
-/// Blobs need only storage, not sandboxes: local runs snapshot too.
+/// Blobs need only storage, not sandboxes: local runs upload them too.
 fn store_bucket() -> Option<String> {
     if !is_feature_enabled(Feature::Storage) {
         return None;

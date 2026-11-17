@@ -2352,162 +2352,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.eval_agent_versions": {
-      "name": "eval_agent_versions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "eval_agent_id": {
-          "name": "eval_agent_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hash": {
-          "name": "hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "git_sha": {
-          "name": "git_sha",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "eval_agent_versions_eval_agent_id_fkey": {
-          "name": "eval_agent_versions_eval_agent_id_fkey",
-          "tableFrom": "eval_agent_versions",
-          "tableTo": "eval_agents",
-          "columnsFrom": [
-            "eval_agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "eval_agent_versions_project_id_fkey": {
-          "name": "eval_agent_versions_project_id_fkey",
-          "tableFrom": "eval_agent_versions",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "eval_agent_versions_eval_agent_id_hash_key": {
-          "name": "eval_agent_versions_eval_agent_id_hash_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "eval_agent_id",
-            "hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.eval_agents": {
-      "name": "eval_agents",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "eval_agents_project_id_fkey": {
-          "name": "eval_agents_project_id_fkey",
-          "tableFrom": "eval_agents",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "eval_agents_project_id_name_key": {
-          "name": "eval_agents_project_id_name_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "name"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.evaluations": {
       "name": "evaluations",
       "schema": "",
@@ -2554,12 +2398,6 @@
         "hosted_metadata": {
           "name": "hosted_metadata",
           "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "eval_agent_version_id": {
-          "name": "eval_agent_version_id",
-          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
@@ -2616,19 +2454,6 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "cascade"
-        },
-        "evaluations_eval_agent_version_id_fkey": {
-          "name": "evaluations_eval_agent_version_id_fkey",
-          "tableFrom": "evaluations",
-          "tableTo": "eval_agent_versions",
-          "columnsFrom": [
-            "eval_agent_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         },
         "evaluations_task_set_version_id_fkey": {
           "name": "evaluations_task_set_version_id_fkey",
@@ -7919,7 +7744,7 @@
           "name": "number",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "hash": {
           "name": "hash",
@@ -7935,7 +7760,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "task_set_versions_task_set_id_hash_idx": {
+          "name": "task_set_versions_task_set_id_hash_idx",
+          "columns": [
+            {
+              "expression": "task_set_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "task_set_versions_task_set_id_fkey": {
           "name": "task_set_versions_task_set_id_fkey",
@@ -7979,14 +7826,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "task_set_versions_task_set_id_hash_key": {
-          "name": "task_set_versions_task_set_id_hash_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "task_set_id",
-            "hash"
-          ]
-        },
         "task_set_versions_task_set_id_number_key": {
           "name": "task_set_versions_task_set_id_number_key",
           "nullsNotDistinct": false,
@@ -8017,12 +7856,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "eval_agent_id": {
-          "name": "eval_agent_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -8045,19 +7878,6 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "task_sets_eval_agent_id_fkey": {
-          "name": "task_sets_eval_agent_id_fkey",
-          "tableFrom": "task_sets",
-          "tableTo": "eval_agents",
-          "columnsFrom": [
-            "eval_agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "task_sets_project_id_fkey": {
           "name": "task_sets_project_id_fkey",
           "tableFrom": "task_sets",
@@ -8087,11 +7907,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "task_sets_eval_agent_id_name_key": {
-          "name": "task_sets_eval_agent_id_name_key",
+        "task_sets_project_id_name_key": {
+          "name": "task_sets_project_id_name_key",
           "nullsNotDistinct": false,
           "columns": [
-            "eval_agent_id",
+            "project_id",
             "name"
           ]
         }
