@@ -53,17 +53,12 @@ const fn log_read(resource: AuditResource, action: AuditAction) -> Classificatio
     }
 }
 
-/// `path` is the matched pattern with its `/v1` or `/v1/cli` prefix removed.
-/// `None` for a route nobody has classified yet.
-pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
-    use AuditAction::*;
-    use AuditResource::*;
-    use Classification::Skip;
-
-    let method = method.as_str();
-    let classification = match (method, path) {
-        // Ingestion and SDK hot paths; SDKs patch trace metadata per trace.
-        // `/tag` also covers `/v1/cli/tag`; UI tagging is unaudited too.
+/// Ingestion, SDK hot paths and the per-item calls inside a run. Neither
+/// audited nor counted as usage (`posthog::usage`). `path` as in [`classify`].
+pub(crate) fn is_per_item_traffic(method: &Method, path: &str) -> bool {
+    match (method.as_str(), path) {
+        // SDKs patch trace metadata per trace. `/tag` also covers
+        // `/v1/cli/tag`; UI tagging is unaudited too.
         (
             "POST",
             "/traces"
@@ -72,9 +67,38 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
             | "/logs"
             | "/metrics"
             | "/browser-sessions/events"
-            | "/tag",
-        ) => Skip,
-        ("POST", "/labeling_queues/{queue_id}/items") => Skip,
+            | "/tag"
+            | "/labeling_queues/{queue_id}/items",
+        ) => true,
+        // A run counts once, at its start: trials, status updates, sandbox
+        // commands, uploads and session blocks are per-item traffic.
+        (
+            "POST",
+            "/evals/{eval_id}"
+            | "/evals/{eval_id}/datapoints"
+            | "/evals/{eval_id}/datapoints/{trial_id}",
+        ) => true,
+        ("POST", "/hosted-evals/runs") => false,
+        (_, p) if p.starts_with("/hosted-evals/") => true,
+        (_, "/rollouts/{session_id}/blocks" | "/rollouts/{session_id}/cache") => true,
+        // Signals gateway: one call per LLM request of a self-hosted signal run.
+        ("POST", "/chat/completions") => true,
+        _ => false,
+    }
+}
+
+/// `path` is the matched pattern with its `/v1` or `/v1/cli` prefix removed.
+/// `None` for a route nobody has classified yet.
+pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
+    use AuditAction::*;
+    use AuditResource::*;
+    use Classification::Skip;
+
+    if is_per_item_traffic(method, path) {
+        return Some(Skip);
+    }
+    let method = method.as_str();
+    let classification = match (method, path) {
         // The handler adds the query text and tables.
         ("POST", "/sql/query") => log_write(Sql, Query),
         // One route serves every tool; the SQL tool logs its own `sql.query`.
@@ -110,25 +134,15 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
         ("PUT", "/dashboards/{dashboard_id}/charts") => log_write(Chart, Update),
         ("DELETE", "/dashboards/{dashboard_id}/charts") => log_write(Chart, Delete),
 
-        // An eval run is logged once, at its start; trials and status
-        // updates are per-item traffic.
+        // An eval run is logged once, at its start.
         ("POST", "/evals") => log_write(Evaluation, Create),
-        (
-            "POST",
-            "/evals/{eval_id}"
-            | "/evals/{eval_id}/datapoints"
-            | "/evals/{eval_id}/datapoints/{trial_id}",
-        ) => Skip,
         ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
-        (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
         ("POST", "/rollouts/{session_id}") => log_write(DebuggerSession, Create),
         ("PATCH", "/rollouts/{session_id}/name") => log_write(DebuggerSession, Update),
         ("DELETE", "/rollouts/{session_id}") => log_write(DebuggerSession, Delete),
-        (_, "/rollouts/{session_id}/blocks" | "/rollouts/{session_id}/cache") => Skip,
 
         ("POST", "/agent/chat") => log_write(Agent, Run),
-        ("POST", "/chat/completions") => Skip,
 
         _ => return None,
     };
@@ -136,7 +150,7 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
 }
 
 /// Pattern relative to the API root, and which surface it belongs to.
-pub(super) fn route(req: &HttpRequest) -> Option<(String, AuditSource)> {
+pub(crate) fn route(req: &HttpRequest) -> Option<(String, AuditSource)> {
     let pattern = req.match_pattern()?;
     if let Some(rest) = pattern.strip_prefix("/v1/cli") {
         return Some((rest.to_string(), AuditSource::Cli));
@@ -299,6 +313,7 @@ mod tests {
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
+            (Method::POST, "/chat/completions"),
             (Method::POST, "/mcp"),
         ] {
             assert_eq!(
@@ -307,6 +322,27 @@ mod tests {
                 "{method} {path}"
             );
         }
+    }
+
+    #[test]
+    fn run_starts_are_not_per_item_traffic() {
+        for (method, path) in [
+            (Method::POST, "/evals"),
+            (Method::POST, "/hosted-evals/runs"),
+            (Method::POST, "/rollouts/{session_id}"),
+            (Method::POST, "/sql/query"),
+            (Method::GET, "/projects"),
+        ] {
+            assert!(!is_per_item_traffic(&method, path), "{method} {path}");
+        }
+        assert_eq!(
+            classify(&Method::POST, "/hosted-evals/runs"),
+            Some(log_write(AuditResource::Evaluation, AuditAction::Run))
+        );
+        assert!(is_per_item_traffic(
+            &Method::POST,
+            "/evals/{eval_id}/datapoints"
+        ));
     }
 
     #[test]

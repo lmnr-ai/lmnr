@@ -64,6 +64,9 @@ pub enum Feature {
     /// Workspace audit log events (`src/audit/`). Gated on `AUDIT_LOG_ENABLED`
     /// (default true).
     AuditLog,
+    /// API, CLI and MCP usage events to PostHog (`src/posthog/`). Gated on
+    /// `POSTHOG_TELEMETRY` (default false; Laminar Cloud only).
+    PostHog,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -128,6 +131,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::HostedEvals => {
             std::env::var(env::hosted_evals::DAYTONA_API_KEY).is_ok_and(|s| !s.is_empty())
         }
+        Feature::PostHog => env::posthog::ENABLED.get(),
     }
 }
 
