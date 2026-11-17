@@ -4,6 +4,7 @@ import {
   GitBranch,
   GitFork,
   LayoutDashboard,
+  ListChecks,
   type LucideIcon,
   Pen,
   PlayCircle,
@@ -48,6 +49,7 @@ export const getSidebarMenus = (projectId: string): SidebarMenuGroup[] => [
     label: "Improve",
     items: [
       { name: "Evaluations", href: `/project/${projectId}/evaluations`, icon: FlaskConical },
+      { name: "Task sets", href: `/project/${projectId}/task-sets`, icon: ListChecks },
       { name: "Datasets", href: `/project/${projectId}/datasets`, icon: Database },
       { name: "Labeling", href: `/project/${projectId}/labeling-queues`, icon: Pen },
       { name: "Playgrounds", href: `/project/${projectId}/playgrounds`, icon: PlayCircle },

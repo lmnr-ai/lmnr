@@ -19,6 +19,7 @@ import {
   signals,
   sqlTemplates,
   tableViews,
+  taskSets,
   users,
   workspaceInvitations,
   workspaces,
@@ -84,6 +85,7 @@ const NAME_SOURCES: Partial<Record<AuditResource, NameSource>> = {
   render_template: inProject(renderTemplates, renderTemplates.name),
   signal: inProject(signals, signals.name),
   sql_template: inProject(sqlTemplates, sqlTemplates.name),
+  task_set: inProject(taskSets, taskSets.name),
   view: inProject(tableViews, tableViews.name),
   llm_profile: {
     table: llmProfiles,

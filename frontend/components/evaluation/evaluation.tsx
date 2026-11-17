@@ -268,10 +268,12 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // shared links carried traceId without trialId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
-  // Remote-run evaluations can show each trial's task folder or its Harbor output instead of its trace.
-  const isHosted = !isShared && !!evaluations.find((e) => e.id === evaluationId)?.hostedMetadata;
+  // Task-set evaluations can show each trial's task folder, and remote runs its Harbor output, instead of its trace.
+  const current = evaluations.find((e) => e.id === evaluationId);
+  const hasTaskSet = !isShared && !!current?.taskSetVersionId;
+  const hasLog = hasTaskSet && !!current?.hostedMetadata?.runId;
   const [panel, setPanel] = useQueryState("panel", parseAsStringLiteral(PANELS).withDefault("trace"));
-  const shownPanel = isHosted ? panel : "trace";
+  const shownPanel = (panel === "task" && hasTaskSet) || (panel === "log" && hasLog) ? panel : "trace";
   const taskPath = taskPathOf(selectedRow);
   const trialName = trialNameOf(selectedRow);
   const taskName = taskNameOf(selectedRow);
@@ -354,6 +356,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
         urlKey={statsUrl}
         evaluations={evaluations}
         datasets={datasets}
+        taskSetVersionId={hasTaskSet ? current?.taskSetVersionId : null}
       />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         {/* Left + top padding only: the trace panel must run flush to the right
@@ -393,7 +396,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                       row={selectedRow}
                     />
                   </div>
-                  {isHosted && <PanelToggle value={panel} onChange={setPanel} />}
+                  {hasTaskSet && <PanelToggle value={shownPanel} onChange={setPanel} showLog={hasLog} />}
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
                   {/* Task and Log wait for the trial: before it loads there's no task path or trial name, which isn't "not uploaded". */}

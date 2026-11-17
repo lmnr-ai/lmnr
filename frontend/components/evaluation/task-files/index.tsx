@@ -1,63 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import useSWR from "swr";
-
-import { type EvaluationFiles } from "@/lib/actions/evaluation/files";
-import { swrFetcher } from "@/lib/api/fetch-api";
-
-import FileBrowser from "./file-browser";
+import ArchiveFolder from "./archive-folder";
 import Message from "./message";
-import { buildFileTree, DEFAULT_FILE, type FileNode, flattenFiles } from "./utils";
 
 interface TaskFilesProps {
   projectId: string;
   evaluationId: string;
-  /** The trial's task dir in the uploaded evals folder; null when it wasn't uploaded. */
+  /** The trial's task dir in the evaluation's task set; null when it isn't in it. */
   taskPath: string | null;
   /** Shown above the tree; the dir's last segment when the trial has none. */
   taskName: string | null;
 }
 
-/**
- * The trial's task folder from the evals folder its remote run uploaded: file
- * tree on the left, the open file on the right. Mount with `key={taskPath}` so
- * switching tasks reopens the default file.
- */
+/** The trial's task folder from the task-set version its evaluation ran. Mount with `key={taskPath}`. */
 export default function TaskFiles({ projectId, evaluationId, taskPath, taskName }: TaskFilesProps) {
-  const base = `/api/projects/${projectId}/evaluations/${evaluationId}/files`;
-  // One listing per evaluation, shared by every trial's task; an uploaded folder never changes.
-  const { data, error, isLoading } = useSWR<EvaluationFiles>(base, swrFetcher, {
-    revalidateOnFocus: false,
-    revalidateIfStale: false,
-  });
-  const tree = useMemo(() => (data && taskPath ? buildFileTree(data.files, taskPath) : []), [data, taskPath]);
-  const [selected, setSelected] = useState<FileNode | null>(null);
-
-  const open = useMemo(() => {
-    if (selected) return selected;
-    const files = flattenFiles(tree);
-    return files.find((f) => f.path === DEFAULT_FILE) ?? files[0] ?? null;
-  }, [selected, tree]);
-
   if (!taskPath) {
-    return (
-      <Message>This trial&apos;s task wasn&apos;t uploaded with the run, so its files can&apos;t be shown.</Message>
-    );
+    return <Message>This trial&apos;s task isn&apos;t in the task set, so its files can&apos;t be shown.</Message>;
   }
-  if (error) return <Message>{error instanceof Error ? error.message : "Failed to load the files"}</Message>;
-  if (isLoading) return <Message>Loading files…</Message>;
-  if (!open) return <Message>{`No files found in ${taskPath}`}</Message>;
-
+  const base = `/api/projects/${projectId}/evaluations/${evaluationId}/files`;
   return (
-    <FileBrowser
+    <ArchiveFolder
       id="evaluation-task-files"
+      listUrl={base}
+      contentUrl={(path) => `${base}/content?path=${encodeURIComponent(path)}`}
+      root={taskPath}
       title={taskName ?? taskPath.split("/").pop() ?? taskPath}
-      hint={taskPath}
-      nodes={tree}
-      open={open}
-      onSelect={setSelected}
-      contentUrl={(path) => `${base}/content?path=${encodeURIComponent(`${taskPath}/${path}`)}`}
     />
   );
 }

@@ -5,6 +5,7 @@ import { memo } from "react";
 
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
+import TaskSetLink from "@/components/evaluation/evaluation-header/task-set-link";
 import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
 import { Button } from "@/components/ui/button";
 import { downloadFile } from "@/components/ui/download-button";
@@ -24,11 +25,13 @@ interface EvaluationHeader {
   name?: string;
   urlKey: string;
   datasets: LinkedDataset[];
+  /** The task-set version the evaluation ran; unset on shared views. */
+  taskSetVersionId?: string | null;
 }
 
 const DOWNLOAD_FORMATS = ["csv", "json"] as const;
 
-const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHeader) => {
+const EvaluationHeader = ({ evaluations, name, urlKey, datasets, taskSetVersionId }: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
@@ -123,6 +126,9 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {taskSetVersionId && typeof projectId === "string" && (
+          <TaskSetLink projectId={projectId} taskSetVersionId={taskSetVersionId} />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button aria-label="More options" variant="secondary" className="h-7 w-7 p-0">

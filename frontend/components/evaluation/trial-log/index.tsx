@@ -15,14 +15,14 @@ import { defaultLogFile } from "./utils";
 interface TrialLogProps {
   projectId: string;
   evaluationId: string;
-  /** Harbor's trial name: the trial's dir in its suite's job. */
+  /** Harbor's trial name: the trial's dir in its task set's job. */
   trialName: string | null;
   /** Shown above the tree; the trial name when the trial has none. */
   taskName: string | null;
 }
 
 /**
- * The trial's dir in the Harbor job its remote run uploaded once the suite
+ * The trial's dir in the Harbor job its remote run uploaded once the task set
  * ended. The open file is `?logFile=`, so it stays open across trials that
  * have it (and in links); other trials open their best default.
  */

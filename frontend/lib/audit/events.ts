@@ -34,6 +34,7 @@ export const AUDIT_RESOURCES = [
   "audit_log",
   "agent",
   "session",
+  "task_set",
 ] as const;
 
 export const AUDIT_ACTIONS = [

@@ -7,8 +7,11 @@ export type Evaluation = {
   name: string;
   projectId: string;
   metadata: Record<string, unknown> | null;
-  /** Set for evaluations from a remote run (`lmnr-cli eval run --remote`), whose evals folder can be browsed. */
-  hostedMetadata?: { uploadId: string; suitePath: string } | null;
+  /** Set by the Laminar Harbor plugin; `runId` only for remote runs (`lmnr-cli eval run --remote`). */
+  hostedMetadata?: { runId?: string; agentVersionId?: string; taskSetVersionId?: string } | null;
+  /** The task-set version the evaluation ran, whose task folders can be browsed. */
+  taskSetVersionId?: string | null;
+  evalAgentVersionId?: string | null;
 };
 
 /** A dataset an evaluation's Trials are linked to. */
