@@ -8,11 +8,10 @@ export type Evaluation = {
   projectId: string;
   metadata: Record<string, unknown> | null;
   /**
-   * What lmnr-cli recorded about the run (sent by the Laminar Harbor plugin): the task set and agent scripts it ran,
+   * What lmnr-cli recorded about the run (sent by the Laminar Harbor plugin): the task set and scripts it ran,
    * by archive hash; `runId` only for remote runs (`lmnr-cli eval run --remote`).
    */
   hostedMetadata?: {
-    agent?: string;
     taskSet?: string;
     taskSetHash?: string;
     scriptsHash?: string;

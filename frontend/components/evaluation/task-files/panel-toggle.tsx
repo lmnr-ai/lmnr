@@ -12,7 +12,7 @@ interface PanelToggleProps {
   showScripts: boolean;
 }
 
-/** Switches the trial panel between its trace, its task's files, its Harbor trial output and the run's agent scripts. */
+/** Switches the trial panel between its trace, its task's files, its Harbor trial output and the run's scripts. */
 export default function PanelToggle({ value, onChange, showTask, showLog, showScripts }: PanelToggleProps) {
   return (
     <Tabs value={value} onValueChange={(next) => onChange(next as Panel)}>

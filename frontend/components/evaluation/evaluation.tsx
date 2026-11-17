@@ -269,7 +269,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // shared links carried traceId without trialId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
-  // Runs started by lmnr-cli can show each trial's task folder, the agent scripts and (remote runs) the trial's
+  // Runs started by lmnr-cli can show each trial's task folder, the scripts and (remote runs) the trial's
   // Harbor output instead of its trace. Shared views can't: the file routes need a project session.
   const current = evaluations.find((e) => e.id === evaluationId);
   const hosted = isShared ? null : current?.hostedMetadata;
@@ -438,7 +438,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                     <ScriptsFiles
                       projectId={params.projectId}
                       evaluationId={evaluationId}
-                      agent={hosted?.agent ?? null}
+                      taskSet={hosted?.taskSet ?? null}
                       gitSha={hosted?.gitSha ?? null}
                     />
                   )}

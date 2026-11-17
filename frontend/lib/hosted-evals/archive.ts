@@ -11,7 +11,7 @@ import { SimpleLRU } from "@/lib/simple-lru";
 import { type ArchiveFile } from "./types";
 
 /*
- * Archives hosted evals keep in the exports bucket: task-set and agent-script
+ * Archives hosted evals keep in the exports bucket: task-set and scripts
  * versions (`eval-store/<project>/<hash>`) and each remote run's Harbor job
  * output (`hosted-evals/<project>/<runId>/jobs/<taskSet>`). Each is a `.tar.gz`
  * made of one gzip member per group of files, and its index (written by
@@ -46,7 +46,7 @@ export class FilesUnavailableError extends NotFoundError {
 // Indexes never change once uploaded.
 const indexes = new SimpleLRU<string, ArchiveIndex>(32);
 
-/** `eval-store/<project>/<hash>`: a task-set or agent-scripts version's archive, without extension. */
+/** `eval-store/<project>/<hash>`: a task-set version's or a run's scripts archive, without extension. */
 export const blobPrefix = (projectId: string, hash: string) => `eval-store/${projectId}/${hash}`;
 
 /** `hosted-evals/<project>/<runId>/jobs/<taskSet>`: one task set's Harbor job output from a remote run. */

@@ -15,7 +15,7 @@ import {
 
 /*
  * An evaluation of a run started by lmnr-cli records the hashes of the task set
- * and agent scripts it ran (`hosted_metadata`, set by the Laminar Harbor
+ * and scripts it ran (`hosted_metadata`, set by the Laminar Harbor
  * plugin), so each trial's task folder and the scripts show from those blobs
  * whether or not the task set was a pushed version. A remote run's evaluation
  * also shows the trial's dir in its Harbor job output, which the orchestrator
@@ -69,7 +69,7 @@ const getArchivePrefix = async (projectId: string, evaluationId: string, archive
     throw new NotFoundError(
       archive === "task-set"
         ? "This evaluation didn't record its task set"
-        : "This evaluation didn't record its agent scripts"
+        : "This evaluation didn't record its scripts"
     );
   }
   return blobPrefix(projectId, archiveHash);
@@ -83,7 +83,7 @@ const getJobPrefix = async (projectId: string, evaluationId: string) => {
   return jobPrefix(projectId, runId, taskSet);
 };
 
-/** The files of the task set or agent scripts the evaluation ran, paths relative to their root. */
+/** The files of the task set or scripts the evaluation ran, paths relative to their root. */
 export const getEvaluationFiles = async (
   projectId: string,
   evaluationId: string,
@@ -92,7 +92,7 @@ export const getEvaluationFiles = async (
   files: await listArchive(await getArchivePrefix(projectId, evaluationId, archive), FilesUnavailableError),
 });
 
-/** Streams one file of the evaluation's task set or agent scripts, `path` relative to its root. */
+/** Streams one file of the evaluation's task set or scripts, `path` relative to its root. */
 export const readEvaluationFile = async (
   projectId: string,
   evaluationId: string,
