@@ -58,8 +58,9 @@ pub struct TaskSetPath {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LatestScriptsQuery {
-    agent: String,
+    task_set: String,
 }
 
 // ---- Blobs ----
@@ -315,14 +316,14 @@ pub async fn handle_latest_scripts(
     query: &LatestScriptsQuery,
     db: &DB,
 ) -> ResponseResult {
-    if !hosted_evals::is_name(&query.agent) {
+    if !hosted_evals::is_name(&query.task_set) {
         return Ok(invalid_name());
     }
     Ok(
-        match task_sets::latest_scripts(&db.pool, &project_id, &query.agent).await? {
+        match task_sets::latest_scripts(&db.pool, &project_id, &query.task_set).await? {
             Some(scripts) => HttpResponse::Ok().json(scripts),
             None => HttpResponse::NotFound().json(json!({
-                "error": format!("No evaluation of agent {} has recorded its scripts", query.agent)
+                "error": format!("No evaluation of task set {} has recorded its scripts", query.task_set)
             })),
         },
     )
@@ -396,7 +397,7 @@ fn invalid_hash() -> HttpResponse {
 
 fn invalid_name() -> HttpResponse {
     HttpResponse::BadRequest().json(json!({
-        "error": "Agent and task set names are 1-100 characters of A-Z, a-z, 0-9, '.', '_' \
+        "error": "Task set names are 1-100 characters of A-Z, a-z, 0-9, '.', '_' \
                   and '-', starting with a letter or digit"
     }))
 }
