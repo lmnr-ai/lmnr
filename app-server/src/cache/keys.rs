@@ -5,6 +5,10 @@ pub const CUSTOM_MODEL_COSTS_CACHE_KEY: &str = "custom_model_costs";
 pub const MODEL_COSTS_CACHE_KEY: &str = "model_costs";
 pub const PROJECT_API_KEY_CACHE_KEY: &str = "project_api_key";
 pub const PROJECT_CACHE_KEY: &str = "project";
+/// `posthog_user_email:{user_id}` → the email PostHog knows the user by. Expires by TTL only.
+pub const POSTHOG_USER_EMAIL_CACHE_KEY: &str = "posthog_user_email";
+/// `posthog_workspace_name:{workspace_id}` → the PostHog `workspace` group key. Expires by TTL only.
+pub const POSTHOG_WORKSPACE_NAME_CACHE_KEY: &str = "posthog_workspace_name";
 /// `hosted_evals_sandbox:{project_id}:{sandbox_id}` → the sandbox's Daytona toolbox
 /// URL. Present only once the sandbox was confirmed to carry the project's label.
 pub const HOSTED_EVALS_SANDBOX_CACHE_KEY: &str = "hosted_evals_sandbox";

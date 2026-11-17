@@ -25,6 +25,7 @@ use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     mq::MessageQueue,
+    posthog::usage::McpCall,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
@@ -583,6 +584,8 @@ pub async fn mcp_handler(
                 extensions.insert(api_key.clone());
             }
 
+            let usage = McpCall::from_request(&request.request);
+
             // Use rmcp's OneshotTransport + serve_directly (same pattern as the
             // official tower handler) to route through our ServerHandler.
             let (transport, mut receiver) =
@@ -596,6 +599,10 @@ pub async fn mcp_handler(
             // Collect the response from the channel
             match receiver.recv().await {
                 Some(response) => {
+                    let response = serde_json::to_value(&response).unwrap_or_else(|_| json!({}));
+                    if let Some(usage) = usage {
+                        usage.capture(&req, &response);
+                    }
                     let body = serde_json::to_vec(&response).unwrap_or_else(|_| b"{}".to_vec());
                     HttpResponse::Ok()
                         .content_type("application/json")
