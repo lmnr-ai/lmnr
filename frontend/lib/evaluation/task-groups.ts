@@ -29,8 +29,7 @@ const parseScores = (scores: unknown): Record<string, number> => {
   );
 };
 
-// `score:<name>` columns come from simpleJSONExtractFloat, which reads a missing score as 0,
-// so the raw `scores` JSON is the source of truth whenever the row carries it, even when empty.
+// The raw `scores` JSON is the source of truth whenever the row carries it, even when empty.
 const trialScores = (row: EvalRow): Record<string, number> => {
   if (row["scores"] != null) return parseScores(row["scores"]);
   return Object.fromEntries(
