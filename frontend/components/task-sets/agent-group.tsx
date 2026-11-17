@@ -6,11 +6,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type AgentGroup as AgentGroupType } from "@/lib/actions/task-sets/types";
+import { formatTimestamp } from "@/lib/utils";
 
 import AgentScriptsSheet from "./agent-scripts/sheet";
 import DeleteButton from "./delete-button";
 import TaskSetRow from "./task-set-row";
-import { versionLabel } from "./utils";
 
 interface AgentGroupProps {
   projectId: string;
@@ -26,8 +26,10 @@ export default function AgentGroup({ projectId, agent, onChanged }: AgentGroupPr
     <section className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-medium">{agent.name}</h2>
-        {agent.head && (
-          <span className="text-xs text-secondary-foreground">scripts {versionLabel(agent.head.number)}</span>
+        {agent.latestScripts && (
+          <span className="text-xs text-secondary-foreground">
+            last run {formatTimestamp(agent.latestScripts.lastUsedAt)}
+          </span>
         )}
         <div className="flex-1" />
         <Button variant="outline" className="gap-2" onClick={() => setScriptsOpen(true)}>
@@ -37,7 +39,7 @@ export default function AgentGroup({ projectId, agent, onChanged }: AgentGroupPr
         <DeleteButton
           url={`/api/projects/${projectId}/eval-agents/${agent.id}`}
           title={`Delete agent ${agent.name}`}
-          description={`This deletes ${agent.name}, its scripts and its ${agent.taskSets.length} task set(s). Evaluations keep their results.`}
+          description={`This deletes ${agent.name}, the scripts its runs used and its ${agent.taskSets.length} task set(s). Evaluations keep their results.`}
           onDeleted={onChanged}
         />
       </div>

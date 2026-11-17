@@ -3,12 +3,12 @@
 import useSWR from "swr";
 
 import Message from "@/components/evaluation/task-files/message";
-import VersionSelect from "@/components/task-sets/agent-scripts/version-select";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { type TaskInfo, type TaskSetDetail } from "@/lib/actions/task-sets/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
 import { useTaskParam, useVersionParam } from "../state";
+import VersionSelect from "../version-select";
 import TaskDetail from "./task-detail";
 import TaskList from "./task-list";
 

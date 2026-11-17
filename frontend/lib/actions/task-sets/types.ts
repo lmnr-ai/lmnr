@@ -9,12 +9,13 @@ export interface TaskSetVersionInfo {
   createdAt: string;
 }
 
-export interface AgentVersionInfo {
+/** A copy of an agent's scripts that runs used. The scripts themselves live in the user's repo. */
+export interface AgentScriptsInfo {
   id: string;
-  number: number | null;
   hash: string;
   gitSha: string | null;
   createdAt: string;
+  lastUsedAt: string;
 }
 
 export interface TaskSetSummary {
@@ -29,7 +30,8 @@ export interface TaskSetSummary {
 export interface AgentGroup {
   id: string;
   name: string;
-  head: AgentVersionInfo | null;
+  /** The scripts the agent's last run used. */
+  latestScripts: AgentScriptsInfo | null;
   taskSets: TaskSetSummary[];
 }
 
@@ -45,7 +47,7 @@ export interface TaskSetDetail {
   id: string;
   name: string;
   headVersionId: string | null;
-  agent: { id: string; name: string; headVersionId: string | null };
+  agent: { id: string; name: string; latestScripts: AgentScriptsInfo | null };
   /** Newest first. */
   versions: TaskSetVersionWithDiff[];
 }

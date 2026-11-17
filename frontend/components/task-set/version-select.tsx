@@ -1,7 +1,6 @@
+import { shortHash, versionLabel } from "@/components/task-sets/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatTimestamp } from "@/lib/utils";
-
-import { shortHash, versionLabel } from "../utils";
 
 interface VersionSelectProps {
   /** Newest first. */
@@ -11,7 +10,7 @@ interface VersionSelectProps {
   onChange: (versionId: string) => void;
 }
 
-/** Picks one version of a task set or of an agent's scripts. */
+/** Picks one version of a task set. */
 export default function VersionSelect({ versions, value, headVersionId, onChange }: VersionSelectProps) {
   return (
     <Select value={value} onValueChange={onChange}>

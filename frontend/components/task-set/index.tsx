@@ -49,7 +49,7 @@ export default function TaskSet({ projectId, initialTaskSet }: TaskSetProps) {
               projectId={projectId}
               agentId={taskSet.agent.id}
               agentName={taskSet.agent.name}
-              headVersionId={taskSet.agent.headVersionId}
+              scripts={taskSet.agent.latestScripts}
             />
           </div>
         )}

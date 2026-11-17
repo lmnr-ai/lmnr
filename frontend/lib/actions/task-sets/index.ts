@@ -14,7 +14,7 @@ import { blobPrefix } from "@/lib/hosted-evals/archive";
 
 import {
   type AgentGroup,
-  type AgentVersionInfo,
+  type AgentScriptsInfo,
   type TaskInfo,
   type TaskSetDetail,
   type TaskSetLink,
@@ -27,21 +27,27 @@ export * from "./types";
 const byName = (a: { name: string }, b: { name: string }) =>
   a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.name.localeCompare(b.name);
 
-const agentVersionColumns = {
+const scriptsColumns = {
   id: evalAgentVersions.id,
-  number: evalAgentVersions.number,
   hash: evalAgentVersions.hash,
   gitSha: evalAgentVersions.gitSha,
   createdAt: evalAgentVersions.createdAt,
+  lastUsedAt: evalAgentVersions.lastUsedAt,
 };
+
+/** The scripts the agent's last run used: join `evalAgentVersions` on this. */
+const latestScriptsId = sql`(SELECT v.id FROM ${evalAgentVersions} v WHERE v.eval_agent_id = ${evalAgents.id} ORDER BY v.last_used_at DESC LIMIT 1)`;
+
+const toScripts = (row: { id: string | null } | null): AgentScriptsInfo | null =>
+  row?.id ? (row as AgentScriptsInfo) : null;
 
 /** Every agent of the project with its task sets, both by name. */
 export const getTaskSetGroups = async (projectId: string): Promise<AgentGroup[]> => {
   const [agents, sets] = await Promise.all([
     db
-      .select({ id: evalAgents.id, name: evalAgents.name, head: agentVersionColumns })
+      .select({ id: evalAgents.id, name: evalAgents.name, latestScripts: scriptsColumns })
       .from(evalAgents)
-      .leftJoin(evalAgentVersions, eq(evalAgentVersions.id, evalAgents.headVersionId))
+      .leftJoin(evalAgentVersions, eq(evalAgentVersions.id, latestScriptsId))
       .where(eq(evalAgents.projectId, projectId)),
     db
       .select({
@@ -62,7 +68,7 @@ export const getTaskSetGroups = async (projectId: string): Promise<AgentGroup[]>
     .map((agent) => ({
       id: agent.id,
       name: agent.name,
-      head: agent.head?.id ? (agent.head as AgentVersionInfo) : null,
+      latestScripts: toScripts(agent.latestScripts),
       taskSets: sets
         .filter((s) => s.agentId === agent.id)
         .map((s) => ({
@@ -83,15 +89,18 @@ const findTaskSet = async (projectId: string, taskSetId: string) => {
       id: taskSets.id,
       name: taskSets.name,
       headVersionId: taskSets.headVersionId,
-      agent: { id: evalAgents.id, name: evalAgents.name, headVersionId: evalAgents.headVersionId },
+      agent: { id: evalAgents.id, name: evalAgents.name },
+      latestScripts: scriptsColumns,
     })
     .from(taskSets)
     .innerJoin(evalAgents, eq(evalAgents.id, taskSets.evalAgentId))
+    .leftJoin(evalAgentVersions, eq(evalAgentVersions.id, latestScriptsId))
     .where(and(eq(taskSets.id, taskSetId), eq(taskSets.projectId, projectId)));
   if (!set) {
     throw new NotFoundError("Task set not found");
   }
-  return set;
+  const { latestScripts, ...rest } = set;
+  return { ...rest, agent: { ...set.agent, latestScripts: toScripts(latestScripts) } };
 };
 
 /** The task set with every version (newest first) and what each changed against its parent. */
@@ -192,15 +201,7 @@ export const getTaskSetRuns = async (projectId: string, taskSetId: string): Prom
     .limit(500);
 };
 
-/** Every version of the agent's scripts, newest first. */
-export const getAgentVersions = async (projectId: string, agentId: string): Promise<AgentVersionInfo[]> =>
-  db
-    .select(agentVersionColumns)
-    .from(evalAgentVersions)
-    .where(and(eq(evalAgentVersions.evalAgentId, agentId), eq(evalAgentVersions.projectId, projectId)))
-    .orderBy(desc(evalAgentVersions.createdAt));
-
-/** The agent-scripts version's archive prefix, after checking it belongs to the agent and project. */
+/** A recorded agent-scripts copy's archive prefix, after checking it belongs to the agent and project. */
 export const getAgentVersionPrefix = async (projectId: string, agentId: string, versionId: string) => {
   const [version] = await db
     .select({ hash: evalAgentVersions.hash })
