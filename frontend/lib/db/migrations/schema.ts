@@ -1288,14 +1288,15 @@ export const evaluations = pgTable(
 
 // Hosted evals: an agent's scripts (`evals/<agent>/` minus `task_sets/`) and its
 // task sets, each versioned. A version's files are one content-addressed blob in
-// S3 (`eval-store/<project>/<hash>`). `number` is null for run snapshots.
+// S3 (`eval-store/<project>/<hash>`). `number` is null for run snapshots. Agent
+// scripts live in the user's repo: `eval_agent_versions` only records the copies
+// runs used, one per distinct hash.
 export const evalAgents = pgTable(
   "eval_agents",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
     name: text().notNull(),
-    headVersionId: uuid("head_version_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
@@ -1304,11 +1305,6 @@ export const evalAgents = pgTable(
       foreignColumns: [projects.id],
       name: "eval_agents_project_id_fkey",
     }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.headVersionId],
-      foreignColumns: [evalAgentVersions.id],
-      name: "eval_agents_head_version_id_fkey",
-    }).onDelete("set null"),
     unique("eval_agents_project_id_name_key").on(table.projectId, table.name),
   ]
 );
@@ -1319,10 +1315,10 @@ export const evalAgentVersions = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
     evalAgentId: uuid("eval_agent_id").notNull(),
-    number: integer(),
     hash: text().notNull(),
     gitSha: text("git_sha"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
@@ -1336,7 +1332,6 @@ export const evalAgentVersions = pgTable(
       name: "eval_agent_versions_project_id_fkey",
     }).onDelete("cascade"),
     unique("eval_agent_versions_eval_agent_id_hash_key").on(table.evalAgentId, table.hash),
-    unique("eval_agent_versions_eval_agent_id_number_key").on(table.evalAgentId, table.number),
   ]
 );
 

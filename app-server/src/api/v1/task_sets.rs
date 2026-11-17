@@ -39,7 +39,6 @@ const MAX_TASKS: usize = 10_000;
 #[serde(rename_all = "camelCase")]
 pub struct CreateAgentVersionRequest {
     hash: String,
-    push: bool,
     #[serde(default)]
     git_sha: Option<String>,
 }
@@ -303,7 +302,6 @@ pub async fn handle_create_agent_version(
         &path.agent,
         &req.hash,
         req.git_sha.as_deref(),
-        req.push,
     )
     .await?;
     Ok(HttpResponse::Ok().json(version))

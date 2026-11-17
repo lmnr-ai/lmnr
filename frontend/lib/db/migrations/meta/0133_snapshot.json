@@ -2375,12 +2375,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "number": {
-          "name": "number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "hash": {
           "name": "hash",
           "type": "text",
@@ -2395,6 +2389,13 @@
         },
         "created_at": {
           "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_used_at": {
+          "name": "last_used_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -2439,14 +2440,6 @@
             "eval_agent_id",
             "hash"
           ]
-        },
-        "eval_agent_versions_eval_agent_id_number_key": {
-          "name": "eval_agent_versions_eval_agent_id_number_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "eval_agent_id",
-            "number"
-          ]
         }
       },
       "policies": {},
@@ -2476,12 +2469,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "head_version_id": {
-          "name": "head_version_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2503,19 +2490,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "eval_agents_head_version_id_fkey": {
-          "name": "eval_agents_head_version_id_fkey",
-          "tableFrom": "eval_agents",
-          "tableTo": "eval_agent_versions",
-          "columnsFrom": [
-            "head_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
