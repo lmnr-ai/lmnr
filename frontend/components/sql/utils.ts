@@ -525,6 +525,28 @@ const tableSchemas: Record<string, TableSchema> = {
       { name: "created_at", type: "DateTime64(6)", description: "When the filter group was added" },
     ],
   },
+  table_views: {
+    description:
+      "Saved views of the app's data tables, stored in Postgres and shared by the project: column layout plus filters, search and sort",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the view" },
+      {
+        name: "resource",
+        type: "String",
+        description:
+          "Table the view belongs to: traces, spans, sessions, evaluations, datasets, … or signal-events:<signal id>",
+      },
+      { name: "name", type: "String", description: "View name, unique per table" },
+      {
+        name: "config",
+        type: "String",
+        description:
+          "View as a JSON object: columnOrder, columnVisibility, columnSizing, customColumns, filters, search, sortBy, sortDirection, isDefault",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the view was created" },
+      { name: "updated_at", type: "DateTime64(6)", description: "When the view was last saved" },
+    ],
+  },
   clusters: {
     description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
     columns: [
