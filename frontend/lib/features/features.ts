@@ -22,6 +22,7 @@ export enum Feature {
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
   SIGNAL_LLM_PROFILES = "SIGNAL_LLM_PROFILES",
   LOOPS = "LOOPS",
+  SIGNUP_SLACK_NOTIFICATIONS = "SIGNUP_SLACK_NOTIFICATIONS",
   AGENT = "AGENT",
   TELEMETRY = "TELEMETRY",
   ONBOARDING_COMPANY_NAME = "ONBOARDING_COMPANY_NAME",
@@ -149,6 +150,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.LOOPS) {
     return process.env.LAMINAR_CLOUD === "true" && !!process.env.LOOPS_API_KEY;
+  }
+
+  if (feature === Feature.SIGNUP_SLACK_NOTIFICATIONS) {
+    return process.env.LAMINAR_CLOUD === "true" && !!process.env.SIGNUP_SLACK_WEBHOOK_URL;
   }
 
   if (feature === Feature.AGENT) {
