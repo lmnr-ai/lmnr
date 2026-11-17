@@ -397,7 +397,7 @@ fn invalid_hash() -> HttpResponse {
 
 fn invalid_name() -> HttpResponse {
     HttpResponse::BadRequest().json(json!({
-        "error": "Agent and task set names are 1-100 characters of A-Z, a-z, 0-9, '.', '_' \
+        "error": "Task set names are 1-100 characters of A-Z, a-z, 0-9, '.', '_' \
                   and '-', starting with a letter or digit"
     }))
 }
