@@ -86,7 +86,8 @@ pub async fn create_agent_version(
     let version = sqlx::query_as::<_, AgentVersion>(
         "INSERT INTO eval_agent_versions (project_id, eval_agent_id, hash, git_sha)
          VALUES ($1, $2, $3, $4)
-         ON CONFLICT (eval_agent_id, hash) DO UPDATE SET hash = EXCLUDED.hash
+         ON CONFLICT (eval_agent_id, hash)
+         DO UPDATE SET git_sha = COALESCE(EXCLUDED.git_sha, eval_agent_versions.git_sha)
          RETURNING id, number, hash, git_sha, created_at",
     )
     .bind(project_id)
