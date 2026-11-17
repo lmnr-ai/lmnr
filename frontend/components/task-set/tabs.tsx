@@ -4,7 +4,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { type TaskSetTab, useTaskSetTab } from "./state";
 
-/** Tasks | Versions | Runs | Agent scripts switch of a task set. */
+/** Tasks | Versions | Runs switch of a task set. */
 export default function TaskSetTabs() {
   const [tab, setTab] = useTaskSetTab();
   return (
@@ -13,7 +13,6 @@ export default function TaskSetTabs() {
         <TabsTrigger value="tasks">Tasks</TabsTrigger>
         <TabsTrigger value="versions">Versions</TabsTrigger>
         <TabsTrigger value="runs">Runs</TabsTrigger>
-        <TabsTrigger value="scripts">Agent scripts</TabsTrigger>
       </TabsList>
     </Tabs>
   );

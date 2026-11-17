@@ -27,6 +27,7 @@ import {
 } from "@/components/evaluation/store";
 import TaskFiles from "@/components/evaluation/task-files";
 import PanelToggle, { PANELS } from "@/components/evaluation/task-files/panel-toggle";
+import ScriptsFiles from "@/components/evaluation/task-files/scripts-files";
 import { taskNameOf, taskPathOf, trialNameOf } from "@/components/evaluation/task-files/utils";
 import TrialLog from "@/components/evaluation/trial-log";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
@@ -268,12 +269,18 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // shared links carried traceId without trialId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
-  // Task-set evaluations can show each trial's task folder, and remote runs its Harbor output, instead of its trace.
+  // Runs started by lmnr-cli can show each trial's task folder, the agent scripts and (remote runs) the trial's
+  // Harbor output instead of its trace. Shared views can't: the file routes need a project session.
   const current = evaluations.find((e) => e.id === evaluationId);
-  const hasTaskSet = !isShared && !!current?.taskSetVersionId;
-  const hasLog = hasTaskSet && !!current?.hostedMetadata?.runId;
+  const hosted = isShared ? null : current?.hostedMetadata;
+  const hasTask = !!hosted?.taskSetHash;
+  const hasScripts = !!hosted?.scriptsHash;
+  const hasLog = !!hosted?.runId && !!hosted?.taskSet;
   const [panel, setPanel] = useQueryState("panel", parseAsStringLiteral(PANELS).withDefault("trace"));
-  const shownPanel = (panel === "task" && hasTaskSet) || (panel === "log" && hasLog) ? panel : "trace";
+  const shownPanel =
+    (panel === "task" && hasTask) || (panel === "log" && hasLog) || (panel === "scripts" && hasScripts)
+      ? panel
+      : "trace";
   const taskPath = taskPathOf(selectedRow);
   const trialName = trialNameOf(selectedRow);
   const taskName = taskNameOf(selectedRow);
@@ -356,7 +363,8 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
         urlKey={statsUrl}
         evaluations={evaluations}
         datasets={datasets}
-        taskSetVersionId={hasTaskSet ? current?.taskSetVersionId : null}
+        taskSetVersionId={isShared ? null : current?.taskSetVersionId}
+        unpushedTaskSet={!current?.taskSetVersionId ? (hosted?.taskSet ?? null) : null}
       />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         {/* Left + top padding only: the trace panel must run flush to the right
@@ -396,7 +404,15 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                       row={selectedRow}
                     />
                   </div>
-                  {hasTaskSet && <PanelToggle value={shownPanel} onChange={setPanel} showLog={hasLog} />}
+                  {(hasTask || hasLog || hasScripts) && (
+                    <PanelToggle
+                      value={shownPanel}
+                      onChange={setPanel}
+                      showTask={hasTask}
+                      showLog={hasLog}
+                      showScripts={hasScripts}
+                    />
+                  )}
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
                   {/* Task and Log wait for the trial: before it loads there's no task path or trial name, which isn't "not uploaded". */}
@@ -416,6 +432,14 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                       evaluationId={evaluationId}
                       trialName={trialName}
                       taskName={taskName}
+                    />
+                  )}
+                  {shownPanel === "scripts" && (
+                    <ScriptsFiles
+                      projectId={params.projectId}
+                      evaluationId={evaluationId}
+                      agent={hosted?.agent ?? null}
+                      gitSha={hosted?.gitSha ?? null}
                     />
                   )}
                   {/* No onClose ⇒ always-open: the trace header shows no close button. */}

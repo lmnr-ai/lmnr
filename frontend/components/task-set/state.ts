@@ -1,6 +1,6 @@
 import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 
-export const TABS = ["tasks", "versions", "runs", "scripts"] as const;
+export const TABS = ["tasks", "versions", "runs"] as const;
 export type TaskSetTab = (typeof TABS)[number];
 
 export const useTaskSetTab = () => useQueryState("tab", parseAsStringLiteral(TABS).withDefault("tasks"));

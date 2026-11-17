@@ -2,7 +2,6 @@
 
 import useSWR from "swr";
 
-import AgentScripts from "@/components/task-sets/agent-scripts";
 import Header from "@/components/ui/header";
 import { type TaskSetDetail } from "@/lib/actions/task-sets/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
@@ -18,7 +17,7 @@ interface TaskSetProps {
   initialTaskSet: TaskSetDetail;
 }
 
-/** One task set: its tasks at a version, its versions, the runs that used it and its agent's scripts. */
+/** One task set: its tasks at a version, its versions and the runs that used them. */
 export default function TaskSet({ projectId, initialTaskSet }: TaskSetProps) {
   const { data: taskSet = initialTaskSet } = useSWR<TaskSetDetail>(
     `/api/projects/${projectId}/task-sets/${initialTaskSet.id}`,
@@ -29,13 +28,7 @@ export default function TaskSet({ projectId, initialTaskSet }: TaskSetProps) {
 
   return (
     <>
-      <Header
-        path={[
-          { name: "task sets", href: `/project/${projectId}/task-sets` },
-          { name: taskSet.agent.name },
-          { name: taskSet.name },
-        ]}
-      />
+      <Header path={[{ name: "task sets", href: `/project/${projectId}/task-sets` }, { name: taskSet.name }]} />
       <div className="flex flex-none px-4 pb-2">
         <TaskSetTabs />
       </div>
@@ -43,16 +36,6 @@ export default function TaskSet({ projectId, initialTaskSet }: TaskSetProps) {
         {tab === "tasks" && <TasksTab projectId={projectId} taskSet={taskSet} />}
         {tab === "versions" && <VersionsTab taskSet={taskSet} />}
         {tab === "runs" && <RunsTab projectId={projectId} taskSetId={taskSet.id} />}
-        {tab === "scripts" && (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-            <AgentScripts
-              projectId={projectId}
-              agentId={taskSet.agent.id}
-              agentName={taskSet.agent.name}
-              scripts={taskSet.agent.latestScripts}
-            />
-          </div>
-        )}
       </div>
     </>
   );

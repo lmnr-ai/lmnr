@@ -29,9 +29,7 @@ export default function TaskSetLink({ projectId, taskSetVersionId }: TaskSetLink
       title="Task set this evaluation ran"
     >
       <ListChecks className="size-3.5" />
-      <span className="max-w-64 truncate">
-        {data.agentName}/{data.taskSetName}
-      </span>
+      <span className="max-w-64 truncate">{data.taskSetName}</span>
       <span>{versionLabel(data.versionNumber)}</span>
     </Link>
   );

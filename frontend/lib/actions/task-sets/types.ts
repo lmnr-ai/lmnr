@@ -1,38 +1,21 @@
 // Client-safe types for the Task sets page (no server imports).
 
-/** `number` is null for run snapshots: versions a run used that were never pushed. */
 export interface TaskSetVersionInfo {
   id: string;
-  number: number | null;
+  number: number;
   hash: string;
   parentId: string | null;
   createdAt: string;
 }
 
-/** A copy of an agent's scripts that runs used. The scripts themselves live in the user's repo. */
-export interface AgentScriptsInfo {
-  id: string;
-  hash: string;
-  gitSha: string | null;
-  createdAt: string;
-  lastUsedAt: string;
-}
-
 export interface TaskSetSummary {
   id: string;
   name: string;
-  head: { id: string; number: number | null; createdAt: string } | null;
+  head: { id: string; number: number; createdAt: string } | null;
   taskCount: number;
   createdAt: string;
-}
-
-/** An agent with its task sets, as the Task sets list groups them. */
-export interface AgentGroup {
-  id: string;
-  name: string;
-  /** The scripts the agent's last run used. */
-  latestScripts: AgentScriptsInfo | null;
-  taskSets: TaskSetSummary[];
+  /** When the newest evaluation linked to any of its versions started. */
+  lastRunAt: string | null;
 }
 
 /** A version with what changed against its parent, compared by task name and digest. */
@@ -47,7 +30,6 @@ export interface TaskSetDetail {
   id: string;
   name: string;
   headVersionId: string | null;
-  agent: { id: string; name: string; latestScripts: AgentScriptsInfo | null };
   /** Newest first. */
   versions: TaskSetVersionWithDiff[];
 }
@@ -65,13 +47,12 @@ export interface TaskSetRun {
   groupId: string;
   createdAt: string;
   versionId: string;
-  versionNumber: number | null;
+  versionNumber: number;
 }
 
 /** What an evaluation's header links to. */
 export interface TaskSetLink {
   taskSetId: string;
   taskSetName: string;
-  agentName: string;
-  versionNumber: number | null;
+  versionNumber: number;
 }

@@ -4,7 +4,7 @@ import { formatTimestamp } from "@/lib/utils";
 
 interface VersionSelectProps {
   /** Newest first. */
-  versions: { id: string; number: number | null; hash: string; createdAt: string }[];
+  versions: { id: string; number: number; hash: string; createdAt: string }[];
   value: string;
   headVersionId: string | null;
   onChange: (versionId: string) => void;

@@ -12,7 +12,7 @@ interface TaskFilesProps {
   taskName: string | null;
 }
 
-/** The trial's task folder from the task-set version its evaluation ran. Mount with `key={taskPath}`. */
+/** The trial's task folder from the task set its evaluation ran. Mount with `key={taskPath}`. */
 export default function TaskFiles({ projectId, evaluationId, taskPath, taskName }: TaskFilesProps) {
   if (!taskPath) {
     return <Message>This trial&apos;s task isn&apos;t in the task set, so its files can&apos;t be shown.</Message>;

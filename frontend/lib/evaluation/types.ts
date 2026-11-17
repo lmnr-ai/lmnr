@@ -7,11 +7,20 @@ export type Evaluation = {
   name: string;
   projectId: string;
   metadata: Record<string, unknown> | null;
-  /** Set by the Laminar Harbor plugin; `runId` only for remote runs (`lmnr-cli eval run --remote`). */
-  hostedMetadata?: { runId?: string; agentVersionId?: string; taskSetVersionId?: string } | null;
-  /** The task-set version the evaluation ran, whose task folders can be browsed. */
+  /**
+   * What lmnr-cli recorded about the run (sent by the Laminar Harbor plugin): the task set and agent scripts it ran,
+   * by archive hash; `runId` only for remote runs (`lmnr-cli eval run --remote`).
+   */
+  hostedMetadata?: {
+    agent?: string;
+    taskSet?: string;
+    taskSetHash?: string;
+    scriptsHash?: string;
+    gitSha?: string;
+    runId?: string;
+  } | null;
+  /** The pushed task-set version with the content the evaluation ran; null for a never-pushed or edited copy. */
   taskSetVersionId?: string | null;
-  evalAgentVersionId?: string | null;
 };
 
 /** A dataset an evaluation's Trials are linked to. */

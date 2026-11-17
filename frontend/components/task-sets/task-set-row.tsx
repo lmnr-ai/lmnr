@@ -26,6 +26,9 @@ export default function TaskSetRow({ projectId, taskSet, onDeleted }: TaskSetRow
       </TableCell>
       <TableCell className="text-secondary-foreground">{taskSet.taskCount}</TableCell>
       <TableCell className="text-secondary-foreground">
+        {taskSet.lastRunAt ? formatTimestamp(taskSet.lastRunAt) : "—"}
+      </TableCell>
+      <TableCell className="text-secondary-foreground">
         {formatTimestamp(taskSet.head?.createdAt ?? taskSet.createdAt)}
       </TableCell>
       <TableCell>

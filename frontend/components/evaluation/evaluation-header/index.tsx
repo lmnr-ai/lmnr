@@ -27,11 +27,20 @@ interface EvaluationHeader {
   datasets: LinkedDataset[];
   /** The task-set version the evaluation ran; unset on shared views. */
   taskSetVersionId?: string | null;
+  /** The task set's name when the run used a copy that matches no pushed version. */
+  unpushedTaskSet?: string | null;
 }
 
 const DOWNLOAD_FORMATS = ["csv", "json"] as const;
 
-const EvaluationHeader = ({ evaluations, name, urlKey, datasets, taskSetVersionId }: EvaluationHeader) => {
+const EvaluationHeader = ({
+  evaluations,
+  name,
+  urlKey,
+  datasets,
+  taskSetVersionId,
+  unpushedTaskSet,
+}: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
@@ -128,6 +137,14 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets, taskSetVersionI
       <div className="flex items-center gap-2 shrink-0">
         {taskSetVersionId && typeof projectId === "string" && (
           <TaskSetLink projectId={projectId} taskSetVersionId={taskSetVersionId} />
+        )}
+        {unpushedTaskSet && (
+          <span
+            className="max-w-64 truncate px-2 text-xs text-secondary-foreground"
+            title="The run used a local copy of the task set that matches no pushed version"
+          >
+            {unpushedTaskSet} · not a pushed version
+          </span>
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

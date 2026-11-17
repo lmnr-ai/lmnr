@@ -25,7 +25,7 @@ interface ArchiveFolderProps {
 }
 
 /**
- * One folder of a hosted-evals archive (a task-set or agent-scripts version):
+ * One folder of a hosted-evals archive (a task set or the agent scripts a run used):
  * file tree on the left, the open file on the right. Mount with `key={root}` so
  * switching folders reopens the default file.
  */
