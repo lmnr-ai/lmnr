@@ -48,7 +48,7 @@ pub struct TaskSetSummary {
     pub head: Option<TaskSetVersion>,
 }
 
-/// The scripts a project's latest evaluation of an agent ran with.
+/// The scripts a project's latest evaluation of a task set ran with.
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct LatestScripts {
@@ -228,12 +228,12 @@ pub async fn list_task_set_versions(
     Ok(versions)
 }
 
-/// The scripts of the project's latest evaluation of `agent` (by
+/// The scripts of the project's latest evaluation of `task_set` (by
 /// `hosted_metadata`, which lmnr-cli writes).
 pub async fn latest_scripts(
     pool: &PgPool,
     project_id: &Uuid,
-    agent: &str,
+    task_set: &str,
 ) -> Result<Option<LatestScripts>> {
     let scripts = sqlx::query_as::<_, LatestScripts>(
         "SELECT hosted_metadata->>'scriptsHash' AS hash,
@@ -242,13 +242,13 @@ pub async fn latest_scripts(
                 id AS evaluation_id
          FROM evaluations
          WHERE project_id = $1
-           AND hosted_metadata->>'agent' = $2
+           AND hosted_metadata->>'taskSet' = $2
            AND hosted_metadata->>'scriptsHash' IS NOT NULL
          ORDER BY created_at DESC
          LIMIT 1",
     )
     .bind(project_id)
-    .bind(agent)
+    .bind(task_set)
     .fetch_optional(pool)
     .await?;
     Ok(scripts)

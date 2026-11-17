@@ -61,7 +61,7 @@ impl HostedEvals {
 }
 
 /// A remote run (`lmnr-cli eval run --remote`). `spec` is opaque here: the CLI that requested the run wrote
-/// it (which agent scripts and task-set versions to run) and the same CLI version reads it back in the
+/// it (the scripts and task sets to run) and the same CLI version reads it back in the
 /// orchestrator.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,7 +88,8 @@ impl From<anyhow::Error> for RunError {
     }
 }
 
-/// A content-addressed blob: the packed files of one agent-scripts or task-set version. Kept until
+/// A content-addressed blob: the packed files of a run's scripts (its evals folder) or of a
+/// task-set version. Kept until
 /// deleted (no lifecycle rule on `eval-store/`), unlike run output under `hosted-evals/`.
 pub fn blob_archive_key(project_id: &Uuid, hash: &str) -> String {
     format!("eval-store/{project_id}/{hash}.tar.gz")
@@ -153,9 +154,6 @@ struct IndexedFile {
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HostedMetadata {
-    /// The local agent folder's name (`evals/<agent>/`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub task_set: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -175,7 +173,6 @@ impl HostedMetadata {
         let name = |v: Option<String>| v.filter(|v| is_name(v));
         let hash = |v: Option<String>| v.filter(|v| is_hash(v));
         Self {
-            agent: name(self.agent),
             task_set: name(self.task_set),
             task_set_hash: hash(self.task_set_hash),
             scripts_hash: hash(self.scripts_hash),
