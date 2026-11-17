@@ -1,6 +1,8 @@
-//! Hosted-evals agents and task sets, each with versions whose files are one
-//! content-addressed blob (`hosted_evals::blob_archive_key`). A version with
-//! `number = NULL` is a run snapshot: what a run used, never head.
+//! Hosted-evals agents and their versioned task sets. Each version's files are
+//! one content-addressed blob (`hosted_evals::blob_archive_key`). A task set
+//! version with `number = NULL` is a run snapshot: what a run used, never head.
+//! Agent scripts live in the user's repo; Laminar only keeps the copies runs
+//! used (`eval_agent_versions`).
 
 use std::collections::HashMap;
 
@@ -15,10 +17,10 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct AgentVersion {
     pub id: Uuid,
-    pub number: Option<i32>,
     pub hash: String,
     pub git_sha: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub last_used_at: DateTime<Utc>,
 }
 
 #[derive(Serialize, FromRow)]
@@ -66,20 +68,20 @@ pub struct TaskSetSummary {
 pub struct AgentSummary {
     pub id: Uuid,
     pub name: String,
-    pub head: Option<AgentVersion>,
+    /// The scripts the agent's last run used.
+    pub latest_scripts: Option<AgentVersion>,
     pub task_sets: Vec<TaskSetSummary>,
 }
 
-/// Creates (or finds, by hash) a version of an agent's scripts, creating the
-/// agent on first use. `push` numbers it and makes it head; the repo is the
-/// source of truth for scripts, so the last push wins.
+/// Records the scripts a run used: one row per distinct hash, creating the
+/// agent on first use. Scripts live in the user's repo, so these are never
+/// numbered; the latest used is what `eval pull <agent>` restores.
 pub async fn create_agent_version(
     pool: &PgPool,
     project_id: &Uuid,
     agent: &str,
     hash: &str,
     git_sha: Option<&str>,
-    push: bool,
 ) -> Result<AgentVersion> {
     let mut tx = pool.begin().await?;
     let agent_id = upsert_agent(&mut tx, project_id, agent).await?;
@@ -87,8 +89,9 @@ pub async fn create_agent_version(
         "INSERT INTO eval_agent_versions (project_id, eval_agent_id, hash, git_sha)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (eval_agent_id, hash)
-         DO UPDATE SET git_sha = COALESCE(EXCLUDED.git_sha, eval_agent_versions.git_sha)
-         RETURNING id, number, hash, git_sha, created_at",
+         DO UPDATE SET last_used_at = now(),
+                       git_sha = COALESCE(EXCLUDED.git_sha, eval_agent_versions.git_sha)
+         RETURNING id, hash, git_sha, created_at, last_used_at",
     )
     .bind(project_id)
     .bind(agent_id)
@@ -96,31 +99,6 @@ pub async fn create_agent_version(
     .bind(git_sha)
     .fetch_one(&mut *tx)
     .await?;
-    if !push {
-        tx.commit().await?;
-        return Ok(version);
-    }
-    let version = match version.number {
-        Some(_) => version,
-        None => {
-            sqlx::query_as::<_, AgentVersion>(
-                "UPDATE eval_agent_versions
-                 SET number = (SELECT COALESCE(MAX(number), 0) + 1
-                               FROM eval_agent_versions WHERE eval_agent_id = $1)
-                 WHERE id = $2
-                 RETURNING id, number, hash, git_sha, created_at",
-            )
-            .bind(agent_id)
-            .bind(version.id)
-            .fetch_one(&mut *tx)
-            .await?
-        }
-    };
-    sqlx::query("UPDATE eval_agents SET head_version_id = $1 WHERE id = $2")
-        .bind(version.id)
-        .bind(agent_id)
-        .execute(&mut *tx)
-        .await?;
     tx.commit().await?;
     Ok(version)
 }
@@ -267,11 +245,11 @@ async fn upsert_agent(conn: &mut PgConnection, project_id: &Uuid, name: &str) ->
 struct AgentRow {
     id: Uuid,
     name: String,
-    head_id: Option<Uuid>,
-    head_number: Option<i32>,
-    head_hash: Option<String>,
-    head_git_sha: Option<String>,
-    head_created_at: Option<DateTime<Utc>>,
+    scripts_id: Option<Uuid>,
+    scripts_hash: Option<String>,
+    scripts_git_sha: Option<String>,
+    scripts_created_at: Option<DateTime<Utc>>,
+    scripts_last_used_at: Option<DateTime<Utc>>,
 }
 
 #[derive(FromRow)]
@@ -286,13 +264,20 @@ struct TaskSetRow {
     head_created_at: Option<DateTime<Utc>>,
 }
 
-/// Every agent of the project with its head and its task sets' heads, by name.
+/// Every agent of the project with its latest scripts and its task sets'
+/// heads, by name.
 pub async fn list_agents(pool: &PgPool, project_id: &Uuid) -> Result<Vec<AgentSummary>> {
     let agents = sqlx::query_as::<_, AgentRow>(
-        "SELECT a.id, a.name, v.id AS head_id, v.number AS head_number, v.hash AS head_hash,
-                v.git_sha AS head_git_sha, v.created_at AS head_created_at
+        "SELECT a.id, a.name, v.id AS scripts_id, v.hash AS scripts_hash,
+                v.git_sha AS scripts_git_sha, v.created_at AS scripts_created_at,
+                v.last_used_at AS scripts_last_used_at
          FROM eval_agents a
-         LEFT JOIN eval_agent_versions v ON v.id = a.head_version_id
+         LEFT JOIN LATERAL (
+             SELECT * FROM eval_agent_versions
+             WHERE eval_agent_id = a.id
+             ORDER BY last_used_at DESC
+             LIMIT 1
+         ) v ON true
          WHERE a.project_id = $1
          ORDER BY lower(a.name), a.name",
     )
@@ -336,21 +321,28 @@ pub async fn list_agents(pool: &PgPool, project_id: &Uuid) -> Result<Vec<AgentSu
     Ok(agents
         .into_iter()
         .map(|row| {
-            let head = match (row.head_id, row.head_hash, row.head_created_at) {
-                (Some(id), Some(hash), Some(created_at)) => Some(AgentVersion {
-                    id,
-                    number: row.head_number,
-                    hash,
-                    git_sha: row.head_git_sha,
-                    created_at,
-                }),
+            let latest_scripts = match (
+                row.scripts_id,
+                row.scripts_hash,
+                row.scripts_created_at,
+                row.scripts_last_used_at,
+            ) {
+                (Some(id), Some(hash), Some(created_at), Some(last_used_at)) => {
+                    Some(AgentVersion {
+                        id,
+                        hash,
+                        git_sha: row.scripts_git_sha,
+                        created_at,
+                        last_used_at,
+                    })
+                }
                 _ => None,
             };
             AgentSummary {
                 task_sets: sets_by_agent.remove(&row.id).unwrap_or_default(),
                 id: row.id,
                 name: row.name,
-                head,
+                latest_scripts,
             }
         })
         .collect())
