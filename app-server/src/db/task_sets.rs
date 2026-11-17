@@ -1,10 +1,7 @@
-//! Hosted-evals agents and their versioned task sets. Each version's files are
-//! one content-addressed blob (`hosted_evals::blob_archive_key`). A task set
-//! version with `number = NULL` is a run snapshot: what a run used, never head.
-//! Agent scripts live in the user's repo; Laminar only keeps the copies runs
-//! used (`eval_agent_versions`).
-
-use std::collections::HashMap;
+//! Hosted-evals task sets and their versions. Each version's files are one
+//! content-addressed blob (`hosted_evals::blob_archive_key`). Only `eval push`
+//! creates versions; runs link their evaluation to the version whose content
+//! they ran, if any. Agent scripts live in the user's repo.
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -15,19 +12,9 @@ use uuid::Uuid;
 
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentVersion {
-    pub id: Uuid,
-    pub hash: String,
-    pub git_sha: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub last_used_at: DateTime<Utc>,
-}
-
-#[derive(Serialize, FromRow)]
-#[serde(rename_all = "camelCase")]
 pub struct TaskSetVersion {
     pub id: Uuid,
-    pub number: Option<i32>,
+    pub number: i32,
     pub hash: String,
     pub parent_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
@@ -40,13 +27,11 @@ pub struct NewTask {
 }
 
 pub struct NewTaskSetVersion<'a> {
-    pub agent: &'a str,
     pub task_set: &'a str,
     pub hash: &'a str,
     /// The version the caller's content was based on; it becomes the parent.
     pub base: Option<Uuid>,
     pub tasks: &'a [NewTask],
-    pub push: bool,
 }
 
 pub enum TaskSetPush {
@@ -63,44 +48,14 @@ pub struct TaskSetSummary {
     pub head: Option<TaskSetVersion>,
 }
 
-#[derive(Serialize)]
+/// The scripts a project's latest evaluation of an agent ran with.
+#[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentSummary {
-    pub id: Uuid,
-    pub name: String,
-    /// The scripts the agent's last run used.
-    pub latest_scripts: Option<AgentVersion>,
-    pub task_sets: Vec<TaskSetSummary>,
-}
-
-/// Records the scripts a run used: one row per distinct hash, creating the
-/// agent on first use. Scripts live in the user's repo, so these are never
-/// numbered; the latest used is what `eval pull <agent>` restores.
-pub async fn create_agent_version(
-    pool: &PgPool,
-    project_id: &Uuid,
-    agent: &str,
-    hash: &str,
-    git_sha: Option<&str>,
-) -> Result<AgentVersion> {
-    let mut tx = pool.begin().await?;
-    let agent_id = upsert_agent(&mut tx, project_id, agent).await?;
-    let version = sqlx::query_as::<_, AgentVersion>(
-        "INSERT INTO eval_agent_versions (project_id, eval_agent_id, hash, git_sha)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (eval_agent_id, hash)
-         DO UPDATE SET last_used_at = now(),
-                       git_sha = COALESCE(EXCLUDED.git_sha, eval_agent_versions.git_sha)
-         RETURNING id, hash, git_sha, created_at, last_used_at",
-    )
-    .bind(project_id)
-    .bind(agent_id)
-    .bind(hash)
-    .bind(git_sha)
-    .fetch_one(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(version)
+pub struct LatestScripts {
+    pub hash: String,
+    pub git_sha: Option<String>,
+    pub used_at: DateTime<Utc>,
+    pub evaluation_id: Uuid,
 }
 
 #[derive(FromRow)]
@@ -109,74 +64,51 @@ struct TaskSetHead {
     head_version_id: Option<Uuid>,
 }
 
-/// Creates (or finds, by hash) a task-set version, creating the agent and the
-/// set on first use. With `push`, the version becomes head only if head is
-/// still `base` (or already is this version); the set's row lock serializes
-/// concurrent pushes.
+/// Pushes `new` as the set's next version, creating the set on first push.
+/// Content equal to head's is a no-op; otherwise head must still be `base`.
+/// The set's row lock (taken by the upsert) serializes concurrent pushes.
 pub async fn create_task_set_version(
     pool: &PgPool,
     project_id: &Uuid,
     new: &NewTaskSetVersion<'_>,
 ) -> Result<TaskSetPush> {
     let mut tx = pool.begin().await?;
-    let agent_id = upsert_agent(&mut tx, project_id, new.agent).await?;
     let set = sqlx::query_as::<_, TaskSetHead>(
-        "INSERT INTO task_sets (project_id, eval_agent_id, name)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (eval_agent_id, name) DO UPDATE SET name = EXCLUDED.name
+        "INSERT INTO task_sets (project_id, name)
+         VALUES ($1, $2)
+         ON CONFLICT (project_id, name) DO UPDATE SET name = EXCLUDED.name
          RETURNING id, head_version_id",
     )
     .bind(project_id)
-    .bind(agent_id)
     .bind(new.task_set)
     .fetch_one(&mut *tx)
     .await?;
 
-    let existing = sqlx::query_as::<_, TaskSetVersion>(
-        "SELECT id, number, hash, parent_id, created_at FROM task_set_versions
-         WHERE task_set_id = $1 AND hash = $2",
-    )
-    .bind(set.id)
-    .bind(new.hash)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let version = match existing {
-        Some(version) => version,
-        None => insert_task_set_version(&mut tx, project_id, &set, new).await?,
+    let head = match set.head_version_id {
+        Some(head_id) => Some(
+            sqlx::query_as::<_, TaskSetVersion>(
+                "SELECT id, number, hash, parent_id, created_at
+                 FROM task_set_versions WHERE id = $1",
+            )
+            .bind(head_id)
+            .fetch_one(&mut *tx)
+            .await?,
+        ),
+        None => None,
     };
-    if !new.push || set.head_version_id == Some(version.id) {
-        tx.commit().await?;
-        return Ok(TaskSetPush::Done(version));
-    }
-    if set.head_version_id != new.base {
-        let head = match set.head_version_id {
-            Some(head_id) => Some(
-                sqlx::query_as::<_, TaskSetVersion>("SELECT id, number, hash, parent_id, created_at FROM task_set_versions WHERE id = $1")
-                .bind(head_id)
-                .fetch_one(&mut *tx)
-                .await?,
-            ),
-            None => None,
-        };
-        return Ok(TaskSetPush::HeadMoved(head));
+    if let Some(head) = head {
+        if head.hash == new.hash {
+            tx.commit().await?;
+            return Ok(TaskSetPush::Done(head));
+        }
+        if Some(head.id) != new.base {
+            return Ok(TaskSetPush::HeadMoved(Some(head)));
+        }
+    } else if new.base.is_some() {
+        return Ok(TaskSetPush::HeadMoved(None));
     }
 
-    let version = match version.number {
-        Some(_) => version,
-        None => {
-            sqlx::query_as::<_, TaskSetVersion>(
-                "UPDATE task_set_versions
-                 SET number = (SELECT COALESCE(MAX(number), 0) + 1
-                               FROM task_set_versions WHERE task_set_id = $1)
-                 WHERE id = $2
-                 RETURNING id, number, hash, parent_id, created_at",
-            )
-            .bind(set.id)
-            .bind(version.id)
-            .fetch_one(&mut *tx)
-            .await?
-        }
-    };
+    let version = insert_task_set_version(&mut tx, project_id, &set, new).await?;
     sqlx::query("UPDATE task_sets SET head_version_id = $1 WHERE id = $2")
         .bind(version.id)
         .bind(set.id)
@@ -192,18 +124,15 @@ async fn insert_task_set_version(
     set: &TaskSetHead,
     new: &NewTaskSetVersion<'_>,
 ) -> Result<TaskSetVersion> {
-    // A base from another set (or project) is dropped rather than linked.
     let version = sqlx::query_as::<_, TaskSetVersion>(
-        "INSERT INTO task_set_versions (project_id, task_set_id, hash, parent_id)
-         VALUES ($1, $2, $3, COALESCE(
-             (SELECT id FROM task_set_versions WHERE id = $4 AND task_set_id = $2),
-             $5))
+        "INSERT INTO task_set_versions (project_id, task_set_id, hash, parent_id, number)
+         VALUES ($1, $2, $3, $4, (SELECT COALESCE(MAX(number), 0) + 1
+                                  FROM task_set_versions WHERE task_set_id = $2))
          RETURNING id, number, hash, parent_id, created_at",
     )
     .bind(project_id)
     .bind(set.id)
     .bind(new.hash)
-    .bind(new.base)
     .bind(set.head_version_id)
     .fetch_one(&mut *conn)
     .await?;
@@ -226,36 +155,9 @@ async fn insert_task_set_version(
     Ok(version)
 }
 
-/// Takes the agent's row lock until the transaction ends.
-async fn upsert_agent(conn: &mut PgConnection, project_id: &Uuid, name: &str) -> Result<Uuid> {
-    let id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO eval_agents (project_id, name)
-         VALUES ($1, $2)
-         ON CONFLICT (project_id, name) DO UPDATE SET name = EXCLUDED.name
-         RETURNING id",
-    )
-    .bind(project_id)
-    .bind(name)
-    .fetch_one(conn)
-    .await?;
-    Ok(id)
-}
-
-#[derive(FromRow)]
-struct AgentRow {
-    id: Uuid,
-    name: String,
-    scripts_id: Option<Uuid>,
-    scripts_hash: Option<String>,
-    scripts_git_sha: Option<String>,
-    scripts_created_at: Option<DateTime<Utc>>,
-    scripts_last_used_at: Option<DateTime<Utc>>,
-}
-
 #[derive(FromRow)]
 struct TaskSetRow {
     id: Uuid,
-    eval_agent_id: Uuid,
     name: String,
     head_id: Option<Uuid>,
     head_number: Option<i32>,
@@ -264,28 +166,10 @@ struct TaskSetRow {
     head_created_at: Option<DateTime<Utc>>,
 }
 
-/// Every agent of the project with its latest scripts and its task sets'
-/// heads, by name.
-pub async fn list_agents(pool: &PgPool, project_id: &Uuid) -> Result<Vec<AgentSummary>> {
-    let agents = sqlx::query_as::<_, AgentRow>(
-        "SELECT a.id, a.name, v.id AS scripts_id, v.hash AS scripts_hash,
-                v.git_sha AS scripts_git_sha, v.created_at AS scripts_created_at,
-                v.last_used_at AS scripts_last_used_at
-         FROM eval_agents a
-         LEFT JOIN LATERAL (
-             SELECT * FROM eval_agent_versions
-             WHERE eval_agent_id = a.id
-             ORDER BY last_used_at DESC
-             LIMIT 1
-         ) v ON true
-         WHERE a.project_id = $1
-         ORDER BY lower(a.name), a.name",
-    )
-    .bind(project_id)
-    .fetch_all(pool)
-    .await?;
-    let sets = sqlx::query_as::<_, TaskSetRow>(
-        "SELECT s.id, s.eval_agent_id, s.name, v.id AS head_id, v.number AS head_number,
+/// Every task set of the project with its head, by name.
+pub async fn list_task_sets(pool: &PgPool, project_id: &Uuid) -> Result<Vec<TaskSetSummary>> {
+    let rows = sqlx::query_as::<_, TaskSetRow>(
+        "SELECT s.id, s.name, v.id AS head_id, v.number AS head_number,
                 v.hash AS head_hash, v.parent_id AS head_parent_id,
                 v.created_at AS head_created_at
          FROM task_sets s
@@ -296,78 +180,76 @@ pub async fn list_agents(pool: &PgPool, project_id: &Uuid) -> Result<Vec<AgentSu
     .bind(project_id)
     .fetch_all(pool)
     .await?;
-
-    let mut sets_by_agent: HashMap<Uuid, Vec<TaskSetSummary>> = HashMap::new();
-    for row in sets {
-        let head = match (row.head_id, row.head_hash, row.head_created_at) {
-            (Some(id), Some(hash), Some(created_at)) => Some(TaskSetVersion {
-                id,
-                number: row.head_number,
-                hash,
-                parent_id: row.head_parent_id,
-                created_at,
-            }),
-            _ => None,
-        };
-        sets_by_agent
-            .entry(row.eval_agent_id)
-            .or_default()
-            .push(TaskSetSummary {
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let head = match (
+                row.head_id,
+                row.head_number,
+                row.head_hash,
+                row.head_created_at,
+            ) {
+                (Some(id), Some(number), Some(hash), Some(created_at)) => Some(TaskSetVersion {
+                    id,
+                    number,
+                    hash,
+                    parent_id: row.head_parent_id,
+                    created_at,
+                }),
+                _ => None,
+            };
+            TaskSetSummary {
                 id: row.id,
                 name: row.name,
                 head,
-            });
-    }
-    Ok(agents
-        .into_iter()
-        .map(|row| {
-            let latest_scripts = match (
-                row.scripts_id,
-                row.scripts_hash,
-                row.scripts_created_at,
-                row.scripts_last_used_at,
-            ) {
-                (Some(id), Some(hash), Some(created_at), Some(last_used_at)) => {
-                    Some(AgentVersion {
-                        id,
-                        hash,
-                        git_sha: row.scripts_git_sha,
-                        created_at,
-                        last_used_at,
-                    })
-                }
-                _ => None,
-            };
-            AgentSummary {
-                task_sets: sets_by_agent.remove(&row.id).unwrap_or_default(),
-                id: row.id,
-                name: row.name,
-                latest_scripts,
             }
         })
         .collect())
 }
 
-/// The set's versions, newest first. Empty for an unknown agent or set (a
-/// known set always has a version).
+/// The set's versions, newest first. Empty for an unknown set (a known set
+/// always has a version).
 pub async fn list_task_set_versions(
     pool: &PgPool,
     project_id: &Uuid,
-    agent: &str,
     task_set: &str,
 ) -> Result<Vec<TaskSetVersion>> {
     let versions = sqlx::query_as::<_, TaskSetVersion>(
         "SELECT v.id, v.number, v.hash, v.parent_id, v.created_at
          FROM task_set_versions v
          JOIN task_sets s ON s.id = v.task_set_id
-         JOIN eval_agents a ON a.id = s.eval_agent_id
-         WHERE a.project_id = $1 AND a.name = $2 AND s.name = $3
-         ORDER BY v.created_at DESC, v.number DESC NULLS LAST",
+         WHERE s.project_id = $1 AND s.name = $2
+         ORDER BY v.number DESC",
     )
     .bind(project_id)
-    .bind(agent)
     .bind(task_set)
     .fetch_all(pool)
     .await?;
     Ok(versions)
+}
+
+/// The scripts of the project's latest evaluation of `agent` (by
+/// `hosted_metadata`, which lmnr-cli writes).
+pub async fn latest_scripts(
+    pool: &PgPool,
+    project_id: &Uuid,
+    agent: &str,
+) -> Result<Option<LatestScripts>> {
+    let scripts = sqlx::query_as::<_, LatestScripts>(
+        "SELECT hosted_metadata->>'scriptsHash' AS hash,
+                hosted_metadata->>'gitSha' AS git_sha,
+                created_at AS used_at,
+                id AS evaluation_id
+         FROM evaluations
+         WHERE project_id = $1
+           AND hosted_metadata->>'agent' = $2
+           AND hosted_metadata->>'scriptsHash' IS NOT NULL
+         ORDER BY created_at DESC
+         LIMIT 1",
+    )
+    .bind(project_id)
+    .bind(agent)
+    .fetch_optional(pool)
+    .await?;
+    Ok(scripts)
 }

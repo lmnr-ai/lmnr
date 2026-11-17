@@ -14,9 +14,9 @@ use crate::{
             handle_upload_layer,
         },
         task_sets::{
-            AgentPath, BlobPart, CreateAgentVersionRequest, CreateTaskSetVersionRequest,
-            TaskSetPath, handle_create_agent_version, handle_create_task_set_version,
-            handle_get_blob, handle_list_agents, handle_list_task_set_versions, handle_put_blob,
+            BlobPart, CreateTaskSetVersionRequest, LatestScriptsQuery, TaskSetPath,
+            handle_create_task_set_version, handle_get_blob, handle_latest_scripts,
+            handle_list_task_set_versions, handle_list_task_sets, handle_put_blob,
             handle_put_blob_index,
         },
     },
@@ -101,12 +101,12 @@ pub async fn get_blob_index(
     handle_get_blob(auth.project_id, &path, BlobPart::Index, &storage).await
 }
 
-#[get("/hosted-evals/agents")]
-pub async fn list_agents(auth: CliProjectAuth, db: web::Data<DB>) -> ResponseResult {
-    handle_list_agents(auth.project_id, &db).await
+#[get("/hosted-evals/task-sets")]
+pub async fn list_task_sets(auth: CliProjectAuth, db: web::Data<DB>) -> ResponseResult {
+    handle_list_task_sets(auth.project_id, &db).await
 }
 
-#[get("/hosted-evals/agents/{agent}/task-sets/{task_set}/versions")]
+#[get("/hosted-evals/task-sets/{task_set}/versions")]
 pub async fn list_task_set_versions(
     path: web::Path<TaskSetPath>,
     auth: CliProjectAuth,
@@ -115,18 +115,7 @@ pub async fn list_task_set_versions(
     handle_list_task_set_versions(auth.project_id, &path, &db).await
 }
 
-#[post("/hosted-evals/agents/{agent}/versions")]
-pub async fn create_agent_version(
-    path: web::Path<AgentPath>,
-    body: Json<CreateAgentVersionRequest>,
-    auth: CliProjectAuth,
-    db: web::Data<DB>,
-    storage: web::Data<Arc<Storage>>,
-) -> ResponseResult {
-    handle_create_agent_version(auth.project_id, &path, body.into_inner(), &db, &storage).await
-}
-
-#[post("/hosted-evals/agents/{agent}/task-sets/{task_set}/versions")]
+#[post("/hosted-evals/task-sets/{task_set}/versions")]
 pub async fn create_task_set_version(
     path: web::Path<TaskSetPath>,
     body: Json<CreateTaskSetVersionRequest>,
@@ -135,6 +124,15 @@ pub async fn create_task_set_version(
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
     handle_create_task_set_version(auth.project_id, &path, body.into_inner(), &db, &storage).await
+}
+
+#[get("/hosted-evals/scripts/latest")]
+pub async fn latest_scripts(
+    query: web::Query<LatestScriptsQuery>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_latest_scripts(auth.project_id, &query, &db).await
 }
 
 #[post("/hosted-evals/runs")]

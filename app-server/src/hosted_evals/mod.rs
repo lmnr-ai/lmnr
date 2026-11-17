@@ -146,19 +146,45 @@ struct IndexedFile {
     data_offset: u64,
 }
 
-/// What links an evaluation to the agent scripts and task set it ran
-/// (`evaluations.hosted_metadata`, plus the two version columns), set by the
-/// Laminar Harbor plugin for runs started by lmnr-cli.
-#[derive(Serialize, Deserialize, Debug)]
+/// What lmnr-cli records about a run of one task set
+/// (`evaluations.hosted_metadata`), sent by the Laminar Harbor plugin. The
+/// evaluation links to the task set's pushed version with `task_set_hash`, if
+/// any; the frontend reads the task set's and the scripts' files by hash.
+#[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HostedMetadata {
+    /// The local agent folder's name (`evals/<agent>/`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_set: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_set_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scripts_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git_sha: Option<String>,
     /// Remote runs only: keys the run's log and job output.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_id: Option<Uuid>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent_version_id: Option<Uuid>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub task_set_version_id: Option<Uuid>,
+}
+
+impl HostedMetadata {
+    /// Drops values that would not be safe to build a storage key or link from.
+    pub fn validated(self) -> Self {
+        let name = |v: Option<String>| v.filter(|v| is_name(v));
+        let hash = |v: Option<String>| v.filter(|v| is_hash(v));
+        Self {
+            agent: name(self.agent),
+            task_set: name(self.task_set),
+            task_set_hash: hash(self.task_set_hash),
+            scripts_hash: hash(self.scripts_hash),
+            git_sha: self
+                .git_sha
+                .filter(|v| v.len() <= 64 && v.chars().all(|c| c.is_ascii_hexdigit())),
+            run_id: self.run_id,
+        }
+    }
 }
 
 /// POSIX single-quoting, safe for sh, bash and zsh.

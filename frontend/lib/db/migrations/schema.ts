@@ -1254,7 +1254,6 @@ export const evaluations = pgTable(
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
     hostedMetadata: jsonb("hosted_metadata"),
-    evalAgentVersionId: uuid("eval_agent_version_id"),
     taskSetVersionId: uuid("task_set_version_id"),
   },
   (table): PgTableExtraConfigValue[] => [
@@ -1267,11 +1266,6 @@ export const evaluations = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-    foreignKey({
-      columns: [table.evalAgentVersionId],
-      foreignColumns: [evalAgentVersions.id],
-      name: "evaluations_eval_agent_version_id_fkey",
-    }).onDelete("set null"),
     foreignKey({
       columns: [table.taskSetVersionId],
       foreignColumns: [taskSetVersions.id],
@@ -1286,71 +1280,19 @@ export const evaluations = pgTable(
   ]
 );
 
-// Hosted evals: an agent's scripts (`evals/<agent>/` minus `task_sets/`) and its
-// task sets, each versioned. A version's files are one content-addressed blob in
-// S3 (`eval-store/<project>/<hash>`). `number` is null for run snapshots. Agent
-// scripts live in the user's repo: `eval_agent_versions` only records the copies
-// runs used, one per distinct hash.
-export const evalAgents = pgTable(
-  "eval_agents",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table): PgTableExtraConfigValue[] => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "eval_agents_project_id_fkey",
-    }).onDelete("cascade"),
-    unique("eval_agents_project_id_name_key").on(table.projectId, table.name),
-  ]
-);
-
-export const evalAgentVersions = pgTable(
-  "eval_agent_versions",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").notNull(),
-    evalAgentId: uuid("eval_agent_id").notNull(),
-    hash: text().notNull(),
-    gitSha: text("git_sha"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table): PgTableExtraConfigValue[] => [
-    foreignKey({
-      columns: [table.evalAgentId],
-      foreignColumns: [evalAgents.id],
-      name: "eval_agent_versions_eval_agent_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "eval_agent_versions_project_id_fkey",
-    }).onDelete("cascade"),
-    unique("eval_agent_versions_eval_agent_id_hash_key").on(table.evalAgentId, table.hash),
-  ]
-);
-
+// Hosted evals: task sets, versioned by `eval push`. A version's files are one
+// content-addressed blob in S3 (`eval-store/<project>/<hash>`). Runs create no
+// versions; agent scripts live in the user's repo.
 export const taskSets = pgTable(
   "task_sets",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
-    evalAgentId: uuid("eval_agent_id").notNull(),
     name: text().notNull(),
     headVersionId: uuid("head_version_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
-    foreignKey({
-      columns: [table.evalAgentId],
-      foreignColumns: [evalAgents.id],
-      name: "task_sets_eval_agent_id_fkey",
-    }).onDelete("cascade"),
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
@@ -1361,7 +1303,7 @@ export const taskSets = pgTable(
       foreignColumns: [taskSetVersions.id],
       name: "task_sets_head_version_id_fkey",
     }).onDelete("set null"),
-    unique("task_sets_eval_agent_id_name_key").on(table.evalAgentId, table.name),
+    unique("task_sets_project_id_name_key").on(table.projectId, table.name),
   ]
 );
 
@@ -1372,7 +1314,7 @@ export const taskSetVersions = pgTable(
     projectId: uuid("project_id").notNull(),
     taskSetId: uuid("task_set_id").notNull(),
     parentId: uuid("parent_id"),
-    number: integer(),
+    number: integer().notNull(),
     hash: text().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
@@ -1392,7 +1334,7 @@ export const taskSetVersions = pgTable(
       foreignColumns: [table.id],
       name: "task_set_versions_parent_id_fkey",
     }).onDelete("set null"),
-    unique("task_set_versions_task_set_id_hash_key").on(table.taskSetId, table.hash),
+    index("task_set_versions_task_set_id_hash_idx").on(table.taskSetId, table.hash),
     unique("task_set_versions_task_set_id_number_key").on(table.taskSetId, table.number),
   ]
 );
