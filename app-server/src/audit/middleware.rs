@@ -104,6 +104,10 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
         ("PATCH", "/alerts/{alert_id}") => log_write(Alert, Update),
         ("DELETE", "/alerts/{alert_id}") => log_write(Alert, Delete),
 
+        ("POST", "/views") => log_write(AuditResource::View, Create),
+        ("PATCH", "/views/{view_id}") => log_write(AuditResource::View, Update),
+        ("DELETE", "/views/{view_id}") => log_write(AuditResource::View, Delete),
+
         ("POST", "/dashboards") => log_write(Dashboard, Create),
         ("PATCH", "/dashboards/{dashboard_id}") => log_write(Dashboard, Update),
         ("DELETE", "/dashboards/{dashboard_id}") => log_write(Dashboard, Delete),

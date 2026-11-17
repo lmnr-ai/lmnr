@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 
+// A stored `null` means the user picked the built-in view; a missing key means they never picked,
+// so the team default applies.
 interface LastViewState {
   ids: Record<string, string | null>;
   setLastViewId: (projectId: string, resource: string, viewId: string | null) => void;
