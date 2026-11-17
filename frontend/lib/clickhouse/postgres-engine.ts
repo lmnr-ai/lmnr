@@ -98,7 +98,9 @@ function tryGetConfig(context: string): ReturnType<typeof getConfig> | null {
 }
 
 function warnFailure(context: string, error: unknown): void {
-  console.warn(`${context}:`, error instanceof Error ? error.message : String(error));
+  // Drizzle's message embeds the failed statement, and some carry the role password.
+  const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+  console.warn(`${context}:`, reason instanceof Error ? reason.message : String(reason));
 }
 
 /** Logs `what`, never the statement — two of these carry the role password. */
@@ -179,6 +181,20 @@ export async function ensurePostgresReadonlyRole(): Promise<void> {
       `GRANT CONNECT ON DATABASE ${pgIdent(cfg.database)} TO ${role}`
     );
   }
+  // Raise-only, so roles provisioned at an older default (10, 16) stop starving `pg`
+  // reads, while a higher or unlimited (-1) limit set by an operator is kept.
+  await tryExec(
+    `raising the connection limit; run \`ALTER ROLE ${role} CONNECTION LIMIT ${cfg.connectionLimit}\` as a superuser`,
+    `
+      DO $$
+      BEGIN
+        IF (SELECT rolconnlimit FROM pg_roles WHERE rolname = ${pgStr(cfg.user)}) BETWEEN 0 AND ${cfg.connectionLimit - 1} THEN
+          ALTER ROLE ${role} CONNECTION LIMIT ${cfg.connectionLimit};
+        END IF;
+      END
+      $$
+    `
+  );
   await tryExec(`granting USAGE on schema ${cfg.schema}`, `GRANT USAGE ON SCHEMA ${schema} TO ${role}`);
 
   for (const [table, columns] of Object.entries(PG_ENTITY_COLUMNS)) {

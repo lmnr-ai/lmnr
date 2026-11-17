@@ -188,8 +188,15 @@ before starting the frontend, with `LOGIN`, `CONNECT` on the target database,
 `statement_timeout` (normally `15s`), and `CONNECTION LIMIT` (normally `24`; each
 ClickHouse server holds up to 6 for the name dictionaries plus up to 16 for its table
 reads, so raise it when running more than one ClickHouse replica). The
-frontend does not apply `CLICKHOUSE_POSTGRES_STATEMENT_TIMEOUT` or
-`CLICKHOUSE_POSTGRES_CONNECTION_LIMIT` to existing roles. Do not reuse the app's
+frontend does not apply `CLICKHOUSE_POSTGRES_STATEMENT_TIMEOUT` to existing roles.
+It does raise an existing role's `CONNECTION LIMIT` to
+`CLICKHOUSE_POSTGRES_CONNECTION_LIMIT` (default `24`) when it is lower, and never
+lowers it, so a higher limit set for more replicas is kept. If its login may not
+alter the role, it logs a warning; run the `ALTER ROLE` yourself. To lower the
+limit, set the variable to the new value and run the `ALTER ROLE` yourself; to have
+ClickHouse open fewer connections, also set `postgresql_connection_pool_size`
+(default `16`) under `<profiles><default>` in `clickhouse-profiles-config.xml` (the
+pool plus 6 must fit in the limit). Do not reuse the app's
 login or a role with `SUPERUSER`, `BYPASSRLS`, or `CREATEROLE`. The frontend's
 migration login must own, or inherit ownership of, the schema and exposed tables
 to apply the schema/table grants and RLS policies.
