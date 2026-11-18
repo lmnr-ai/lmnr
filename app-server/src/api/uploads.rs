@@ -37,11 +37,12 @@ pub enum IndexError {
 
 /// Where each file sits in an uploaded archive (written by lmnr-cli's
 /// `pack.ts`), so the frontend reads one file with a ranged GET instead of the
-/// whole archive (`lib/actions/evaluation/files.ts`). Parsed here to reject a
-/// malformed index; it is stored as sent.
+/// whole archive (`lib/actions/evaluation/files.ts`). Parsed here only to
+/// reject a malformed index; it is stored as sent.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ArchiveIndex {
+struct ArchiveIndex {
+    #[allow(dead_code)]
     files: Vec<IndexedFile>,
 }
 
@@ -57,13 +58,6 @@ struct IndexedFile {
     length: u64,
     /// Where the file's content starts in the decompressed member.
     data_offset: u64,
-}
-
-impl ArchiveIndex {
-    /// Uncompressed size of the archived files.
-    pub fn total_size(&self) -> u64 {
-        self.files.iter().map(|f| f.size).sum()
-    }
 }
 
 /// Streams `payload` (up to `max_bytes`) into `key`. A body error aborts the
@@ -86,7 +80,7 @@ pub async fn upload_payload(
 }
 
 /// Stores an archive's index (`max_bytes` cap) next to it, after checking it
-/// parses and that the archive exists. Returns the parsed index.
+/// parses and that the archive exists.
 pub async fn store_index(
     storage: &Storage,
     bucket: &str,
@@ -94,11 +88,11 @@ pub async fn store_index(
     index_key: &str,
     payload: web::Payload,
     max_bytes: u64,
-) -> Result<ArchiveIndex, IndexError> {
+) -> Result<(), IndexError> {
     let body = collect_payload(payload, max_bytes)
         .await
         .map_err(IndexError::Body)?;
-    let index = serde_json::from_slice::<ArchiveIndex>(&body).map_err(IndexError::Invalid)?;
+    serde_json::from_slice::<ArchiveIndex>(&body).map_err(IndexError::Invalid)?;
     match storage.exists(bucket, archive_key).await {
         Ok(true) => {}
         Ok(false) => return Err(IndexError::ArchiveMissing),
@@ -120,7 +114,7 @@ pub async fn store_index(
             operation: "index upload",
             error,
         })?;
-    Ok(index)
+    Ok(())
 }
 
 /// Pumps `payload` into `tx` up to `max_bytes`. Any failure sends an `Err`
@@ -246,15 +240,15 @@ mod tests {
     }
 
     #[test]
-    fn archive_index_sums_file_sizes() {
-        let index: ArchiveIndex = serde_json::from_str(
-            r#"{"files": [
-                {"path": "task.toml", "size": 10, "offset": 0, "length": 40, "dataOffset": 512},
-                {"path": "tests/test.sh", "size": 32, "offset": 40, "length": 50, "dataOffset": 512}
-            ]}"#,
-        )
-        .unwrap();
-        assert_eq!(index.total_size(), 42);
+    fn archive_index_requires_every_file_field() {
+        assert!(
+            serde_json::from_str::<ArchiveIndex>(
+                r#"{"files": [
+                    {"path": "task.toml", "size": 10, "offset": 0, "length": 40, "dataOffset": 512}
+                ]}"#,
+            )
+            .is_ok()
+        );
         assert!(serde_json::from_str::<ArchiveIndex>(r#"{"files": [{"path": "a"}]}"#).is_err());
     }
 }
