@@ -22,8 +22,12 @@ use crate::{
     audit::{
         self, AuditAction, AuditActor, AuditEventInput, AuditOutcome, AuditResource, AuditSource,
     },
+    auth::{
+        cli_user::is_user_member_of_project,
+        mcp_oauth::{McpCaller, McpUser},
+    },
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey},
+    db::{self, DB},
     mq::MessageQueue,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
@@ -31,11 +35,31 @@ use crate::{
 
 // ============ Per-request context ============
 
-/// Newtype wrapper to pass project_id through rmcp extensions.
+/// Header an OAuth caller can set (e.g. `claude mcp add --header`) to pin a project without
+/// passing `projectId` on every call. Same header as the CLI's.
+const PROJECT_ID_HEADER: &str = "x-lmnr-project-id";
+
+/// The `x-lmnr-project-id` header value, passed through rmcp extensions.
 #[derive(Clone)]
-pub struct ProjectId(pub Uuid);
+struct ProjectHeader(Uuid);
+
+/// The caller and the project a tool call acts on, after membership checks.
+struct ProjectScope {
+    caller: McpCaller,
+    project_id: Uuid,
+}
 
 // ============ Tool parameter structs ============
+
+/// Project selector shared by every project-scoped tool.
+#[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectParam {
+    /// Laminar project to act on. Optional when you can access a single project or the
+    /// connection pins one; otherwise call `list_projects` and pass the project's id.
+    #[serde(default)]
+    pub project_id: Option<Uuid>,
+}
 
 /// Parameters for the SQL query tool.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -46,6 +70,8 @@ pub struct QuerySqlParams {
     /// Query parameters for {name:Type} placeholders, e.g., {trace_id:UUID}
     #[serde(default)]
     pub parameters: HashMap<String, Value>,
+    #[serde(flatten)]
+    pub project: ProjectParam,
 }
 
 /// Parameters for the trace context tool.
@@ -64,6 +90,8 @@ pub struct GetTraceContextParams {
         )
     )]
     pub trace_id: Uuid,
+    #[serde(flatten)]
+    pub project: ProjectParam,
 }
 
 /// Parameters for the agent tool. The agent is project-scoped; name any specific entity inline in
@@ -76,6 +104,8 @@ pub struct AskAgentParams {
     /// the new id to pass back on the next call.
     #[serde(default)]
     pub conversation_id: Option<String>,
+    #[serde(flatten)]
+    pub project: ProjectParam,
 }
 
 // ============ query_laminar_sql description ============
@@ -128,6 +158,12 @@ fn query_sql_tool_description() -> String {
         schema = crate::query_engine::schema::build_schema_prompt(),
     )
 }
+
+/// Sent on `initialize`; tells the model how project selection works.
+const SERVER_INSTRUCTIONS: &str = "Laminar is an observability platform for AI agents. Every \
+tool acts on one Laminar project. With a project API key the project is fixed. When signed in \
+with OAuth, tools use your only project, or the project pinned by the `x-lmnr-project-id` \
+header; otherwise call `list_projects` and pass `projectId`.";
 
 // ============ MCP Server ============
 
@@ -195,11 +231,13 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<QuerySqlParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let project_id = context
-            .extensions
-            .get::<ProjectId>()
-            .ok_or_else(|| McpError::internal_error("Missing project context", None))?
-            .0;
+        let scope = match self
+            .project_scope(&context, params.project.project_id)
+            .await
+        {
+            Ok(scope) => scope,
+            Err(error) => return Ok(error),
+        };
 
         let ro_client = self.clickhouse_ro.clone().ok_or_else(|| {
             McpError::internal_error("ClickHouse read-only client not configured", None)
@@ -208,10 +246,10 @@ impl LaminarMcpServer {
         let query = params.query.clone();
         let result = sql::run_sql_query(
             params.query,
-            project_id,
+            scope.project_id,
             params.parameters,
             SqlQuerySource::Public,
-            self.policy(project_id).await,
+            self.policy(&scope).await,
             ro_client,
             self.query_engine.clone(),
             self.http_client.clone(),
@@ -221,7 +259,7 @@ impl LaminarMcpServer {
         .await;
         let tables = result.as_ref().map(|output| output.tables.clone());
         self.audit(
-            &context,
+            &scope,
             AuditResource::Sql,
             AuditAction::Query,
             result.is_ok(),
@@ -258,17 +296,19 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<GetTraceContextParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let project_id = context
-            .extensions
-            .get::<ProjectId>()
-            .ok_or_else(|| McpError::internal_error("Missing project context", None))?
-            .0;
+        let scope = match self
+            .project_scope(&context, params.project.project_id)
+            .await
+        {
+            Ok(scope) => scope,
+            Err(error) => return Ok(error),
+        };
 
         let result = self
-            .get_trace_context_for_mcp(project_id, params.trace_id)
+            .get_trace_context_for_mcp(&scope, params.trace_id)
             .await;
         self.audit(
-            &context,
+            &scope,
             AuditResource::Trace,
             AuditAction::View,
             result.is_ok(),
@@ -294,17 +334,19 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<AskAgentParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let project_id = context
-            .extensions
-            .get::<ProjectId>()
-            .ok_or_else(|| McpError::internal_error("Missing project context", None))?
-            .0;
+        let scope = match self
+            .project_scope(&context, params.project.project_id)
+            .await
+        {
+            Ok(scope) => scope,
+            Err(error) => return Ok(error),
+        };
 
         let result = self
-            .run_agent_for_mcp(project_id, params.prompt, params.conversation_id)
+            .run_agent_for_mcp(&scope, params.prompt, params.conversation_id)
             .await;
         self.audit(
-            &context,
+            &scope,
             AuditResource::Agent,
             AuditAction::Run,
             result.is_ok(),
@@ -324,53 +366,160 @@ impl LaminarMcpServer {
             ))]).into()),
         }
     }
+
+    /// List the Laminar projects this connection can act on, with their workspaces. Pass a
+    /// project's `id` as `projectId` to the other tools when you can access more than one.
+    #[tool(name = "list_projects")]
+    async fn list_projects(
+        &self,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let Some(caller) = context.extensions.get::<McpCaller>() else {
+            return Err(McpError::internal_error("Missing caller context", None));
+        };
+        let projects = match caller {
+            McpCaller::User(user) => self.user_projects(user).await,
+            McpCaller::ApiKey(key) => {
+                db::projects::get_project_name(&self.db.pool, &key.project_id)
+                    .await
+                    .map(|name| vec![json!({ "id": key.project_id, "name": name })])
+            }
+        };
+        match projects {
+            Ok(projects) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                serde_json::to_string_pretty(&json!({ "projects": projects })).unwrap_or_default(),
+            )])
+            .into()),
+            Err(e) => Ok(tool_error(format!("Failed to list projects: {e}"))),
+        }
+    }
+}
+
+fn tool_error(message: impl Into<String>) -> CallToolResponse {
+    CallToolResult::error(vec![ContentBlock::text(message.into())]).into()
 }
 
 impl LaminarMcpServer {
-    /// Every MCP tool authenticates with a project API key, so every read
-    /// runs under the `ApiKey` actor's policy (docs/internal/rbac.md).
-    async fn policy(&self, project_id: Uuid) -> AccessPolicy {
+    async fn user_projects(&self, user: &McpUser) -> anyhow::Result<Vec<Value>> {
+        let projects = db::projects::get_projects_for_user(&self.db.pool, &user.user_id).await?;
+        Ok(projects
+            .into_iter()
+            .map(|project| serde_json::to_value(project).unwrap_or_default())
+            .collect())
+    }
+
+    /// Resolve the project a tool call acts on. An API key is bound to its project. An OAuth
+    /// user picks one with `projectId`, else the `x-lmnr-project-id` header, else their only
+    /// project; membership is checked on every call. The error is a tool result the model reads.
+    async fn project_scope(
+        &self,
+        context: &RequestContext<RoleServer>,
+        requested: Option<Uuid>,
+    ) -> Result<ProjectScope, CallToolResponse> {
+        let Some(caller) = context.extensions.get::<McpCaller>().cloned() else {
+            return Err(tool_error("Missing caller context"));
+        };
+        let user = match &caller {
+            McpCaller::ApiKey(key) => {
+                return match requested {
+                    Some(project_id) if project_id != key.project_id => Err(tool_error(format!(
+                        "This connection uses a project API key for project {}; it cannot access project {project_id}.",
+                        key.project_id
+                    ))),
+                    _ => Ok(ProjectScope {
+                        project_id: key.project_id,
+                        caller,
+                    }),
+                };
+            }
+            McpCaller::User(user) => user,
+        };
+
+        let project_id = if let Some(project_id) = requested {
+            project_id
+        } else if let Some(ProjectHeader(project_id)) = context.extensions.get::<ProjectHeader>() {
+            *project_id
+        } else {
+            let projects = self
+                .user_projects(user)
+                .await
+                .map_err(|e| tool_error(format!("Failed to list projects: {e}")))?;
+            match projects.as_slice() {
+                [project] => project
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| Uuid::parse_str(id).ok())
+                    .ok_or_else(|| tool_error("Failed to read project id"))?,
+                [] => return Err(tool_error("You don't have access to any Laminar project.")),
+                _ => {
+                    return Err(tool_error(format!(
+                        "You can access several Laminar projects; pass `projectId`. Projects: {}",
+                        serde_json::to_string(&projects).unwrap_or_default()
+                    )));
+                }
+            }
+        };
+
+        match is_user_member_of_project(&self.db.pool, &self.cache, user.user_id, project_id).await
+        {
+            Ok(true) => Ok(ProjectScope { caller, project_id }),
+            Ok(false) => Err(tool_error(format!(
+                "Project {project_id} not found or you are not a member of it. Call `list_projects` to see your projects."
+            ))),
+            Err(e) => {
+                log::error!("MCP membership check failed: {e}");
+                Err(tool_error("Failed to verify project membership"))
+            }
+        }
+    }
+
+    /// API keys read under the `ApiKey` policy; OAuth users under the `Cli` one, since an MCP
+    /// session is an agent acting for the user (docs/internal/rbac.md).
+    async fn policy(&self, scope: &ProjectScope) -> AccessPolicy {
+        let actor = match scope.caller {
+            McpCaller::ApiKey(_) => Actor::ApiKey,
+            McpCaller::User(_) => Actor::Cli,
+        };
         access_policy::for_actor_or_masked(
-            &Actor::ApiKey,
-            project_id,
+            &actor,
+            scope.project_id,
             self.db.clone(),
             self.cache.clone(),
         )
         .await
     }
 
-    /// Record a tool call made with the request's API key.
+    /// Record a tool call made by the request's API key or user.
     async fn audit(
         &self,
-        context: &RequestContext<RoleServer>,
+        scope: &ProjectScope,
         resource: AuditResource,
         action: AuditAction,
         success: bool,
         resource_id: Option<String>,
         metadata: Option<Value>,
     ) {
-        let (Some(key), Some(ProjectId(project_id))) = (
-            context.extensions.get::<ProjectApiKey>(),
-            context.extensions.get::<ProjectId>(),
-        ) else {
-            return;
-        };
         let outcome = if success {
             AuditOutcome::Success
         } else {
             AuditOutcome::Error
         };
-        let mut input = AuditEventInput::new(
-            AuditActor::api_key(key),
-            AuditSource::Mcp,
-            resource,
-            action,
-            outcome,
-        );
-        input.project_id = Some(*project_id);
+        let actor = match &scope.caller {
+            McpCaller::ApiKey(key) => AuditActor::api_key(key),
+            McpCaller::User(user) => AuditActor::User {
+                user_id: user.user_id,
+            },
+        };
+        let mut input = AuditEventInput::new(actor, AuditSource::Mcp, resource, action, outcome);
+        input.project_id = Some(scope.project_id);
         input.resource_id = resource_id;
         input.metadata = metadata;
-        audit::emit_detached(self.db.clone(), self.cache.clone(), self.queue.clone(), input);
+        audit::emit_detached(
+            self.db.clone(),
+            self.cache.clone(),
+            self.queue.clone(),
+            input,
+        );
     }
 }
 
@@ -382,7 +531,7 @@ const LICENSE_REQUIRED_MESSAGE: &str =
 impl LaminarMcpServer {
     async fn get_trace_context_for_mcp(
         &self,
-        project_id: Uuid,
+        scope: &ProjectScope,
         trace_id: Uuid,
     ) -> anyhow::Result<String> {
         use crate::signals::private::compression::{
@@ -397,9 +546,9 @@ impl LaminarMcpServer {
 
         let spans = get_trace_ch_spans(
             self.clickhouse.clone(),
-            project_id,
+            scope.project_id,
             trace_id,
-            &self.policy(project_id).await,
+            &self.policy(scope).await,
         )
         .await?;
         if spans.is_empty() {
@@ -427,7 +576,7 @@ impl LaminarMcpServer {
     /// is an MCP conversation of this project and starts a fresh one otherwise.
     async fn run_agent_for_mcp(
         &self,
-        project_id: Uuid,
+        scope: &ProjectScope,
         prompt: String,
         conversation_id: Option<String>,
     ) -> anyhow::Result<(String, String)> {
@@ -446,11 +595,15 @@ impl LaminarMcpServer {
             anyhow::bail!(LICENSE_REQUIRED_MESSAGE);
         }
 
-        // MCP is project-key authed: the conversation has no owning user.
+        // API-key conversations have no owning user; OAuth ones belong to the user.
+        let user_id = match &scope.caller {
+            McpCaller::ApiKey(_) => None,
+            McpCaller::User(user) => Some(user.user_id),
+        };
         let response = crate::next_api::open(
             &self.http_client,
-            project_id,
-            None,
+            scope.project_id,
+            user_id,
             "agent/chat",
             serde_json::json!({
                 "source": "mcp",
@@ -482,7 +635,7 @@ impl LaminarMcpServer {
 impl LaminarMcpServer {
     async fn get_trace_context_for_mcp(
         &self,
-        _project_id: Uuid,
+        _scope: &ProjectScope,
         _trace_id: Uuid,
     ) -> anyhow::Result<String> {
         Ok(
@@ -493,7 +646,7 @@ impl LaminarMcpServer {
 
     async fn run_agent_for_mcp(
         &self,
-        _project_id: Uuid,
+        _scope: &ProjectScope,
         _prompt: String,
         _conversation_id: Option<String>,
     ) -> anyhow::Result<(String, String)> {
@@ -509,6 +662,7 @@ impl ServerHandler for LaminarMcpServer {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("laminar", env!("CARGO_PKG_VERSION")))
+            .with_instructions(SERVER_INSTRUCTIONS)
     }
 }
 
@@ -576,11 +730,18 @@ pub async fn mcp_handler(
 
         // Requests (initialize, tools/list, tools/call, etc.) → process via rmcp
         ClientJsonRpcMessage::Request(mut request) => {
-            // Inject project_id from auth middleware into rmcp extensions
-            if let Some(api_key) = req.extensions().get::<ProjectApiKey>() {
-                let extensions = request.request.extensions_mut();
-                extensions.insert(ProjectId(api_key.project_id));
-                extensions.insert(api_key.clone());
+            // Hand the authenticated caller (from `mcp_auth`) and the project header to the tools.
+            let extensions = request.request.extensions_mut();
+            if let Some(caller) = req.extensions().get::<McpCaller>() {
+                extensions.insert(caller.clone());
+            }
+            if let Some(project_id) = req
+                .headers()
+                .get(PROJECT_ID_HEADER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| Uuid::parse_str(value.trim()).ok())
+            {
+                extensions.insert(ProjectHeader(project_id));
             }
 
             // Use rmcp's OneshotTransport + serve_directly (same pattern as the
@@ -641,7 +802,12 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            vec!["ask_agent", "get_trace_context", "query_laminar_sql"],
+            vec![
+                "ask_agent",
+                "get_trace_context",
+                "list_projects",
+                "query_laminar_sql"
+            ],
             "unexpected MCP tool set (list_all is sorted by name)"
         );
     }
@@ -684,6 +850,10 @@ mod tests {
         assert!(
             schema.contains("parameters"),
             "`parameters` missing from input schema"
+        );
+        assert!(
+            schema.contains("projectId"),
+            "flattened `projectId` missing from input schema"
         );
     }
 

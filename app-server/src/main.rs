@@ -1751,6 +1751,8 @@ fn main() -> anyhow::Result<()> {
                     let jwks_cache = web::Data::new(Arc::new(auth::cli_user::JwksCache::from_env(
                         http_client_for_http.clone(),
                     )));
+                    let mcp_oauth_config =
+                        web::Data::new(auth::mcp_oauth::McpOAuthConfig::from_env());
 
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
@@ -1839,7 +1841,8 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(pubsub.clone()))
                             .app_data(web::Data::new(http_client_for_http.clone()))
                             .app_data(web::Data::new(llm_provider_client_for_http.clone()))
-                            .app_data(jwks_cache.clone());
+                            .app_data(jwks_cache.clone())
+                            .app_data(mcp_oauth_config.clone());
 
                         if let Some(ref limiter) = rate_limiter {
                             app = app.app_data(limiter.clone());
@@ -1952,7 +1955,9 @@ fn main() -> anyhow::Result<()> {
                             )
                             .service(
                                 web::scope("/v1/mcp")
-                                    .wrap(project_auth.clone())
+                                    .wrap(actix_web::middleware::from_fn(
+                                        auth::mcp_oauth::mcp_auth,
+                                    ))
                                     .app_data(mcp_state.clone())
                                     .service(api::v1::mcp::mcp_handler)
                                     .default_service(
@@ -2071,8 +2076,16 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::llm_profiles::update_llm_profile)
                                 .service(routes::llm_profiles::delete_llm_profile),
                         );
-                        app.service(routes::probes::check_health)
-                            .service(routes::probes::check_ready)
+                        app.route(
+                            "/.well-known/oauth-protected-resource",
+                            web::get().to(auth::mcp_oauth::protected_resource_metadata),
+                        )
+                        .route(
+                            "/.well-known/oauth-protected-resource/v1/mcp",
+                            web::get().to(auth::mcp_oauth::protected_resource_metadata),
+                        )
+                        .service(routes::probes::check_health)
+                        .service(routes::probes::check_ready)
                     })
                     .bind(("0.0.0.0", port))?
                     .shutdown_signal(shutdown_for_http.cancelled_owned())
