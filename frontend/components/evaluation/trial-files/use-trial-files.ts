@@ -41,5 +41,6 @@ export const useTrialFiles = (projectId: string, evaluation: Evaluation | undefi
   }, [projectId, evaluationId, row, datasetV2Id, hosted, task, hash, taskPath, trialName]);
 
   const taskFiles = useSWR<TrialTaskFiles>(target?.urls.task ?? null, swrFetcher, FILES_SWR_OPTIONS);
-  return { target, available: !!target && (target.hosted || !!taskFiles.data) };
+  // Counted as available while loading, so switching trials doesn't flip an open Files panel back to Trace.
+  return { target, available: !!target && (target.hosted || !!taskFiles.data || taskFiles.isLoading) };
 };
