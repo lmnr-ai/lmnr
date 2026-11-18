@@ -40,7 +40,7 @@ export const EvalDatasetsTableContents = memo(function EvalDatasetsTableContents
       className="w-full"
       columns={evalDatasetsColumns}
       data={data}
-      getRowId={(row) => row.id}
+      getRowId={(row) => row.name}
       getRowHref={(row) => evalDatasetHref(projectId, row.original.name)}
       hasMore={hasMore}
       isFetching={isFetching}

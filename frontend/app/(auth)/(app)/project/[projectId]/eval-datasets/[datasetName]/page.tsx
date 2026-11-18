@@ -1,7 +1,7 @@
 import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import EvalDatasetVersions from "@/components/eval-datasets/versions";
+import EvalDataset from "@/components/eval-datasets/dataset";
 import { getEvalDataset } from "@/lib/actions/eval-datasets";
 
 export const metadata: Metadata = {
@@ -12,5 +12,5 @@ export default async function EvalDatasetPage(props: { params: Promise<{ project
   const { projectId, datasetName } = await props.params;
   const dataset = await getEvalDataset({ projectId, datasetName });
   if (!dataset) notFound();
-  return <EvalDatasetVersions dataset={dataset.name} />;
+  return <EvalDataset dataset={dataset.name} />;
 }

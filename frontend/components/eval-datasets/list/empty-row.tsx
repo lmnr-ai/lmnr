@@ -8,8 +8,9 @@ export default function EvalDatasetsEmptyRow() {
           <div className="flex max-w-md flex-col items-center gap-2">
             <h3 className="text-base font-medium text-secondary-foreground">No eval datasets yet</h3>
             <p className="text-center text-sm text-muted-foreground">
-              An eval dataset versions the tasks of one folder under <code>evals/</code>. Push one with{" "}
-              <code>npx lmnr-cli eval push</code>, and pin the version your repo runs in its <code>lmnr.lock</code>.
+              An eval dataset is one folder under <code>evals/</code>; Laminar keeps every version of each of its tasks.
+              Push one with <code>npx lmnr-cli eval dataset push</code>, and its <code>tasks.toml</code> pins the
+              versions your repo runs.
             </p>
           </div>
         </div>

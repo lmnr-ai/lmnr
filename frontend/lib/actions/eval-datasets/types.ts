@@ -1,46 +1,38 @@
 /** Client-safe surface of `lib/actions/eval-datasets` (no server imports). */
 
+/** Dataset and task names (the app-server enforces the same rule); they go into storage keys and URLs. */
+const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const MAX_DATASET_NAME_BYTES = 100;
+const MAX_TASK_NAME_BYTES = 255;
+/** A task version: sha256 of the task dir's content listing, computed by lmnr-cli. */
+const TASK_HASH_RE = /^[0-9a-f]{64}$/;
+
+// The name rule allows ASCII only, so length is byte length.
+export const isDatasetName = (name: string): boolean => NAME_RE.test(name) && name.length <= MAX_DATASET_NAME_BYTES;
+export const isTaskName = (name: string): boolean => NAME_RE.test(name) && name.length <= MAX_TASK_NAME_BYTES;
+export const isTaskHash = (hash: string): boolean => TASK_HASH_RE.test(hash);
+
+/** How a hash is shown in lists. */
+export const shortHash = (hash: string): string => hash.slice(0, 12);
+
 export interface EvalDatasetListItem {
-  id: string;
   name: string;
   createdAt: string;
-  /** Null until the first push. */
-  latestVersion: number | null;
-  /** Tasks in the latest version; null without one. */
-  taskCount: number | null;
-  /** When the latest version was pushed (the dataset's creation without one). */
+  taskCount: number;
+  /** When a task version was last pushed (the dataset's creation without one). */
   updatedAt: string;
 }
 
-export interface EvalDatasetVersionItem {
-  id: string;
-  version: number;
-  parentVersion: number | null;
-  message: string | null;
-  createdAt: string;
-  /** Null when the pushing user was deleted (or the push used a project API key). */
-  authorName: string | null;
-  authorEmail: string | null;
-  taskCount: number;
-  /** Evaluations in the version's group (`evaluationGroupOf`). */
-  runCount: number;
-}
-
-export interface EvalDatasetTask {
+export interface EvalDatasetTaskItem {
   name: string;
-  /** `sha256:<64 hex>`, the content hash of the task's files. */
+  /** The latest version's hash. */
   hash: string;
+  /** When the latest version was pushed. */
+  updatedAt: string;
+  versionCount: number;
 }
 
-export interface EvalDatasetVersionDetails extends Omit<EvalDatasetVersionItem, "taskCount"> {
-  dataset: string;
-  tasks: EvalDatasetTask[];
-  /** All the dataset's version numbers, newest first. */
-  versions: number[];
+export interface TaskVersion {
+  hash: string;
+  createdAt: string;
 }
-
-/** The evaluation group `lmnr-cli eval run` reports a run of this version to. */
-export const evaluationGroupOf = (dataset: string, version: number) => `${dataset} v${version}`;
-
-/** The 64 hex of a `sha256:<hex>` task hash, as it appears in storage keys and URLs. */
-export const taskHashHex = (hash: string) => hash.replace(/^sha256:/, "");

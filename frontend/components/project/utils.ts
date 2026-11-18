@@ -49,7 +49,7 @@ export const getSidebarMenus = (projectId: string): SidebarMenuGroup[] => [
     label: "Improve",
     items: [
       { name: "Evaluations", href: `/project/${projectId}/evaluations`, icon: FlaskConical },
-      // Tasks versioned by `lmnr-cli eval push`; unrelated to Datasets (datapoints).
+      // Harbor tasks pushed by `lmnr-cli eval dataset push`; unrelated to Datasets (datapoints).
       { name: "Eval datasets", href: `/project/${projectId}/eval-datasets`, icon: FolderGit2, badge: "beta" },
       { name: "Datasets", href: `/project/${projectId}/datasets`, icon: Database },
       { name: "Labeling", href: `/project/${projectId}/labeling-queues`, icon: Pen },
