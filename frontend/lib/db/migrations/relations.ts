@@ -62,6 +62,10 @@ import {
   llmProfiles,
   llmProfileModels,
   llmFeatureRoutes,
+  evalDatasets,
+  evalDatasetVersions,
+  evalDatasetVersionTasks,
+  evalDatasetTaskBlobs,
 } from "./schema";
 
 export const llmProfilesRelations = relations(llmProfiles, ({ one, many }) => ({
@@ -637,6 +641,40 @@ export const tagClassesRelations = relations(tagClasses, ({ one }) => ({
 export const tracesRelations = relations(traces, ({ one }) => ({
   project: one(projects, {
     fields: [traces.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const evalDatasetsRelations = relations(evalDatasets, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [evalDatasets.projectId],
+    references: [projects.id],
+  }),
+  versions: many(evalDatasetVersions),
+}));
+
+export const evalDatasetVersionsRelations = relations(evalDatasetVersions, ({ one, many }) => ({
+  dataset: one(evalDatasets, {
+    fields: [evalDatasetVersions.datasetId],
+    references: [evalDatasets.id],
+  }),
+  createdBy: one(users, {
+    fields: [evalDatasetVersions.createdByUserId],
+    references: [users.id],
+  }),
+  tasks: many(evalDatasetVersionTasks),
+}));
+
+export const evalDatasetVersionTasksRelations = relations(evalDatasetVersionTasks, ({ one }) => ({
+  version: one(evalDatasetVersions, {
+    fields: [evalDatasetVersionTasks.versionId],
+    references: [evalDatasetVersions.id],
+  }),
+}));
+
+export const evalDatasetTaskBlobsRelations = relations(evalDatasetTaskBlobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [evalDatasetTaskBlobs.projectId],
     references: [projects.id],
   }),
 }));

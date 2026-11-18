@@ -2404,3 +2404,82 @@ export const agentDocumentRevisions = pgTable(
     }).onDelete("cascade"),
   ]
 );
+
+export const evalDatasets = pgTable(
+  "eval_datasets",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("eval_datasets_project_id_name_key").on(table.projectId, table.name),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "eval_datasets_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const evalDatasetVersions = pgTable(
+  "eval_dataset_versions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    datasetId: uuid("dataset_id").notNull(),
+    version: integer().notNull(),
+    parentVersion: integer("parent_version"),
+    message: text(),
+    createdByUserId: uuid("created_by_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("eval_dataset_versions_dataset_id_version_key").on(table.datasetId, table.version),
+    foreignKey({
+      columns: [table.datasetId],
+      foreignColumns: [evalDatasets.id],
+      name: "eval_dataset_versions_dataset_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+      name: "eval_dataset_versions_created_by_user_id_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+export const evalDatasetVersionTasks = pgTable(
+  "eval_dataset_version_tasks",
+  {
+    versionId: uuid("version_id").notNull(),
+    name: text().notNull(),
+    hash: text().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.versionId, table.name], name: "eval_dataset_version_tasks_pkey" }),
+    foreignKey({
+      columns: [table.versionId],
+      foreignColumns: [evalDatasetVersions.id],
+      name: "eval_dataset_version_tasks_version_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const evalDatasetTaskBlobs = pgTable(
+  "eval_dataset_task_blobs",
+  {
+    projectId: uuid("project_id").notNull(),
+    hash: text().notNull(),
+    size: bigint({ mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.hash], name: "eval_dataset_task_blobs_pkey" }),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "eval_dataset_task_blobs_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
