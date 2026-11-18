@@ -309,6 +309,11 @@ const TABLES: &[Table] = &[
                 "String",
                 "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
             ),
+            col(
+                "task_version_hash",
+                "String",
+                "Eval dataset task version (64-hex content hash) the Trial ran; empty if none",
+            ),
             col("group_id", "String", "Group id of the evaluation run"),
             col(
                 "scores",

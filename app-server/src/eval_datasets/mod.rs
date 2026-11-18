@@ -1,84 +1,104 @@
-//! Eval datasets: Harbor task folders stored in Laminar as immutable, numbered
-//! versions (LAM-2555). Task archives are content-addressed per project in S3;
-//! Postgres holds datasets, versions and which task hash each version pins.
-//! See `docs/internal/eval-datasets.md`.
+//! Eval datasets: Harbor task folders stored in Laminar, each task versioned on
+//! its own by the content hash of its folder (LAM-2562). Archives live in S3
+//! under the caller's project; Postgres holds which versions exist and which
+//! one is each task's latest. See `docs/internal/eval-datasets.md`.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::HashSet;
 
+use indexmap::IndexMap;
 use uuid::Uuid;
 
 use crate::{
-    db::{self, DB, eval_datasets::NewVersion},
+    db::{self, DB, eval_datasets::TaskVersionRow},
     env,
     features::{Feature, is_feature_enabled},
 };
 
-pub const MAX_DATASET_NAME_LEN: usize = 100;
-pub const MAX_TASK_NAME_LEN: usize = 255;
-/// Concurrent pushes serialize on the dataset row, so a taken version number
-/// is rare; this only bounds the retry.
-const MAX_VERSION_ATTEMPTS: usize = 3;
-const PG_UNIQUE_VIOLATION: &str = "23505";
+const MAX_DATASET_NAME_LEN: usize = 100;
+const MAX_TASK_NAME_LEN: usize = 255;
+const HASH_HEX_LEN: usize = 64;
 
-/// A version to create: task name → task hash. Names and hashes must already
-/// be validated.
-pub struct VersionRequest<'a> {
+/// One version of one task. Every field goes into S3 keys, so construct it
+/// only from values that passed [`TaskVersion::validate`].
+pub struct TaskVersion<'a> {
     pub dataset: &'a str,
-    pub parent_version: Option<i32>,
-    pub message: Option<&'a str>,
-    pub tasks: &'a BTreeMap<String, String>,
-    pub created_by_user_id: Option<Uuid>,
+    pub task: &'a str,
+    pub hash: &'a str,
 }
 
-pub struct CreatedVersion {
-    pub dataset_id: Uuid,
-    pub version: i32,
-    /// The dataset's latest version before this one.
-    pub previous_latest: Option<i32>,
+/// The rejected value of each kind.
+#[derive(Debug, PartialEq, Eq)]
+pub enum InvalidInput {
+    DatasetName(String),
+    TaskName(String),
+    Hash(String),
 }
 
-pub enum CreateVersionError {
-    /// Hashes with no uploaded task in the project.
-    MissingTasks(Vec<String>),
-    UnknownParent(i32),
-    Internal(anyhow::Error),
-}
-
-impl From<anyhow::Error> for CreateVersionError {
-    fn from(e: anyhow::Error) -> Self {
-        Self::Internal(e)
-    }
-}
-
-impl From<sqlx::Error> for CreateVersionError {
-    fn from(e: sqlx::Error) -> Self {
-        Self::Internal(e.into())
-    }
-}
-
-/// Which version of a dataset a read asks for.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum VersionSelector {
-    Latest,
-    Number(i32),
-}
-
-impl VersionSelector {
-    pub fn parse(value: &str) -> Option<Self> {
-        if value == "latest" {
-            return Some(Self::Latest);
-        }
-        if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
-            return None;
-        }
-        value.parse().ok().filter(|n| *n >= 1).map(Self::Number)
-    }
-
-    pub fn number(self) -> Option<i32> {
+impl InvalidInput {
+    /// The 400 error for the client.
+    pub fn message(&self) -> String {
         match self {
-            Self::Latest => None,
-            Self::Number(n) => Some(n),
+            Self::DatasetName(name) => format!(
+                "Invalid dataset name {:?}: {}",
+                preview(name),
+                name_rule(MAX_DATASET_NAME_LEN)
+            ),
+            Self::TaskName(name) => format!(
+                "Invalid task name {:?}: {}",
+                preview(name),
+                name_rule(MAX_TASK_NAME_LEN)
+            ),
+            Self::Hash(hash) => format!(
+                "Invalid task hash {:?}: expected 64 lowercase hex characters",
+                preview(hash)
+            ),
         }
+    }
+}
+
+fn name_rule(max_len: usize) -> String {
+    format!(
+        "use letters, digits, '.', '_' and '-', start with a letter or digit, \
+         at most {max_len} characters"
+    )
+}
+
+/// Rejected input is echoed back, but only its start: a body can hold megabytes.
+fn preview(value: &str) -> String {
+    const MAX_CHARS: usize = 300;
+    match value.char_indices().nth(MAX_CHARS) {
+        Some((cut, _)) => format!("{}…", &value[..cut]),
+        None => value.to_string(),
+    }
+}
+
+impl TaskVersion<'_> {
+    pub fn validate(&self) -> Result<(), InvalidInput> {
+        if !is_dataset_name(self.dataset) {
+            return Err(InvalidInput::DatasetName(self.dataset.to_string()));
+        }
+        if !is_task_name(self.task) {
+            return Err(InvalidInput::TaskName(self.task.to_string()));
+        }
+        if !is_task_hash(self.hash) {
+            return Err(InvalidInput::Hash(self.hash.to_string()));
+        }
+        Ok(())
+    }
+
+    pub fn archive_key(&self, project_id: &Uuid) -> String {
+        format!("{}.tar.gz", self.key_prefix(project_id))
+    }
+
+    pub fn index_key(&self, project_id: &Uuid) -> String {
+        format!("{}.index.json", self.key_prefix(project_id))
+    }
+
+    fn key_prefix(&self, project_id: &Uuid) -> String {
+        format!(
+            "{project_id}/datasets/{}/{}/{}",
+            self.dataset, self.task, self.hash
+        )
     }
 }
 
@@ -109,116 +129,73 @@ pub fn is_task_name(name: &str) -> bool {
     is_name(name, MAX_TASK_NAME_LEN)
 }
 
-/// `sha256:` + 64 lowercase hex. The hash goes into S3 keys, so nothing else passes.
+/// 64 lowercase hex characters (a bare sha256).
 pub fn is_task_hash(hash: &str) -> bool {
-    hash.strip_prefix("sha256:").is_some_and(|hex| {
-        hex.len() == 64 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-    })
+    hash.len() == HASH_HEX_LEN && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-/// Callers check [`is_task_hash`] first.
-fn hash_hex(hash: &str) -> &str {
-    hash.strip_prefix("sha256:").unwrap_or(hash)
-}
-
-pub fn archive_key(project_id: &Uuid, hash: &str) -> String {
-    format!("eval-datasets/{project_id}/tasks/{}.tar.gz", hash_hex(hash))
-}
-
-pub fn index_key(project_id: &Uuid, hash: &str) -> String {
-    format!(
-        "eval-datasets/{project_id}/tasks/{}.index.json",
-        hash_hex(hash)
-    )
-}
-
-/// Creates the next version of `request.dataset` (and the dataset itself on
-/// its first push). Every task must already be uploaded to the project.
-pub async fn create_version(
-    db: &DB,
-    project_id: &Uuid,
-    request: &VersionRequest<'_>,
-) -> Result<CreatedVersion, CreateVersionError> {
-    let unique_hashes: Vec<String> = request
-        .tasks
-        .values()
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    let missing = db::eval_datasets::missing_blobs(&db.pool, project_id, &unique_hashes).await?;
-    if !missing.is_empty() {
-        return Err(CreateVersionError::MissingTasks(missing));
+/// Checks every task name and hash of a `{task: hash}` body.
+pub fn validate_task_hashes(tasks: &IndexMap<String, String>) -> Result<(), InvalidInput> {
+    if let Some(task) = tasks.keys().find(|task| !is_task_name(task)) {
+        return Err(InvalidInput::TaskName(task.clone()));
     }
+    if let Some(hash) = tasks.values().find(|hash| !is_task_hash(hash)) {
+        return Err(InvalidInput::Hash(hash.clone()));
+    }
+    Ok(())
+}
 
-    let names: Vec<String> = request.tasks.keys().cloned().collect();
-    let hashes: Vec<String> = request.tasks.values().cloned().collect();
-    let mut attempt = 1;
-    loop {
-        match insert_next_version(db, project_id, request, &names, &hashes).await {
-            Err(CreateVersionError::Internal(e))
-                if attempt < MAX_VERSION_ATTEMPTS && is_unique_violation(&e) =>
-            {
-                attempt += 1;
-            }
-            result => return result,
-        }
+pub enum PushError {
+    /// Tasks whose given hash has no uploaded version, in input order.
+    Missing(Vec<String>),
+    Internal(anyhow::Error),
+}
+
+impl From<sqlx::Error> for PushError {
+    fn from(e: sqlx::Error) -> Self {
+        Self::Internal(e.into())
     }
 }
 
-async fn insert_next_version(
+/// Makes each given (task, hash) the task's latest version by stamping its
+/// row with now. All or nothing: any version that was never uploaded rejects
+/// the whole push. Names and hashes must already be validated.
+pub async fn push_tasks(
     db: &DB,
     project_id: &Uuid,
-    request: &VersionRequest<'_>,
-    names: &[String],
-    hashes: &[String],
-) -> Result<CreatedVersion, CreateVersionError> {
+    dataset: &str,
+    tasks: &IndexMap<String, String>,
+) -> Result<Vec<TaskVersionRow>, PushError> {
     let mut tx = db.pool.begin().await?;
-    let dataset_id =
-        db::eval_datasets::lock_or_create_dataset(&mut tx, project_id, request.dataset).await?;
-    if let Some(parent) = request.parent_version
-        && !db::eval_datasets::version_exists(&mut tx, &dataset_id, parent).await?
-    {
-        return Err(CreateVersionError::UnknownParent(parent));
+    let mut pushed =
+        db::eval_datasets::touch_task_versions(&mut tx, project_id, dataset, tasks).await?;
+    if pushed.len() < tasks.len() {
+        tx.rollback().await?;
+        return Err(PushError::Missing(unmatched_tasks(tasks, &pushed)));
     }
-    let previous_latest = db::eval_datasets::latest_version(&mut tx, &dataset_id).await?;
-    let version = next_version(previous_latest);
-    db::eval_datasets::insert_version(
-        &mut tx,
-        &NewVersion {
-            dataset_id,
-            version,
-            parent_version: request.parent_version,
-            message: request.message,
-            created_by_user_id: request.created_by_user_id,
-        },
-        names,
-        hashes,
-    )
-    .await?;
     tx.commit().await?;
-    Ok(CreatedVersion {
-        dataset_id,
-        version,
-        previous_latest,
-    })
+    pushed.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(pushed)
 }
 
-fn next_version(latest: Option<i32>) -> i32 {
-    latest.map_or(1, |v| v + 1)
-}
-
-fn is_unique_violation(error: &anyhow::Error) -> bool {
-    error
-        .downcast_ref::<sqlx::Error>()
-        .and_then(|e| e.as_database_error())
-        .and_then(|e| e.code())
-        .is_some_and(|code| code == PG_UNIQUE_VIOLATION)
+fn unmatched_tasks(tasks: &IndexMap<String, String>, matched: &[TaskVersionRow]) -> Vec<String> {
+    let matched: HashSet<&str> = matched.iter().map(|row| row.name.as_str()).collect();
+    tasks
+        .keys()
+        .filter(|task| !matched.contains(task.as_str()))
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
+
     use super::*;
+
+    fn hash() -> String {
+        "9f2c".repeat(16)
+    }
 
     #[test]
     fn names_follow_the_pattern_and_length_caps() {
@@ -227,7 +204,7 @@ mod tests {
             assert!(is_task_name(good), "{good}");
         }
         for bad in [
-            "", ".hidden", "-x", "_x", "a/b", "a b", "..", "a\\b", "é", "a\n", "tâche",
+            "", ".hidden", "-x", "_x", "a/b", "a b", "..", "a\\b", "é", "a\n", "tâche", "a%2Fb",
         ] {
             assert!(!is_dataset_name(bad), "{bad:?}");
             assert!(!is_task_name(bad), "{bad:?}");
@@ -242,61 +219,92 @@ mod tests {
     }
 
     #[test]
-    fn hashes_are_lowercase_sha256() {
-        let hex = "9f2c".repeat(16);
-        assert!(is_task_hash(&format!("sha256:{hex}")));
+    fn hashes_are_bare_lowercase_sha256() {
+        let hex = hash();
+        assert!(is_task_hash(&hex));
         for bad in [
-            hex.clone(),
-            format!("sha256:{}", hex.to_uppercase()),
-            format!("sha256:{}", &hex[..63]),
-            format!("sha256:{hex}0"),
-            format!("sha512:{hex}"),
-            format!("sha256:{}g", &hex[..63]),
-            format!("sha256:../{}", &hex[..61]),
+            format!("sha256:{hex}"),
+            hex.to_uppercase(),
+            hex[..63].to_string(),
+            format!("{hex}0"),
+            format!("{}g", &hex[..63]),
+            format!("../{}", &hex[..61]),
+            String::new(),
         ] {
             assert!(!is_task_hash(&bad), "{bad}");
         }
     }
 
     #[test]
-    fn keys_use_the_bare_hex() {
+    fn task_version_validates_each_segment() {
+        let hex = hash();
+        let version = |dataset, task, hash| TaskVersion {
+            dataset,
+            task,
+            hash,
+        };
+        assert_eq!(version("support", "refund", &hex).validate(), Ok(()));
+        assert_eq!(
+            version("a/b", "refund", &hex).validate(),
+            Err(InvalidInput::DatasetName("a/b".to_string()))
+        );
+        assert_eq!(
+            version("support", "..", &hex).validate(),
+            Err(InvalidInput::TaskName("..".to_string()))
+        );
+        assert_eq!(
+            version("support", "refund", "sha256:00").validate(),
+            Err(InvalidInput::Hash("sha256:00".to_string()))
+        );
+    }
+
+    #[test]
+    fn keys_nest_dataset_task_and_hash_under_the_project() {
         let project_id = Uuid::nil();
-        let hash = format!("sha256:{}", "ab".repeat(32));
+        let hex = hash();
+        let version = TaskVersion {
+            dataset: "support",
+            task: "refund",
+            hash: &hex,
+        };
         assert_eq!(
-            archive_key(&project_id, &hash),
-            format!(
-                "eval-datasets/{project_id}/tasks/{}.tar.gz",
-                "ab".repeat(32)
-            )
+            version.archive_key(&project_id),
+            format!("{project_id}/datasets/support/refund/{hex}.tar.gz")
         );
         assert_eq!(
-            index_key(&project_id, &hash),
-            format!(
-                "eval-datasets/{project_id}/tasks/{}.index.json",
-                "ab".repeat(32)
-            )
+            version.index_key(&project_id),
+            format!("{project_id}/datasets/support/refund/{hex}.index.json")
         );
     }
 
     #[test]
-    fn version_selector_parses_latest_and_positive_numbers() {
+    fn task_hash_bodies_check_names_then_hashes() {
+        let mut tasks = IndexMap::new();
+        tasks.insert("refund".to_string(), hash());
+        assert_eq!(validate_task_hashes(&tasks), Ok(()));
+        tasks.insert("bad".to_string(), "sha256:x".to_string());
         assert_eq!(
-            VersionSelector::parse("latest"),
-            Some(VersionSelector::Latest)
+            validate_task_hashes(&tasks),
+            Err(InvalidInput::Hash("sha256:x".to_string()))
         );
+        tasks.insert("a/b".to_string(), hash());
         assert_eq!(
-            VersionSelector::parse("7"),
-            Some(VersionSelector::Number(7))
+            validate_task_hashes(&tasks),
+            Err(InvalidInput::TaskName("a/b".to_string()))
         );
-        for bad in ["", "0", "-1", "+1", "1.0", "Latest", "99999999999", " 1"] {
-            assert_eq!(VersionSelector::parse(bad), None, "{bad:?}");
+    }
+
+    #[test]
+    fn unmatched_tasks_keep_input_order() {
+        let mut tasks = IndexMap::new();
+        for task in ["c", "a", "b"] {
+            tasks.insert(task.to_string(), hash());
         }
-    }
-
-    #[test]
-    fn versions_count_from_one() {
-        assert_eq!(next_version(None), 1);
-        assert_eq!(next_version(Some(1)), 2);
-        assert_eq!(next_version(Some(41)), 42);
+        let matched = vec![TaskVersionRow {
+            name: "a".to_string(),
+            hash: hash(),
+            created_at: Utc::now(),
+        }];
+        assert_eq!(unmatched_tasks(&tasks, &matched), ["c", "b"]);
     }
 }

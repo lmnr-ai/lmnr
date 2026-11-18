@@ -210,6 +210,7 @@ mod tests {
             group_id: "default".into(),
             scores: r#"{"accuracy":0.9}"#.into(),
             task_id: "0".into(),
+            task_version_hash: String::new(),
         }
     }
 

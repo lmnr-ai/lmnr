@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+    eval_datasets::is_task_hash,
     evaluations::{DEFAULT_GROUP_NAME, EvaluationTrialResult},
     utils::json_value_to_string,
 };
@@ -43,6 +44,8 @@ pub struct CHEvaluationTrial {
     pub group_id: String,
     pub scores: String, // Stringified JSON object from score name to float value
     pub task_id: String,
+    /// Eval dataset task version (64 hex) the Trial ran, or `''`.
+    pub task_version_hash: String,
 }
 
 impl CHEvaluationTrial {
@@ -51,13 +54,19 @@ impl CHEvaluationTrial {
         evaluation_id: Uuid,
         project_id: Uuid,
         group_name: &String,
-        created_at: Option<i64>,
+        stored: Option<&StoredTrial>,
     ) -> Self {
         let updated_at = chrono_to_nanoseconds(Utc::now());
         let task_id = result
             .task_id
             .filter(|task_id| !task_id.is_empty())
             .unwrap_or_else(|| result.index.to_string());
+        // A re-save without a valid hash keeps the one stored by an earlier save.
+        let task_version_hash = result
+            .task_version_hash
+            .filter(|hash| is_task_hash(hash))
+            .or_else(|| stored.map(|trial| trial.task_version_hash.clone()))
+            .unwrap_or_default();
         CHEvaluationTrial {
             id: result.id,
             evaluation_id,
@@ -65,8 +74,9 @@ impl CHEvaluationTrial {
             trace_id: result.trace_id,
             index: result.index as u64,
             task_id,
+            task_version_hash,
             updated_at,
-            created_at: created_at.unwrap_or(updated_at),
+            created_at: stored.map(|trial| trial.created_at).unwrap_or(updated_at),
             data: json_value_to_string(&result.data),
             target: json_value_to_string(&result.target),
             metadata: json_value_to_string(
@@ -108,23 +118,33 @@ impl CHEvaluationTrial {
 }
 
 #[derive(Row, Deserialize)]
-struct TrialCreatedAt {
+struct StoredTrialRow {
     #[serde(with = "clickhouse::serde::uuid")]
     id: Uuid,
     created_at: i64,
+    task_version_hash: String,
 }
 
-/// `created_at` of each already-stored Trial in `ids`. The SDK saves a Trial once before it
-/// runs and again with its output, and the second save must keep the first one's time.
-pub async fn get_trial_created_ats(
+/// What a Trial's earlier saves stored that a later save must keep.
+pub struct StoredTrial {
+    created_at: i64,
+    /// The latest non-empty hash, or `''`.
+    task_version_hash: String,
+}
+
+/// The already-stored Trials among `ids`. The SDK saves a Trial once before it runs and
+/// again with its output, and the second save must keep the first one's time.
+pub async fn get_stored_trials(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     evaluation_id: Uuid,
     ids: &[Uuid],
-) -> Result<HashMap<Uuid, i64>> {
+) -> Result<HashMap<Uuid, StoredTrial>> {
     let rows = clickhouse
         .query(
-            "SELECT id, toUnixTimestamp64Nano(min(created_at)) AS created_at
+            "SELECT id, toUnixTimestamp64Nano(min(created_at)) AS created_at,
+                argMaxIf(task_version_hash, updated_at, task_version_hash != '')
+                    AS task_version_hash
              FROM evaluation_datapoints
              WHERE project_id = {project_id:UUID} AND evaluation_id = {evaluation_id:UUID}
                 AND id IN {ids:Array(UUID)}
@@ -133,11 +153,17 @@ pub async fn get_trial_created_ats(
         .param("project_id", project_id)
         .param("evaluation_id", evaluation_id)
         .param("ids", ids)
-        .fetch_all::<TrialCreatedAt>()
+        .fetch_all::<StoredTrialRow>()
         .await?;
     Ok(rows
         .into_iter()
-        .map(|row| (row.id, row.created_at))
+        .map(|row| {
+            let trial = StoredTrial {
+                created_at: row.created_at,
+                task_version_hash: row.task_version_hash,
+            };
+            (row.id, trial)
+        })
         .collect())
 }
 
@@ -179,16 +205,57 @@ pub async fn ch_insert_evaluation_trials(
 mod tests {
     use super::*;
 
-    fn task_id_of(point: serde_json::Value) -> String {
+    fn trial_of(point: serde_json::Value, stored: Option<&StoredTrial>) -> CHEvaluationTrial {
         let result: EvaluationTrialResult = serde_json::from_value(point).unwrap();
         CHEvaluationTrial::from_evaluation_trial_result(
             result,
             Uuid::nil(),
             Uuid::nil(),
             &DEFAULT_GROUP_NAME.to_string(),
-            None,
+            stored,
         )
-        .task_id
+    }
+
+    fn task_id_of(point: serde_json::Value) -> String {
+        trial_of(point, None).task_id
+    }
+
+    #[test]
+    fn task_version_hash_keeps_valid_hashes_and_the_stored_one() {
+        use serde_json::json;
+        let hash = "ab".repeat(32);
+        let other = "cd".repeat(32);
+        let hash_of = |point, stored| trial_of(point, stored).task_version_hash;
+
+        assert_eq!(
+            hash_of(json!({"data": {}, "taskVersionHash": hash}), None),
+            hash
+        );
+        assert_eq!(hash_of(json!({"data": {}}), None), "");
+        for invalid in [
+            json!(null),
+            json!(""),
+            json!(format!("sha256:{hash}")),
+            json!("ABC"),
+        ] {
+            assert_eq!(
+                hash_of(json!({"data": {}, "taskVersionHash": invalid}), None),
+                "",
+                "{invalid}"
+            );
+        }
+
+        let stored = StoredTrial {
+            created_at: 7,
+            task_version_hash: other.clone(),
+        };
+        let resaved = trial_of(json!({"data": {}}), Some(&stored));
+        assert_eq!(resaved.task_version_hash, other);
+        assert_eq!(resaved.created_at, 7);
+        assert_eq!(
+            hash_of(json!({"data": {}, "taskVersionHash": hash}), Some(&stored)),
+            hash
+        );
     }
 
     #[test]
