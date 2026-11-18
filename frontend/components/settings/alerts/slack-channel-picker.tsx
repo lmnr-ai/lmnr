@@ -13,6 +13,24 @@ export interface SlackChannelSelection {
   name: string;
 }
 
+// cmdk's default filter scores against `value` (channel id) AND keywords;
+// we only want to match against the channel name passed as the first keyword.
+export const filterSlackChannelByName = (_: string, search: string, keywords?: string[]) => {
+  const name = (keywords?.[0] ?? "").toLowerCase();
+  const q = search.toLowerCase();
+  if (!q) return 1;
+  if (name === q) return 1;
+  if (name.startsWith(q)) return 0.9;
+  if (name.includes(q)) return 0.5;
+  return 0;
+};
+
+// Member channels first, then alphabetical.
+export const compareSlackChannels = (a: SlackChannel, b: SlackChannel) => {
+  if (a.isMember !== b.isMember) return a.isMember ? -1 : 1;
+  return a.name.localeCompare(b.name);
+};
+
 interface SlackChannelPickerProps {
   channels?: SlackChannel[];
   isLoading: boolean;
@@ -45,12 +63,7 @@ const SlackChannelPicker = ({
   // the rest of the search/ranking as the user types.
   const options = useMemo(() => {
     if (!channels) return [];
-    return channels
-      .filter((c) => !selectedIds.has(c.id))
-      .sort((a, b) => {
-        if (a.isMember !== b.isMember) return a.isMember ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
+    return channels.filter((c) => !selectedIds.has(c.id)).sort(compareSlackChannels);
   }, [channels, selectedIds]);
 
   useEffect(() => {
@@ -95,20 +108,7 @@ const SlackChannelPicker = ({
 
   return (
     <div ref={containerRef} className={cn("relative", className)}>
-      <Command
-        className="overflow-visible bg-transparent"
-        // cmdk's default filter scores against `value` (channel id) AND keywords;
-        // we only want to match against the channel name in `keywords`.
-        filter={(_, search, keywords) => {
-          const name = (keywords?.[0] ?? "").toLowerCase();
-          const q = search.toLowerCase();
-          if (!q) return 1;
-          if (name === q) return 1;
-          if (name.startsWith(q)) return 0.9;
-          if (name.includes(q)) return 0.5;
-          return 0;
-        }}
-      >
+      <Command className="overflow-visible bg-transparent" filter={filterSlackChannelByName}>
         <div
           onClick={() => {
             if (disabled) return;
