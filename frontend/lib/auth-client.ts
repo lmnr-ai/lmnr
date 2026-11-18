@@ -1,3 +1,4 @@
+import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import { ssoClient } from "@better-auth/sso/client";
 import { deviceAuthorizationClient, jwtClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
@@ -15,7 +16,9 @@ const baseURL = typeof window !== "undefined" ? `${window.location.origin}${BASE
 
 export const authClient = createAuthClient({
   baseURL,
-  plugins: [ssoClient(), jwtClient(), deviceAuthorizationClient()],
+  // oauthProviderClient attaches the signed MCP authorization request on the sign-in and
+  // consent pages to POSTs (as `oauth_query`) so the server resumes the flow; a no-op elsewhere.
+  plugins: [ssoClient(), jwtClient(), deviceAuthorizationClient(), oauthProviderClient()],
 });
 
 export const { signOut } = authClient;

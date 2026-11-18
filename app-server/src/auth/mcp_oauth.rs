@@ -363,6 +363,20 @@ mod tests {
         assert_eq!(user.user_id, user_id);
     }
 
+    /// With the `openid` scope Better Auth adds its userinfo endpoint, so `aud` is an array.
+    #[tokio::test]
+    async fn audience_array_containing_resource_is_accepted() {
+        let (encoding, jwk) = make_key("k1");
+        let (_server, jwks) = cache_serving(vec![jwk]).await;
+        let user_id = Uuid::new_v4();
+        let mut claims = access_claims(user_id);
+        claims["aud"] = json!([RESOURCE, "https://app.example.com/api/auth/oauth2/userinfo"]);
+        let token = sign(&encoding, "k1", Some("at+jwt"), claims);
+
+        let user = verify_access_token(&token, &jwks, &config()).await.unwrap();
+        assert_eq!(user.user_id, user_id);
+    }
+
     #[tokio::test]
     async fn token_for_another_audience_is_rejected() {
         let (encoding, jwk) = make_key("k1");

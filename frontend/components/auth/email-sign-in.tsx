@@ -6,7 +6,7 @@ import { useState } from "react";
 import { signInLocalEmail } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { cn } from "@/lib/utils";
+import { cn, withBasePath } from "@/lib/utils";
 
 import LandingButton from "../landing/landing-button";
 import { Input } from "../ui/input";
@@ -28,9 +28,17 @@ export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted", c
   const handleSignIn = async () => {
     track("auth", action, { provider: "email" }, { sendInstantly: true });
     try {
-      const { error } = await signInLocalEmail({ email, name: email, callbackURL: callbackUrl });
+      const { data, error } = await signInLocalEmail({ email, name: email, callbackURL: callbackUrl });
       if (error) {
         toast({ variant: "destructive", title: error.message || "Failed to sign in. Please try again." });
+        return;
+      }
+      // An MCP authorization resumed by the OAuth provider: the auth client already
+      // navigates to the returned url (consent page or the client's redirect_uri).
+      if ((data as { redirect?: boolean } | null)?.redirect) return;
+      // API routes (the OAuth resume URL) are not pages; the client router can't load them.
+      if (callbackUrl.startsWith("/api/")) {
+        window.location.href = withBasePath(callbackUrl);
         return;
       }
       router.push(callbackUrl);
