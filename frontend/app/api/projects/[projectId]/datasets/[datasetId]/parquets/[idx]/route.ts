@@ -10,15 +10,10 @@ export const GET = apiHandler<{ projectId: string; datasetId: string; idx: strin
   }
 
   const { stream, fileName, contentLength } = await streamParquet(projectId, datasetId, index);
-  const fallback = fileName.replace(/[^A-Za-z0-9._ -]/g, "_");
-  const encoded = encodeURIComponent(fileName).replace(
-    /['()*]/g,
-    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
-  );
 
   const headers: Record<string, string> = {
     "Content-Type": "application/octet-stream",
-    "Content-Disposition": `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`,
+    "Content-Disposition": `attachment; filename="${fileName}"`,
     "Cache-Control": "no-cache",
   };
 
