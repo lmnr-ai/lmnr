@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod/v4";
 
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { connectSlackIntegration, redeemBrokeredSlackToken } from "@/lib/actions/slack";
@@ -45,6 +46,22 @@ async function buildRedirectUrl(workspaceId: string, returnPath?: string, error 
   return `${base}${settingsPath}${separator}${status}`;
 }
 
+// This callback is a public OAuth redirect target outside the proxy.ts matcher, and
+// both the direct `state` and the brokered `workspaceId` param are attacker-controlled.
+// Gate every branch on the browser's session being a member of that workspace, before
+// storing a bot token or resolving the workspace's project ids for the redirect.
+async function isAuthorizedForWorkspace(workspaceId: string): Promise<boolean> {
+  if (!z.guid().safeParse(workspaceId).success) {
+    return false;
+  }
+  const session = await getServerSession();
+  return !!session && (await isUserMemberOfWorkspace(workspaceId, session.user.id));
+}
+
+function unauthorizedRedirect(): NextResponse {
+  return NextResponse.redirect(`${prefixedBase()}/projects?slack=error`);
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
@@ -60,19 +77,13 @@ export async function GET(request: NextRequest) {
   // integrations page rather than falling through to the /projects fallback.
   const brokeredWorkspaceId = searchParams.get("workspaceId");
   if (brokeredWorkspaceId !== null) {
+    if (!(await isAuthorizedForWorkspace(brokeredWorkspaceId))) {
+      return unauthorizedRedirect();
+    }
     const returnPath = searchParams.get("returnPath") ?? undefined;
     const claim = searchParams.get("claim");
     const slackStatus = searchParams.get("slack");
-    if (slackStatus === "error" || !brokeredWorkspaceId || !claim) {
-      return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
-    }
-    // workspaceId rides in the URL (the broker echoes only claim + team), so bind
-    // the claim to the authenticated caller's membership here: this callback is a
-    // public OAuth redirect target, and without the check a user who completed
-    // their own broker flow could rewrite workspaceId to any UUID and store their
-    // bot token into a workspace they don't belong to.
-    const session = await getServerSession();
-    if (!session || !(await isUserMemberOfWorkspace(brokeredWorkspaceId, session.user.id))) {
+    if (slackStatus === "error" || !claim) {
       return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
     try {
@@ -84,16 +95,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (error || !code || !stateParam) {
-    const parsed = stateParam ? parseState(stateParam) : null;
-    return NextResponse.redirect(
-      parsed
-        ? await buildRedirectUrl(parsed.workspaceId, parsed.returnPath, true)
-        : `${prefixedBase()}/projects?slack=error`
-    );
+  const parsed = stateParam ? parseState(stateParam) : null;
+  if (!parsed || !(await isAuthorizedForWorkspace(parsed.workspaceId))) {
+    return unauthorizedRedirect();
   }
 
-  const { workspaceId, returnPath } = parseState(stateParam);
+  const { workspaceId, returnPath } = parsed;
+  if (error || !code) {
+    return NextResponse.redirect(await buildRedirectUrl(workspaceId, returnPath, true));
+  }
 
   try {
     await connectSlackIntegration({ code, workspaceId });
