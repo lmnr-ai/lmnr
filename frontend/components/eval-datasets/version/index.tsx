@@ -50,15 +50,18 @@ export default function EvalDatasetVersion({ dataset, version }: { dataset: stri
       ]}
     />
   );
-  const error = current.error ?? base.error;
-  if (error || !current.data) {
+  if (current.error || !current.data) {
     return (
       <>
         {header}
-        <Message>{error instanceof Error ? error.message : "Loading…"}</Message>
+        <Message>{current.error instanceof Error ? current.error.message : "Loading…"}</Message>
       </>
     );
   }
+  // A failed compare fetch stays inside the content area, so the picker can still clear or change it.
+  const compareStatus = base.error
+    ? `Couldn't load v${compareVersion}: ${base.error instanceof Error ? base.error.message : "unknown error"}`
+    : `Loading v${compareVersion}…`;
 
   return (
     <>
@@ -73,7 +76,7 @@ export default function EvalDatasetVersion({ dataset, version }: { dataset: stri
       </VersionSummary>
       <div className="flex min-h-0 flex-1 border-t">
         {compareVersion !== null && !diff ? (
-          <Message>{`Loading v${compareVersion}…`}</Message>
+          <Message>{compareStatus}</Message>
         ) : (
           <ResizablePanelGroup id="eval-dataset-version" orientation="horizontal">
             <ResizablePanel id="eval-dataset-version-tasks" defaultSize={22} minSize={12} className="min-w-0">
