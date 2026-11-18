@@ -126,6 +126,18 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
         ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
         (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
+        // A pushed version is the change; task uploads are per-item traffic,
+        // and reads are config reads an eval run makes.
+        ("POST", "/eval-datasets/{name}/versions") => log_write(EvalDataset, Create),
+        (
+            "GET",
+            "/eval-datasets"
+            | "/eval-datasets/{name}/versions/{version}"
+            | "/eval-dataset-tasks/{hash}",
+        ) => Skip,
+        ("POST", "/eval-dataset-tasks/missing") => Skip,
+        ("PUT", "/eval-dataset-tasks/{hash}" | "/eval-dataset-tasks/{hash}/index") => Skip,
+
         ("POST", "/rollouts/{session_id}") => log_write(DebuggerSession, Create),
         ("PATCH", "/rollouts/{session_id}/name") => log_write(DebuggerSession, Update),
         ("DELETE", "/rollouts/{session_id}") => log_write(DebuggerSession, Delete),
@@ -303,6 +315,10 @@ mod tests {
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
+            (Method::PUT, "/eval-dataset-tasks/{hash}"),
+            (Method::PUT, "/eval-dataset-tasks/{hash}/index"),
+            (Method::POST, "/eval-dataset-tasks/missing"),
+            (Method::GET, "/eval-dataset-tasks/{hash}"),
             (Method::POST, "/mcp"),
         ] {
             assert_eq!(
@@ -326,6 +342,10 @@ mod tests {
         assert_eq!(
             classify(&Method::GET, "/datasets/{dataset_id}/parquets/{idx}"),
             Some(log_read(AuditResource::Dataset, AuditAction::Export))
+        );
+        assert_eq!(
+            classify(&Method::POST, "/eval-datasets/{name}/versions"),
+            Some(log_write(AuditResource::EvalDataset, AuditAction::Create))
         );
         assert_eq!(classify(&Method::POST, "/unknown"), None);
     }
