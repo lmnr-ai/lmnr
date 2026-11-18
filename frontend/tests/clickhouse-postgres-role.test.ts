@@ -58,7 +58,10 @@ test("existing roles retain their password, settings, and CONNECT grant while re
   await ensurePostgresReadonlyRole();
   const statements = execute.mock.calls.map((call) => call.arguments[0]).filter((query) => typeof query === "string");
   assert.ok(statements.length > 0);
-  assert.ok(statements.every((query) => !/CREATE ROLE|ALTER ROLE|GRANT CONNECT/.test(query)));
+  assert.ok(statements.every((query) => !/CREATE ROLE|PASSWORD|statement_timeout|GRANT CONNECT/.test(query)));
+  assert.ok(
+    statements.some((query) => /BETWEEN 0 AND 23 THEN\s+ALTER ROLE "external_reader" CONNECTION LIMIT 24;/.test(query))
+  );
   assert.ok(statements.some((query) => query.includes("GRANT USAGE ON SCHEMA")));
   assert.ok(statements.some((query) => query.includes("GRANT SELECT (")));
   assert.ok(statements.some((query) => query.includes("CREATE POLICY clickhouse_ro_select")));
@@ -74,6 +77,21 @@ test("missing roles still receive login provisioning, settings, CONNECT, and app
   assert.ok(statements.some((query) => query.includes("statement_timeout = '15s'")));
   assert.ok(statements.some((query) => query.includes('GRANT CONNECT ON DATABASE "laminar"')));
   assert.ok(statements.some((query) => query.includes("CREATE POLICY clickhouse_ro_select")));
+});
+
+test("failed role statements log the Postgres error, never the statement with the password", async () => {
+  mock.method(db, "execute", async (query: unknown) => {
+    if (typeof query === "string") {
+      throw new Error(`Failed query: ${query}`, { cause: new Error("permission denied to create role") });
+    }
+    return [];
+  });
+  await ensurePostgresReadonlyRole();
+  const logged = (console.warn as unknown as { mock: { calls: { arguments: unknown[] }[] } }).mock.calls
+    .map((call) => call.arguments.join(" "))
+    .join("\n");
+  assert.ok(logged.includes("permission denied to create role"));
+  assert.ok(!logged.includes("test-only-password"));
 });
 
 test("external role still configures the ClickHouse connection with the supplied credentials", async () => {
