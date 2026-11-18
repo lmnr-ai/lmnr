@@ -14,6 +14,7 @@
   - `sandboxes.rs`: provider-agnostic project logic: ownership check + route cache, the capacity cap, `prepare_image` / `create_trial`, `wait_until_started`.
   - `registry.rs`: our image registry (ECR or generic) and per-project `Repository`. `images.rs`: layer and image push logic on top of it.
   - `mod.rs`: `HostedEvals {provider, registry}`, built once in `main.rs` from the shared AWS config and registered as `web::Data<Option<HostedEvals>>` (`None` = disabled; routes answer 404 "not enabled"). Also remote runs (`start_run`).
+  - Body caps, S3 streaming (`upload_payload`), `ArchiveIndex` and `store_index` live in `api/uploads.rs`, shared with eval datasets (`eval-datasets.md`).
   - A second provider is a new `SandboxProvider` variant: nothing above `provider/` names Daytona. Providers own how a pushed image becomes startable (`prepare_image`), how project ownership is recorded (`SandboxInfo.project_id`) and what a command id looks like.
 
 - **Harbor always runs where `lmnr-cli` runs**: on the user's machine locally, in the orchestrator sandbox for `--remote`. Remote trials use a custom Harbor environment (`environment.import_path = "lmnr_hosted_env:LaminarEnvironment"`) whose methods call the app-server's sandbox routes with a project API key. The app-server forwards to Daytona. **The Daytona key never leaves the app-server.**
