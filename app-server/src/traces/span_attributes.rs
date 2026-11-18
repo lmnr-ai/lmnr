@@ -126,6 +126,12 @@ pub const GEN_AI_RETRIEVAL_DOCUMENTS: &str = "gen_ai.retrieval.documents";
 pub const GEN_AI_MEMORY_QUERY_TEXT: &str = "gen_ai.memory.query.text";
 pub const GEN_AI_MEMORY_RECORDS: &str = "gen_ai.memory.records";
 
+// OTel MCP semantic conventions. A span with `mcp.method.name` is an MCP request.
+// https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/mcp.md
+pub const MCP_METHOD_NAME: &str = "mcp.method.name";
+pub const MCP_SESSION_ID: &str = "mcp.session.id";
+pub const ERROR_TYPE: &str = "error.type";
+
 // Plain trace-identity keys, read after the `lmnr.association.properties.*` ones.
 pub const SESSION_ID: &str = "session.id";
 pub const USER_ID: &str = "user.id";

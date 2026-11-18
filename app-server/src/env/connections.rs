@@ -21,6 +21,9 @@ pub const STATIC_SP_INTERNAL_PROJECT_ID: &str = "STATIC_SP_INTERNAL_PROJECT_ID";
 pub const SIGNALS_INTERNAL_PROJECT_ID: &str = "SIGNAL_JOB_INTERNAL_PROJECT_ID";
 /// Report summary self-tracing destination project id.
 pub const REPORTS_INTERNAL_PROJECT_ID: &str = "REPORTS_INTERNAL_PROJECT_ID";
+/// Destination project for our own `/v1/mcp` server's MCP observability spans
+/// (`api/v1/mcp_tracing.rs`); invalid or unset disables them.
+pub const MCP_SERVER_INTERNAL_PROJECT_ID: &str = "MCP_SERVER_INTERNAL_PROJECT_ID";
 /// Cluster-naming self-tracing destination project id; invalid or unset disables export.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_INTERNAL_PROJECT_ID: &str = "CLUSTERING_INTERNAL_PROJECT_ID";

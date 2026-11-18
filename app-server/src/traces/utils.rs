@@ -215,7 +215,9 @@ fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
 
 pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage) {
     // Check if any event is an exception to set span error status
-    if span.events.iter().any(|event| event.name == "exception") {
+    if span.events.iter().any(|event| event.name == "exception")
+        || span.attributes.is_failed_mcp_request()
+    {
         span.status = Some("error".to_string());
     }
 

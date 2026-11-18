@@ -20,6 +20,7 @@ use crate::{
         traces_static::CHTraceStatic,
         utils::chrono_to_nanoseconds,
     },
+    dashboards,
     db::{
         DB, debugger_session_blocks, projects::PiiMode, spans::Span,
         workspaces::WorkspaceDeployment,
@@ -397,6 +398,7 @@ pub async fn process_span_messages(
     }
 
     populate_autocomplete_caches(&batch.spans, &cache, &clickhouse).await;
+    dashboards::mcp::ensure_for_spans(&batch.spans, cache.clone());
 
     if is_feature_enabled(Feature::UsageLimit) {
         update_usage_limits(&batch.spans, &db, &clickhouse, &cache, &queue).await;

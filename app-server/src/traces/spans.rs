@@ -33,22 +33,22 @@ use crate::{
 use super::{
     openrouter,
     span_attributes::{
-        AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_AGENT_NAME,
-        GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES, GEN_AI_INPUT_TOKENS,
-        GEN_AI_MEMORY_QUERY_TEXT, GEN_AI_MEMORY_RECORDS, GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST,
-        GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS, GEN_AI_PROVIDER_NAME,
-        GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_RETRIEVAL_DOCUMENTS,
-        GEN_AI_RETRIEVAL_QUERY_TEXT, GEN_AI_SYSTEM, GEN_AI_SYSTEM_INSTRUCTIONS,
-        GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT, GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST,
-        GEN_AI_USAGE_AUDIO_INPUT_TOKENS, GEN_AI_USAGE_AUDIO_INPUT_TOKENS_DOTTED,
-        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS_DOTTED,
-        GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+        AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX, ERROR_TYPE,
+        GEN_AI_AGENT_NAME, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES,
+        GEN_AI_INPUT_TOKENS, GEN_AI_MEMORY_QUERY_TEXT, GEN_AI_MEMORY_RECORDS,
+        GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS,
+        GEN_AI_PROMPT_TOKENS, GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
+        GEN_AI_RETRIEVAL_DOCUMENTS, GEN_AI_RETRIEVAL_QUERY_TEXT, GEN_AI_SYSTEM,
+        GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
+        GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST, GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS_DOTTED, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_DOTTED,
         GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS, GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS,
         GEN_AI_USAGE_INPUT_TOKENS_CACHED, GEN_AI_USAGE_OUTPUT_TOKENS_REASONING,
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_DOTTED, GEN_AI_USAGE_REASONING_TOKENS,
-        GEN_AI_USAGE_TOTAL_COST, SESSION_ID, SPAN_IDS_PATH, SPAN_PATH, SPAN_RELEASE, SPAN_TYPE,
-        TRACE_NAME, USER_ID,
+        GEN_AI_USAGE_TOTAL_COST, MCP_METHOD_NAME, MCP_SESSION_ID, SESSION_ID, SPAN_IDS_PATH,
+        SPAN_PATH, SPAN_RELEASE, SPAN_TYPE, TRACE_NAME, USER_ID,
     },
     utils::skip_span_name,
 };
@@ -171,7 +171,8 @@ impl SpanAttributes {
             .get(&format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id"))
             .or(self.raw_attributes.get("ai.telemetry.metadata.session_id"))
             .or(self.raw_attributes.get("ai.telemetry.metadata.sessionId"))
-            .or(self.raw_attributes.get(SESSION_ID));
+            .or(self.raw_attributes.get(SESSION_ID))
+            .or(self.raw_attributes.get(MCP_SESSION_ID));
         match session_id_val {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
@@ -189,6 +190,18 @@ impl SpanAttributes {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
+    }
+
+    /// A span of an MCP request or notification (OTel MCP conventions), client or server side.
+    pub fn is_mcp_request(&self) -> bool {
+        self.raw_attributes.contains_key(MCP_METHOD_NAME)
+    }
+
+    /// An MCP request span (OTel MCP conventions) that failed. The spec sets `error.type` iff the
+    /// operation failed, and spec-only emitters mark failures with it (plus a span status, which
+    /// Laminar doesn't read) rather than an `exception` event.
+    pub fn is_failed_mcp_request(&self) -> bool {
+        self.is_mcp_request() && self.string_attr(ERROR_TYPE).is_some_and(|t| !t.is_empty())
     }
 
     /// Explicit trace name, independent of the root span's name.
@@ -1814,6 +1827,46 @@ mod tests {
 
     fn release_of(value: Value) -> Option<String> {
         SpanAttributes::new(HashMap::from([(SPAN_RELEASE.to_string(), value)])).release()
+    }
+
+    fn attributes_of(pairs: &[(&str, Value)]) -> SpanAttributes {
+        SpanAttributes::new(
+            pairs
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.clone()))
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn mcp_session_id_is_the_session_fallback() {
+        let attributes = attributes_of(&[(MCP_SESSION_ID, json!("mcp-1"))]);
+        assert_eq!(attributes.session_id().as_deref(), Some("mcp-1"));
+
+        let attributes = attributes_of(&[
+            (MCP_SESSION_ID, json!("mcp-1")),
+            (
+                &format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id"),
+                json!("sdk"),
+            ),
+        ]);
+        assert_eq!(attributes.session_id().as_deref(), Some("sdk"));
+    }
+
+    #[test]
+    fn error_type_fails_only_mcp_spans() {
+        let failed = attributes_of(&[
+            (MCP_METHOD_NAME, json!("tools/call")),
+            (ERROR_TYPE, json!("tool_error")),
+        ]);
+        assert!(failed.is_failed_mcp_request());
+
+        let ok = attributes_of(&[(MCP_METHOD_NAME, json!("tools/call"))]);
+        assert!(ok.is_mcp_request());
+        assert!(!ok.is_failed_mcp_request());
+
+        let not_mcp = attributes_of(&[(ERROR_TYPE, json!("500"))]);
+        assert!(!not_mcp.is_failed_mcp_request());
     }
 
     #[test]

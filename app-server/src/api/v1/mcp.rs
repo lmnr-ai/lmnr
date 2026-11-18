@@ -17,6 +17,7 @@ use rmcp::{
 use serde_json::{Value, json};
 use uuid::Uuid;
 
+use super::mcp_tracing;
 use crate::{
     access_policy::{self, AccessPolicy, Actor},
     audit::{
@@ -157,8 +158,14 @@ impl LaminarMcpServer {
         cache: Arc<Cache>,
         queue: Arc<MessageQueue>,
     ) -> Self {
+        let mut tool_router = Self::tool_router_with_descriptions();
+        if mcp_tracing::internal_project_id().is_some() {
+            for route in tool_router.map.values_mut() {
+                mcp_tracing::add_context_property(Arc::make_mut(&mut route.attr.input_schema));
+            }
+        }
         Self {
-            tool_router: Self::tool_router_with_descriptions(),
+            tool_router,
             clickhouse,
             clickhouse_ro,
             query_engine,
@@ -370,7 +377,12 @@ impl LaminarMcpServer {
         input.project_id = Some(*project_id);
         input.resource_id = resource_id;
         input.metadata = metadata;
-        audit::emit_detached(self.db.clone(), self.cache.clone(), self.queue.clone(), input);
+        audit::emit_detached(
+            self.db.clone(),
+            self.cache.clone(),
+            self.queue.clone(),
+            input,
+        );
     }
 }
 
@@ -517,6 +529,8 @@ impl ServerHandler for LaminarMcpServer {
 /// Shared state for the MCP endpoint, passed via actix-web `Data`.
 pub struct McpState {
     server: LaminarMcpServer,
+    /// Where this server's own MCP spans go; `None` when tracing it is off.
+    trace_project_id: Option<Uuid>,
 }
 
 impl McpState {
@@ -539,6 +553,7 @@ impl McpState {
                 cache,
                 queue,
             ),
+            trace_project_id: mcp_tracing::internal_project_id(),
         }
     }
 }
@@ -554,8 +569,24 @@ pub async fn mcp_handler(
     body: web::Bytes,
     state: web::Data<McpState>,
 ) -> HttpResponse {
+    let api_key = req.extensions().get::<ProjectApiKey>().cloned();
+    let mut raw: Value = match serde_json::from_slice(&body) {
+        Ok(raw) => raw,
+        Err(e) => {
+            let error_body = serde_json::json!({ "error": format!("Invalid JSON-RPC: {e}") });
+            return HttpResponse::BadRequest()
+                .content_type("application/json")
+                .body(error_body.to_string());
+        }
+    };
+    // Strips the `context` argument before rmcp validates the tool's parameters.
+    let tool_call = match state.trace_project_id {
+        Some(_) => mcp_tracing::read_request(&mut raw, api_key.as_ref(), &state.server.cache).await,
+        None => None,
+    };
+
     // Parse JSON-RPC message
-    let message: ClientJsonRpcMessage = match serde_json::from_slice(&body) {
+    let message: ClientJsonRpcMessage = match serde_json::from_value(raw) {
         Ok(msg) => msg,
         Err(e) => {
             let error_body = serde_json::json!({ "error": format!("Invalid JSON-RPC: {e}") });
@@ -577,7 +608,7 @@ pub async fn mcp_handler(
         // Requests (initialize, tools/list, tools/call, etc.) → process via rmcp
         ClientJsonRpcMessage::Request(mut request) => {
             // Inject project_id from auth middleware into rmcp extensions
-            if let Some(api_key) = req.extensions().get::<ProjectApiKey>() {
+            if let Some(api_key) = &api_key {
                 let extensions = request.request.extensions_mut();
                 extensions.insert(ProjectId(api_key.project_id));
                 extensions.insert(api_key.clone());
@@ -597,6 +628,18 @@ pub async fn mcp_handler(
             match receiver.recv().await {
                 Some(response) => {
                     let body = serde_json::to_vec(&response).unwrap_or_else(|_| b"{}".to_vec());
+                    if let (Some(call), Some(project_id), Some(api_key)) =
+                        (tool_call, state.trace_project_id, api_key)
+                    {
+                        let sink = mcp_tracing::TraceSink {
+                            project_id,
+                            db: state.server.db.clone(),
+                            cache: state.server.cache.clone(),
+                            queue: state.server.queue.clone(),
+                        };
+                        let response = serde_json::from_slice(&body).unwrap_or_default();
+                        tokio::spawn(mcp_tracing::record(sink, call, api_key, response));
+                    }
                     HttpResponse::Ok()
                         .content_type("application/json")
                         .body(Bytes::from(body))

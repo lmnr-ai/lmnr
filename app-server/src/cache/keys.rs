@@ -19,6 +19,17 @@ pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_s
 pub const HOSTED_EVALS_LAYER_CACHE_KEY: &str = "hosted_evals_layer";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
+/// `mcp_dashboard:{project_id}` → the frontend has created (or declined to recreate) the
+/// project's MCP dashboard. Never expires; `dashboards::mcp`.
+pub const MCP_DASHBOARD_CACHE_KEY: &str = "mcp_dashboard";
+/// `mcp_dashboard_lock:{project_id}`: one creation request in flight, and the retry backoff after
+/// a failed one.
+pub const MCP_DASHBOARD_LOCK_CACHE_KEY: &str = "mcp_dashboard_lock";
+/// `mcp_server_turn:{api_key_id}` → trace id of the caller's current turn on our own `/v1/mcp`
+/// server; expires after the turn gap. `api/v1/mcp_tracing.rs`.
+pub const MCP_SERVER_TURN_CACHE_KEY: &str = "mcp_server_turn";
+/// `mcp_server_client:{api_key_id}` → the `clientInfo` of the caller's last `initialize`.
+pub const MCP_SERVER_CLIENT_CACHE_KEY: &str = "mcp_server_client";
 /// `license_state` → the instance's license inputs (`license::Inputs`). Written on
 /// a miss and whenever a key is saved; expires after a minute.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
