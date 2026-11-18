@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Wire names shared with the frontend (`LLM_PROFILE_PROVIDERS`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LlmProfileProvider {
     OpenaiCompletions,
@@ -89,7 +89,7 @@ impl LlmProfileProvider {
 /// permissive on purpose: `service` validates on write, and a stale or
 /// hand-edited row should fail with a readable `ConfigError`, not a serde error.
 /// Absent options are omitted on the wire because the Zod schema rejects `null`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileConfig {
     #[serde(default)]
@@ -106,7 +106,7 @@ pub struct ProfileConfig {
     pub header_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ProfileAuth {
     #[default]
@@ -120,7 +120,7 @@ pub enum ProfileAuth {
 
 /// Decrypted contents of `llm_profiles.secrets`; also the plaintext shape the
 /// write routes accept. Absent keys are omitted on the wire (Zod rejects `null`).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileSecrets {
     #[serde(default, skip_serializing_if = "Option::is_none")]

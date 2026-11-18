@@ -7,8 +7,13 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    db::{DB, debugger_session_blocks, debugger_sessions::debugger_session_exists, evaluations::Evaluation},
+    db::{
+        DB, debugger_session_blocks,
+        debugger_sessions::{debugger_session_exists, update_debugger_session_name},
+        evaluations::Evaluation,
+    },
     pubsub::PubSub,
+    realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
     traces::realtime::send_block_update,
 };
@@ -110,7 +115,6 @@ pub async fn handle_list_blocks(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "blocks": blocks })))
 }
 
-// `text` and `command` blocks are also pushed to the session live.
 pub async fn handle_add_block(
     project_id: Uuid,
     session_id: Uuid,
@@ -118,7 +122,22 @@ pub async fn handle_add_block(
     db: &web::Data<DB>,
     pubsub: &PubSub,
 ) -> ResponseResult {
-    match debugger_session_blocks::insert_block(
+    match add_block(project_id, session_id, body, db, pubsub).await? {
+        Some(id) => Ok(HttpResponse::Ok().json(serde_json::json!({ "id": id }))),
+        None => Ok(HttpResponse::NotFound().json("Session not found")),
+    }
+}
+
+/// Insert a block; `None` when the session is not in the project. `text` and `command` blocks
+/// are also pushed to the session live.
+pub async fn add_block(
+    project_id: Uuid,
+    session_id: Uuid,
+    body: AddBlockRequest,
+    db: &DB,
+    pubsub: &PubSub,
+) -> anyhow::Result<Option<Uuid>> {
+    let Some((id, created_at)) = debugger_session_blocks::insert_block(
         &db.pool,
         &project_id,
         &session_id,
@@ -126,37 +145,59 @@ pub async fn handle_add_block(
         &body.content,
     )
     .await?
-    {
-        Some((id, created_at)) => {
-            let realtime_value = match body.block_type.as_str() {
-                "command" => serde_json::to_value(&CommandBlock {
+    else {
+        return Ok(None);
+    };
+    let realtime_value = match body.block_type.as_str() {
+        "command" => serde_json::to_value(&CommandBlock {
+            id,
+            block_type: "command",
+            created_at,
+            command: body.content.clone(),
+        })
+        .ok(),
+        // Any other block carrying `text`/`note` broadcasts as a text block.
+        _ => body
+            .content
+            .get("text")
+            .or_else(|| body.content.get("note"))
+            .and_then(|v| v.as_str())
+            .and_then(|text| {
+                serde_json::to_value(&TextBlock {
                     id,
-                    block_type: "command",
+                    block_type: "text",
                     created_at,
-                    command: body.content.clone(),
+                    text: text.to_string(),
                 })
-                .ok(),
-                // Any other block carrying `text`/`note` broadcasts as a text block.
-                _ => body
-                    .content
-                    .get("text")
-                    .or_else(|| body.content.get("note"))
-                    .and_then(|v| v.as_str())
-                    .and_then(|text| {
-                        serde_json::to_value(&TextBlock {
-                            id,
-                            block_type: "text",
-                            created_at,
-                            text: text.to_string(),
-                        })
-                        .ok()
-                    }),
-            };
-            if let Some(value) = realtime_value {
-                send_block_update(pubsub, &project_id, &session_id, value).await;
-            }
-            Ok(HttpResponse::Ok().json(serde_json::json!({ "id": id })))
-        }
-        None => Ok(HttpResponse::NotFound().json("Session not found")),
+                .ok()
+            }),
+    };
+    if let Some(value) = realtime_value {
+        send_block_update(pubsub, &project_id, &session_id, value).await;
     }
+    Ok(Some(id))
+}
+
+/// Rename a session; `false` when it is not in the project. An open debugger view updates its
+/// title live; the push is fire-and-forget (`send_to_key` swallows errors).
+pub async fn rename_session(
+    project_id: Uuid,
+    session_id: Uuid,
+    name: &str,
+    db: &DB,
+    pubsub: &PubSub,
+) -> anyhow::Result<bool> {
+    if !update_debugger_session_name(&db.pool, &session_id, &project_id, name).await? {
+        return Ok(false);
+    }
+    let message = SseMessage {
+        event_type: "session_update".to_string(),
+        data: serde_json::json!({
+            "sessionId": session_id,
+            "name": name,
+        }),
+    };
+    let key = format!("rollout_session_{}", session_id);
+    send_to_key(pubsub, &project_id, &key, message).await;
+    Ok(true)
 }

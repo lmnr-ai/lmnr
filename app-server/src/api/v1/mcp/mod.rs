@@ -14,6 +14,7 @@ use rmcp::{
     tool, tool_handler, tool_router,
     transport::OneshotTransport,
 };
+use serde::Serialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -29,9 +30,16 @@ use crate::{
     cache::Cache,
     db::{self, DB},
     mq::MessageQueue,
+    pubsub::PubSub,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
+
+mod datasets;
+mod debug_sessions;
+mod llm_profiles;
+mod signals;
+mod traces;
 
 // ============ Per-request context ============
 
@@ -66,6 +74,9 @@ pub struct QuerySqlParams {
     pub project: ProjectParam,
 }
 
+/// A trace id as a hyphenated GUID or the 32 hex digits OpenTelemetry emits; `Uuid` parses both.
+const TRACE_ID_PATTERN: &str = r"^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})$";
+
 /// Parameters for the trace context tool.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -75,12 +86,7 @@ pub struct GetTraceContextParams {
     /// (e.g., '123e4567e89b12d3a456426614174000')
     // Not advertised as `format: uuid`: zod maps that to the RFC-strict `z.uuid()`, which rejects
     // valid OTel trace ids. The pattern mirrors the two forms OTel/Laminar emit; `Uuid` parses both.
-    #[schemars(
-        with = "String",
-        regex(
-            pattern = r"^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})$"
-        )
-    )]
+    #[schemars(with = "String", regex(pattern = TRACE_ID_PATTERN))]
     pub trace_id: Uuid,
     #[serde(flatten)]
     pub project: ProjectParam,
@@ -163,7 +169,6 @@ pub struct LaminarMcpServer {
     /// Stored so the `#[tool_handler(router = self.tool_router)]` macro serves THIS instance (with the
     /// injected `query_laminar_sql` description) instead of rebuilding a fresh router per request.
     tool_router: ToolRouter<Self>,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
     query_engine: Arc<QueryEngine>,
@@ -171,6 +176,7 @@ pub struct LaminarMcpServer {
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
+    pubsub: Arc<PubSub>,
 }
 
 #[tool_router]
@@ -183,6 +189,7 @@ impl LaminarMcpServer {
         db: Arc<DB>,
         cache: Arc<Cache>,
         queue: Arc<MessageQueue>,
+        pubsub: Arc<PubSub>,
     ) -> Self {
         Self {
             tool_router: Self::tool_router_with_descriptions(),
@@ -193,6 +200,7 @@ impl LaminarMcpServer {
             db,
             cache,
             queue,
+            pubsub,
         }
     }
 
@@ -203,7 +211,12 @@ impl LaminarMcpServer {
     /// `#[tool]` doc-comment descriptions untouched. Separate from `new` so the resulting router is
     /// testable without the server's DB/CH/cache deps.
     fn tool_router_with_descriptions() -> ToolRouter<Self> {
-        let mut router = Self::tool_router();
+        let mut router = Self::tool_router()
+            + Self::dataset_tools()
+            + Self::signal_tools()
+            + Self::llm_profile_tools()
+            + Self::trace_tools()
+            + Self::debug_session_tools();
         match router.map.get_mut(QUERY_SQL_TOOL_NAME) {
             Some(route) => route.attr.description = Some(Cow::Owned(query_sql_tool_description())),
             None => log::error!(
@@ -254,7 +267,7 @@ impl LaminarMcpServer {
             AuditResource::Sql,
             AuditAction::Query,
             result.is_ok(),
-            None,
+            AuditTarget::default(),
             Some(json!({ "query": query, "tables": tables.unwrap_or_default() })),
         )
         .await;
@@ -303,7 +316,7 @@ impl LaminarMcpServer {
             AuditResource::Trace,
             AuditAction::View,
             result.is_ok(),
-            Some(params.trace_id.to_string()),
+            AuditTarget::id(params.trace_id),
             None,
         )
         .await;
@@ -319,6 +332,9 @@ impl LaminarMcpServer {
         }
     }
 
+    /// Ask Laminar Agent a question about this project's traces in plain language and get a
+    /// grounded answer. The agent runs read-only SQL and reads traces itself. The answer ends
+    /// with a `conversationId`; pass it back to continue the conversation.
     #[tool(name = "ask_agent")]
     async fn ask_agent(
         &self,
@@ -341,7 +357,10 @@ impl LaminarMcpServer {
             AuditResource::Agent,
             AuditAction::Run,
             result.is_ok(),
-            result.as_ref().ok().map(|(_, id)| id.to_string()),
+            result
+                .as_ref()
+                .map(|(_, id)| AuditTarget::id(id))
+                .unwrap_or_default(),
             None,
         )
         .await;
@@ -388,6 +407,42 @@ impl LaminarMcpServer {
 
 fn tool_error(message: impl Into<String>) -> CallToolResponse {
     CallToolResult::error(vec![ContentBlock::text(message.into())]).into()
+}
+
+fn tool_json<T: Serialize>(value: &T) -> CallToolResponse {
+    CallToolResult::success(vec![ContentBlock::text(
+        serde_json::to_string_pretty(value).unwrap_or_default(),
+    )])
+    .into()
+}
+
+/// Error text for a failed tool call. Internal errors are logged, not shown.
+fn internal_error(tool: &str, error: impl std::fmt::Debug) -> CallToolResponse {
+    log::error!("MCP tool {tool} failed: {error:?}");
+    tool_error("Internal server error")
+}
+
+/// The written resource an audit event names.
+#[derive(Default)]
+struct AuditTarget {
+    id: Option<String>,
+    label: Option<String>,
+}
+
+impl AuditTarget {
+    fn id(id: impl ToString) -> Self {
+        Self {
+            id: Some(id.to_string()),
+            label: None,
+        }
+    }
+
+    fn named(id: impl ToString, label: impl Into<String>) -> Self {
+        Self {
+            id: Some(id.to_string()),
+            label: Some(label.into()),
+        }
+    }
 }
 
 impl LaminarMcpServer {
@@ -444,6 +499,17 @@ impl LaminarMcpServer {
         }
     }
 
+    /// Writes the project-API-key surface (`/v1`) does not offer stay user-only here too.
+    fn require_user(scope: &ProjectScope) -> Result<&McpUser, CallToolResponse> {
+        match &scope.caller {
+            McpCaller::User(user) => Ok(user),
+            McpCaller::ApiKey(_) => Err(tool_error(
+                "This tool needs a signed-in user. Reconnect the Laminar MCP server with OAuth \
+                 (no API key header) to use it.",
+            )),
+        }
+    }
+
     /// API keys read under the `ApiKey` policy; OAuth users under the `Cli` one, since an MCP
     /// session is an agent acting for the user (docs/internal/rbac.md).
     async fn policy(&self, scope: &ProjectScope) -> AccessPolicy {
@@ -467,7 +533,7 @@ impl LaminarMcpServer {
         resource: AuditResource,
         action: AuditAction,
         success: bool,
-        resource_id: Option<String>,
+        target: AuditTarget,
         metadata: Option<Value>,
     ) {
         let outcome = if success {
@@ -483,7 +549,8 @@ impl LaminarMcpServer {
         };
         let mut input = AuditEventInput::new(actor, AuditSource::Mcp, resource, action, outcome);
         input.project_id = Some(scope.project_id);
-        input.resource_id = resource_id;
+        input.resource_id = target.id;
+        input.resource_label = target.label;
         input.metadata = metadata;
         audit::emit_detached(
             self.db.clone(),
@@ -653,6 +720,7 @@ impl McpState {
         db: Arc<DB>,
         cache: Arc<Cache>,
         queue: Arc<MessageQueue>,
+        pubsub: Arc<PubSub>,
     ) -> Self {
         Self {
             server: LaminarMcpServer::new(
@@ -663,6 +731,7 @@ impl McpState {
                 db,
                 cache,
                 queue,
+                pubsub,
             ),
         }
     }
@@ -754,8 +823,8 @@ mod tests {
             .clone()
     }
 
-    /// Exactly the three expected tools are exposed, with the right names — nothing dropped or added
-    /// by the router/description refactor.
+    /// Exactly the expected tools are exposed, with the right names: nothing dropped or added by
+    /// merging the per-area routers.
     #[test]
     fn router_exposes_expected_tools() {
         let names: Vec<String> = LaminarMcpServer::tool_router_with_descriptions()
@@ -766,13 +835,76 @@ mod tests {
         assert_eq!(
             names,
             vec![
+                "add_datapoints",
+                "add_debug_session_note",
+                "add_trace_tags",
                 "ask_agent",
+                "create_dataset",
+                "create_llm_profile",
+                "create_signal",
+                "delete_dataset",
+                "delete_llm_profile",
+                "delete_signal",
+                "get_datapoints",
+                "get_debug_session",
+                "get_llm_profile",
+                "get_signal",
                 "get_trace_context",
+                "list_datasets",
+                "list_llm_profiles",
                 "list_projects",
-                "query_laminar_sql"
+                "list_signal_versions",
+                "list_signals",
+                "query_laminar_sql",
+                "rename_dataset",
+                "rename_debug_session",
+                "update_llm_profile",
+                "update_signal",
             ],
             "unexpected MCP tool set (list_all is sorted by name)"
         );
+    }
+
+    /// Every tool but `list_projects` acts on a project, so each advertises `projectId`, and
+    /// flattened inputs (signal / LLM profile bodies) land as top-level properties.
+    #[test]
+    fn project_scoped_tools_advertise_project_id() {
+        for tool in LaminarMcpServer::tool_router_with_descriptions().list_all() {
+            let properties = tool
+                .input_schema
+                .get("properties")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            assert!(
+                tool.description.as_deref().is_some_and(|d| !d.is_empty()),
+                "{} has no description",
+                tool.name
+            );
+            if tool.name == "list_projects" {
+                continue;
+            }
+            assert!(
+                properties.contains_key("projectId"),
+                "{} lacks projectId: {properties:?}",
+                tool.name
+            );
+        }
+        let create_signal = tool("create_signal");
+        let properties = create_signal.input_schema.get("properties").unwrap();
+        for field in [
+            "name",
+            "prompt",
+            "structuredOutput",
+            "trigger",
+            "filters",
+            "mode",
+        ] {
+            assert!(
+                properties.get(field).is_some(),
+                "create_signal lacks {field}"
+            );
+        }
     }
 
     /// `query_laminar_sql`'s description is the INJECTED one (intro + shared schema + MCP extras),

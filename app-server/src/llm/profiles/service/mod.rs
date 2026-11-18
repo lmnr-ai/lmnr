@@ -70,7 +70,8 @@ pub fn error_response(e: CrudError) -> HttpResponse {
     }
 }
 
-#[derive(Debug, Deserialize)]
+// `JsonSchema`: the MCP LLM-profile tools advertise these shapes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateLlmProfileInput {
     pub name: String,
@@ -85,7 +86,7 @@ pub struct CreateLlmProfileInput {
 /// Every field optional; omitted ones keep their stored value. `secrets` is an
 /// overlay: a key that is absent keeps the stored secret, so callers never have
 /// to re-send credentials. `models` replaces the whole list when present.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLlmProfileInput {
     pub name: Option<String>,
