@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { datasetParquets, datasets } from "@/lib/db/migrations/schema";
 import { getExportsMetadataByPath, streamExportDataByPath } from "@/lib/s3";
@@ -71,7 +72,8 @@ export const startParquetExportJob = async (
 
 export const getParquets = async (projectId: string, datasetId: string) => {
   const parquetInfo = await getParquetInfo(projectId, datasetId);
-  const result = await Promise.allSettled(
+  // Both routes use positional indexes, so dropping a failed lookup changes which file an index selects.
+  return Promise.all(
     parquetInfo.map(async (info) => {
       const metadata = await getExportsMetadataByPath(info.path);
       return {
@@ -84,9 +86,6 @@ export const getParquets = async (projectId: string, datasetId: string) => {
       };
     })
   );
-
-  const parquets = result.filter((r) => r.status === "fulfilled").map((r) => r.value);
-  return parquets;
 };
 
 export const streamParquet = async (
@@ -100,6 +99,9 @@ export const streamParquet = async (
 }> => {
   const parquets = await getParquets(projectId, datasetId);
   const parquet = parquets[idx];
+  if (!parquet) {
+    throw new NotFoundError("Parquet file not found");
+  }
   const stream = await streamExportDataByPath(parquet.path);
   return {
     stream,
