@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: "Authorize app - Laminar",
 };
 
+// MCP_RESOURCE_URL is a runtime env var: without this, `next build` (where it is unset)
+// prerenders the notFound() below into a static 404.
+export const dynamic = "force-dynamic";
+
 const redirectHostOf = (redirectUri: string | null): string => {
   try {
     const url = new URL(redirectUri ?? "");
