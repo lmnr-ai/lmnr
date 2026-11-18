@@ -74,6 +74,8 @@ pub struct RealtimeTrial<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     task_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    task_version_hash: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     trace_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<&'a str>,
@@ -94,6 +96,7 @@ impl<'a> RealtimeTrial<'a> {
             id: row.id,
             index: Some(row.index),
             task_id: Some(&row.task_id),
+            task_version_hash: non_empty(&row.task_version_hash),
             trace_id,
             data: non_empty(&row.data).map(|s| clip_str(s, TRUNCATE_CHARS)),
             target: non_empty(&row.target).map(|s| clip_str(s, TRUNCATE_CHARS)),
@@ -114,6 +117,7 @@ impl<'a> RealtimeTrial<'a> {
             id: trial_id,
             index: None,
             task_id: None,
+            task_version_hash: None,
             trace_id,
             data: None,
             target: None,
@@ -235,9 +239,21 @@ mod tests {
         assert!(v.get("target").is_none());
         assert!(v.get("metadata").is_none());
         assert!(v.get("output").is_none());
+        assert!(v.get("taskVersionHash").is_none());
         // index and taskId always present on inserts.
         assert_eq!(v["index"], json!(0));
         assert_eq!(v["taskId"], json!("0"));
+    }
+
+    #[test]
+    fn from_ch_insert_sends_the_task_version_hash() {
+        let hash = "a".repeat(64);
+        let row = CHEvaluationTrial {
+            task_version_hash: hash.clone(),
+            ..sample_row()
+        };
+        let v = serde_json::to_value(RealtimeTrial::from_ch_insert(&row)).unwrap();
+        assert_eq!(v["taskVersionHash"], json!(hash));
     }
 
     #[test]
