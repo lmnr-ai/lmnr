@@ -57,6 +57,10 @@ export default function TrialFiles({ target, failed }: TrialFilesProps) {
     hosted && agent.error && errorText(agent.error, "Failed to load the agent dir"),
     hosted && agent.data?.files.length === 0 && "The run's dataset has no agent/ dir.",
     hosted && logs.error && errorText(logs.error, "Failed to load the trial's logs"),
+    hosted &&
+      !!trialName &&
+      logs.data?.files.length === 0 &&
+      `The run's uploaded logs have no files for trial ${trialName}.`,
     hosted && !trialName && "This trial has no Harbor trial name, so its logs can't be found.",
     !hosted && "agent/ and logs/ are only kept for remote runs.",
   ].filter((note): note is string => !!note);
