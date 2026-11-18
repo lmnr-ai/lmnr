@@ -1253,6 +1253,7 @@ export const evaluations = pgTable(
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
     hostedMetadata: jsonb("hosted_metadata"),
+    datasetV2Id: text("dataset_v2_id"),
   },
   (table) => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
@@ -2268,6 +2269,39 @@ export const traces = pgTable(
   ]
 );
 
+// A Laminar Agent sandbox: a Modal VM while running, its last filesystem snapshot while stopped. Project-wide, so
+// any of the project's sessions can open it.
+export const agentSandboxes = pgTable(
+  "agent_sandboxes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    // Null while stopped.
+    extSandboxId: text("ext_sandbox_id"),
+    // Modal's hard lifetime of the running VM; null while stopped.
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    extSnapshotId: text("ext_snapshot_id"),
+    extSnapshotExpiresAt: timestamp("ext_snapshot_expires_at", { withTimezone: true, mode: "string" }),
+    // Whether other chats can list and open it. False for sandboxes opened by surfaces without secrets (report): they
+    // read untrusted input, so they must stay reachable only from their own session.
+    openableById: boolean("openable_by_id").default(true).notNull(),
+    // The running VM's LMNR_PROJECT_API_KEY, revoked when it stops.
+    apiKeyId: uuid("api_key_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "agent_sandboxes_project_id_fkey",
+    }).onDelete("cascade"),
+    index("agent_sandboxes_project_id_idx").on(table.projectId, table.lastActiveAt.desc()),
+    uniqueIndex("agent_sandboxes_ext_sandbox_id_key").on(table.extSandboxId),
+  ]
+);
+
 export const agentSessions = pgTable(
   "agent_sessions",
   {
@@ -2278,6 +2312,8 @@ export const agentSessions = pgTable(
     name: text(),
     nextId: bigint("next_id", { mode: "number" }).default(2).notNull(),
     nextSeq: bigint("next_seq", { mode: "number" }).default(1).notNull(),
+    // The sandbox the session's tools work in; open_sandbox switches it.
+    sandboxId: uuid("sandbox_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
@@ -2290,32 +2326,19 @@ export const agentSessions = pgTable(
       foreignColumns: [projects.id],
       name: "agent_sessions_project_id_fkey",
     }).onDelete("cascade"),
-  ]
-);
-
-export const agentSessionSandboxes = pgTable(
-  "agent_session_sandboxes",
-  {
-    sessionId: uuid("session_id").primaryKey().notNull(),
-    sandboxId: text("sandbox_id").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
     foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessions.id],
-      name: "agent_session_sandboxes_session_id_fkey",
-    }).onDelete("cascade"),
+      columns: [table.sandboxId],
+      foreignColumns: [agentSandboxes.id],
+      name: "agent_sessions_sandbox_id_fkey",
+    }).onDelete("set null"),
   ]
 );
 
-// One row per cloned repo in a session's sandbox, with that repo's PR branch progress.
-export const agentSessionSandboxRepos = pgTable(
-  "agent_session_sandbox_repos",
+// One row per cloned repo in a sandbox, with that repo's PR branch progress.
+export const agentSandboxRepos = pgTable(
+  "agent_sandbox_repos",
   {
-    sessionId: uuid("session_id").notNull(),
+    sandboxId: uuid("sandbox_id").notNull(),
     repoId: bigint("repo_id", { mode: "number" }).notNull(),
     repoFullName: text("repo_full_name").notNull(),
     repoDir: text("repo_dir").notNull(),
@@ -2327,11 +2350,11 @@ export const agentSessionSandboxRepos = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.sessionId, table.repoId], name: "agent_session_sandbox_repos_pkey" }),
+    primaryKey({ columns: [table.sandboxId, table.repoId], name: "agent_sandbox_repos_pkey" }),
     foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessionSandboxes.sessionId],
-      name: "agent_session_sandbox_repos_session_id_fkey",
+      columns: [table.sandboxId],
+      foreignColumns: [agentSandboxes.id],
+      name: "agent_sandbox_repos_sandbox_id_fkey",
     }).onDelete("cascade"),
   ]
 );
@@ -2405,81 +2428,65 @@ export const agentDocumentRevisions = pgTable(
   ]
 );
 
-export const evalDatasets = pgTable(
-  "eval_datasets",
+export const datasetsV2 = pgTable(
+  "datasets_v2",
   {
-    id: uuid().defaultRandom().primaryKey().notNull(),
+    id: text().notNull(),
     projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    unique("eval_datasets_project_id_name_key").on(table.projectId, table.name),
+    primaryKey({ columns: [table.projectId, table.id], name: "datasets_v2_pkey" }),
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "eval_datasets_project_id_fkey",
+      name: "datasets_v2_project_id_fkey",
     }).onDelete("cascade"),
   ]
 );
 
-export const evalDatasetVersions = pgTable(
-  "eval_dataset_versions",
+export const tasks = pgTable(
+  "tasks",
   {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    datasetId: uuid("dataset_id").notNull(),
-    version: integer().notNull(),
-    parentVersion: integer("parent_version"),
-    message: text(),
-    createdByUserId: uuid("created_by_user_id"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    unique("eval_dataset_versions_dataset_id_version_key").on(table.datasetId, table.version),
-    foreignKey({
-      columns: [table.datasetId],
-      foreignColumns: [evalDatasets.id],
-      name: "eval_dataset_versions_dataset_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.createdByUserId],
-      foreignColumns: [users.id],
-      name: "eval_dataset_versions_created_by_user_id_fkey",
-    }).onDelete("set null"),
-  ]
-);
-
-export const evalDatasetVersionTasks = pgTable(
-  "eval_dataset_version_tasks",
-  {
-    versionId: uuid("version_id").notNull(),
-    name: text().notNull(),
-    hash: text().notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.versionId, table.name], name: "eval_dataset_version_tasks_pkey" }),
-    foreignKey({
-      columns: [table.versionId],
-      foreignColumns: [evalDatasetVersions.id],
-      name: "eval_dataset_version_tasks_version_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const evalDatasetTaskBlobs = pgTable(
-  "eval_dataset_task_blobs",
-  {
+    id: text().notNull(),
     projectId: uuid("project_id").notNull(),
+    datasetId: text("dataset_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.datasetId, table.id], name: "tasks_pkey" }),
+    foreignKey({
+      columns: [table.projectId, table.datasetId],
+      foreignColumns: [datasetsV2.projectId, datasetsV2.id],
+      name: "tasks_project_id_dataset_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const taskVersions = pgTable(
+  "task_versions",
+  {
+    taskId: text("task_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    datasetId: text("dataset_id").notNull(),
     hash: text().notNull(),
-    size: bigint({ mode: "number" }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.projectId, table.hash], name: "eval_dataset_task_blobs_pkey" }),
+    primaryKey({
+      columns: [table.projectId, table.datasetId, table.taskId, table.hash],
+      name: "task_versions_pkey",
+    }),
+    index("task_versions_latest_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.datasetId.asc().nullsLast().op("text_ops"),
+      table.taskId.asc().nullsLast().op("text_ops"),
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
+    ),
     foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "eval_dataset_task_blobs_project_id_fkey",
+      columns: [table.projectId, table.datasetId, table.taskId],
+      foreignColumns: [tasks.projectId, tasks.datasetId, tasks.id],
+      name: "task_versions_project_id_dataset_id_task_id_fkey",
     }).onDelete("cascade"),
   ]
 );

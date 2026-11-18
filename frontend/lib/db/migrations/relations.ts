@@ -62,10 +62,9 @@ import {
   llmProfiles,
   llmProfileModels,
   llmFeatureRoutes,
-  evalDatasets,
-  evalDatasetVersions,
-  evalDatasetVersionTasks,
-  evalDatasetTaskBlobs,
+  datasetsV2,
+  tasks,
+  taskVersions,
 } from "./schema";
 
 export const llmProfilesRelations = relations(llmProfiles, ({ one, many }) => ({
@@ -645,36 +644,25 @@ export const tracesRelations = relations(traces, ({ one }) => ({
   }),
 }));
 
-export const evalDatasetsRelations = relations(evalDatasets, ({ one, many }) => ({
+export const datasetsV2Relations = relations(datasetsV2, ({ one, many }) => ({
   project: one(projects, {
-    fields: [evalDatasets.projectId],
+    fields: [datasetsV2.projectId],
     references: [projects.id],
   }),
-  versions: many(evalDatasetVersions),
+  tasks: many(tasks),
 }));
 
-export const evalDatasetVersionsRelations = relations(evalDatasetVersions, ({ one, many }) => ({
-  dataset: one(evalDatasets, {
-    fields: [evalDatasetVersions.datasetId],
-    references: [evalDatasets.id],
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  dataset: one(datasetsV2, {
+    fields: [tasks.projectId, tasks.datasetId],
+    references: [datasetsV2.projectId, datasetsV2.id],
   }),
-  createdBy: one(users, {
-    fields: [evalDatasetVersions.createdByUserId],
-    references: [users.id],
-  }),
-  tasks: many(evalDatasetVersionTasks),
+  versions: many(taskVersions),
 }));
 
-export const evalDatasetVersionTasksRelations = relations(evalDatasetVersionTasks, ({ one }) => ({
-  version: one(evalDatasetVersions, {
-    fields: [evalDatasetVersionTasks.versionId],
-    references: [evalDatasetVersions.id],
-  }),
-}));
-
-export const evalDatasetTaskBlobsRelations = relations(evalDatasetTaskBlobs, ({ one }) => ({
-  project: one(projects, {
-    fields: [evalDatasetTaskBlobs.projectId],
-    references: [projects.id],
+export const taskVersionsRelations = relations(taskVersions, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskVersions.projectId, taskVersions.datasetId, taskVersions.taskId],
+    references: [tasks.projectId, tasks.datasetId, tasks.id],
   }),
 }));

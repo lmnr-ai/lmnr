@@ -1,5 +1,5 @@
 {
-  "id": "553a2db5-1816-4ac9-aeaf-e1cb536c2ef5",
+  "id": "f63150cb-7bdd-4924-8ec0-9b22fe6e9649",
   "prevId": "f19b1e9e-7acb-497f-9636-2a4cde760f1b",
   "version": "7",
   "dialect": "postgresql",
@@ -624,12 +624,12 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.agent_session_sandbox_repos": {
-      "name": "agent_session_sandbox_repos",
+    "public.agent_sandbox_repos": {
+      "name": "agent_sandbox_repos",
       "schema": "",
       "columns": {
-        "session_id": {
-          "name": "session_id",
+        "sandbox_id": {
+          "name": "sandbox_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -692,25 +692,25 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "agent_session_sandbox_repos_session_id_fkey": {
-          "name": "agent_session_sandbox_repos_session_id_fkey",
-          "tableFrom": "agent_session_sandbox_repos",
-          "tableTo": "agent_session_sandboxes",
+        "agent_sandbox_repos_sandbox_id_fkey": {
+          "name": "agent_sandbox_repos_sandbox_id_fkey",
+          "tableFrom": "agent_sandbox_repos",
+          "tableTo": "agent_sandboxes",
           "columnsFrom": [
-            "session_id"
+            "sandbox_id"
           ],
           "columnsTo": [
-            "session_id"
+            "id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "agent_session_sandbox_repos_pkey": {
-          "name": "agent_session_sandbox_repos_pkey",
+        "agent_sandbox_repos_pkey": {
+          "name": "agent_sandbox_repos_pkey",
           "columns": [
-            "session_id",
+            "sandbox_id",
             "repo_id"
           ]
         }
@@ -720,27 +720,66 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.agent_session_sandboxes": {
-      "name": "agent_session_sandboxes",
+    "public.agent_sandboxes": {
+      "name": "agent_sandboxes",
       "schema": "",
       "columns": {
-        "session_id": {
-          "name": "session_id",
+        "id": {
+          "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
-        "sandbox_id": {
-          "name": "sandbox_id",
-          "type": "text",
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "ext_sandbox_id": {
+          "name": "ext_sandbox_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "expires_at": {
           "name": "expires_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "last_active_at": {
+          "name": "last_active_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ext_snapshot_id": {
+          "name": "ext_snapshot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ext_snapshot_expires_at": {
+          "name": "ext_snapshot_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "openable_by_id": {
+          "name": "openable_by_id",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "api_key_id": {
+          "name": "api_key_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -757,14 +796,51 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "agent_sandboxes_project_id_idx": {
+          "name": "agent_sandboxes_project_id_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_active_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_sandboxes_ext_sandbox_id_key": {
+          "name": "agent_sandboxes_ext_sandbox_id_key",
+          "columns": [
+            {
+              "expression": "ext_sandbox_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
-        "agent_session_sandboxes_session_id_fkey": {
-          "name": "agent_session_sandboxes_session_id_fkey",
-          "tableFrom": "agent_session_sandboxes",
-          "tableTo": "agent_sessions",
+        "agent_sandboxes_project_id_fkey": {
+          "name": "agent_sandboxes_project_id_fkey",
+          "tableFrom": "agent_sandboxes",
+          "tableTo": "projects",
           "columnsFrom": [
-            "session_id"
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -828,6 +904,12 @@
           "notNull": true,
           "default": 1
         },
+        "sandbox_id": {
+          "name": "sandbox_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -884,6 +966,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_sessions_sandbox_id_fkey": {
+          "name": "agent_sessions_sandbox_id_fkey",
+          "tableFrom": "agent_sessions",
+          "tableTo": "agent_sandboxes",
+          "columnsFrom": [
+            "sandbox_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2345,274 +2440,6 @@
           "nullsNotDistinct": false,
           "columns": [
             "user_code"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.eval_dataset_task_blobs": {
-      "name": "eval_dataset_task_blobs",
-      "schema": "",
-      "columns": {
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hash": {
-          "name": "hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "size": {
-          "name": "size",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "eval_dataset_task_blobs_project_id_fkey": {
-          "name": "eval_dataset_task_blobs_project_id_fkey",
-          "tableFrom": "eval_dataset_task_blobs",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "eval_dataset_task_blobs_pkey": {
-          "name": "eval_dataset_task_blobs_pkey",
-          "columns": [
-            "project_id",
-            "hash"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.eval_dataset_version_tasks": {
-      "name": "eval_dataset_version_tasks",
-      "schema": "",
-      "columns": {
-        "version_id": {
-          "name": "version_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hash": {
-          "name": "hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "eval_dataset_version_tasks_version_id_fkey": {
-          "name": "eval_dataset_version_tasks_version_id_fkey",
-          "tableFrom": "eval_dataset_version_tasks",
-          "tableTo": "eval_dataset_versions",
-          "columnsFrom": [
-            "version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "eval_dataset_version_tasks_pkey": {
-          "name": "eval_dataset_version_tasks_pkey",
-          "columns": [
-            "version_id",
-            "name"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.eval_dataset_versions": {
-      "name": "eval_dataset_versions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "dataset_id": {
-          "name": "dataset_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "parent_version": {
-          "name": "parent_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "eval_dataset_versions_dataset_id_fkey": {
-          "name": "eval_dataset_versions_dataset_id_fkey",
-          "tableFrom": "eval_dataset_versions",
-          "tableTo": "eval_datasets",
-          "columnsFrom": [
-            "dataset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "eval_dataset_versions_created_by_user_id_fkey": {
-          "name": "eval_dataset_versions_created_by_user_id_fkey",
-          "tableFrom": "eval_dataset_versions",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "eval_dataset_versions_dataset_id_version_key": {
-          "name": "eval_dataset_versions_dataset_id_version_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "dataset_id",
-            "version"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.eval_datasets": {
-      "name": "eval_datasets",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "eval_datasets_project_id_fkey": {
-          "name": "eval_datasets_project_id_fkey",
-          "tableFrom": "eval_datasets",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "eval_datasets_project_id_name_key": {
-          "name": "eval_datasets_project_id_name_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "name"
           ]
         }
       },
@@ -9140,8 +8967,8 @@
   "policies": {},
   "views": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
+    "tables": {},
+    "columns": {}
   }
 }
