@@ -8,7 +8,7 @@ interface PanelToggleProps {
   onChange: (panel: Panel) => void;
 }
 
-/** Switches the trial panel between its trace and its files (dataset dir + Harbor trial output). */
+/** Switches the trial panel between its trace and its files (task, agent dir, Harbor logs). */
 export default function PanelToggle({ value, onChange }: PanelToggleProps) {
   return (
     <Tabs value={value} onValueChange={(next) => onChange(next as Panel)}>

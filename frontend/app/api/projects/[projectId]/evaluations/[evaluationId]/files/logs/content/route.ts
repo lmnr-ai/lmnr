@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 
-import { readTrialOutputFile } from "@/lib/actions/evaluation/files";
+import { readTrialLogFile } from "@/lib/actions/evaluation/files";
 import { apiHandler } from "@/lib/api/api-handler";
 import { ApiError } from "@/lib/api/errors";
 import { archiveFileResponse } from "@/lib/api/file-response";
@@ -13,5 +13,5 @@ export const GET = apiHandler<{ projectId: string; evaluationId: string }>(async
   if (!trial || !path) {
     throw new ApiError("trial and path are required", 400);
   }
-  return archiveFileResponse(path, await readTrialOutputFile(projectId, evaluationId, trial, path));
+  return archiveFileResponse(path, await readTrialLogFile(projectId, evaluationId, trial, path));
 });

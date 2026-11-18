@@ -1,16 +1,22 @@
 import { buildFileTree, DEFAULT_FILE, type FileNode } from "@/components/evaluation/task-files/utils";
 import { deriveStatus, flattenScores } from "@/components/evaluation/utils";
-import { trimDir } from "@/lib/evaluation/trial-files";
+import { type TrialTaskRef } from "@/lib/actions/evaluation/files";
 import { type EvalRow } from "@/lib/evaluation/types";
 
-/** The tree's second root: the trial's dir in its dataset's Harbor job. Has a space, so no dataset name matches it. */
-export const OUTPUT_ROOT = "trial output";
+/** The tree's roots: the trial's task, the run's agent dir, the trial's Harbor output. */
+export const TASK_ROOT = "task";
+export const AGENT_ROOT = "agent";
+export const LOGS_ROOT = "logs";
+export type TrialRoot = typeof TASK_ROOT | typeof AGENT_ROOT | typeof LOGS_ROOT;
+const ROOTS: TrialRoot[] = [TASK_ROOT, AGENT_ROOT, LOGS_ROOT];
+
+type Files = { path: string; size: number }[];
 
 /**
- * What a failed trial opens on, best first, matched against paths in the
- * trial's output: logs the dataset's own agent or harness writes (e.g.
- * `run_case.log`), a built-in agent's output (`oracle.txt`, `claude-code.txt`),
- * the traceback, the verifier's output, then Harbor's own trial log.
+ * What a failed trial opens on, best first, matched against paths in its
+ * logs: logs the dataset's own agent or harness writes (e.g. `run_case.log`),
+ * a built-in agent's output (`oracle.txt`, `claude-code.txt`), the traceback,
+ * the verifier's output, then Harbor's own trial log.
  */
 const FAILURE_FILES = [
   /^agent\/[^/]+\.log$/,
@@ -20,81 +26,46 @@ const FAILURE_FILES = [
   /^trial\.log$/,
 ];
 
-/** The tree's first root, named after the dataset dir (its last segment). */
-export const datasetRootOf = (suitePath: string): string => trimDir(suitePath).split("/").pop() || "dataset";
+/** One tree for a trial, roots in a fixed order; a root that isn't available (null or empty) is left out. */
+export const buildTrialTree = (roots: Record<TrialRoot, Files | null>): FileNode[] =>
+  ROOTS.flatMap((root) => {
+    const files = roots[root];
+    if (!files || files.length === 0) return [];
+    // Every path starts with `<root>/`, so this is the root's one node.
+    return buildFileTree(
+      files.map((file) => ({ ...file, path: `${root}/${file.path}` })),
+      ""
+    );
+  });
 
-/** The trial's task dir relative to the dataset dir (`tasks/<task>`), or null when it isn't inside it. */
-export const taskDirIn = (suitePath: string, taskPath: string | null): string | null => {
-  if (!taskPath) return null;
-  const root = trimDir(suitePath);
-  const task = trimDir(taskPath);
-  if (!root) return task || null;
-  return task.startsWith(`${root}/`) ? task.slice(root.length + 1) : null;
-};
-
-const rootNode = (name: string, files: { path: string; size: number }[]): FileNode => {
-  const [node] = buildFileTree(
-    files.map((file) => ({ ...file, path: `${name}/${file.path}` })),
-    ""
-  );
-  return node ?? { name, path: name, size: 0, children: [] };
+/** The root a tree path is under and the path below it. */
+export const splitTreePath = (path: string): { root: TrialRoot | null; rest: string } => {
+  const slash = path.indexOf("/");
+  const root = path.slice(0, slash) as TrialRoot;
+  return slash > 0 && ROOTS.includes(root) ? { root, rest: path.slice(slash + 1) } : { root: null, rest: path };
 };
 
 /**
- * One tree for a trial: the dataset dir (`datasetFiles`, relative to it) and the
- * trial's output (`outputFiles`, relative to the trial's dir). A null side
- * (not available) is left out.
- */
-export const buildTrialTree = (
-  datasetRoot: string,
-  datasetFiles: { path: string; size: number }[] | null,
-  outputFiles: { path: string; size: number }[] | null
-): FileNode[] => [
-  ...(datasetFiles ? [rootNode(datasetRoot, datasetFiles)] : []),
-  ...(outputFiles ? [rootNode(OUTPUT_ROOT, outputFiles)] : []),
-];
-
-interface DefaultFileOptions {
-  datasetRoot: string;
-  /** Relative to the dataset dir (`taskDirIn`). */
-  taskDir: string | null;
-  failed: boolean;
-  /** The file the user opened last, possibly in another trial. */
-  preferred?: string | null;
-}
-
-/**
- * The file a trial opens on: `preferred` when this trial has it (a file of
- * another trial's task maps to the same file of this one's), else for a failed
- * trial its most telling output, else the task's `instruction.md`.
+ * The file a trial opens on: `preferred` (the last opened, maybe in another
+ * trial) when this trial has it, else for a failed trial its most telling log,
+ * else the task's `instruction.md`, else the first file.
  */
 export const defaultTrialFile = (
   files: FileNode[],
-  { datasetRoot, taskDir, failed, preferred }: DefaultFileOptions
+  { failed, preferred }: { failed: boolean; preferred?: string | null }
 ): FileNode | null => {
   const byPath = new Map(files.map((file) => [file.path, file]));
-  if (preferred) {
-    const taskFile = preferred.startsWith(`${datasetRoot}/tasks/`)
-      ? preferred
-          .slice(datasetRoot.length + "/tasks/".length)
-          .split("/")
-          .slice(1)
-          .join("/")
-      : null;
-    const kept =
-      byPath.get(preferred) ?? (taskDir && taskFile ? byPath.get(`${datasetRoot}/${taskDir}/${taskFile}`) : undefined);
-    if (kept) return kept;
-  }
+  const kept = preferred ? byPath.get(preferred) : undefined;
+  if (kept) return kept;
   if (failed) {
-    const outputPrefix = `${OUTPUT_ROOT}/`;
-    const output = files.filter((file) => file.path.startsWith(outputPrefix));
+    const logsPrefix = `${LOGS_ROOT}/`;
+    const logs = files.filter((file) => file.path.startsWith(logsPrefix));
     for (const pattern of FAILURE_FILES) {
-      const file = output.find((f) => pattern.test(f.path.slice(outputPrefix.length)));
+      const file = logs.find((f) => pattern.test(f.path.slice(logsPrefix.length)));
       if (file) return file;
     }
   }
-  const instruction = taskDir ? byPath.get(`${datasetRoot}/${taskDir}/${DEFAULT_FILE}`) : undefined;
-  return instruction ?? files[0] ?? null;
+  return byPath.get(`${TASK_ROOT}/${DEFAULT_FILE}`) ?? files[0] ?? null;
 };
 
 /** Errored (its trace has an error), or finished with every score 0 or less (Harbor's reward 0). */
@@ -110,4 +81,30 @@ export const isFailedTrial = (row: EvalRow | undefined): boolean => {
         .filter(([key, value]) => key.startsWith("score:") && typeof value === "number")
         .map(([, value]) => value as number);
   return scores.length > 0 && scores.every((score) => score <= 0);
+};
+
+/** The `/files/*` routes of one trial. */
+export const trialFilesUrls = (
+  projectId: string,
+  evaluationId: string,
+  ref: TrialTaskRef,
+  trialName: string | null
+) => {
+  const base = `/api/projects/${projectId}/evaluations/${evaluationId}/files`;
+  const taskQuery = new URLSearchParams(
+    Object.entries(ref).filter((entry): entry is [string, string] => !!entry[1])
+  ).toString();
+  const trialQuery = trialName ? `trial=${encodeURIComponent(trialName)}` : null;
+  const path = (rest: string) => `path=${encodeURIComponent(rest)}`;
+  return {
+    task: `${base}/task?${taskQuery}`,
+    agent: `${base}/agent`,
+    logs: trialQuery && `${base}/logs?${trialQuery}`,
+    content: (treePath: string): string => {
+      const { root, rest } = splitTreePath(treePath);
+      if (root === AGENT_ROOT) return `${base}/agent/content?${path(rest)}`;
+      if (root === LOGS_ROOT) return `${base}/logs/content?${trialQuery}&${path(rest)}`;
+      return `${base}/task/content?${taskQuery}&${path(rest)}`;
+    },
+  };
 };

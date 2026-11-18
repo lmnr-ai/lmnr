@@ -24,7 +24,7 @@ interface FileBrowserProps {
 export default function FileBrowser({ id, title, hint, notes, nodes, open, onSelect, contentUrl }: FileBrowserProps) {
   return (
     <ResizablePanelGroup id={id} orientation="horizontal">
-      <ResizablePanel id={`${id}-tree`} defaultSize={30} minSize={15} className="min-w-0">
+      <ResizablePanel id={`${id}-tree`} defaultSize="30%" minSize="15%" className="min-w-0">
         <div className="h-full overflow-auto">
           <div className="truncate border-b px-3 py-1.5 font-mono text-xs text-muted-foreground" title={hint}>
             {title}
@@ -38,7 +38,7 @@ export default function FileBrowser({ id, title, hint, notes, nodes, open, onSel
         </div>
       </ResizablePanel>
       <ResizableHandle />
-      <ResizablePanel id={`${id}-viewer`} defaultSize={70} minSize={30} className="min-w-0">
+      <ResizablePanel id={`${id}-viewer`} defaultSize="70%" minSize="30%" className="min-w-0">
         <FileViewer key={open.path} url={contentUrl(open.path)} path={open.path} size={open.size} />
       </ResizablePanel>
     </ResizablePanelGroup>
