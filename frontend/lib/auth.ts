@@ -21,6 +21,7 @@ import * as schema from "@/lib/db/migrations/schema";
 import { membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { createLoopsContact } from "@/lib/loops";
 import PostHogClient from "@/lib/posthog/server";
+import { notifySignupInSlack } from "@/lib/signup-notifications";
 import { BASE_PATH } from "@/lib/utils";
 
 import { Feature, isFeatureEnabled } from "./features/features";
@@ -296,12 +297,15 @@ export const auth = betterAuth({
       create: {
         after: async (user) => {
           trackUserCreated(user.email);
-          await createLoopsContact({
-            email: user.email,
-            userId: user.id,
-            name: user.name,
-            createdAt: user.createdAt,
-          });
+          await Promise.all([
+            createLoopsContact({
+              email: user.email,
+              userId: user.id,
+              name: user.name,
+              createdAt: user.createdAt,
+            }),
+            notifySignupInSlack({ email: user.email, name: user.name }),
+          ]);
         },
       },
     },
