@@ -8,16 +8,18 @@ import { z } from "zod/v4";
 import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
+import { datasetFilesOf } from "@/lib/evaluation/trial-files";
 import { readExportText, streamExportRange } from "@/lib/s3";
 import { SimpleLRU } from "@/lib/simple-lru";
 
 /*
  * Archives a remote run (`lmnr-cli eval run --remote`) uploads: the evals
- * folder (the Task view) and, once each suite ends, its Harbor job output (the
- * trial Log view, `<upload>/jobs/<suite>`). Each is a `.tar.gz` made of one gzip
- * member per group of files, and its index (written by lmnr-cli's `pack.ts`)
- * gives each file's member, so one file is read with a ranged GET instead of
- * the whole archive.
+ * folder and, once each dataset's run ends, its Harbor job output
+ * (`<upload>/jobs/<suitePath>`); the trial Files view shows both. Eval dataset
+ * tasks are stored the same way (`lib/actions/eval-datasets/files.ts`). Each is
+ * a `.tar.gz` made of one gzip member per group of files, and its index
+ * (written by lmnr-cli's `pack.ts`) gives each file's member, so one file is
+ * read with a ranged GET instead of the whole archive.
  */
 
 const HostedMetadataSchema = z.object({
@@ -45,12 +47,13 @@ export interface ArchiveFile {
 }
 
 export interface EvaluationFiles {
-  /** The evaluation's suite dir, relative to the archive root. */
+  /** The evaluation's dataset dir, relative to the archive root. */
   suitePath: string;
+  /** Relative to `suitePath`: the dataset dir without the other trials' tasks (`datasetFilesOf`). */
   files: ArchiveFile[];
 }
 
-export interface TrialLogFiles {
+export interface TrialOutputFiles {
   /** Relative to the trial's dir in its Harbor job. */
   files: ArchiveFile[];
 }
@@ -61,13 +64,13 @@ class FilesUnavailableError extends NotFoundError {
   }
 }
 
-class LogsUnavailableError extends NotFoundError {
+class OutputUnavailableError extends NotFoundError {
   constructor() {
-    super("This trial's logs aren't available yet: a remote run uploads them when its suite finishes");
+    super("This trial's output isn't available yet: a remote run uploads it when its dataset finishes.");
   }
 }
 
-type Unavailable = new () => NotFoundError;
+export type Unavailable = new () => NotFoundError;
 
 // Indexes never change once uploaded.
 const indexes = new SimpleLRU<string, ArchiveIndex>(16);
@@ -95,7 +98,7 @@ const getIndex = async (prefix: string, unavailable: Unavailable): Promise<Archi
   }
   const text = await readExportText(`${prefix}.index.json`);
   if (text === null) {
-    // Not uploaded (an older CLI, or a suite still running), or expired.
+    // Not uploaded (an older CLI, or a dataset still running), or expired.
     throw new unavailable();
   }
   const index = ArchiveIndexSchema.parse(JSON.parse(text));
@@ -103,8 +106,14 @@ const getIndex = async (prefix: string, unavailable: Unavailable): Promise<Archi
   return index;
 };
 
+/** The files in `<prefix>.tar.gz`, paths relative to its root. */
+export const listArchiveFiles = async (prefix: string, unavailable: Unavailable): Promise<ArchiveFile[]> => {
+  const index = await getIndex(prefix, unavailable);
+  return index.files.map(({ path, size }) => ({ path, size }));
+};
+
 /** Streams one file's content out of `<prefix>.tar.gz`. */
-const readArchiveFile = async (
+export const readArchiveFile = async (
   prefix: string,
   path: string,
   unavailable: Unavailable
@@ -127,10 +136,15 @@ const readArchiveFile = async (
   return { size: file.size, stream: Readable.from(slice(gunzip, file.dataOffset, file.size)) };
 };
 
-export const getEvaluationFiles = async (projectId: string, evaluationId: string): Promise<EvaluationFiles> => {
+/** The run's dataset dir, with only `taskPath` (the trial's task, relative to the archive root) of its tasks. */
+export const getEvaluationFiles = async (
+  projectId: string,
+  evaluationId: string,
+  taskPath: string | null
+): Promise<EvaluationFiles> => {
   const { suitePath, runPrefix } = await getHostedRun(projectId, evaluationId);
-  const index = await getIndex(runPrefix, FilesUnavailableError);
-  return { suitePath, files: index.files.map(({ path, size }) => ({ path, size })) };
+  const files = await listArchiveFiles(runPrefix, FilesUnavailableError);
+  return { suitePath, files: datasetFilesOf(files, suitePath, taskPath) };
 };
 
 /** Streams one file of the run's evals folder, `path` relative to its root. */
@@ -141,14 +155,14 @@ export const readEvaluationFile = async (projectId: string, evaluationId: string
 
 const jobPrefix = (runPrefix: string, suitePath: string) => `${runPrefix}/jobs/${suitePath}`;
 
-/** The files of one trial's dir in its suite's Harbor job (`trialName` is Harbor's trial name). */
-export const getTrialLogs = async (
+/** The files of one trial's dir in its dataset's Harbor job (`trialName` is Harbor's trial name). */
+export const getTrialOutput = async (
   projectId: string,
   evaluationId: string,
   trialName: string
-): Promise<TrialLogFiles> => {
+): Promise<TrialOutputFiles> => {
   const { runPrefix, suitePath } = await getHostedRun(projectId, evaluationId);
-  const index = await getIndex(jobPrefix(runPrefix, suitePath), LogsUnavailableError);
+  const index = await getIndex(jobPrefix(runPrefix, suitePath), OutputUnavailableError);
   const dir = `${trialName}/`;
   return {
     files: index.files
@@ -158,9 +172,9 @@ export const getTrialLogs = async (
 };
 
 /** Streams one file of a trial's dir, `path` relative to it. */
-export const readTrialLogFile = async (projectId: string, evaluationId: string, trialName: string, path: string) => {
+export const readTrialOutputFile = async (projectId: string, evaluationId: string, trialName: string, path: string) => {
   const { runPrefix, suitePath } = await getHostedRun(projectId, evaluationId);
-  return readArchiveFile(jobPrefix(runPrefix, suitePath), `${trialName}/${path}`, LogsUnavailableError);
+  return readArchiveFile(jobPrefix(runPrefix, suitePath), `${trialName}/${path}`, OutputUnavailableError);
 };
 
 /** `size` bytes of `source` from `start` on. */
