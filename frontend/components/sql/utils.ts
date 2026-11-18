@@ -300,6 +300,11 @@ const tableSchemas: Record<string, TableSchema> = {
         type: "String",
         description: "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
       },
+      {
+        name: "task_version_hash",
+        type: "String",
+        description: "Eval dataset task version (64-hex content hash) the Trial ran; empty if none",
+      },
       { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
       {
         name: "scores",
