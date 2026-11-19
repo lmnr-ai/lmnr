@@ -5,6 +5,7 @@ use rmcp::{
     ErrorData as McpError, RoleServer, handler::server::wrapper::Parameters,
     model::CallToolResponse, schemars, service::RequestContext, tool, tool_router,
 };
+use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -58,13 +59,31 @@ pub struct UpdateLlmProfileParams {
     #[serde(default)]
     pub config: Option<ProfileConfigPatch>,
     /// Absent keys, or the masks `get_llm_profile` returns, keep the stored secret.
-    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
+    #[serde(default, deserialize_with = "echoed_secrets")]
     pub secrets: ProfileSecrets,
     /// Replaces the whole list.
     #[serde(default)]
     pub models: Option<Vec<String>>,
     #[serde(flatten)]
     pub project: ProjectParam,
+}
+
+/// `get_llm_profile` lists header names (`["X-Tenant"]`) where updates take a name → value map;
+/// an agent echoing a fetched profile sends the list, which keeps the stored header values.
+fn echoed_secrets<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<ProfileSecrets, D::Error> {
+    let Some(mut value) = Option::<serde_json::Value>::deserialize(deserializer)? else {
+        return Ok(ProfileSecrets::default());
+    };
+    if let Some(secrets) = value.as_object_mut()
+        && secrets
+            .get("headers")
+            .is_some_and(serde_json::Value::is_array)
+    {
+        secrets.remove("headers");
+    }
+    serde_json::from_value(value).map_err(serde::de::Error::custom)
 }
 
 /// The `config` fields to change. The service replaces `config` whole, so a field a
@@ -371,5 +390,20 @@ mod tests {
         .config
         .unwrap();
         assert_eq!(config.header_names, vec!["X-Tenant".to_string()]);
+    }
+
+    #[test]
+    fn an_echoed_profile_keeps_the_stored_secrets() {
+        let input = update(
+            json!({ "secrets": { "apiKey": "sk-***xyz", "headers": ["X-Tenant"] } }),
+            LlmProfileProvider::Custom,
+        );
+        assert_eq!(input.secrets.api_key.as_deref(), Some("sk-***xyz"));
+        assert!(input.secrets.headers.is_empty());
+        let input = update(
+            json!({ "secrets": { "headers": { "X-Tenant": "t2" } } }),
+            LlmProfileProvider::Custom,
+        );
+        assert_eq!(input.secrets.headers["X-Tenant"], "t2");
     }
 }
