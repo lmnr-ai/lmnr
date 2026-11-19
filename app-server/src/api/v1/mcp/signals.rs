@@ -1,6 +1,6 @@
 //! Signal tools: the MCP twins of `lmnr-cli signal`. Same `signals::service` calls as the
-//! `/v1/cli/signals` handlers. Writes need a signed-in user: the project-API-key surface has no
-//! signal writes, and a new signal's alert subscribes its creator's email.
+//! `/v1/cli/signals` and `/v1/signals` handlers. Project API keys get every tool, like `/v1/signals`;
+//! a key has no user, so a signal it creates gets an alert with no subscriber.
 
 use rmcp::{
     ErrorData as McpError, RoleServer, handler::server::wrapper::Parameters,
@@ -10,8 +10,8 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::{
-    Audit, AuditTarget, LaminarMcpServer, ProjectParam, ProjectScope, ToolError, ToolOutput,
-    UserScope,
+    Audit, AuditTarget, LaminarMcpServer, McpCaller, ProjectParam, ProjectScope, ToolError,
+    ToolOutput,
 };
 use crate::{
     audit::{AuditAction, AuditResource},
@@ -165,8 +165,8 @@ impl LaminarMcpServer {
     /// payload matching `structuredOutput`. Three things decide when it runs: `trigger` (when it
     /// is evaluated: `rootSpanFinished`, or `spanName` with `spanNames` for distributed traces),
     /// `filters` (whether it runs on a trace that fired) and `mode` (`realtime` or `batch`).
-    /// Like the UI, this also creates a critical-severity alert subscribed to your email.
-    /// Requires OAuth sign-in.
+    /// Like the UI, this also creates a critical-severity alert, subscribed to your email when
+    /// signed in with OAuth.
     #[tool(name = "create_signal")]
     async fn create_signal(
         &self,
@@ -178,8 +178,13 @@ impl LaminarMcpServer {
             &context,
             params.project.project_id,
             Some(Audit::new(AuditResource::Signal, AuditAction::Create)),
-            |scope: UserScope| async move {
-                let email = db::users::get_user_email(&self.db.pool, scope.user_id).await?;
+            |scope: ProjectScope| async move {
+                let email = match &scope.caller {
+                    McpCaller::User(user) => {
+                        db::users::get_user_email(&self.db.pool, user.user_id).await?
+                    }
+                    McpCaller::ApiKey(_) => None,
+                };
                 let signal = service::create_signal(
                     self.db.clone(),
                     self.cache.clone(),
@@ -196,7 +201,7 @@ impl LaminarMcpServer {
     }
 
     /// Update a signal; only the fields you pass change. Changing `prompt` or
-    /// `structuredOutput` adds a definition version. Requires OAuth sign-in.
+    /// `structuredOutput` adds a definition version.
     #[tool(name = "update_signal")]
     async fn update_signal(
         &self,
@@ -210,7 +215,7 @@ impl LaminarMcpServer {
             &context,
             params.project.project_id,
             Some(audit),
-            |scope: UserScope| async move {
+            |scope: ProjectScope| async move {
                 let signal_id = params.signal_id;
                 let update = params.try_into_update()?;
                 let signal = service::update_signal(
@@ -227,7 +232,7 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Delete a signal with its triggers, alerts and events. Irreversible. Requires OAuth sign-in.
+    /// Delete a signal with its triggers, alerts and events. Irreversible.
     #[tool(name = "delete_signal")]
     async fn delete_signal(
         &self,
@@ -241,7 +246,7 @@ impl LaminarMcpServer {
             &context,
             params.project.project_id,
             Some(audit),
-            |scope: UserScope| async move {
+            |scope: ProjectScope| async move {
                 let signal = service::delete_signal(
                     &self.db.pool,
                     &self.cache,

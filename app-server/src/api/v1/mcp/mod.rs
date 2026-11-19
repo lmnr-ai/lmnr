@@ -364,40 +364,6 @@ impl Audit {
     }
 }
 
-/// The access a tool body requires, picked by the type its closure takes. A caller without it
-/// gets a tool error before the body runs, and no audit event (like a failed membership check).
-trait ToolAccess: Sized {
-    fn grant(scope: &ProjectScope) -> Result<Self, ToolError>;
-}
-
-impl ToolAccess for ProjectScope {
-    fn grant(scope: &ProjectScope) -> Result<Self, ToolError> {
-        Ok(scope.clone())
-    }
-}
-
-/// A project scope whose caller is a signed-in user. Tools that take it refuse project API keys:
-/// they are writes the `/v1` API-key surface does not offer.
-struct UserScope {
-    user_id: Uuid,
-    project_id: Uuid,
-}
-
-impl ToolAccess for UserScope {
-    fn grant(scope: &ProjectScope) -> Result<Self, ToolError> {
-        match &scope.caller {
-            McpCaller::User(user) => Ok(Self {
-                user_id: user.user_id,
-                project_id: scope.project_id,
-            }),
-            McpCaller::ApiKey(_) => Err(ToolError::message(
-                "This tool needs a signed-in user. Reconnect the Laminar MCP server with OAuth \
-                 (no API key header) to use it.",
-            )),
-        }
-    }
-}
-
 /// The written resource an audit event names.
 #[derive(Default)]
 struct AuditTarget {
@@ -422,29 +388,24 @@ impl AuditTarget {
 }
 
 impl LaminarMcpServer {
-    /// Every project-scoped tool goes through here: resolve the project, check the access the
-    /// body's argument type asks for, run it, emit `audit` (when given), and render the result.
-    async fn run<A, Fut>(
+    /// Every project-scoped tool goes through here: resolve the project, run the body, emit
+    /// `audit` (when given), and render the result. A failed project check is not audited.
+    async fn run<Fut>(
         &self,
         tool: &str,
         context: &RequestContext<RoleServer>,
         project_id: Option<Uuid>,
         audit: Option<Audit>,
-        body: impl FnOnce(A) -> Fut,
+        body: impl FnOnce(ProjectScope) -> Fut,
     ) -> Result<CallToolResponse, McpError>
     where
-        A: ToolAccess,
         Fut: Future<Output = Result<ToolOutput, ToolError>>,
     {
         let scope = match self.project_scope(context, project_id).await {
             Ok(scope) => scope,
             Err(e) => return Ok(e.into_response(tool)),
         };
-        let access = match A::grant(&scope) {
-            Ok(access) => access,
-            Err(e) => return Ok(e.into_response(tool)),
-        };
-        let mut result = body(access).await;
+        let mut result = body(scope.clone()).await;
         if let Some(audit) = audit {
             let (success, target, metadata) = match &mut result {
                 Ok(output) => (
