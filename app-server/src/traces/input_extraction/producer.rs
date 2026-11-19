@@ -154,9 +154,6 @@ pub async fn process_user_task_candidates(
     if contexts.is_empty() || !is_feature_enabled(Feature::InputExtraction) {
         return;
     }
-    if !has_llm_for_project(&db, &cache, project_id).await {
-        return;
-    }
 
     // Path is computed once up front for the main-agent path cache Pass 2
     // matches against. `extend_span_path` runs BEFORE the consumer's
@@ -179,8 +176,8 @@ pub async fn process_user_task_candidates(
     // LLM, and Pass 2 (trace outputs) depends on the path this pass
     // establishes. Only the extraction EFFECT (publishing `lmnr_user_task`
     // via a cached-regex apply, or enqueueing LLM-backed regex generation
-    // on a cache miss) is gated on `llm_client_available()` inside
-    // `process_trace_inputs`.
+    // on a cache miss) is gated on `llm_client_available()` and the project
+    // having a route ([`has_llm_for_project`]) inside `process_trace_inputs`.
     let mut contenders: HashMap<Uuid, Vec<InputContender>> = HashMap::new();
     for (ctx, path) in contexts.iter_mut() {
         // Move the candidate out of the context — Pass 2 (outputs) only
@@ -217,12 +214,15 @@ pub async fn process_user_task_candidates(
             });
     }
 
+    let extraction_enabled = !contenders.is_empty()
+        && llm_client_available()
+        && has_llm_for_project(&db, &cache, project_id).await;
     for (trace_id, trace_contenders) in contenders {
         process_trace_inputs(
             trace_id,
             trace_contenders,
             project_id,
-            llm_client_available(),
+            extraction_enabled,
             queue.clone(),
             db.clone(),
             cache.clone(),
@@ -290,12 +290,6 @@ pub async fn process_user_task_candidates(
     }
 }
 
-/// Should the derived winner's extraction run? Only when its text differs
-/// from what was last published — a winner change that carries identical
-/// text is a wasteful no-op. This replaced a "challenger must beat the
-/// published winner" ratchet, which the per-agent model can't use: the
-/// winner legitimately moves DOWN in tokens when a genuinely earlier step
-/// for the winning agent arrives late.
 /// The env provider (or global routes) covers every project; otherwise a
 /// self-hosted project runs extraction only when its workspace routes the
 /// regex generation feature (its group row or `default`). A lookup error skips
@@ -320,6 +314,12 @@ async fn has_llm_for_project(db: &Arc<DB>, cache: &Arc<Cache>, project_id: Uuid)
     }
 }
 
+/// Should the derived winner's extraction run? Only when its text differs
+/// from what was last published — a winner change that carries identical
+/// text is a wasteful no-op. This replaced a "challenger must beat the
+/// published winner" ratchet, which the per-agent model can't use: the
+/// winner legitimately moves DOWN in tokens when a genuinely earlier step
+/// for the winning agent arrives late.
 fn should_run_effect(winner: &WinnerState, published: Option<&str>) -> bool {
     published != Some(winner.content_hash.as_str())
 }
