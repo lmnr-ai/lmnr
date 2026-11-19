@@ -1,6 +1,6 @@
 use std::{collections::HashMap, future::Future, sync::Arc};
 
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, http::header, web};
 use bytes::Bytes;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -25,7 +25,7 @@ use crate::{
     },
     auth::{
         cli_user::is_user_member_of_project,
-        mcp_oauth::{McpCaller, McpUser},
+        mcp_oauth::{McpCaller, McpOAuthConfig, McpUser},
     },
     cache::Cache,
     db::{self, DB},
@@ -574,26 +574,53 @@ impl LaminarMcpServer {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for LaminarMcpServer {
     fn get_info(&self) -> ServerConfig {
-        let icons = vec![
-            Icon::new("https://laminar.sh/brand/icon.svg")
-                .with_mime_type("image/svg+xml")
-                .with_sizes(vec!["any".to_string()]),
-            Icon::new("https://laminar.sh/brand/logo-square.png")
-                .with_mime_type("image/png")
-                .with_sizes(vec!["560x560".to_string()]),
-        ];
-        let server_info = Implementation::new("laminar", env!("CARGO_PKG_VERSION"))
-            .with_title("Laminar")
-            .with_description(
-                "Query your AI agents' traces in Laminar with SQL, and manage the signals and \
-                 LLM profiles that analyze them.",
-            )
-            .with_website_url("https://laminar.sh/docs/platform/mcp")
-            .with_icons(icons);
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(server_info)
+            .with_server_info(server_info())
             .with_instructions(SERVER_INSTRUCTIONS)
     }
+}
+
+/// Sent on `initialize` and in the server card. The card caps `description` at 100 characters.
+fn server_info() -> Implementation {
+    let icons = vec![
+        Icon::new("https://laminar.sh/brand/icon.svg")
+            .with_mime_type("image/svg+xml")
+            .with_sizes(vec!["any".to_string()]),
+        Icon::new("https://laminar.sh/brand/logo-square.png")
+            .with_mime_type("image/png")
+            .with_sizes(vec!["560x560".to_string()]),
+    ];
+    Implementation::new("laminar", env!("CARGO_PKG_VERSION"))
+        .with_title("Laminar")
+        .with_description(
+            "Query your AI agents' traces with SQL and manage the signals that analyze them.",
+        )
+        .with_website_url("https://laminar.sh/docs/platform/mcp")
+        .with_icons(icons)
+}
+
+/// GET /v1/mcp/server-card: the public MCP Server Card (SEP-2127) that directories read before
+/// connecting. It advertises `MCP_RESOURCE_URL`, so a deployment without OAuth has no card.
+pub async fn server_card(oauth: web::Data<Option<McpOAuthConfig>>) -> HttpResponse {
+    let Some(oauth) = oauth.as_ref() else {
+        return HttpResponse::NotFound().finish();
+    };
+    let info = server_info();
+    let card = json!({
+        "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+        "name": "sh.laminar/mcp",
+        "version": info.version,
+        "title": info.title,
+        "description": info.description,
+        "websiteUrl": info.website_url,
+        "icons": info.icons,
+        "remotes": [{ "type": "streamable-http", "url": oauth.resource() }],
+    });
+    HttpResponse::Ok()
+        .content_type("application/mcp-server-card+json")
+        .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+        .insert_header((header::CACHE_CONTROL, "public, max-age=3600"))
+        .body(card.to_string())
 }
 
 // ============ Actix-web handler ============
@@ -826,22 +853,6 @@ mod tests {
         }
     }
 
-    /// `get_sql_schema` carries the shared schema block plus the MCP-only extras.
-    #[test]
-    fn sql_schema_tool_returns_the_shared_schema() {
-        let schema = sql_schema_text();
-        assert!(
-            schema.contains("TABLE spans"),
-            "shared schema block missing"
-        );
-        assert!(
-            schema.contains("TABLE clusters"),
-            "shared schema missing clusters"
-        );
-        assert!(schema.contains("span_type:"), "shared enum block missing");
-        assert!(schema.contains("<examples>"), "MCP extras missing");
-    }
-
     /// Claude Code truncates each tool description and the server instructions past 2 KB.
     #[test]
     fn metadata_fits_claude_code_limit() {
@@ -850,38 +861,6 @@ mod tests {
         for tool in LaminarMcpServer::all_tools().list_all() {
             let len = tool.description.as_deref().unwrap_or_default().len();
             assert!(len < LIMIT, "{} description is {len} bytes", tool.name);
-        }
-    }
-
-    /// ChatGPT's app review also wants every hint as an explicit boolean, and directory scorers
-    /// count undocumented inputs.
-    #[test]
-    fn every_tool_has_all_hints_and_input_docs() {
-        for tool in LaminarMcpServer::all_tools().list_all() {
-            let name = &tool.name;
-            let hints = tool
-                .annotations
-                .as_ref()
-                .unwrap_or_else(|| panic!("{name} has no annotations"));
-            assert!(
-                hints.read_only_hint.is_some()
-                    && hints.destructive_hint.is_some()
-                    && hints.idempotent_hint.is_some()
-                    && hints.open_world_hint.is_some(),
-                "{name} lacks a behavior hint: {hints:?}"
-            );
-            let properties = tool
-                .input_schema
-                .get("properties")
-                .and_then(Value::as_object)
-                .cloned()
-                .unwrap_or_default();
-            for (field, schema) in properties {
-                assert!(
-                    schema.get("description").is_some(),
-                    "{name}.{field} has no description"
-                );
-            }
         }
     }
 

@@ -78,7 +78,7 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
         // The handler adds the query text and tables.
         ("POST", "/sql/query") => log_write(Sql, Query),
         // One route serves every tool; the SQL tool logs its own `sql.query`.
-        (_, "/mcp") => Skip,
+        (_, "/mcp" | "/mcp/server-card") => Skip,
         // Discovery and schema reads carry no data.
         ("GET", "/project" | "/projects" | "/sql/schema") | ("POST", "/project") => Skip,
 
