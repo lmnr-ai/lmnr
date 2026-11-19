@@ -9,7 +9,7 @@ interface FileTreeProps {
   onSelect: (node: FileNode) => void;
 }
 
-/** A task's files; every directory starts expanded (tasks are small). */
+/** Every directory starts expanded (tasks and trial dirs are small). */
 export default function FileTree({ nodes, selectedPath, onSelect }: FileTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
 

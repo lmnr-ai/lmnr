@@ -14,7 +14,7 @@ use clickhouse::Row;
 use crate::{
     ch::{
         evaluation_datapoints::{
-            CHEvaluationTrial, ch_insert_evaluation_trials, get_trial_created_ats,
+            CHEvaluationTrial, ch_insert_evaluation_trials, get_stored_trials,
         },
         utils::chrono_to_nanoseconds,
     },
@@ -65,6 +65,9 @@ pub struct EvaluationTrialResult {
     pub scores: HashMap<String, Option<f64>>,
     #[serde(default)]
     pub dataset_link: Option<EvaluationTrialDatasetLink>,
+    /// The eval dataset task version the Trial ran (`eval_datasets`); kept only when valid.
+    #[serde(default)]
+    pub task_version_hash: Option<String>,
 }
 
 /// Check if a serde_json::Value is "falsey" for the purposes of not overwriting.
@@ -129,18 +132,18 @@ pub async fn insert_evaluation_trials(
     }
 
     let ids: Vec<Uuid> = evaluation_datapoints.iter().map(|dp| dp.id).collect();
-    let created_ats = get_trial_created_ats(&clickhouse, project_id, evaluation_id, &ids).await?;
+    let stored = get_stored_trials(&clickhouse, project_id, evaluation_id, &ids).await?;
 
     let ch_rows: Vec<CHEvaluationTrial> = evaluation_datapoints
         .into_iter()
         .map(|dp| {
-            let created_at = created_ats.get(&dp.id).copied();
+            let stored = stored.get(&dp.id);
             CHEvaluationTrial::from_evaluation_trial_result(
                 dp,
                 evaluation_id,
                 project_id,
                 group_name,
-                created_at,
+                stored,
             )
         })
         .collect();
@@ -227,8 +230,8 @@ pub async fn update_evaluation_trial(
             "INSERT INTO evaluation_datapoints (
                 id, evaluation_id, project_id, trace_id, updated_at, created_at,
                 data, target, metadata, executor_output, `index`, task_id,
-                dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
-                group_id, scores
+                task_version_hash, dataset_id, dataset_datapoint_id,
+                dataset_datapoint_created_at, group_id, scores
             )
             SELECT
                 existing.id,
@@ -243,6 +246,7 @@ pub async fn update_evaluation_trial(
                 if(empty(incoming.executor_output), existing.executor_output, incoming.executor_output),
                 existing.`index`,
                 existing.task_id,
+                existing.task_version_hash,
                 existing.dataset_id,
                 existing.dataset_datapoint_id,
                 existing.dataset_datapoint_created_at,
@@ -256,7 +260,8 @@ pub async fn update_evaluation_trial(
             CROSS JOIN (
                 SELECT
                     id, evaluation_id, project_id, trace_id, created_at,
-                    data, target, metadata, executor_output, `index`, task_id, scores,
+                    data, target, metadata, executor_output, `index`, task_id,
+                    task_version_hash, scores,
                     dataset_id, dataset_datapoint_id, dataset_datapoint_created_at
                 FROM evaluation_datapoints FINAL
                 PREWHERE id = ?

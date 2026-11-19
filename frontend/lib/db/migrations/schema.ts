@@ -873,6 +873,75 @@ export const datasets = pgTable(
   ]
 );
 
+export const datasetsV2 = pgTable(
+  "datasets_v2",
+  {
+    projectId: uuid("project_id").notNull(),
+    id: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "datasets_v2_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    primaryKey({ columns: [table.projectId, table.id], name: "datasets_v2_pkey" }),
+  ]
+);
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    projectId: uuid("project_id").notNull(),
+    datasetId: text("dataset_id").notNull(),
+    id: text().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId, table.datasetId],
+      foreignColumns: [datasetsV2.projectId, datasetsV2.id],
+      name: "tasks_dataset_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    primaryKey({ columns: [table.projectId, table.datasetId, table.id], name: "tasks_pkey" }),
+  ]
+);
+
+export const taskVersions = pgTable(
+  "task_versions",
+  {
+    projectId: uuid("project_id").notNull(),
+    datasetId: text("dataset_id").notNull(),
+    taskId: text("task_id").notNull(),
+    hash: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId, table.datasetId, table.taskId],
+      foreignColumns: [tasks.projectId, tasks.datasetId, tasks.id],
+      name: "task_versions_task_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    primaryKey({
+      columns: [table.projectId, table.datasetId, table.taskId, table.hash],
+      name: "task_versions_pkey",
+    }),
+    index("task_versions_latest_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.datasetId.asc().nullsLast().op("text_ops"),
+      table.taskId.asc().nullsLast().op("text_ops"),
+      table.createdAt.desc().nullsFirst().op("timestamptz_ops")
+    ),
+  ]
+);
+
 export const projects = pgTable(
   "projects",
   {
@@ -1253,6 +1322,7 @@ export const evaluations = pgTable(
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
     hostedMetadata: jsonb("hosted_metadata"),
+    datasetV2Id: text("dataset_v2_id"),
   },
   (table) => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),

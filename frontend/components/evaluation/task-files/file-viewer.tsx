@@ -12,7 +12,7 @@ const HIGHLIGHT_MAX_CHARS = 200_000;
 
 interface FileViewerProps {
   url: string;
-  /** Relative to the task dir. */
+  /** Its path in the tree. */
   path: string;
   size: number;
 }

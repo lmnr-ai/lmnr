@@ -1,6 +1,7 @@
 import {
   Database,
   FlaskConical,
+  FolderTree,
   GitBranch,
   GitFork,
   LayoutDashboard,
@@ -48,6 +49,7 @@ export const getSidebarMenus = (projectId: string): SidebarMenuGroup[] => [
     label: "Improve",
     items: [
       { name: "Evaluations", href: `/project/${projectId}/evaluations`, icon: FlaskConical },
+      { name: "Eval datasets", href: `/project/${projectId}/eval-datasets`, icon: FolderTree, badge: "beta" },
       { name: "Datasets", href: `/project/${projectId}/datasets`, icon: Database },
       { name: "Labeling", href: `/project/${projectId}/labeling-queues`, icon: Pen },
       { name: "Playgrounds", href: `/project/${projectId}/playgrounds`, icon: PlayCircle },

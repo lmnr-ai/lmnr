@@ -7,19 +7,21 @@ import { type FileNode } from "./utils";
 interface FileBrowserProps {
   /** Prefix for the resizable panels' ids. */
   id: string;
-  /** Shown above the tree: the trial's task. */
+  /** Shown above the tree: the task. */
   title: string;
-  /** Where the folder is, on hover (its path in the archive). */
+  /** Where the files come from, on hover. */
   hint: string;
   nodes: FileNode[];
   open: FileNode;
   onSelect: (node: FileNode) => void;
   /** Where the file at `path` (relative to the tree's root) is downloaded from. */
   contentUrl: (path: string) => string;
+  /** Shown under the tree, e.g. a folder that isn't available yet. */
+  note?: string;
 }
 
-/** A folder from a remote run's archive: file tree on the left, the open file on the right. */
-export default function FileBrowser({ id, title, hint, nodes, open, onSelect, contentUrl }: FileBrowserProps) {
+/** A folder from an archive (a run's upload, a task version): file tree on the left, the open file on the right. */
+export default function FileBrowser({ id, title, hint, nodes, open, onSelect, contentUrl, note }: FileBrowserProps) {
   return (
     <ResizablePanelGroup id={id} orientation="horizontal">
       <ResizablePanel id={`${id}-tree`} defaultSize={30} minSize={15} className="min-w-0">
@@ -28,6 +30,7 @@ export default function FileBrowser({ id, title, hint, nodes, open, onSelect, co
             {title}
           </div>
           <FileTree nodes={nodes} selectedPath={open.path} onSelect={onSelect} />
+          {note && <p className="px-3 py-2 text-xs text-muted-foreground">{note}</p>}
         </div>
       </ResizablePanel>
       <ResizableHandle />

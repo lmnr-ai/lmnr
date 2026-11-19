@@ -124,6 +124,10 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
             | "/evals/{eval_id}/datapoints/{trial_id}",
         ) => Skip,
         ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
+        // A push is what changes a dataset's pins. Version uploads only add
+        // candidates (per-item traffic of a push), and reads are pull traffic.
+        ("POST", "/eval-datasets/{dataset}/push") => log_write(EvalDataset, Update),
+        (_, p) if p.starts_with("/eval-datasets/") => Skip,
         (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
         ("POST", "/rollouts/{session_id}") => log_write(DebuggerSession, Create),
@@ -303,6 +307,15 @@ mod tests {
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
+            (
+                Method::PUT,
+                "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}/index",
+            ),
+            (
+                Method::GET,
+                "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}",
+            ),
+            (Method::GET, "/eval-datasets/{dataset}"),
             (Method::POST, "/mcp"),
         ] {
             assert_eq!(
@@ -326,6 +339,10 @@ mod tests {
         assert_eq!(
             classify(&Method::GET, "/datasets/{dataset_id}/parquets/{idx}"),
             Some(log_read(AuditResource::Dataset, AuditAction::Export))
+        );
+        assert_eq!(
+            classify(&Method::POST, "/eval-datasets/{dataset}/push"),
+            Some(log_write(AuditResource::EvalDataset, AuditAction::Update))
         );
         assert_eq!(classify(&Method::POST, "/unknown"), None);
     }

@@ -10,6 +10,7 @@ export const EVAL_COLUMN_SQL = {
   id: { sql: "id" },
   evaluationId: { sql: "evaluation_id" },
   taskId: { sql: "task_id", dbType: "String" },
+  taskVersionHash: { sql: "task_version_hash" },
   index: { sql: "`index`", dbType: "Int64" },
   data: { sql: "substring(data, 1, 200)" },
   target: { sql: "substring(target, 1, 200)" },

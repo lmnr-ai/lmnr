@@ -1,6 +1,3 @@
-import { type EvalRow } from "@/lib/evaluation/types";
-import { tryParseJson } from "@/lib/utils";
-
 /** Opened first when a task has it, as in Harbor's task layout. */
 export const DEFAULT_FILE = "instruction.md";
 
@@ -12,25 +9,6 @@ export interface FileNode {
   /** Set for directories. */
   children?: FileNode[];
 }
-
-const metadataString = (row: EvalRow | undefined, key: string): string | null => {
-  const raw = row?.["metadata"];
-  const metadata = typeof raw === "string" ? tryParseJson(raw) : raw;
-  const value = (metadata as Record<string, unknown> | null | undefined)?.[key];
-  return typeof value === "string" && value ? value : null;
-};
-
-/** The trial's task dir relative to the uploaded evals folder, set by the Harbor plugin on remote runs. */
-export const taskPathOf = (row: EvalRow | undefined): string | null => metadataString(row, "task_path");
-
-/** The trial's task, as the table's Task column shows it; null when unset. */
-export const taskNameOf = (row: EvalRow | undefined): string | null => {
-  const taskId = row?.["taskId"];
-  return typeof taskId === "string" && taskId ? taskId : null;
-};
-
-/** Harbor's name for the trial, which is also its dir in the suite's job; set by the Harbor plugin. */
-export const trialNameOf = (row: EvalRow | undefined): string | null => metadataString(row, "trial_name");
 
 const sortNodes = (nodes: FileNode[]): FileNode[] =>
   nodes

@@ -221,6 +221,20 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     meta: { ...EVAL_COLUMN_SQL.traceStatus, dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
+    // The task version the Trial ran ('' when unknown); decides whether a local run's Trial can show Files.
+    id: "taskVersionHash",
+    accessorFn: (row) => row["taskVersionHash"],
+    header: "Task Version",
+    enableSorting: false,
+    meta: {
+      ...EVAL_COLUMN_SQL.taskVersionHash,
+      dataType: "string",
+      filterable: false,
+      comparable: false,
+      hidden: true,
+    },
+  },
+  {
     id: "topSpanId",
     accessorFn: (row) => row["topSpanId"],
     header: "Top Span ID",

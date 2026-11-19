@@ -5,6 +5,7 @@ use crate::{
     audit,
     cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
+    eval_datasets,
     evaluations::{
         EvaluationTrialResult, UpdatedTrialStrings, insert_evaluation_trials,
         realtime::{
@@ -23,7 +24,7 @@ use actix_web::{
     web::{self, Json},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -36,6 +37,9 @@ pub struct InitEvalRequest {
     /// Set by the Laminar Harbor plugin in a remote run's orchestrator.
     #[serde(default)]
     pub hosted_metadata: Option<HostedMetadata>,
+    /// The eval dataset (`eval_datasets`) the run is of, set by the Laminar Harbor plugin.
+    #[serde(default)]
+    pub dataset_v2_id: Option<String>,
 }
 
 #[post("/evals")]
@@ -48,6 +52,16 @@ pub async fn init_eval(
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let body = body.into_inner();
+    if let Some(dataset) = body
+        .dataset_v2_id
+        .as_deref()
+        .filter(|d| !eval_datasets::is_dataset_name(d))
+    {
+        return Ok(HttpResponse::BadRequest().json(json!({
+            "error": format!("Invalid datasetV2Id {dataset:?}: not a dataset name"),
+            "code": "invalid_name",
+        })));
+    }
     let group_name = body.group_name.unwrap_or("default".to_string());
     let project_id = project_api_key.project_id;
     let metadata = body.metadata;
@@ -64,6 +78,7 @@ pub async fn init_eval(
         &group_name,
         &metadata,
         body.hosted_metadata.as_ref(),
+        body.dataset_v2_id.as_deref(),
     )
     .await?;
     audit::target_named(&req, evaluation.id, evaluation.name.clone());
