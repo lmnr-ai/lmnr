@@ -22,13 +22,15 @@ Follows the OTel GenAI MCP conventions (`open-telemetry/semantic-conventions-gen
 MCP has no end-of-turn signal. Trace id for a call, first that applies:
 
 1. Client turn id `_meta["io.modelcontextprotocol/aiInvocation"].turnId` → first 16 bytes of SHA-256(`"{session}\n{turnId}"`). Deterministic, so every server copy agrees.
-2. Client `traceparent` → its trace id.
-3. The session's current turn: reused while a call is in flight or the last call started/ended at most the turn gap ago (default 20 s).
+2. The session's current turn: reused while a call is in flight or the last call started/ended at most the turn gap ago (default 20 s).
+3. Client `traceparent` → its trace id (also what a new turn starts with when one is present).
 4. A new trace.
+
+**The gap tracker deliberately beats the client's `traceparent`** (which is still always a span link). Measured on a live run: mcp-python 2.x's native client spans send a fresh trace id per call, so `traceparent`-first made every call its own trace; a client that keeps one trace for a whole session would merge many turns into one trace for Signals. The gap is never that wrong; only a client that sends one trace per turn does better with `traceparent`, and the gap groups those correctly too.
 
 **The turn gap must stay under the Signals settle window** (30 s, `TRACE_EXCLUSIVE_PARK_DELAY_MS`): Signals admit a trace once it has been quiet for one park interval, so a gap >= 30 s lets a Signal run on half a turn. The SDKs clamp it to 25 s. Raising the settle interval is safe; lowering it below the gap is not.
 
-Several server copies: (1) and (2) need no shared state. (3) lives in process memory in the SDKs, which holds for stateful Streamable HTTP (the session lives in one process, so it is pinned there anyway). Stateless servers have no session, so they have no (3) either, unless the client sends `_meta["openai/session"]`, which the SDKs use as the session id. A copy-shared turn store (the same Redis pattern `/v1/mcp` uses) is the follow-up if non-sticky stateful deployments show up.
+Several server copies: (1) and (3) need no shared state. (2) lives in process memory in the SDKs, which holds for stateful Streamable HTTP (the session lives in one process, so it is pinned there anyway). Stateless servers have no session, so they have no (2) either, unless the client sends `_meta["openai/session"]`, which the SDKs use as the session id. A copy-shared turn store (the same Redis pattern `/v1/mcp` uses) is the follow-up if non-sticky stateful deployments show up.
 
 ## Ingestion mapping (`traces/spans.rs`, `traces/utils.rs`)
 

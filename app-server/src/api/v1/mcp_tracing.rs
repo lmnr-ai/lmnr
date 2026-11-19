@@ -315,9 +315,10 @@ struct Turn {
     key: Option<String>,
 }
 
-/// A turn id the client sent pins the trace for every replica; a client `traceparent` lends its
-/// trace id; otherwise the caller's calls that start within `TURN_GAP_SECS` of another call's
-/// start or end share one, through Redis so every replica agrees.
+/// A turn id the client sent pins the trace for every replica. Otherwise the caller's calls that
+/// start within `TURN_GAP_SECS` of another call's start or end share one, through Redis so every
+/// replica agrees. The gap wins over a client `traceparent` (still linked): clients send a fresh
+/// trace id per call, or one for a whole session, as often as one per turn.
 async fn turn_trace_id(
     turn_id: Option<&str>,
     openai_session: Option<&str>,
@@ -331,22 +332,20 @@ async fn turn_trace_id(
             key: None,
         };
     }
-    if let Some(parent) = client_trace_parent {
-        return Turn {
-            trace_id: parent.trace_id,
-            key: None,
-        };
-    }
     let Some(caller) = caller else {
         return Turn {
-            trace_id: *Uuid::new_v4().as_bytes(),
+            trace_id: client_trace_parent
+                .map(|parent| parent.trace_id)
+                .unwrap_or(*Uuid::new_v4().as_bytes()),
             key: None,
         };
     };
     let key = format!("{MCP_SERVER_TURN_CACHE_KEY}:{caller}");
     let trace_id = match cache.get::<Uuid>(&key).await {
         Ok(Some(trace_id)) => *trace_id.as_bytes(),
-        _ => *Uuid::new_v4().as_bytes(),
+        _ => client_trace_parent
+            .map(|parent| parent.trace_id)
+            .unwrap_or(*Uuid::new_v4().as_bytes()),
     };
     refresh_turn(&key, trace_id, cache).await;
     Turn {
