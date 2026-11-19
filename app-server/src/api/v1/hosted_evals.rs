@@ -1,22 +1,20 @@
 use std::sync::Arc;
 
 use actix_web::{
-    HttpRequest, HttpResponse, delete,
-    error::PayloadError,
-    get,
-    http::StatusCode,
-    post, put,
+    HttpRequest, HttpResponse, delete, get, post, put,
     web::{self, Json},
 };
-use anyhow::anyhow;
-use bytes::{Bytes, BytesMut};
-use futures_util::{Stream, StreamExt};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tokio::sync::mpsc::{self, Sender};
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::{
+    api::uploads::{
+        self, IndexError, UploadError, body_error_response, collect_payload, forward_payload,
+        invalid_index_response,
+    },
     audit,
     cache::Cache,
     ch::evaluation_logs::{self, CHEvaluationLog, LogState},
@@ -24,7 +22,7 @@ use crate::{
     env,
     features::{Feature, is_feature_enabled},
     hosted_evals::{
-        self, ArchiveIndex, HostedEvals, RunError, RunRequest,
+        self, HostedEvals, RunError, RunRequest,
         images::{self, ImageError},
         provider::{SandboxHandle, SandboxProvider, SandboxProviderTrait},
         sandboxes::{self, CreateError, ImageRequest},
@@ -49,13 +47,6 @@ const MAX_LOG_LINE_CHARS: usize = 16 * 1024;
 const MAX_LOG_TAIL_BYTES: u64 = 1024 * 1024;
 
 pub type HostedEvalsData = web::Data<Option<HostedEvals>>;
-
-#[derive(Debug)]
-enum BodyError {
-    Empty,
-    TooLarge(u64),
-    Payload(PayloadError),
-}
 
 #[derive(Deserialize)]
 pub struct FilePath {
@@ -511,7 +502,7 @@ pub async fn download_upload(
     })
 }
 
-/// Body: the archive's file index (JSON, `hosted_evals::ArchiveIndex`).
+/// Body: the archive's file index (JSON, `api::uploads::ArchiveIndex`).
 #[put("/hosted-evals/uploads/{upload_id}/index")]
 pub async fn upload_index(
     path: web::Path<Uuid>,
@@ -561,21 +552,16 @@ pub async fn upload_job(
     }
 
     let key = hosted_evals::job_archive_key(&project_id, &path, &query.suite);
-    let (tx, rx) = mpsc::channel(4);
-    let (received, stored) = futures_util::join!(
-        forward_payload(payload, tx, MAX_JOB_ARCHIVE_BYTES),
-        storage.upload_stream(&bucket, &key, rx)
-    );
-    if let Err(e) = received {
-        return Ok(body_error_response(e));
-    }
-    Ok(match stored {
-        Ok(_) => HttpResponse::NoContent().finish(),
-        Err(e) => upstream_error("job upload", e),
-    })
+    Ok(
+        match uploads::upload_payload(&storage, &bucket, &key, payload, MAX_JOB_ARCHIVE_BYTES).await
+        {
+            Ok(_) => HttpResponse::NoContent().finish(),
+            Err(e) => upload_error_response("job upload", e),
+        },
+    )
 }
 
-/// Body: the index of the suite's job archive (JSON, `hosted_evals::ArchiveIndex`).
+/// Body: the index of the suite's job archive (JSON, `api::uploads::ArchiveIndex`).
 #[put("/hosted-evals/uploads/{upload_id}/jobs/index")]
 pub async fn upload_job_index(
     path: web::Path<Uuid>,
@@ -788,20 +774,12 @@ pub async fn handle_create_upload(
     };
     let upload_id = Uuid::new_v4();
     let key = hosted_evals::archive_key(&project_id, &upload_id);
-
-    // `web::Payload` isn't `Send`, so it's pumped through a channel the upload reads.
-    let (tx, rx) = mpsc::channel(4);
-    let (received, stored) = futures_util::join!(
-        forward_payload(payload, tx, MAX_ARCHIVE_BYTES),
-        storage.upload_stream(&bucket, &key, rx)
-    );
-    if let Err(e) = received {
-        return Ok(body_error_response(e));
-    }
-    Ok(match stored {
-        Ok(_) => HttpResponse::Ok().json(json!({ "uploadId": upload_id })),
-        Err(e) => upstream_error("archive upload", e),
-    })
+    Ok(
+        match uploads::upload_payload(storage, &bucket, &key, payload, MAX_ARCHIVE_BYTES).await {
+            Ok(_) => HttpResponse::Ok().json(json!({ "uploadId": upload_id })),
+            Err(e) => upload_error_response("archive upload", e),
+        },
+    )
 }
 
 /// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) index uploads.
@@ -834,30 +812,26 @@ async fn store_index(
     index_key: &str,
     payload: web::Payload,
 ) -> ResponseResult {
-    let body = match collect_payload(payload, MAX_INDEX_BYTES).await {
-        Ok(body) => body,
-        Err(e) => return Ok(body_error_response(e)),
-    };
-    if let Err(e) = serde_json::from_slice::<ArchiveIndex>(&body) {
-        return Ok(HttpResponse::BadRequest().json(json!({
-            "error": format!("Invalid archive index: {e}")
-        })));
-    }
-    match storage.exists(bucket, archive_key).await {
-        Ok(true) => {}
-        Ok(false) => {
-            return Ok(HttpResponse::NotFound().json(json!({ "error": "Upload not found" })));
-        }
-        Err(e) => return Ok(upstream_error("archive check", e)),
-    }
-
-    let (tx, rx) = mpsc::channel(1);
-    let _ = tx.send(Ok(body)).await;
-    drop(tx);
-    Ok(match storage.upload_stream(bucket, index_key, rx).await {
-        Ok(_) => HttpResponse::NoContent().finish(),
-        Err(e) => upstream_error("index upload", e),
-    })
+    Ok(
+        match uploads::store_index(
+            storage,
+            bucket,
+            archive_key,
+            index_key,
+            payload,
+            MAX_INDEX_BYTES,
+        )
+        .await
+        {
+            Ok(_) => HttpResponse::NoContent().finish(),
+            Err(IndexError::Body(e)) => body_error_response(e),
+            Err(IndexError::Invalid(e)) => invalid_index_response(e),
+            Err(IndexError::ArchiveMissing) => {
+                HttpResponse::NotFound().json(json!({ "error": "Upload not found" }))
+            }
+            Err(IndexError::Storage { operation, error }) => upstream_error(operation, error),
+        },
+    )
 }
 
 /// Shared by the project-API-key and CLI (`api::v1::cli::hosted_evals`) runs.
@@ -932,67 +906,6 @@ where
     result.unwrap_or_else(|e| upstream_error("sandbox call", e))
 }
 
-/// Pumps `payload` into `tx` up to `max_bytes`. Any failure sends an `Err`
-/// down the channel so the upload aborts instead of storing a partial object.
-async fn forward_payload<S>(
-    mut payload: S,
-    tx: Sender<anyhow::Result<Bytes>>,
-    max_bytes: u64,
-) -> Result<(), BodyError>
-where
-    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
-{
-    let mut size = 0;
-    let result = loop {
-        match payload.next().await {
-            None if size == 0 => break Err(BodyError::Empty),
-            None => break Ok(()),
-            Some(Err(e)) => break Err(BodyError::Payload(e)),
-            Some(Ok(chunk)) => {
-                size += chunk.len() as u64;
-                if size > max_bytes {
-                    break Err(BodyError::TooLarge(max_bytes));
-                }
-                // A closed channel means the upload already failed and reports why.
-                if tx.send(Ok(chunk)).await.is_err() {
-                    break Ok(());
-                }
-            }
-        }
-    };
-    if result.is_err() {
-        let _ = tx.send(Err(anyhow!("upload aborted"))).await;
-    }
-    result
-}
-
-async fn collect_payload<S>(mut payload: S, max_bytes: u64) -> Result<Bytes, BodyError>
-where
-    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
-{
-    let mut body = BytesMut::new();
-    while let Some(chunk) = payload.next().await {
-        let chunk = chunk.map_err(BodyError::Payload)?;
-        if (body.len() + chunk.len()) as u64 > max_bytes {
-            return Err(BodyError::TooLarge(max_bytes));
-        }
-        body.extend_from_slice(&chunk);
-    }
-    Ok(body.freeze())
-}
-
-fn body_error_response(error: BodyError) -> HttpResponse {
-    match error {
-        BodyError::Empty => HttpResponse::BadRequest().json(json!({ "error": "Empty body" })),
-        BodyError::TooLarge(max) => HttpResponse::PayloadTooLarge().json(json!({
-            "error": format!("Body exceeds {max} bytes")
-        })),
-        BodyError::Payload(e) => HttpResponse::BadRequest().json(json!({
-            "error": format!("Failed to read body: {e}")
-        })),
-    }
-}
-
 fn create_error_response(error: CreateError) -> HttpResponse {
     match error {
         CreateError::ImageNotReady => HttpResponse::Conflict().json(json!({
@@ -1013,13 +926,16 @@ fn create_error_response(error: CreateError) -> HttpResponse {
     }
 }
 
-/// The sandbox provider, registry or S3 failed. Their errors can carry upstream
-/// response bodies, so the client only gets a generic message.
+/// The sandbox provider, registry or S3 failed; see [`uploads::upstream_error`].
 fn upstream_error(operation: &str, error: anyhow::Error) -> HttpResponse {
-    log::error!("Hosted evals {operation} failed: {error:?}");
-    HttpResponse::build(StatusCode::BAD_GATEWAY).json(json!({
-        "error": format!("Hosted evals {operation} failed upstream. Retry shortly.")
-    }))
+    uploads::upstream_error(&format!("Hosted evals {operation}"), error)
+}
+
+fn upload_error_response(operation: &str, error: UploadError) -> HttpResponse {
+    match error {
+        UploadError::Body(e) => body_error_response(e),
+        UploadError::Storage(e) => upstream_error(operation, e),
+    }
 }
 
 fn uploads_bucket(hosted: &HostedEvalsData) -> Option<String> {
@@ -1085,50 +1001,4 @@ fn invalid_suite() -> HttpResponse {
 
 fn relative_path() -> HttpResponse {
     HttpResponse::BadRequest().json(json!({ "error": "path must be absolute" }))
-}
-
-#[cfg(test)]
-mod tests {
-    use futures_util::stream;
-
-    use super::*;
-
-    fn chunks(sizes: &[usize]) -> impl Stream<Item = Result<Bytes, PayloadError>> + Unpin {
-        stream::iter(
-            sizes
-                .iter()
-                .map(|n| Ok(Bytes::from(vec![0u8; *n])))
-                .collect::<Vec<_>>(),
-        )
-    }
-
-    #[tokio::test]
-    async fn forward_payload_caps_the_body_and_aborts_the_upload() {
-        let (tx, mut rx) = mpsc::channel(8);
-        let result = forward_payload(chunks(&[4, 4, 4]), tx, 10).await;
-        assert!(matches!(result, Err(BodyError::TooLarge(10))));
-        assert!(rx.recv().await.unwrap().is_ok());
-        assert!(rx.recv().await.unwrap().is_ok());
-        assert!(rx.recv().await.unwrap().is_err());
-
-        let (tx, mut rx) = mpsc::channel(8);
-        assert!(forward_payload(chunks(&[5, 5]), tx, 10).await.is_ok());
-        assert!(rx.recv().await.unwrap().is_ok());
-        assert!(rx.recv().await.unwrap().is_ok());
-        assert!(rx.recv().await.is_none());
-
-        let (tx, mut rx) = mpsc::channel(8);
-        let result = forward_payload(chunks(&[]), tx, 10).await;
-        assert!(matches!(result, Err(BodyError::Empty)));
-        assert!(rx.recv().await.unwrap().is_err());
-    }
-
-    #[tokio::test]
-    async fn collect_payload_caps_the_body() {
-        assert_eq!(collect_payload(chunks(&[3, 3]), 6).await.unwrap().len(), 6);
-        assert!(matches!(
-            collect_payload(chunks(&[3, 4]), 6).await,
-            Err(BodyError::TooLarge(6))
-        ));
-    }
 }

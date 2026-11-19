@@ -1253,6 +1253,7 @@ export const evaluations = pgTable(
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
     hostedMetadata: jsonb("hosted_metadata"),
+    datasetV2Id: text("dataset_v2_id"),
   },
   (table) => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
@@ -2423,6 +2424,69 @@ export const agentDocumentRevisions = pgTable(
       columns: [table.sessionId, table.projectId],
       foreignColumns: [agentSessions.id, agentSessions.projectId],
       name: "agent_document_revisions_session_id_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const datasetsV2 = pgTable(
+  "datasets_v2",
+  {
+    id: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.id], name: "datasets_v2_pkey" }),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "datasets_v2_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    datasetId: text("dataset_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.datasetId, table.id], name: "tasks_pkey" }),
+    foreignKey({
+      columns: [table.projectId, table.datasetId],
+      foreignColumns: [datasetsV2.projectId, datasetsV2.id],
+      name: "tasks_project_id_dataset_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const taskVersions = pgTable(
+  "task_versions",
+  {
+    taskId: text("task_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    datasetId: text("dataset_id").notNull(),
+    hash: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.projectId, table.datasetId, table.taskId, table.hash],
+      name: "task_versions_pkey",
+    }),
+    index("task_versions_latest_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.datasetId.asc().nullsLast().op("text_ops"),
+      table.taskId.asc().nullsLast().op("text_ops"),
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId, table.datasetId, table.taskId],
+      foreignColumns: [tasks.projectId, tasks.datasetId, tasks.id],
+      name: "task_versions_project_id_dataset_id_task_id_fkey",
     }).onDelete("cascade"),
   ]
 );

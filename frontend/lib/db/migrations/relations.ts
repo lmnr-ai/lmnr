@@ -62,6 +62,9 @@ import {
   llmProfiles,
   llmProfileModels,
   llmFeatureRoutes,
+  datasetsV2,
+  tasks,
+  taskVersions,
 } from "./schema";
 
 export const llmProfilesRelations = relations(llmProfiles, ({ one, many }) => ({
@@ -638,5 +641,28 @@ export const tracesRelations = relations(traces, ({ one }) => ({
   project: one(projects, {
     fields: [traces.projectId],
     references: [projects.id],
+  }),
+}));
+
+export const datasetsV2Relations = relations(datasetsV2, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [datasetsV2.projectId],
+    references: [projects.id],
+  }),
+  tasks: many(tasks),
+}));
+
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  dataset: one(datasetsV2, {
+    fields: [tasks.projectId, tasks.datasetId],
+    references: [datasetsV2.projectId, datasetsV2.id],
+  }),
+  versions: many(taskVersions),
+}));
+
+export const taskVersionsRelations = relations(taskVersions, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskVersions.projectId, taskVersions.datasetId, taskVersions.taskId],
+    references: [tasks.projectId, tasks.datasetId, tasks.id],
   }),
 }));

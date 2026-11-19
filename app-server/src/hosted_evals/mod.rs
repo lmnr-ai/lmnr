@@ -112,31 +112,6 @@ pub fn is_suite_name(suite: &str) -> bool {
             .any(|c| c == '/' || c == '\\' || c.is_control())
 }
 
-/// Where each file sits in an uploaded archive (written by lmnr-cli's
-/// `pack.ts`), so the frontend reads one file with a ranged GET instead of the
-/// whole archive. Parsed here only to reject a malformed index; it is stored as
-/// sent and read by the frontend (`lib/hosted-evals`).
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ArchiveIndex {
-    #[allow(dead_code)]
-    files: Vec<IndexedFile>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-struct IndexedFile {
-    /// POSIX path relative to the archive root.
-    path: String,
-    size: u64,
-    /// Byte range of the gzip member holding the file.
-    offset: u64,
-    length: u64,
-    /// Where the file's content starts in the decompressed member.
-    data_offset: u64,
-}
-
 /// What links an evaluation to the remote run that produced it
 /// (`evaluations.hosted_metadata`), set by the Laminar Harbor plugin.
 #[derive(Serialize, Deserialize, Debug)]

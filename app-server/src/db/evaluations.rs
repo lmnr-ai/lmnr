@@ -19,6 +19,8 @@ pub struct Evaluation {
     /// Conceptually, evaluations with different group ids are used to test different features.
     pub group_id: String,
     pub metadata: Option<Value>,
+    /// The eval dataset (name) the evaluation ran, if any.
+    pub dataset_v2_id: Option<String>,
 }
 
 #[derive(FromRow)]
@@ -26,30 +28,38 @@ pub struct EvaluationInfo {
     pub group_id: String,
 }
 
+pub struct NewEvaluation<'a> {
+    pub name: &'a str,
+    pub project_id: Uuid,
+    pub group_id: &'a str,
+    pub metadata: Option<&'a Value>,
+    pub hosted_metadata: Option<&'a HostedMetadata>,
+    pub dataset_v2_id: Option<&'a str>,
+}
+
 pub async fn create_evaluation(
     pool: &PgPool,
-    name: &String,
-    project_id: Uuid,
-    group_id: &str,
-    metadata: &Option<Value>,
-    hosted_metadata: Option<&HostedMetadata>,
+    evaluation: &NewEvaluation<'_>,
 ) -> Result<Evaluation> {
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "INSERT INTO evaluations (name, project_id, group_id, metadata, hosted_metadata)
-        VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO evaluations
+            (name, project_id, group_id, metadata, hosted_metadata, dataset_v2_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING
             id,
             created_at,
             name,
             project_id,
             group_id,
-            metadata",
+            metadata,
+            dataset_v2_id",
     )
-    .bind(name)
-    .bind(project_id)
-    .bind(group_id)
-    .bind(metadata)
-    .bind(hosted_metadata.map(Json))
+    .bind(evaluation.name)
+    .bind(evaluation.project_id)
+    .bind(evaluation.group_id)
+    .bind(evaluation.metadata)
+    .bind(evaluation.hosted_metadata.map(Json))
+    .bind(evaluation.dataset_v2_id)
     .fetch_one(pool)
     .await?;
 
@@ -78,7 +88,8 @@ pub async fn update_evaluation(
             name,
             project_id,
             group_id,
-            metadata",
+            metadata,
+            dataset_v2_id",
     )
     .bind(evaluation_id)
     .bind(project_id)

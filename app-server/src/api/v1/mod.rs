@@ -2,6 +2,7 @@ pub mod browser_sessions;
 pub mod cli;
 pub mod datasets;
 pub mod debugger;
+pub mod eval_datasets;
 pub mod evals;
 pub mod hosted_evals;
 pub mod labeling_queues;

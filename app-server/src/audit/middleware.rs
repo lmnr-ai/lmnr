@@ -126,6 +126,22 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
         ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
         (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
+        // A push (which task versions are latest) is the change; version
+        // uploads are per-item traffic, and reads are config reads an eval run makes.
+        ("POST", "/eval-datasets/{dataset}/tasks") => log_write(EvalDataset, Update),
+        (
+            "GET",
+            "/eval-datasets"
+            | "/eval-datasets/{dataset}/tasks"
+            | "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}",
+        ) => Skip,
+        ("POST", "/eval-datasets/{dataset}/tasks/missing") => Skip,
+        (
+            "PUT",
+            "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}"
+            | "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}/index",
+        ) => Skip,
+
         ("POST", "/rollouts/{session_id}") => log_write(DebuggerSession, Create),
         ("PATCH", "/rollouts/{session_id}/name") => log_write(DebuggerSession, Update),
         ("DELETE", "/rollouts/{session_id}") => log_write(DebuggerSession, Delete),
@@ -303,6 +319,19 @@ mod tests {
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
+            (
+                Method::PUT,
+                "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}",
+            ),
+            (
+                Method::PUT,
+                "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}/index",
+            ),
+            (Method::POST, "/eval-datasets/{dataset}/tasks/missing"),
+            (
+                Method::GET,
+                "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}",
+            ),
             (Method::POST, "/mcp"),
         ] {
             assert_eq!(
@@ -326,6 +355,10 @@ mod tests {
         assert_eq!(
             classify(&Method::GET, "/datasets/{dataset_id}/parquets/{idx}"),
             Some(log_read(AuditResource::Dataset, AuditAction::Export))
+        );
+        assert_eq!(
+            classify(&Method::POST, "/eval-datasets/{dataset}/tasks"),
+            Some(log_write(AuditResource::EvalDataset, AuditAction::Update))
         );
         assert_eq!(classify(&Method::POST, "/unknown"), None);
     }
