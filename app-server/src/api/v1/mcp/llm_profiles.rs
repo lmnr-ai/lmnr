@@ -110,14 +110,17 @@ impl UpdateLlmProfileParams {
         stored_provider: LlmProfileProvider,
         stored_config: ProfileConfig,
     ) -> UpdateLlmProfileInput {
-        let base = if self.provider.is_some_and(|p| p != stored_provider) {
+        // Agents echo `provider` from `get_llm_profile`; the service reads any provider as a
+        // change and would then demand `config`.
+        let provider = self.provider.filter(|p| *p != stored_provider);
+        let base = if provider.is_some() {
             ProfileConfig::default()
         } else {
             stored_config
         };
         UpdateLlmProfileInput {
             name: self.name,
-            provider: self.provider,
+            provider,
             config: self.config.map(|patch| patch.apply(base)),
             secrets: self.secrets,
             models: self.models,
@@ -351,5 +354,22 @@ mod tests {
         .unwrap();
         assert!(config.header_names.is_empty());
         assert!(config.base_url.is_none());
+    }
+
+    #[test]
+    fn an_echoed_provider_is_not_a_change() {
+        let input = update(
+            json!({ "provider": "custom", "name": "renamed" }),
+            LlmProfileProvider::Custom,
+        );
+        assert!(input.provider.is_none());
+        assert!(input.config.is_none());
+        let config = update(
+            json!({ "provider": "custom", "config": { "region": "eu" } }),
+            LlmProfileProvider::Custom,
+        )
+        .config
+        .unwrap();
+        assert_eq!(config.header_names, vec!["X-Tenant".to_string()]);
     }
 }
