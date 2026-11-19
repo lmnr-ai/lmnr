@@ -1,64 +1,82 @@
 "use client";
 
-import Link from "next/link";
+import { useMemo } from "react";
+import useSWR from "swr";
 
-import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import AdvancedSearch from "@/components/common/advanced-search";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import Header from "@/components/ui/header";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type EvalDatasetSummary } from "@/lib/actions/eval-datasets/types";
-import { nameToPath } from "@/lib/evaluation/trial-files";
+import { swrFetcher } from "@/lib/api/fetch-api";
+
+import { filterRows } from "./filter-rows";
+import { EvalDatasetsTableContents } from "./table-contents";
 
 interface EvalDatasetsProps {
   projectId: string;
-  datasets: EvalDatasetSummary[];
 }
 
-/** The project's eval datasets (`lmnr-cli eval dataset push`). */
-export default function EvalDatasets({ projectId, datasets }: EvalDatasetsProps) {
+const defaults = { columnOrder: ["name", "taskCount", "lastPushedAt"] };
+
+const searchFilters: ColumnFilter[] = [
+  { name: "Name", key: "name", dataType: "string" },
+  { name: "Tasks", key: "taskCount", dataType: "number" },
+];
+
+const filterFields = {
+  name: (d: EvalDatasetSummary) => d.id,
+  taskCount: (d: EvalDatasetSummary) => d.taskCount,
+};
+
+const EMPTY: EvalDatasetSummary[] = [];
+
+function EvalDatasetsContent({ projectId }: EvalDatasetsProps) {
+  const { data, error, isLoading } = useSWR<EvalDatasetSummary[]>(
+    `/api/projects/${projectId}/eval-datasets`,
+    swrFetcher
+  );
+  const datasets = data ?? EMPTY;
+  const { value, onChange } = useAdvancedSearchUrlValue();
+  const shown = useMemo(() => filterRows(datasets, value, filterFields.name, filterFields), [datasets, value]);
+  const suggestions = useMemo(() => new Map([["name", datasets.map((d) => d.id)]]), [datasets]);
+  const isSearching = value.filters.length > 0 || value.search.length > 0;
+
   return (
     <>
       <Header path="eval datasets" />
-      <div className="flex flex-1 flex-col gap-4 overflow-auto px-4 pb-4">
-        {datasets.length === 0 ? (
-          <div className="flex flex-col gap-2 rounded-md border bg-surface-up p-6 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">No eval datasets yet</p>
-            <p>
-              An eval dataset is a folder of Harbor tasks under <code>evals/</code>. Push one with{" "}
-              <code>npx lmnr-cli eval dataset push</code>, and its task versions show up here.
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-md border bg-surface-up">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="px-3">Name</TableHead>
-                  <TableHead className="px-3">Tasks</TableHead>
-                  <TableHead className="px-3">Last pushed</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {datasets.map((dataset) => (
-                  <TableRow key={dataset.id} className="h-10 border-b last:border-b-0">
-                    <TableCell className="px-3 font-medium">
-                      <Link
-                        href={`/project/${projectId}/eval-datasets/${nameToPath(dataset.id)}`}
-                        className="hover:underline"
-                      >
-                        {dataset.id}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="px-3 text-muted-foreground">{dataset.taskCount}</TableCell>
-                    <TableCell className="px-3 text-muted-foreground">
-                      {dataset.lastPushedAt ? <ClientTimestampFormatter timestamp={dataset.lastPushedAt} /> : "-"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+      <div className="flex flex-1 flex-col gap-4 overflow-hidden px-4 pb-4">
+        <div className="flex flex-1 overflow-hidden">
+          <EvalDatasetsTableContents
+            projectId={projectId}
+            datasets={shown}
+            isLoading={isLoading}
+            error={error instanceof Error ? error.message : null}
+            isSearching={isSearching}
+          >
+            <div className="w-full pt-1">
+              <AdvancedSearch
+                value={value}
+                onChange={onChange}
+                filters={searchFilters}
+                options={{ suggestions }}
+                placeholder="Search datasets by name..."
+                className="w-full flex-1"
+              />
+            </div>
+          </EvalDatasetsTableContents>
+        </div>
       </div>
     </>
+  );
+}
+
+/** The project's eval datasets (`lmnr-cli eval dataset push`). */
+export default function EvalDatasets(props: EvalDatasetsProps) {
+  return (
+    <InfiniteDataTableProvider defaults={defaults}>
+      <EvalDatasetsContent {...props} />
+    </InfiniteDataTableProvider>
   );
 }

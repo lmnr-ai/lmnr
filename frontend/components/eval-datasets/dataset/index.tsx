@@ -1,66 +1,120 @@
 "use client";
 
+import { type Row } from "@tanstack/react-table";
 import { parseAsString, useQueryStates } from "nuqs";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import useSWR from "swr";
 
+import AdvancedSearch from "@/components/common/advanced-search";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import Header from "@/components/ui/header";
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type EvalDataset } from "@/lib/actions/eval-datasets/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
+import { nameToPath } from "@/lib/evaluation/trial-files";
 
-import TaskRows from "./task-rows";
+import { filterRows } from "../filter-rows";
+import { type TaskRow, toTaskRows } from "./rows";
+import { TasksTableContents } from "./table-contents";
 import VersionFilesDialog from "./version-files-dialog";
 
 interface EvalDatasetViewProps {
   projectId: string;
-  dataset: EvalDataset;
+  datasetId: string;
 }
 
+const defaults = { columnOrder: ["task", "version", "pushedAt", "versionCount"] };
+
+const searchFilters: ColumnFilter[] = [
+  { name: "Task", key: "task", dataType: "string" },
+  { name: "Versions", key: "versionCount", dataType: "number" },
+];
+
+const filterFields = {
+  task: (r: TaskRow) => r.taskId,
+  versionCount: (r: TaskRow) => r.history.length,
+};
+
 /**
- * One eval dataset: each task's latest version and, expanded, every version
- * newest first. The version whose files are open is `?task=&hash=`.
+ * One eval dataset: a row per task at its latest version. A row opens the files
+ * dialog, which also browses the task's older versions; the open one is `?task=&hash=`.
  */
-export default function EvalDatasetView({ projectId, dataset }: EvalDatasetViewProps) {
+function EvalDatasetContent({ projectId, datasetId }: EvalDatasetViewProps) {
+  const { data, error, isLoading } = useSWR<EvalDataset>(
+    `/api/projects/${projectId}/eval-datasets/${nameToPath(datasetId)}`,
+    swrFetcher
+  );
   const [open, setOpen] = useQueryStates({ task: parseAsString, hash: parseAsString });
+  const { value, onChange } = useAdvancedSearchUrlValue();
+
   const onOpenVersion = useCallback((task: string, hash: string) => setOpen({ task, hash }), [setOpen]);
+  const onRowClick = useCallback(
+    (row: Row<TaskRow>) => onOpenVersion(row.original.taskId, row.original.latest.hash),
+    [onOpenVersion]
+  );
   const onClose = useCallback(() => setOpen({ task: null, hash: null }), [setOpen]);
+
+  const allRows = useMemo(() => toTaskRows(data?.tasks ?? []), [data]);
+  const rows = useMemo(() => filterRows(allRows, value, filterFields.task, filterFields), [allRows, value]);
+  const suggestions = useMemo(() => new Map([["task", allRows.map((r) => r.taskId)]]), [allRows]);
+
+  const openTask = allRows.find((r) => r.taskId === open.task);
 
   return (
     <>
       <Header
         path={[
           { name: "eval datasets", href: `/project/${projectId}/eval-datasets` },
-          { name: dataset.id, copyValue: dataset.id, className: "min-w-0" },
+          { name: datasetId, copyValue: datasetId, className: "min-w-0" },
         ]}
       />
-      <div className="flex flex-1 flex-col gap-4 overflow-auto px-4 pb-4">
-        <div className="rounded-md border bg-surface-up">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="px-3">Task</TableHead>
-                <TableHead className="px-3">Version</TableHead>
-                <TableHead className="px-3">Pushed</TableHead>
-                <TableHead className="px-3">Versions</TableHead>
-                <TableHead className="px-3" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {dataset.tasks.map((task) => (
-                <TaskRows key={task.id} task={task} onOpenVersion={onOpenVersion} />
-              ))}
-            </TableBody>
-          </Table>
+      <div className="flex flex-1 flex-col gap-4 overflow-hidden px-4 pb-4">
+        <div className="flex flex-1 overflow-hidden">
+          <TasksTableContents
+            rows={rows}
+            isLoading={isLoading}
+            error={error instanceof Error ? error.message : null}
+            focusedRowId={openTask?.taskId ?? null}
+            onRowClick={onRowClick}
+          >
+            <div className="flex w-full items-center gap-3 pt-1">
+              <AdvancedSearch
+                value={value}
+                onChange={onChange}
+                filters={searchFilters}
+                options={{ suggestions }}
+                placeholder="Search tasks by name..."
+                className="w-full flex-1"
+              />
+              {data && (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {allRows.length} {allRows.length === 1 ? "task" : "tasks"}
+                </span>
+              )}
+            </div>
+          </TasksTableContents>
         </div>
       </div>
-      {open.task && open.hash && (
+      {openTask && open.hash && (
         <VersionFilesDialog
           projectId={projectId}
-          datasetId={dataset.id}
-          taskId={open.task}
+          datasetId={datasetId}
+          taskId={openTask.taskId}
           hash={open.hash}
+          versions={openTask.history}
+          onSelectVersion={(hash) => onOpenVersion(openTask.taskId, hash)}
           onClose={onClose}
         />
       )}
     </>
+  );
+}
+
+export default function EvalDatasetView(props: EvalDatasetViewProps) {
+  return (
+    <InfiniteDataTableProvider defaults={defaults}>
+      <EvalDatasetContent {...props} />
+    </InfiniteDataTableProvider>
   );
 }
