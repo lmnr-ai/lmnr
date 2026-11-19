@@ -317,8 +317,8 @@ struct Turn {
 
 /// A turn id the client sent pins the trace for every replica. Otherwise the caller's calls that
 /// start within `TURN_GAP_SECS` of another call's start or end share one, through Redis so every
-/// replica agrees. The gap wins over a client `traceparent` (still linked): clients send a fresh
-/// trace id per call, or one for a whole session, as often as one per turn.
+/// replica agrees. The gap decides turns, not a client `traceparent` (still linked): clients send
+/// a fresh trace id per call, or one for a whole session, as often as one per turn.
 async fn turn_trace_id(
     turn_id: Option<&str>,
     openai_session: Option<&str>,
@@ -341,9 +341,9 @@ async fn turn_trace_id(
         };
     };
     let key = format!("{MCP_SERVER_TURN_CACHE_KEY}:{caller}");
-    let candidate = client_trace_parent
-        .map(|parent| Uuid::from_bytes(parent.trace_id))
-        .unwrap_or_else(Uuid::new_v4);
+    // A new turn never takes the client's trace id: a client that keeps one trace for a whole
+    // session would hand every turn the same id and merge them back into one trace.
+    let candidate = Uuid::new_v4();
     // One atomic claim, not get-then-insert: parallel calls that open a turn would each miss and
     // mint their own trace. The losers read the winner's trace id from the claim.
     let trace_id = match cache
@@ -609,17 +609,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_new_turn_starts_with_the_client_trace_id() {
+    async fn a_session_long_client_trace_does_not_merge_turns() {
         let cache = Cache::InMemory(InMemoryCache::new(None));
         let parent =
             parse_trace_parent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01").unwrap();
         let first = turn_trace_id(None, None, Some(&parent), Some("key".to_string()), &cache).await;
-        assert_eq!(first.trace_id, parent.trace_id);
+        assert_ne!(first.trace_id, parent.trace_id);
+        let joined =
+            turn_trace_id(None, None, Some(&parent), Some("key".to_string()), &cache).await;
+        assert_eq!(joined.trace_id, first.trace_id);
 
-        let other =
-            parse_trace_parent("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01").unwrap();
-        let second = turn_trace_id(None, None, Some(&other), Some("key".to_string()), &cache).await;
-        assert_eq!(second.trace_id, parent.trace_id);
+        // The gap expired: the same client trace starts a different turn.
+        cache.remove(first.key.as_deref().unwrap()).await.unwrap();
+        let next = turn_trace_id(None, None, Some(&parent), Some("key".to_string()), &cache).await;
+        assert_ne!(next.trace_id, first.trace_id);
+        assert_ne!(next.trace_id, parent.trace_id);
     }
 
     #[test]
