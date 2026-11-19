@@ -5,9 +5,7 @@ WORKDIR /app-server
 # Install build dependencies and cargo-chef
 RUN apt-get update && apt-get install -y \
     build-essential \
-    pkg-config \
     protobuf-compiler \
-    libclang-dev \
     && rm -rf /var/lib/apt/lists/* \
     && cargo install cargo-chef
 
