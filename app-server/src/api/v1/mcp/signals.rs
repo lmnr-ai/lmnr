@@ -51,8 +51,30 @@ pub struct UpdateSignalParams {
     /// Only the fields you pass change.
     #[serde(flatten)]
     pub update: UpdateSignalInput,
+    /// Stop sampling, so the signal runs on every matching trace. `sampleRate: null` does not.
+    #[serde(default)]
+    pub clear_sample_rate: bool,
     #[serde(flatten)]
     pub project: ProjectParam,
+}
+
+impl UpdateSignalParams {
+    /// The service input, with sampling cleared only on request: schema-driven clients often
+    /// send `null` for every optional field they leave unset.
+    fn into_update(self) -> Result<UpdateSignalInput, CallToolResponse> {
+        let mut update = self.update;
+        update.sample_rate = match (update.sample_rate, self.clear_sample_rate) {
+            (Some(Some(_)), true) => {
+                return Err(tool_error(
+                    "Pass either `sampleRate` or `clearSampleRate`, not both.",
+                ));
+            }
+            (_, true) => Some(None),
+            (Some(Some(rate)), false) => Some(Some(rate)),
+            (_, false) => None,
+        };
+        Ok(update)
+    }
 }
 
 fn signal_error(tool: &str, error: CrudError) -> CallToolResponse {
@@ -204,18 +226,23 @@ impl LaminarMcpServer {
         if let Err(error) = Self::require_user(&scope) {
             return Ok(error);
         }
+        let signal_id = params.signal_id;
+        let update = match params.into_update() {
+            Ok(update) => update,
+            Err(error) => return Ok(error),
+        };
         let result = service::update_signal(
             &self.db.pool,
             &self.cache,
             scope.project_id,
-            params.signal_id,
-            params.update,
+            signal_id,
+            update,
         )
         .await;
         let target = result
             .as_ref()
             .map(|signal| AuditTarget::named(signal.id, &signal.name))
-            .unwrap_or(AuditTarget::id(params.signal_id));
+            .unwrap_or(AuditTarget::id(signal_id));
         self.audit(
             &scope,
             AuditResource::Signal,
@@ -273,5 +300,42 @@ impl LaminarMcpServer {
             Ok(signal) => tool_json(&signal),
             Err(e) => signal_error("delete_signal", e),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params(args: serde_json::Value) -> UpdateSignalParams {
+        let mut body = json!({ "signalId": Uuid::new_v4() });
+        body.as_object_mut()
+            .unwrap()
+            .extend(args.as_object().unwrap().clone());
+        serde_json::from_value(body).unwrap()
+    }
+
+    #[test]
+    fn null_sample_rate_leaves_sampling_alone() {
+        let update = params(json!({ "sampleRate": null, "prompt": null }))
+            .into_update()
+            .unwrap();
+        assert_eq!(update.sample_rate, None);
+        assert_eq!(params(json!({})).into_update().unwrap().sample_rate, None);
+    }
+
+    #[test]
+    fn sampling_changes_only_on_request() {
+        let set = params(json!({ "sampleRate": 25 })).into_update().unwrap();
+        assert_eq!(set.sample_rate, Some(Some(25)));
+        let cleared = params(json!({ "clearSampleRate": true, "sampleRate": null }))
+            .into_update()
+            .unwrap();
+        assert_eq!(cleared.sample_rate, Some(None));
+        assert!(
+            params(json!({ "clearSampleRate": true, "sampleRate": 25 }))
+                .into_update()
+                .is_err()
+        );
     }
 }

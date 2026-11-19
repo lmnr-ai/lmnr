@@ -596,7 +596,9 @@ pub struct UpdateSignalInput {
     pub prompt: Option<String>,
     #[serde(default)]
     pub structured_output: Option<Value>,
-    /// Absent = leave stored; `null` = clear sampling. Plain `Option` collapses both.
+    // Absent = leave stored; `null` = clear sampling. Plain `Option` collapses both. The MCP
+    // `update_signal` tool ignores `null` and clears through `clearSampleRate` instead.
+    /// Percent of matching traces to evaluate, 1-95.
     #[serde(default, deserialize_with = "double_option")]
     pub sample_rate: Option<Option<i64>>,
     #[serde(default)]

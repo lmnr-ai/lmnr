@@ -47,8 +47,8 @@ pub struct CreateLlmProfileParams {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLlmProfileParams {
     pub profile_id: Uuid,
-    /// Omitted fields keep their stored value; absent `secrets` keys keep the stored secret;
-    /// `models` replaces the whole list.
+    /// Omitted fields keep their stored value; absent `secrets` keys, or the masks
+    /// `get_llm_profile` returns, keep the stored secret; `models` replaces the whole list.
     #[serde(flatten)]
     pub update: UpdateLlmProfileInput,
     #[serde(flatten)]
