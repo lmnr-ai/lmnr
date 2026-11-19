@@ -2,10 +2,13 @@ import { type TraceHealthCheckId } from "./checks";
 
 export const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
-// Payloads of 4 chars or fewer are empty in practice: '', 'null', '[]', '{}', '""'.
-export const LLM_NO_INPUT = "span_type = 'LLM' AND length(input) <= 4";
-export const LLM_NO_OUTPUT = "span_type = 'LLM' AND length(output) <= 4";
-export const TOOL_NO_OUTPUT = "span_type = 'TOOL' AND length(output) <= 4";
+// Short real payloads exist (a tool returning `"ok"` or `0`), so match the empty values exactly.
+// The length check first lets ClickHouse skip comparing every long payload.
+const isEmptyPayload = (col: "input" | "output") => `length(${col}) <= 4 AND ${col} IN ('', 'null', '[]', '{}', '""')`;
+
+export const LLM_NO_INPUT = `span_type = 'LLM' AND ${isEmptyPayload("input")}`;
+export const LLM_NO_OUTPUT = `span_type = 'LLM' AND ${isEmptyPayload("output")}`;
+export const TOOL_NO_OUTPUT = `span_type = 'TOOL' AND ${isEmptyPayload("output")}`;
 export const LLM_NO_MODEL = "span_type = 'LLM' AND model = ''";
 // Failed calls never return usage, so only successful ones count.
 export const NOT_ERROR = "status != 'error'";
@@ -19,9 +22,9 @@ export const IS_ROOT = `parent_span_id = toUUID('${NIL_UUID}')`;
 // span_kind 1 = LLM, 6 = TOOL.
 export const RAW_LLM = "span_kind = 1";
 export const RAW_TOOL = "span_kind = 6";
-export const RAW_LLM_NO_INPUT = `${RAW_LLM} AND empty(input_message_hashes) AND length(input) <= 4`;
-export const RAW_LLM_NO_OUTPUT = `${RAW_LLM} AND empty(output_message_hashes) AND length(output) <= 4`;
-export const RAW_TOOL_NO_OUTPUT = `${RAW_TOOL} AND empty(output_message_hashes) AND length(output) <= 4`;
+export const RAW_LLM_NO_INPUT = `${RAW_LLM} AND empty(input_message_hashes) AND ${isEmptyPayload("input")}`;
+export const RAW_LLM_NO_OUTPUT = `${RAW_LLM} AND empty(output_message_hashes) AND ${isEmptyPayload("output")}`;
+export const RAW_TOOL_NO_OUTPUT = `${RAW_TOOL} AND empty(output_message_hashes) AND ${isEmptyPayload("output")}`;
 export const RAW_LLM_NO_MODEL = `${RAW_LLM} AND model = ''`;
 export const RAW_LLM_OK = `${RAW_LLM} AND ${NOT_ERROR}`;
 export const RAW_LLM_NO_USAGE = `${RAW_LLM_OK} AND total_tokens = 0`;

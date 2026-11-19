@@ -143,8 +143,8 @@ const getSpanChecks = async (projectId: string, traceIds: string[], oldestStart:
     query: SPAN_CHECKS_QUERY,
     format: "JSONEachRow",
     query_params: { projectId, traceIds, oldestStart },
-    // Reads `length(input)` from the column's size subcolumn instead of the payload itself. Prod pins
-    // `compatibility = 24.6`, which turns this off and makes the query read every raw payload.
+    // Reads `length(input)` from the column's size subcolumn, so only the empty-value match touches
+    // payloads. Prod pins `compatibility = 24.6`, which turns this off.
     clickhouse_settings: { optimize_functions_to_subcolumns: 1 },
   });
   const [row] = await result.json<SpanChecksRow>();
