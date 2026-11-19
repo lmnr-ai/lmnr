@@ -27,7 +27,6 @@ pub enum Cache {
 }
 
 /// Outcome of [`CacheTrait::try_acquire_lock_with_owner`].
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 #[derive(Debug, PartialEq, Eq)]
 pub enum LockClaim {
     /// This call took the claim.
@@ -87,7 +86,6 @@ pub trait CacheTrait {
     /// for the same key, and don't decompose it back into a claim followed by a
     /// separate `get` — that reintroduces a window where the holder releases in
     /// between and the reader sees an empty holder for a lock that is now free.
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     async fn try_acquire_lock_with_owner(
         &self,
         key: &str,

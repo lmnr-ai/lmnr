@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     cache::{
-        Cache, CacheTrait,
+        Cache, CacheTrait, LockClaim,
         keys::{MCP_SERVER_CLIENT_CACHE_KEY, MCP_SERVER_TURN_CACHE_KEY},
     },
     db::{DB, project_api_keys::ProjectApiKey},
@@ -341,15 +341,30 @@ async fn turn_trace_id(
         };
     };
     let key = format!("{MCP_SERVER_TURN_CACHE_KEY}:{caller}");
-    let trace_id = match cache.get::<Uuid>(&key).await {
-        Ok(Some(trace_id)) => *trace_id.as_bytes(),
-        _ => client_trace_parent
-            .map(|parent| parent.trace_id)
-            .unwrap_or(*Uuid::new_v4().as_bytes()),
+    let candidate = client_trace_parent
+        .map(|parent| Uuid::from_bytes(parent.trace_id))
+        .unwrap_or_else(Uuid::new_v4);
+    // One atomic claim, not get-then-insert: parallel calls that open a turn would each miss and
+    // mint their own trace. The losers read the winner's trace id from the claim.
+    let trace_id = match cache
+        .try_acquire_lock_with_owner(&key, &candidate.to_string(), TURN_GAP_SECS)
+        .await
+    {
+        Ok(LockClaim::Acquired) => candidate,
+        Ok(LockClaim::Held(held)) => {
+            let current = held
+                .and_then(|held| Uuid::parse_str(&held).ok())
+                .unwrap_or(candidate);
+            refresh_turn(&key, *current.as_bytes(), cache).await;
+            current
+        }
+        Err(e) => {
+            log::warn!("MCP server tracing: failed to claim turn: {e:?}");
+            candidate
+        }
     };
-    refresh_turn(&key, trace_id, cache).await;
     Turn {
-        trace_id,
+        trace_id: *trace_id.as_bytes(),
         key: Some(key),
     }
 }
@@ -497,7 +512,10 @@ fn now_nanos() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
+    use crate::cache::in_memory::InMemoryCache;
 
     #[test]
     fn secret_keys_match_the_sdk_contract() {
@@ -564,6 +582,44 @@ mod tests {
         let mut schema = json!({ "properties": { "context": own } });
         add_context_property(schema.as_object_mut().unwrap());
         assert_eq!(schema["properties"][CONTEXT_ARGUMENT], own);
+    }
+
+    #[tokio::test]
+    async fn parallel_calls_opening_a_turn_share_its_trace() {
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let calls = (0..8).map(|_| {
+            let cache = cache.clone();
+            tokio::spawn(async move {
+                turn_trace_id(None, None, None, Some("key".to_string()), &cache)
+                    .await
+                    .trace_id
+            })
+        });
+        let trace_ids: HashSet<[u8; 16]> = futures_util::future::join_all(calls)
+            .await
+            .into_iter()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(trace_ids.len(), 1);
+
+        let next = turn_trace_id(None, None, None, Some("key".to_string()), &cache).await;
+        assert!(trace_ids.contains(&next.trace_id));
+        let other_caller = turn_trace_id(None, None, None, Some("other".to_string()), &cache).await;
+        assert!(!trace_ids.contains(&other_caller.trace_id));
+    }
+
+    #[tokio::test]
+    async fn a_new_turn_starts_with_the_client_trace_id() {
+        let cache = Cache::InMemory(InMemoryCache::new(None));
+        let parent =
+            parse_trace_parent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01").unwrap();
+        let first = turn_trace_id(None, None, Some(&parent), Some("key".to_string()), &cache).await;
+        assert_eq!(first.trace_id, parent.trace_id);
+
+        let other =
+            parse_trace_parent("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01").unwrap();
+        let second = turn_trace_id(None, None, Some(&other), Some("key".to_string()), &cache).await;
+        assert_eq!(second.trace_id, parent.trace_id);
     }
 
     #[test]
