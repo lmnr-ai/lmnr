@@ -3,20 +3,17 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
-
-import { SCOPE_DESCRIPTIONS } from "./scopes";
 
 interface Props {
   clientName: string;
   redirectHost: string;
-  scopes: string[];
   userEmail: string;
 }
 
-export const OAuthConsent = ({ clientName, redirectHost, scopes, userEmail }: Props) => {
+export const OAuthConsent = ({ clientName, redirectHost, userEmail }: Props) => {
   const { toast } = useToast();
   const [pending, setPending] = useState<null | "approve" | "deny">(null);
 
@@ -39,25 +36,20 @@ export const OAuthConsent = ({ clientName, redirectHost, scopes, userEmail }: Pr
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-6">
       <Card className="w-full max-w-md">
-        <CardHeader>
+        <CardHeader className="gap-2 space-y-0">
           <CardTitle>Authorize {clientName}</CardTitle>
-          <CardDescription>
-            {clientName} wants to access your Laminar account. Once approved, it can act on your Laminar projects via
-            MCP with the same access you have.
-            <span className="block text-xs mt-1 text-muted-foreground/80">Signed in as {userEmail}</span>
-          </CardDescription>
+          <p className="text-xs text-muted-foreground">Signed in as {userEmail}</p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {scopes.length > 0 ? (
-            <ul className="flex flex-col gap-1 text-sm list-disc pl-5">
-              {scopes.map((scope) => (
-                <li key={scope}>{SCOPE_DESCRIPTIONS[scope] ?? scope}</li>
-              ))}
-            </ul>
-          ) : null}
-          <p className="text-xs text-muted-foreground">
-            You&apos;ll be sent back to <span className="font-mono">{redirectHost}</span>. Only approve apps you trust.
-          </p>
+          <div className="flex flex-col gap-2 text-sm text-foreground-200">
+            <p>
+              {clientName} wants to access your Laminar account. Once approved, it can act on your Laminar projects via
+              MCP with the same access you have.
+            </p>
+            <p>
+              You&apos;ll be sent back to <span className="font-mono text-foreground-100">{redirectHost}</span>.
+            </p>
+          </div>
           <div className="flex gap-2 pt-2">
             <Button
               type="button"

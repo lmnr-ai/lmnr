@@ -55,7 +55,6 @@ export default async function OAuthConsentPage(props: {
       // Self-registered clients pick their own name, so the redirect host is shown too.
       clientName={client.client_name || "An application"}
       redirectHost={redirectHostOf(query.get("redirect_uri"))}
-      scopes={query.get("scope")?.split(" ").filter(Boolean) ?? []}
       userEmail={session.user.email}
     />
   );
