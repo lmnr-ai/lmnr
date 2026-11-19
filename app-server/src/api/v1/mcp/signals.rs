@@ -55,7 +55,7 @@ pub struct UpdateSignalParams {
     #[serde(flatten)]
     pub update: UpdateSignalInput,
     /// Stop sampling, so the signal runs on every matching trace. `sampleRate: null` does not.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub clear_sample_rate: bool,
     #[serde(flatten)]
     pub project: ProjectParam,

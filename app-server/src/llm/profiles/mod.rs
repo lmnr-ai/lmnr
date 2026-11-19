@@ -92,7 +92,7 @@ impl LlmProfileProvider {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileConfig {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub auth: ProfileAuth,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
@@ -102,7 +102,11 @@ pub struct ProfileConfig {
     pub base_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_version: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::null_as_default",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub header_names: Vec<String>,
 }
 
@@ -129,7 +133,11 @@ pub struct ProfileSecrets {
     pub secret_access_key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::null_as_default",
+        skip_serializing_if = "HashMap::is_empty"
+    )]
     pub headers: HashMap<String, String>,
 }
 

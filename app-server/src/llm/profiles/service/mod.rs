@@ -76,9 +76,9 @@ pub fn error_response(e: CrudError) -> HttpResponse {
 pub struct CreateLlmProfileInput {
     pub name: String,
     pub provider: LlmProfileProvider,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub config: ProfileConfig,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub secrets: ProfileSecrets,
     pub models: Vec<String>,
 }
@@ -92,7 +92,7 @@ pub struct UpdateLlmProfileInput {
     pub name: Option<String>,
     pub provider: Option<LlmProfileProvider>,
     pub config: Option<ProfileConfig>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub secrets: ProfileSecrets,
     pub models: Option<Vec<String>>,
 }

@@ -68,7 +68,7 @@ pub struct QuerySqlParams {
     /// full table/column schema, enums, joins, and example queries.
     pub query: String,
     /// Query parameters for {name:Type} placeholders, e.g., {trace_id:UUID}
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub parameters: HashMap<String, Value>,
     #[serde(flatten)]
     pub project: ProjectParam,
@@ -800,6 +800,79 @@ mod tests {
         assert!(
             signals.contains("List the project's signals"),
             "list_signals description changed unexpectedly: {signals}"
+        );
+    }
+
+    /// Schema-driven clients send `null` for every optional field they leave unset; each one
+    /// must read as absent instead of failing the call before the handler runs.
+    #[test]
+    fn null_optional_fields_read_as_absent() {
+        let project = Uuid::new_v4();
+        let update: signals::UpdateSignalParams = serde_json::from_value(serde_json::json!({
+            "signalId": Uuid::new_v4(),
+            "projectId": project,
+            "clearSampleRate": null,
+            "sampleRate": null,
+            "prompt": null,
+        }))
+        .expect("update_signal accepts nulls");
+        assert!(!update.clear_sample_rate);
+
+        let create: llm_profiles::CreateLlmProfileParams =
+            serde_json::from_value(serde_json::json!({
+                "name": "p",
+                "provider": "anthropic",
+                "config": null,
+                "secrets": null,
+                "models": ["m"],
+                "projectId": project,
+            }))
+            .expect("create_llm_profile accepts null config and secrets");
+        assert!(create.profile.secrets.api_key.is_none());
+
+        let nested: llm_profiles::CreateLlmProfileParams =
+            serde_json::from_value(serde_json::json!({
+                "name": "p",
+                "provider": "anthropic",
+                "config": { "auth": null, "headerNames": null, "region": null },
+                "secrets": { "headers": null, "apiKey": null },
+                "models": ["m"],
+            }))
+            .expect("nested profile fields accept nulls");
+        assert!(nested.profile.config.header_names.is_empty());
+        assert!(nested.profile.secrets.headers.is_empty());
+
+        let update: llm_profiles::UpdateLlmProfileParams =
+            serde_json::from_value(serde_json::json!({
+                "profileId": Uuid::new_v4(),
+                "name": null,
+                "config": null,
+                "secrets": null,
+                "models": null,
+            }))
+            .expect("update_llm_profile accepts nulls");
+        assert!(update.update.secrets.api_key.is_none());
+
+        let query: QuerySqlParams = serde_json::from_value(serde_json::json!({
+            "query": "SELECT 1",
+            "parameters": null,
+        }))
+        .expect("query_laminar_sql accepts null parameters");
+        assert!(query.parameters.is_empty());
+    }
+
+    /// `deserialize_with` must not change what the fields advertise.
+    #[test]
+    fn null_tolerant_fields_keep_their_schema() {
+        let schema = tool("update_signal").input_schema;
+        assert_eq!(
+            schema["properties"]["clearSampleRate"]["type"],
+            serde_json::json!("boolean")
+        );
+        let schema = tool(QUERY_SQL_TOOL_NAME).input_schema;
+        assert_eq!(
+            schema["properties"]["parameters"]["type"],
+            serde_json::json!("object")
         );
     }
 }
