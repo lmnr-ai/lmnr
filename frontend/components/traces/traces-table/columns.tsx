@@ -204,6 +204,7 @@ export const filters: ColumnFilter[] = [
     name: "Session ID",
     key: "session_id",
     dataType: "string",
+    emptiable: true,
   },
   {
     name: "Duration",
@@ -293,6 +294,7 @@ export const filters: ColumnFilter[] = [
     name: "User ID",
     key: "user_id",
     dataType: "string",
+    emptiable: true,
   },
 ];
 

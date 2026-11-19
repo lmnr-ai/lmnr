@@ -11,6 +11,7 @@ import { navigateTracePanel } from "@/components/traces/trace-view/trace-panel-u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
+import TraceHealthButton from "./trace-health";
 import { TraceViewSidePanel } from "./trace-view";
 import { TracesStoreProvider, useTracesStoreContext } from "./traces-store";
 import TracesTable from "./traces-table";
@@ -80,17 +81,20 @@ function TracesContent() {
           value={tracesTab}
           onValueChange={(value) => resetUrlParams(value)}
         >
-          <TabsList className="mx-4 h-8">
-            <TabsTrigger className="text-xs" value="traces">
-              Traces
-            </TabsTrigger>
-            <TabsTrigger className="text-xs" value="spans">
-              Spans
-            </TabsTrigger>
-            <TabsTrigger className="text-xs" value="sessions">
-              Sessions
-            </TabsTrigger>
-          </TabsList>
+          <div className="mx-4 flex items-center gap-4">
+            <TabsList className="h-8">
+              <TabsTrigger className="text-xs" value="traces">
+                Traces
+              </TabsTrigger>
+              <TabsTrigger className="text-xs" value="spans">
+                Spans
+              </TabsTrigger>
+              <TabsTrigger className="text-xs" value="sessions">
+                Sessions
+              </TabsTrigger>
+            </TabsList>
+            <TraceHealthButton />
+          </div>
           <TabsContent value="traces" asChild>
             <TracesTable />
           </TabsContent>
