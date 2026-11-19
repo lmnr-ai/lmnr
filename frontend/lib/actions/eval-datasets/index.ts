@@ -18,6 +18,7 @@ export const getEvalDatasets = async (projectId: string): Promise<EvalDatasetSum
   const rows = await db
     .select({
       id: datasetsV2.id,
+      createdAt: datasetsV2.createdAt,
       taskCount: countDistinct(tasks.id),
       lastPushedAt: max(taskVersions.createdAt),
     })
@@ -32,10 +33,11 @@ export const getEvalDatasets = async (projectId: string): Promise<EvalDatasetSum
       )
     )
     .where(eq(datasetsV2.projectId, projectId))
-    .groupBy(datasetsV2.id)
+    .groupBy(datasetsV2.id, datasetsV2.createdAt)
     .orderBy(...ascNameFold(datasetsV2.id));
   return rows.map((row) => ({
     id: row.id,
+    createdAt: toIso(row.createdAt),
     taskCount: Number(row.taskCount),
     lastPushedAt: row.lastPushedAt ? toIso(row.lastPushedAt) : null,
   }));

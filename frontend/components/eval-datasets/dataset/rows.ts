@@ -11,6 +11,8 @@ export interface TaskVersion {
 export interface TaskRow {
   taskId: string;
   latest: TaskVersion;
+  /** The oldest version's push time; re-pushing that exact hash moves it. */
+  createdAt: string;
   /** Every version of the task, newest first. */
   history: TaskVersion[];
 }
@@ -18,5 +20,6 @@ export interface TaskRow {
 export const toTaskRows = (tasks: EvalDatasetTask[]): TaskRow[] =>
   tasks.flatMap(({ id, versions }) => {
     const history = versions.map((v, i) => ({ ...v, number: versions.length - i }));
-    return history[0] ? [{ taskId: id, latest: history[0], history }] : [];
+    const oldest = history.at(-1);
+    return history[0] && oldest ? [{ taskId: id, latest: history[0], createdAt: oldest.pushedAt, history }] : [];
   });

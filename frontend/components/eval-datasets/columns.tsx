@@ -28,4 +28,10 @@ export const evalDatasetsColumns: ColumnDef<EvalDatasetSummary>[] = [
         <span className="text-muted-foreground">-</span>
       ),
   },
+  {
+    id: "createdAt",
+    header: "Created",
+    size: 220,
+    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
+  },
 ];

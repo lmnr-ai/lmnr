@@ -5,36 +5,24 @@ import { parseAsString, useQueryStates } from "nuqs";
 import { useCallback, useMemo } from "react";
 import useSWR from "swr";
 
-import AdvancedSearch from "@/components/common/advanced-search";
-import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import Header from "@/components/ui/header";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type EvalDataset } from "@/lib/actions/eval-datasets/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { nameToPath } from "@/lib/evaluation/trial-files";
 
 import { filterRows } from "../filter-rows";
+import { defaults, filterFields, RESOURCE } from "./constants";
 import { type TaskRow, toTaskRows } from "./rows";
 import { TasksTableContents } from "./table-contents";
+import { TasksTableControls } from "./table-controls";
 import VersionFilesDialog from "./version-files-dialog";
 
 interface EvalDatasetViewProps {
   projectId: string;
   datasetId: string;
 }
-
-const defaults = { columnOrder: ["task", "version", "pushedAt", "versionCount"] };
-
-const searchFilters: ColumnFilter[] = [
-  { name: "Task", key: "task", dataType: "string" },
-  { name: "Versions", key: "versionCount", dataType: "number" },
-];
-
-const filterFields = {
-  task: (r: TaskRow) => r.taskId,
-  versionCount: (r: TaskRow) => r.history.length,
-};
 
 /**
  * One eval dataset: a row per task at its latest version. A row opens the files
@@ -46,7 +34,11 @@ function EvalDatasetContent({ projectId, datasetId }: EvalDatasetViewProps) {
     swrFetcher
   );
   const [open, setOpen] = useQueryStates({ task: parseAsString, hash: parseAsString });
-  const { value, onChange } = useAdvancedSearchUrlValue();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const value = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
 
   const onOpenVersion = useCallback((task: string, hash: string) => setOpen({ task, hash }), [setOpen]);
   const onRowClick = useCallback(
@@ -65,7 +57,7 @@ function EvalDatasetContent({ projectId, datasetId }: EvalDatasetViewProps) {
     <>
       <Header
         path={[
-          { name: "eval datasets", href: `/project/${projectId}/eval-datasets` },
+          { name: "datasets", href: `/project/${projectId}/eval-datasets` },
           { name: datasetId, copyValue: datasetId, className: "min-w-0" },
         ]}
       />
@@ -73,26 +65,19 @@ function EvalDatasetContent({ projectId, datasetId }: EvalDatasetViewProps) {
         <div className="flex flex-1 overflow-hidden">
           <TasksTableContents
             rows={rows}
-            isLoading={isLoading}
+            isLoading={isLoading || isViewLoading}
             error={error instanceof Error ? error.message : null}
             focusedRowId={openTask?.taskId ?? null}
             onRowClick={onRowClick}
           >
-            <div className="flex w-full items-center gap-3 pt-1">
-              <AdvancedSearch
-                value={value}
-                onChange={onChange}
-                filters={searchFilters}
-                options={{ suggestions }}
-                placeholder="Search tasks by name..."
-                className="w-full flex-1"
-              />
-              {data && (
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {allRows.length} {allRows.length === 1 ? "task" : "tasks"}
-                </span>
-              )}
-            </div>
+            <TasksTableControls
+              projectId={projectId}
+              onFiltersChange={setFilters}
+              searchValue={value}
+              onSearchChange={setSearchAndFilters}
+              suggestions={suggestions}
+              taskCount={data ? allRows.length : null}
+            />
           </TasksTableContents>
         </div>
       </div>
@@ -113,7 +98,7 @@ function EvalDatasetContent({ projectId, datasetId }: EvalDatasetViewProps) {
 
 export default function EvalDatasetView(props: EvalDatasetViewProps) {
   return (
-    <InfiniteDataTableProvider defaults={defaults}>
+    <InfiniteDataTableProvider defaults={defaults} views={{ projectId: props.projectId, resource: RESOURCE }}>
       <EvalDatasetContent {...props} />
     </InfiniteDataTableProvider>
   );

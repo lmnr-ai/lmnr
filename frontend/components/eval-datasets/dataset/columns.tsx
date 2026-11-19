@@ -25,12 +25,9 @@ export const taskColumns: ColumnDef<TaskRow>[] = [
     cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.latest.pushedAt} />,
   },
   {
-    id: "versionCount",
-    header: "History",
-    size: 160,
-    cell: ({ row }) => {
-      const n = row.original.history.length;
-      return <span className="text-xs text-muted-foreground">{`${n} ${n === 1 ? "version" : "versions"}`}</span>;
-    },
+    id: "createdAt",
+    header: "Created",
+    size: 200,
+    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
   },
 ];

@@ -774,7 +774,7 @@ const TABLES: &[Table] = &[
             col(
                 "resource",
                 "String",
-                "Table the view belongs to: traces, spans, sessions, evaluations, evaluation-v1.1 (an evaluation's datapoints), datasets, dataset (a dataset's datapoints), queues, playgrounds, debugger-sessions, signal-runs, or signal-events:<signal id>",
+                "Table the view belongs to: traces, spans, sessions, evaluations, evaluation-v1.1 (an evaluation's datapoints), datasets, dataset (a dataset's datapoints), eval-datasets, eval-dataset (an eval dataset's tasks), queues, playgrounds, debugger-sessions, signal-runs, or signal-events:<signal id>",
             ),
             col("name", "String", "View name, unique per resource"),
             col(

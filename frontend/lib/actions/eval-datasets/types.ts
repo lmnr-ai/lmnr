@@ -1,6 +1,7 @@
 /** An eval dataset (`lmnr-cli eval dataset push`), as the datasets list shows it. */
 export interface EvalDatasetSummary {
   id: string;
+  createdAt: string;
   taskCount: number;
   /** When a version was last pushed; null for a dataset with no versions. */
   lastPushedAt: string | null;

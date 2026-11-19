@@ -3,7 +3,7 @@ import { type Metadata } from "next";
 import EvalDatasets from "@/components/eval-datasets";
 
 export const metadata: Metadata = {
-  title: "Eval datasets",
+  title: "Datasets",
 };
 
 export default async function EvalDatasetsPage(props: { params: Promise<{ projectId: string }> }) {

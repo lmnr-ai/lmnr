@@ -37,7 +37,7 @@ function DatasetsContent() {
 
   return (
     <>
-      <Header path="datasets" />
+      <Header path="legacy datasets" />
       <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-hidden">
         <div className="flex flex-1 overflow-hidden">
           <DatasetsTableContents
