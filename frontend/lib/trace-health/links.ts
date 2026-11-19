@@ -14,6 +14,13 @@ const serializeTableParams = createSerializer({
   pastHours: parseAsString,
 });
 
+const idFilter = (column: string, value: string): Filter => ({
+  column,
+  operator: Operator.Eq,
+  value,
+  dataType: "string",
+});
+
 /** Traces page URL showing the check's offending traces or spans, or null when there is nothing to show. */
 export const buildCheckTableHref = (
   projectId: string,
@@ -21,16 +28,19 @@ export const buildCheckTableHref = (
   result: TraceHealthCheckResult,
   oldestStart: string | null
 ) => {
-  const filters: Filter[] =
-    "filters" in check.table
-      ? check.table.filters
-      : result.matchIds.map((id) => ({
-          column: (check.table as { idColumn: string }).idColumn,
-          operator: Operator.Eq,
-          value: id,
-          dataType: "string",
-        }));
-  if (filters.length === 0) return null;
+  const table = check.table;
+  let filters: Filter[];
+  if ("idColumn" in table) {
+    if (result.matchIds.length === 0) return null;
+    // Repeated `=` filters on an id column are ORed by the table; distinct columns are ANDed.
+    filters = [
+      ...("filters" in table ? table.filters : []),
+      ...result.matchIds.map((id) => idFilter(table.idColumn, id)),
+      ...(table.view === "spans" ? result.matchTraceIds.map((id) => idFilter("trace_id", id)) : []),
+    ];
+  } else {
+    filters = table.filters;
+  }
 
   const range = oldestStart ? { startDate: oldestStart, endDate: new Date().toISOString() } : { pastHours: "24" };
   return serializeTableParams(`/project/${projectId}/traces`, {

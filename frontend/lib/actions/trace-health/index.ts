@@ -18,8 +18,8 @@ import {
   RAW_LLM_NO_OUTPUT,
   RAW_LLM_NO_USAGE,
   RAW_LLM_OK,
-  RAW_TOOL,
   RAW_TOOL_NO_OUTPUT,
+  RAW_TOOL_OK,
 } from "@/lib/trace-health/sql";
 
 export const GetTraceHealthSchema = z.object({ projectId: z.guid() });
@@ -46,8 +46,8 @@ const MAX_IDS = TRACE_HEALTH_MAX_LINKED_IDS;
 const SPAN_CHECKS_QUERY = `
   SELECT
     sum(n_llm) AS llmSpans,
-    sum(n_tool) AS toolSpans,
     sum(n_llm_ok) AS llmOkSpans,
+    sum(n_tool_ok) AS toolOkSpans,
     sum(n_llm_with_tokens) AS llmSpansWithTokens,
     sum(n_llm_no_input) AS llmNoInput,
     arraySlice(groupArrayArray(ids_llm_no_input), 1, ${MAX_IDS}) AS llmNoInputIds,
@@ -65,15 +65,15 @@ const SPAN_CHECKS_QUERY = `
     SELECT
       trace_id,
       countIf(${RAW_LLM}) AS n_llm,
-      countIf(${RAW_TOOL}) AS n_tool,
       countIf(${RAW_LLM_OK}) AS n_llm_ok,
+      countIf(${RAW_TOOL_OK}) AS n_tool_ok,
       countIf(${RAW_LLM} AND total_tokens > 0) AS n_llm_with_tokens,
       countIf(${RAW_LLM_NO_INPUT}) AS n_llm_no_input,
-      groupArrayIf(${MAX_IDS})(span_id, ${RAW_LLM_NO_INPUT}) AS ids_llm_no_input,
+      groupArrayIf(${MAX_IDS})((span_id, trace_id), ${RAW_LLM_NO_INPUT}) AS ids_llm_no_input,
       countIf(${RAW_LLM_NO_OUTPUT}) AS n_llm_no_output,
-      groupArrayIf(${MAX_IDS})(span_id, ${RAW_LLM_NO_OUTPUT}) AS ids_llm_no_output,
+      groupArrayIf(${MAX_IDS})((span_id, trace_id), ${RAW_LLM_NO_OUTPUT}) AS ids_llm_no_output,
       countIf(${RAW_TOOL_NO_OUTPUT}) AS n_tool_no_output,
-      groupArrayIf(${MAX_IDS})(span_id, ${RAW_TOOL_NO_OUTPUT}) AS ids_tool_no_output,
+      groupArrayIf(${MAX_IDS})((span_id, trace_id), ${RAW_TOOL_NO_OUTPUT}) AS ids_tool_no_output,
       countIf(${RAW_LLM_NO_MODEL}) AS n_llm_no_model,
       countIf(${RAW_LLM_NO_USAGE}) AS n_llm_no_usage,
       countIf(${RAW_LLM_NO_COST}) AS n_llm_no_cost,
@@ -96,15 +96,15 @@ interface RecentTraceRow {
 
 interface SpanChecksRow {
   llmSpans: Num;
-  toolSpans: Num;
   llmOkSpans: Num;
+  toolOkSpans: Num;
   llmSpansWithTokens: Num;
   llmNoInput: Num;
-  llmNoInputIds: string[];
+  llmNoInputIds: [string, string][];
   llmNoOutput: Num;
-  llmNoOutputIds: string[];
+  llmNoOutputIds: [string, string][];
   toolNoOutput: Num;
-  toolNoOutputIds: string[];
+  toolNoOutputIds: [string, string][];
   llmNoModel: Num;
   llmNoUsage: Num;
   llmNoCost: Num;
@@ -117,8 +117,25 @@ const result = (
   id: TraceHealthCheckId,
   applicable: Num,
   failing: Num,
-  matchIds: string[] = []
-): TraceHealthCheckResult => ({ id, applicable: Number(applicable), failing: Number(failing), matchIds });
+  matchIds: string[] = [],
+  matchTraceIds: string[] = []
+): TraceHealthCheckResult => ({
+  id,
+  applicable: Number(applicable),
+  failing: Number(failing),
+  matchIds,
+  matchTraceIds,
+});
+
+/** (span_id, trace_id) pairs → the span ids plus their distinct trace ids. */
+const spanResult = (id: TraceHealthCheckId, applicable: Num, failing: Num, pairs: [string, string][]) =>
+  result(
+    id,
+    applicable,
+    failing,
+    pairs.map(([spanId]) => spanId),
+    [...new Set(pairs.map(([, traceId]) => traceId))]
+  );
 
 /** ClickHouse `YYYY-MM-DD hh:mm:ss.nnnnnnnnn` (UTC) → ISO, for the table's `startDate` URL param. */
 const toIso = (chTime: string) => new Date(`${chTime.replace(" ", "T").slice(0, 23)}Z`).toISOString();
@@ -166,9 +183,9 @@ export async function getTraceHealth(input: z.infer<typeof GetTraceHealthSchema>
   const s = await getSpanChecks(projectId, traceIds, oldestStart);
   if (s) {
     results.push(
-      result("llm-missing-input", s.llmSpans, s.llmNoInput, s.llmNoInputIds),
-      result("llm-missing-output", s.llmSpans, s.llmNoOutput, s.llmNoOutputIds),
-      result("tool-missing-output", s.toolSpans, s.toolNoOutput, s.toolNoOutputIds),
+      spanResult("llm-missing-input", s.llmOkSpans, s.llmNoInput, s.llmNoInputIds),
+      spanResult("llm-missing-output", s.llmOkSpans, s.llmNoOutput, s.llmNoOutputIds),
+      spanResult("tool-missing-output", s.toolOkSpans, s.toolNoOutput, s.toolNoOutputIds),
       result("llm-missing-model", s.llmSpans, s.llmNoModel),
       result("llm-missing-usage", s.llmOkSpans, s.llmNoUsage),
       result("llm-missing-cost", s.llmSpansWithTokens, s.llmNoCost),
