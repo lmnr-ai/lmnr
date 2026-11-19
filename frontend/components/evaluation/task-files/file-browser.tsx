@@ -1,3 +1,5 @@
+import { type ReactNode } from "react";
+
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 import FileTree from "./file-tree";
@@ -11,6 +13,8 @@ interface FileBrowserProps {
   title: string;
   /** Where the files come from, on hover. */
   hint: string;
+  /** Shown at the end of the title row, e.g. a link to where the files come from. */
+  titleAction?: ReactNode;
   nodes: FileNode[];
   open: FileNode;
   onSelect: (node: FileNode) => void;
@@ -27,6 +31,7 @@ export default function FileBrowser({
   id,
   title,
   hint,
+  titleAction,
   nodes,
   open,
   onSelect,
@@ -38,8 +43,11 @@ export default function FileBrowser({
     <ResizablePanelGroup id={id} orientation="horizontal">
       <ResizablePanel id={`${id}-tree`} defaultSize={30} minSize={15} className="min-w-0">
         <div className="h-full overflow-auto">
-          <div className="truncate border-b px-3 py-1.5 font-mono text-xs text-muted-foreground" title={hint}>
-            {title}
+          <div className="flex items-center gap-2 border-b px-3 py-1.5 font-mono text-xs text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate" title={hint}>
+              {title}
+            </span>
+            {titleAction}
           </div>
           <FileTree
             nodes={nodes}

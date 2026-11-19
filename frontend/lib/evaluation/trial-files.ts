@@ -52,6 +52,10 @@ export const isEvalName = (name: string): boolean =>
 /** `org/name` as the two URL path segments the pages and routes take (`[org]/[name]`). */
 export const nameToPath = (name: string): string => name.split("/").map(encodeURIComponent).join("/");
 
+/** The eval dataset page with a task version's files open (`?task=&hash=`). */
+export const taskVersionHref = (projectId: string, dataset: string, task: string, hash: string): string =>
+  `/project/${projectId}/eval-datasets/${nameToPath(dataset)}?${new URLSearchParams({ task, hash })}`;
+
 /** The exports-bucket prefix of a pushed task version (see the LAM-2562 storage layout). */
 export const taskVersionPrefix = (projectId: string, dataset: string, task: string, hash: string): string =>
   `${projectId}/datasets/${dataset}/${task}/${hash}`;

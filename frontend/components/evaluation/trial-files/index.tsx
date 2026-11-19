@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowUpRight } from "lucide-react";
+import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { useMemo } from "react";
 
@@ -7,7 +9,11 @@ import FileBrowser from "@/components/evaluation/task-files/file-browser";
 import Message from "@/components/evaluation/task-files/message";
 import { flattenFiles } from "@/components/evaluation/task-files/utils";
 import { shortHash } from "@/lib/actions/eval-datasets/types";
-import { type TrialFiles as TrialFilesListing, type TrialTaskSource } from "@/lib/evaluation/trial-files";
+import {
+  taskVersionHref,
+  type TrialFiles as TrialFilesListing,
+  type TrialTaskSource,
+} from "@/lib/evaluation/trial-files";
 
 import { buildTrialTree, defaultTrialFile } from "./utils";
 
@@ -21,6 +27,19 @@ const taskHint = (task: TrialTaskSource | null): string => {
   if (task.source === "dataset") return `task/: ${task.task} version ${shortHash(task.hash)} in ${task.dataset}`;
   return `task/: ${task.path}, uploaded with the run (this version isn't in the dataset)`;
 };
+
+/** Opens the trial's task version on its eval dataset page; none for a copy uploaded with the run. */
+const TaskVersionLink = ({ projectId, task }: { projectId: string; task: TrialTaskSource | null }) =>
+  task?.source === "dataset" ? (
+    <Link
+      href={taskVersionHref(projectId, task.dataset, task.task, task.hash)}
+      title={`Open ${task.task} version ${shortHash(task.hash)} in ${task.dataset}`}
+      className="flex shrink-0 items-center gap-0.5 hover:text-foreground"
+    >
+      {shortHash(task.hash)}
+      <ArrowUpRight className="size-3" />
+    </Link>
+  ) : null;
 
 interface TrialFilesProps {
   projectId: string;
@@ -62,6 +81,7 @@ export default function TrialFiles({ projectId, evaluationId, trialId, listing, 
       id="evaluation-trial-files"
       title={title}
       hint={taskHint(listing.task)}
+      titleAction={<TaskVersionLink projectId={projectId} task={listing.task} />}
       nodes={tree}
       open={open}
       onSelect={(node) => setFile(node.path)}

@@ -20,6 +20,7 @@ import {
   resolveTrialPath,
   type TrialFiles,
   type TrialFileSources,
+  taskVersionHref,
   taskVersionPrefix,
 } from "@/lib/evaluation/trial-files";
 
@@ -250,6 +251,13 @@ describe("eval dataset and task names", () => {
     ]) {
       assert.equal(isEvalName(bad), false, JSON.stringify(bad));
     }
+  });
+
+  it("link a task version to its dataset page with the version open", () => {
+    assert.equal(
+      taskVersionHref("p", "acme/support", "acme/refund", "ab12"),
+      "/project/p/eval-datasets/acme/support?task=acme%2Frefund&hash=ab12"
+    );
   });
 
   it("map onto two URL path segments", () => {
