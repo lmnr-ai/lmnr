@@ -70,7 +70,7 @@ pub fn error_response(e: CrudError) -> HttpResponse {
     }
 }
 
-// `JsonSchema`: the MCP LLM-profile tools advertise these shapes.
+// `JsonSchema`: `create_llm_profile` (MCP) advertises this shape.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateLlmProfileInput {
@@ -83,16 +83,18 @@ pub struct CreateLlmProfileInput {
     pub models: Vec<String>,
 }
 
-/// Every field optional; omitted ones keep their stored value. `secrets` is an
-/// overlay: a key that is absent keeps the stored secret, so callers never have
-/// to re-send credentials. `models` replaces the whole list when present.
-#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+/// Every field optional; omitted ones keep their stored value. `config` replaces
+/// the stored one whole (MCP lays its fields over it first: `ProfileConfigPatch`).
+/// `secrets` is an overlay: a key that is absent keeps the stored secret, so
+/// callers never have to re-send credentials. `models` replaces the whole list
+/// when present.
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLlmProfileInput {
     pub name: Option<String>,
     pub provider: Option<LlmProfileProvider>,
     pub config: Option<ProfileConfig>,
-    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
+    #[serde(default)]
     pub secrets: ProfileSecrets,
     pub models: Option<Vec<String>>,
 }

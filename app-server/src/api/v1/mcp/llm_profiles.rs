@@ -13,8 +13,11 @@ use super::{
 };
 use crate::{
     audit::{AuditAction, AuditResource},
-    llm::profiles::service::{
-        self, CreateLlmProfileInput, CrudError, LlmProfileResponse, UpdateLlmProfileInput,
+    llm::profiles::{
+        LlmProfileProvider, ProfileAuth, ProfileConfig, ProfileSecrets,
+        service::{
+            self, CreateLlmProfileInput, CrudError, LlmProfileResponse, UpdateLlmProfileInput,
+        },
     },
 };
 
@@ -42,16 +45,84 @@ pub struct CreateLlmProfileParams {
     pub project: ProjectParam,
 }
 
+/// Omitted or `null` fields keep their stored value, nested `config` fields included.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLlmProfileParams {
     pub profile_id: Uuid,
-    /// Omitted fields keep their stored value; absent `secrets` keys, or the masks
-    /// `get_llm_profile` returns, keep the stored secret; `models` replaces the whole list.
-    #[serde(flatten)]
-    pub update: UpdateLlmProfileInput,
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Changing it requires `config`, which then starts empty instead of from the stored one.
+    #[serde(default)]
+    pub provider: Option<LlmProfileProvider>,
+    #[serde(default)]
+    pub config: Option<ProfileConfigPatch>,
+    /// Absent keys, or the masks `get_llm_profile` returns, keep the stored secret.
+    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
+    pub secrets: ProfileSecrets,
+    /// Replaces the whole list.
+    #[serde(default)]
+    pub models: Option<Vec<String>>,
     #[serde(flatten)]
     pub project: ProjectParam,
+}
+
+/// The `config` fields to change. The service replaces `config` whole, so a field a
+/// schema-driven client sends as `null` would otherwise reset it (and `headerNames` would drop
+/// the stored header secrets with it).
+#[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileConfigPatch {
+    #[serde(default)]
+    pub auth: Option<ProfileAuth>,
+    /// `""` clears it; likewise `resourceId`, `baseUrl` and `apiVersion`.
+    #[serde(default)]
+    pub region: Option<String>,
+    #[serde(default)]
+    pub resource_id: Option<String>,
+    #[serde(default)]
+    pub base_url: Option<String>,
+    #[serde(default)]
+    pub api_version: Option<String>,
+    /// Custom header names, with their values in `secrets.headers`. `[]` removes every header
+    /// and its stored value.
+    #[serde(default)]
+    pub header_names: Option<Vec<String>>,
+}
+
+impl ProfileConfigPatch {
+    fn apply(self, config: ProfileConfig) -> ProfileConfig {
+        ProfileConfig {
+            auth: self.auth.unwrap_or(config.auth),
+            region: self.region.or(config.region),
+            resource_id: self.resource_id.or(config.resource_id),
+            base_url: self.base_url.or(config.base_url),
+            api_version: self.api_version.or(config.api_version),
+            header_names: self.header_names.unwrap_or(config.header_names),
+        }
+    }
+}
+
+impl UpdateLlmProfileParams {
+    /// The service input, with `config` laid over the stored one unless the provider changes.
+    fn into_update(
+        self,
+        stored_provider: LlmProfileProvider,
+        stored_config: ProfileConfig,
+    ) -> UpdateLlmProfileInput {
+        let base = if self.provider.is_some_and(|p| p != stored_provider) {
+            ProfileConfig::default()
+        } else {
+            stored_config
+        };
+        UpdateLlmProfileInput {
+            name: self.name,
+            provider: self.provider,
+            config: self.config.map(|patch| patch.apply(base)),
+            secrets: self.secrets,
+            models: self.models,
+        }
+    }
 }
 
 impl From<CrudError> for ToolError {
@@ -160,12 +231,16 @@ impl LaminarMcpServer {
             Some(audit),
             |scope: ProjectScope| async move {
                 let workspace_id = self.workspace_id(&scope).await?;
+                let profile_id = params.profile_id;
+                let stored =
+                    service::get_llm_profile(&self.db.pool, workspace_id, profile_id).await?;
+                let update = params.into_update(stored.provider, stored.config);
                 let profile = service::update_llm_profile(
                     &self.db.pool,
                     &self.cache,
                     workspace_id,
-                    params.profile_id,
-                    params.update,
+                    profile_id,
+                    update,
                 )
                 .await?;
                 Ok(profile_output(profile))
@@ -201,5 +276,80 @@ impl LaminarMcpServer {
             },
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gateway() -> ProfileConfig {
+        ProfileConfig {
+            base_url: Some("https://gw.example.com/v1".to_string()),
+            header_names: vec!["X-Tenant".to_string()],
+            ..ProfileConfig::default()
+        }
+    }
+
+    fn update(
+        args: serde_json::Value,
+        stored_provider: LlmProfileProvider,
+    ) -> UpdateLlmProfileInput {
+        let mut body = json!({ "profileId": Uuid::new_v4() });
+        body.as_object_mut()
+            .unwrap()
+            .extend(args.as_object().unwrap().clone());
+        serde_json::from_value::<UpdateLlmProfileParams>(body)
+            .unwrap()
+            .into_update(stored_provider, gateway())
+    }
+
+    #[test]
+    fn null_config_fields_keep_the_stored_ones() {
+        let config = update(
+            json!({ "config": {
+                "baseUrl": "https://other.example.com/v1",
+                "headerNames": null,
+                "auth": null,
+                "region": null,
+            } }),
+            LlmProfileProvider::Custom,
+        )
+        .config
+        .unwrap();
+        assert_eq!(
+            config.base_url.as_deref(),
+            Some("https://other.example.com/v1")
+        );
+        assert_eq!(config.header_names, vec!["X-Tenant".to_string()]);
+    }
+
+    #[test]
+    fn config_fields_clear_only_on_request() {
+        let config = update(
+            json!({ "config": { "headerNames": [], "baseUrl": "" } }),
+            LlmProfileProvider::Custom,
+        )
+        .config
+        .unwrap();
+        assert!(config.header_names.is_empty());
+        assert_eq!(config.base_url.as_deref(), Some(""));
+        assert!(
+            update(json!({ "config": null }), LlmProfileProvider::Custom)
+                .config
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn a_new_provider_starts_from_an_empty_config() {
+        let config = update(
+            json!({ "provider": "anthropic", "config": { "headerNames": null } }),
+            LlmProfileProvider::Custom,
+        )
+        .config
+        .unwrap();
+        assert!(config.header_names.is_empty());
+        assert!(config.base_url.is_none());
     }
 }

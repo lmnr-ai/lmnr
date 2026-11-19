@@ -851,7 +851,7 @@ mod tests {
                 "models": null,
             }))
             .expect("update_llm_profile accepts nulls");
-        assert!(update.update.secrets.api_key.is_none());
+        assert!(update.secrets.api_key.is_none());
 
         let query: QuerySqlParams = serde_json::from_value(serde_json::json!({
             "query": "SELECT 1",
