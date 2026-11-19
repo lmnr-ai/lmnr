@@ -179,7 +179,6 @@ async fn verify_access_token(
     })
 }
 
-/// Project API keys are 64 alphanumerics; anything shaped like a JWT is an OAuth token.
 /// Project API keys are alphanumeric, so only a JWT has a decodable JOSE header.
 fn is_jwt(token: &str) -> bool {
     decode_header(token).is_ok()
