@@ -542,6 +542,7 @@ mod tests {
             }]),
             generation_config: None,
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
 
@@ -626,6 +627,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-opus-4-8", &request).unwrap();
@@ -648,6 +650,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-sonnet-5", &request).unwrap();
@@ -668,6 +671,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
         let body = build_request_body("us.anthropic.claude-sonnet-4-6", &request).unwrap();
