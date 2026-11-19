@@ -13,6 +13,9 @@ import { buildTrialTree, defaultTrialFile } from "./utils";
 
 const LOGS_PENDING = "logs/ arrives once the run's dataset finishes.";
 
+/** The task is what a trial is read for; the run's agent/ and logs/ start collapsed. */
+const INITIALLY_COLLAPSED = ["agent", "logs"];
+
 const taskHint = (task: TrialTaskSource | null): string => {
   if (!task) return "No task folder";
   if (task.source === "dataset") return `task/: ${task.task} version ${shortHash(task.hash)} in ${task.dataset}`;
@@ -64,6 +67,7 @@ export default function TrialFiles({ projectId, evaluationId, trialId, listing, 
       onSelect={(node) => setFile(node.path)}
       contentUrl={(path) => `${base}/content?path=${encodeURIComponent(path)}`}
       note={listing.logsPending ? LOGS_PENDING : undefined}
+      initiallyCollapsed={INITIALLY_COLLAPSED}
     />
   );
 }

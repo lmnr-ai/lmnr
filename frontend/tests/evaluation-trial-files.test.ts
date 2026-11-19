@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildFileTree, flattenFiles } from "@/components/evaluation/task-files/utils";
+import { buildFileTree, expandTo, flattenFiles } from "@/components/evaluation/task-files/utils";
 import { defaultLogFile } from "@/components/evaluation/trial-files/log-files";
 import {
   buildTrialTree,
@@ -146,6 +146,17 @@ describe("trial tree", () => {
     assert.equal(defaultTrialFile(noTask)?.path, "logs/agent/oracle.txt");
     assert.equal(defaultTrialFile(flattenFiles(buildTrialTree(archive("agent/agent.py"))))?.path, "agent/agent.py");
     assert.equal(defaultTrialFile([]), null);
+  });
+});
+
+describe("collapsed folders", () => {
+  it("expand the ones holding the open file, and only those", () => {
+    const collapsed = new Set(["agent", "logs", "logs/verifier"]);
+    assert.deepEqual([...expandTo(collapsed, "logs/verifier/reward.txt")], ["agent"]);
+    assert.equal(expandTo(collapsed, "task/instruction.md"), collapsed);
+    assert.equal(expandTo(collapsed, null), collapsed);
+    // A collapsed folder that is the open path's prefix but not its parent stays.
+    assert.deepEqual([...expandTo(new Set(["log"]), "logs/a.txt")], ["log"]);
   });
 });
 

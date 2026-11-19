@@ -122,7 +122,7 @@ const resolveSources = async (projectId: string, trial: Trial) => {
     task = { source: "upload", path: trial.taskPath };
   }
   if (runPrefix && upload && hosted) {
-    // Only the dataset's `agent/`: the rest of its dir (harbor.yaml, lmnr.yaml) is run config.
+    // Only the dataset's `agent/`: the rest of its dir (harbor.yaml, tasks/) is run config.
     sources.agent = { prefix: runPrefix, dir: joinArchivePath(hosted.suitePath, "agent"), files: upload.files };
   }
   if (jobPrefix && job && trial.trialName) {

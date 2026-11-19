@@ -18,10 +18,22 @@ interface FileBrowserProps {
   contentUrl: (path: string) => string;
   /** Shown under the tree, e.g. a folder that isn't available yet. */
   note?: string;
+  /** Top-level folders that start collapsed. */
+  initiallyCollapsed?: string[];
 }
 
 /** A folder from an archive (a run's upload, a task version): file tree on the left, the open file on the right. */
-export default function FileBrowser({ id, title, hint, nodes, open, onSelect, contentUrl, note }: FileBrowserProps) {
+export default function FileBrowser({
+  id,
+  title,
+  hint,
+  nodes,
+  open,
+  onSelect,
+  contentUrl,
+  note,
+  initiallyCollapsed,
+}: FileBrowserProps) {
   return (
     <ResizablePanelGroup id={id} orientation="horizontal">
       <ResizablePanel id={`${id}-tree`} defaultSize={30} minSize={15} className="min-w-0">
@@ -29,7 +41,12 @@ export default function FileBrowser({ id, title, hint, nodes, open, onSelect, co
           <div className="truncate border-b px-3 py-1.5 font-mono text-xs text-muted-foreground" title={hint}>
             {title}
           </div>
-          <FileTree nodes={nodes} selectedPath={open.path} onSelect={onSelect} />
+          <FileTree
+            nodes={nodes}
+            selectedPath={open.path}
+            onSelect={onSelect}
+            initiallyCollapsed={initiallyCollapsed}
+          />
           {note && <p className="px-3 py-2 text-xs text-muted-foreground">{note}</p>}
         </div>
       </ResizablePanel>

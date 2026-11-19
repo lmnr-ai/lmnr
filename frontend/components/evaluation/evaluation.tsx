@@ -57,6 +57,8 @@ interface EvaluationProps {
   evaluationName: string;
   initialScoreNames: string[];
   datasets: LinkedDataset[];
+  /** The eval dataset the run used, when it exists in the project. */
+  evalDataset: string | null;
 }
 
 const PAGE_SIZE = 50;
@@ -64,7 +66,7 @@ const PAGE_SIZE = 50;
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
 
-function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId, datasets, evalDataset }: EvaluationProps) {
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
@@ -360,6 +362,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
         urlKey={statsUrl}
         evaluations={evaluations}
         datasets={datasets}
+        evalDataset={evalDataset}
       />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         {/* Left + top padding only: the trace panel must run flush to the right

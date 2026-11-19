@@ -1,11 +1,8 @@
 "use client";
 
-import { FlaskConical } from "lucide-react";
-import Link from "next/link";
 import { parseAsString, useQueryStates } from "nuqs";
 import { useCallback } from "react";
 
-import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type EvalDataset } from "@/lib/actions/eval-datasets/types";
@@ -34,15 +31,7 @@ export default function EvalDatasetView({ projectId, dataset }: EvalDatasetViewP
           { name: "eval datasets", href: `/project/${projectId}/eval-datasets` },
           { name: dataset.id, copyValue: dataset.id, className: "min-w-0" },
         ]}
-      >
-        <Button variant="outline" className="ml-auto gap-2" asChild>
-          {/* A run's evaluation group is its dataset's name. */}
-          <Link href={`/project/${projectId}/evaluations?groupId=${encodeURIComponent(dataset.id)}`}>
-            <FlaskConical className="size-3.5" />
-            View runs
-          </Link>
-        </Button>
-      </Header>
+      />
       <div className="flex flex-1 flex-col gap-4 overflow-auto px-4 pb-4">
         <div className="rounded-md border bg-surface-up">
           <Table>

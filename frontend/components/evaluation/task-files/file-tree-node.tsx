@@ -8,7 +8,7 @@ interface FileTreeNodeProps {
   node: FileNode;
   depth: number;
   selectedPath: string | null;
-  collapsed: Set<string>;
+  collapsed: ReadonlySet<string>;
   onToggle: (path: string) => void;
   onSelect: (node: FileNode) => void;
 }

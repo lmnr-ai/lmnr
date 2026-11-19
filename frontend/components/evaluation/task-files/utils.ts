@@ -39,6 +39,18 @@ export const buildFileTree = (files: { path: string; size: number }[], root: str
   return sortNodes(top);
 };
 
+/**
+ * `collapsed` minus the directories holding `path`, so the open file is never
+ * hidden. The same set when none of them is collapsed.
+ */
+export const expandTo = (collapsed: ReadonlySet<string>, path: string | null): ReadonlySet<string> => {
+  if (!path) return collapsed;
+  const parts = path.split("/");
+  const ancestors = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join("/"));
+  if (!ancestors.some((dir) => collapsed.has(dir))) return collapsed;
+  return new Set([...collapsed].filter((dir) => !ancestors.includes(dir)));
+};
+
 export const flattenFiles = (nodes: FileNode[]): FileNode[] =>
   nodes.flatMap((node) => (node.children ? flattenFiles(node.children) : [node]));
 
