@@ -11,7 +11,7 @@ import { type TrialFiles as TrialFilesListing, type TrialTaskSource } from "@/li
 
 import { buildTrialTree, defaultTrialFile } from "./utils";
 
-const LOGS_PENDING = "logs/ arrives once the run's dataset finishes.";
+const LOGS_PENDING = "Logs arrive once the evaluation run finishes.";
 
 /** The task is what a trial is read for; the run's agent/ and logs/ start collapsed. */
 const INITIALLY_COLLAPSED = ["agent", "logs"];
@@ -50,7 +50,7 @@ export default function TrialFiles({ projectId, evaluationId, trialId, listing, 
     return (
       <Message>
         {listing.logsPending
-          ? `This trial has no files yet: ${LOGS_PENDING}`
+          ? `This trial has no files yet. ${LOGS_PENDING}`
           : "This trial has no files: its task wasn't uploaded or pushed, and it has no logs."}
       </Message>
     );
