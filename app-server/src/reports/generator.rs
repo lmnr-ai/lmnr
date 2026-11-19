@@ -497,6 +497,7 @@ async fn generate_signal_summary(
             ..Default::default()
         }),
         service_tier: None,
+        affinity_key: None,
         route: LlmRoute::feature(LlmFeature::Reports, Some(project_id)),
     };
 

@@ -373,6 +373,7 @@ fn build_request(contents: Vec<ProviderContent>, project_id: Uuid) -> ProviderRe
             ..Default::default()
         }),
         service_tier: None,
+        affinity_key: None,
         route: LlmRoute::feature(
             LlmFeature::InputExtractionRegexGeneration,
             Some(project_id),

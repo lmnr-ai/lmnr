@@ -33,6 +33,11 @@ pub struct ProviderRequest {
     /// other providers ignore it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_tier: Option<String>,
+    /// Requests sharing this key should be served by the same backend replica.
+    /// Sent by the OpenAI-compatible providers in the `LLM_AFFINITY_HEADER`
+    /// header when that is set; other providers ignore it. Never serialized.
+    #[serde(skip)]
+    pub affinity_key: Option<String>,
     /// Which provider client and model serve this request. Defaults to the
     /// `default` feature with no workspace scope.
     #[serde(default)]
