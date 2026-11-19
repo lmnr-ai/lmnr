@@ -9,7 +9,10 @@ use rmcp::{
 use serde_json::json;
 use uuid::Uuid;
 
-use super::{AuditTarget, LaminarMcpServer, ProjectParam, internal_error, tool_error, tool_json};
+use super::{
+    Audit, AuditTarget, LaminarMcpServer, ProjectParam, ProjectScope, ToolError, ToolOutput,
+    UserScope,
+};
 use crate::{
     audit::{AuditAction, AuditResource},
     db,
@@ -61,11 +64,11 @@ pub struct UpdateSignalParams {
 impl UpdateSignalParams {
     /// The service input, with sampling cleared only on request: schema-driven clients often
     /// send `null` for every optional field they leave unset.
-    fn into_update(self) -> Result<UpdateSignalInput, CallToolResponse> {
+    fn into_update(self) -> Result<UpdateSignalInput, ToolError> {
         let mut update = self.update;
         update.sample_rate = match (update.sample_rate, self.clear_sample_rate) {
             (Some(Some(_)), true) => {
-                return Err(tool_error(
+                return Err(ToolError::message(
                     "Pass either `sampleRate` or `clearSampleRate`, not both.",
                 ));
             }
@@ -77,10 +80,12 @@ impl UpdateSignalParams {
     }
 }
 
-fn signal_error(tool: &str, error: CrudError) -> CallToolResponse {
-    match error {
-        CrudError::Internal(e) => internal_error(tool, e),
-        e => tool_error(e.to_string()),
+impl From<CrudError> for ToolError {
+    fn from(error: CrudError) -> Self {
+        match error {
+            CrudError::Internal(e) => Self::Internal(e),
+            e => Self::message(e.to_string()),
+        }
     }
 }
 
@@ -95,19 +100,19 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<ListSignalsParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let result =
-            service::list_signals(&self.db.pool, scope.project_id, params.name.as_deref()).await;
-        Ok(match result {
-            Ok(signals) => tool_json(&json!({ "signals": signals })),
-            Err(e) => signal_error("list_signals", e),
-        })
+        self.run(
+            "list_signals",
+            &context,
+            params.project.project_id,
+            None,
+            |scope: ProjectScope| async move {
+                let signals =
+                    service::list_signals(&self.db.pool, scope.project_id, params.name.as_deref())
+                        .await?;
+                Ok(ToolOutput::json(&json!({ "signals": signals })))
+            },
+        )
+        .await
     }
 
     /// Get one signal with its trigger, filters and mode.
@@ -117,18 +122,18 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<SignalIdParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let result = service::get_signal(&self.db.pool, scope.project_id, params.signal_id).await;
-        Ok(match result {
-            Ok(signal) => tool_json(&signal),
-            Err(e) => signal_error("get_signal", e),
-        })
+        self.run(
+            "get_signal",
+            &context,
+            params.project.project_id,
+            None,
+            |scope: ProjectScope| async move {
+                let signal =
+                    service::get_signal(&self.db.pool, scope.project_id, params.signal_id).await?;
+                Ok(ToolOutput::json(&signal))
+            },
+        )
+        .await
     }
 
     /// List a signal's judge-definition (prompt + payload schema) versions, oldest first.
@@ -138,19 +143,22 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<SignalIdParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let result =
-            service::list_signal_versions(&self.db.pool, scope.project_id, params.signal_id).await;
-        Ok(match result {
-            Ok(versions) => tool_json(&json!({ "versions": versions })),
-            Err(e) => signal_error("list_signal_versions", e),
-        })
+        self.run(
+            "list_signal_versions",
+            &context,
+            params.project.project_id,
+            None,
+            |scope: ProjectScope| async move {
+                let versions = service::list_signal_versions(
+                    &self.db.pool,
+                    scope.project_id,
+                    params.signal_id,
+                )
+                .await?;
+                Ok(ToolOutput::json(&json!({ "versions": versions })))
+            },
+        )
+        .await
     }
 
     /// Create a signal: an LLM judge that runs `prompt` on matching traces and extracts a
@@ -165,47 +173,26 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<CreateSignalParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let user_id = match Self::require_user(&scope) {
-            Ok(user) => user.user_id,
-            Err(error) => return Ok(error),
-        };
-        let email = match db::users::get_user_email(&self.db.pool, user_id).await {
-            Ok(email) => email,
-            Err(e) => return Ok(internal_error("create_signal", e)),
-        };
-        let result = service::create_signal(
-            self.db.clone(),
-            self.cache.clone(),
-            scope.project_id,
-            email.as_deref(),
-            params.signal,
-            is_feature_enabled(Feature::Clustering),
+        self.run(
+            "create_signal",
+            &context,
+            params.project.project_id,
+            Some(Audit::new(AuditResource::Signal, AuditAction::Create)),
+            |scope: UserScope| async move {
+                let email = db::users::get_user_email(&self.db.pool, scope.user_id).await?;
+                let signal = service::create_signal(
+                    self.db.clone(),
+                    self.cache.clone(),
+                    scope.project_id,
+                    email.as_deref(),
+                    params.signal,
+                    is_feature_enabled(Feature::Clustering),
+                )
+                .await?;
+                Ok(ToolOutput::json(&signal).target(AuditTarget::named(signal.id, &signal.name)))
+            },
         )
-        .await;
-        let target = result
-            .as_ref()
-            .map(|signal| AuditTarget::named(signal.id, &signal.name))
-            .unwrap_or_default();
-        self.audit(
-            &scope,
-            AuditResource::Signal,
-            AuditAction::Create,
-            result.is_ok(),
-            target,
-            None,
-        )
-        .await;
-        Ok(match result {
-            Ok(signal) => tool_json(&signal),
-            Err(e) => signal_error("create_signal", e),
-        })
+        .await
     }
 
     /// Update a signal; only the fields you pass change. Changing `prompt` or
@@ -216,46 +203,28 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<UpdateSignalParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        if let Err(error) = Self::require_user(&scope) {
-            return Ok(error);
-        }
-        let signal_id = params.signal_id;
-        let update = match params.into_update() {
-            Ok(update) => update,
-            Err(error) => return Ok(error),
-        };
-        let result = service::update_signal(
-            &self.db.pool,
-            &self.cache,
-            scope.project_id,
-            signal_id,
-            update,
+        let audit = Audit::new(AuditResource::Signal, AuditAction::Update)
+            .target(AuditTarget::id(params.signal_id));
+        self.run(
+            "update_signal",
+            &context,
+            params.project.project_id,
+            Some(audit),
+            |scope: UserScope| async move {
+                let signal_id = params.signal_id;
+                let update = params.into_update()?;
+                let signal = service::update_signal(
+                    &self.db.pool,
+                    &self.cache,
+                    scope.project_id,
+                    signal_id,
+                    update,
+                )
+                .await?;
+                Ok(ToolOutput::json(&signal).target(AuditTarget::named(signal.id, &signal.name)))
+            },
         )
-        .await;
-        let target = result
-            .as_ref()
-            .map(|signal| AuditTarget::named(signal.id, &signal.name))
-            .unwrap_or(AuditTarget::id(signal_id));
-        self.audit(
-            &scope,
-            AuditResource::Signal,
-            AuditAction::Update,
-            result.is_ok(),
-            target,
-            None,
-        )
-        .await;
-        Ok(match result {
-            Ok(signal) => tool_json(&signal),
-            Err(e) => signal_error("update_signal", e),
-        })
+        .await
     }
 
     /// Delete a signal with its triggers, alerts and events. Irreversible. Requires OAuth sign-in.
@@ -265,41 +234,26 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<SignalIdParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        if let Err(error) = Self::require_user(&scope) {
-            return Ok(error);
-        }
-        let result = service::delete_signal(
-            &self.db.pool,
-            &self.cache,
-            &self.clickhouse,
-            scope.project_id,
-            params.signal_id,
+        let audit = Audit::new(AuditResource::Signal, AuditAction::Delete)
+            .target(AuditTarget::id(params.signal_id));
+        self.run(
+            "delete_signal",
+            &context,
+            params.project.project_id,
+            Some(audit),
+            |scope: UserScope| async move {
+                let signal = service::delete_signal(
+                    &self.db.pool,
+                    &self.cache,
+                    &self.clickhouse,
+                    scope.project_id,
+                    params.signal_id,
+                )
+                .await?;
+                Ok(ToolOutput::json(&signal).target(AuditTarget::named(signal.id, &signal.name)))
+            },
         )
-        .await;
-        let target = result
-            .as_ref()
-            .map(|signal| AuditTarget::named(signal.id, &signal.name))
-            .unwrap_or(AuditTarget::id(params.signal_id));
-        self.audit(
-            &scope,
-            AuditResource::Signal,
-            AuditAction::Delete,
-            result.is_ok(),
-            target,
-            None,
-        )
-        .await;
-        Ok(match result {
-            Ok(signal) => tool_json(&signal),
-            Err(e) => signal_error("delete_signal", e),
-        })
+        .await
     }
 }
 
@@ -319,17 +273,25 @@ mod tests {
     fn null_sample_rate_leaves_sampling_alone() {
         let update = params(json!({ "sampleRate": null, "prompt": null }))
             .into_update()
+            .ok()
             .unwrap();
         assert_eq!(update.sample_rate, None);
-        assert_eq!(params(json!({})).into_update().unwrap().sample_rate, None);
+        assert_eq!(
+            params(json!({})).into_update().ok().unwrap().sample_rate,
+            None
+        );
     }
 
     #[test]
     fn sampling_changes_only_on_request() {
-        let set = params(json!({ "sampleRate": 25 })).into_update().unwrap();
+        let set = params(json!({ "sampleRate": 25 }))
+            .into_update()
+            .ok()
+            .unwrap();
         assert_eq!(set.sample_rate, Some(Some(25)));
         let cleared = params(json!({ "clearSampleRate": true, "sampleRate": null }))
             .into_update()
+            .ok()
             .unwrap();
         assert_eq!(cleared.sample_rate, Some(None));
         assert!(

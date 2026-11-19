@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, future::Future, sync::Arc};
 
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use bytes::Bytes;
@@ -34,6 +34,8 @@ use crate::{
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
+#[cfg(feature = "signals")]
+mod enterprise;
 mod llm_profiles;
 mod signals;
 mod traces;
@@ -41,6 +43,7 @@ mod traces;
 // ============ Per-request context ============
 
 /// The caller and the project a tool call acts on, after membership checks.
+#[derive(Clone)]
 struct ProjectScope {
     caller: McpCaller,
     project_id: Uuid,
@@ -73,35 +76,6 @@ pub struct QuerySqlParams {
 
 /// A trace id as a hyphenated GUID or the 32 hex digits OpenTelemetry emits; `Uuid` parses both.
 const TRACE_ID_PATTERN: &str = r"^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})$";
-
-/// Parameters for the trace context tool.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct GetTraceContextParams {
-    /// The trace ID to retrieve: 32 hex digits, either as a hyphenated GUID (e.g.,
-    /// '123e4567-e89b-12d3-a456-426614174000') or unhyphenated as in OpenTelemetry
-    /// (e.g., '123e4567e89b12d3a456426614174000')
-    // Not advertised as `format: uuid`: zod maps that to the RFC-strict `z.uuid()`, which rejects
-    // valid OTel trace ids. The pattern mirrors the two forms OTel/Laminar emit; `Uuid` parses both.
-    #[schemars(with = "String", regex(pattern = TRACE_ID_PATTERN))]
-    pub trace_id: Uuid,
-    #[serde(flatten)]
-    pub project: ProjectParam,
-}
-
-/// Parameters for the agent tool. The agent is project-scoped; name any specific entity inline in
-/// `prompt`.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct AskAgentParams {
-    pub prompt: String,
-    /// Server-minted id to continue a prior conversation. Omit to start fresh; the response returns
-    /// the new id to pass back on the next call.
-    #[serde(default)]
-    pub conversation_id: Option<String>,
-    #[serde(flatten)]
-    pub project: ProjectParam,
-}
 
 // ============ query_laminar_sql description ============
 
@@ -209,6 +183,10 @@ impl LaminarMcpServer {
             + Self::signal_tools()
             + Self::llm_profile_tools()
             + Self::trace_tools();
+        #[cfg(feature = "signals")]
+        {
+            router = router + Self::enterprise_tools();
+        }
         match router.map.get_mut(QUERY_SQL_TOOL_NAME) {
             Some(route) => route.attr.description = Some(Cow::Owned(query_sql_tool_description())),
             None => log::error!(
@@ -227,146 +205,39 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<QuerySqlParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-
-        let ro_client = self.clickhouse_ro.clone().ok_or_else(|| {
-            McpError::internal_error("ClickHouse read-only client not configured", None)
-        })?;
-
         let query = params.query.clone();
-        let result = sql::run_sql_query(
-            params.query,
-            scope.project_id,
-            params.parameters,
-            SqlQuerySource::Public,
-            self.policy(&scope).await,
-            ro_client,
-            self.query_engine.clone(),
-            self.http_client.clone(),
-            self.db.clone(),
-            self.cache.clone(),
+        let audit = Audit::new(AuditResource::Sql, AuditAction::Query)
+            .metadata(json!({ "query": query, "tables": [] }));
+        self.run(
+            "query_laminar_sql",
+            &context,
+            params.project.project_id,
+            Some(audit),
+            |scope: ProjectScope| async move {
+                let ro_client = self.clickhouse_ro.clone().ok_or_else(|| {
+                    ToolError::Internal(anyhow::anyhow!(
+                        "ClickHouse read-only client not configured"
+                    ))
+                })?;
+                let output = sql::run_sql_query(
+                    params.query,
+                    scope.project_id,
+                    params.parameters,
+                    SqlQuerySource::Public,
+                    self.policy(&scope).await,
+                    ro_client,
+                    self.query_engine.clone(),
+                    self.http_client.clone(),
+                    self.db.clone(),
+                    self.cache.clone(),
+                )
+                .await
+                .map_err(|e| ToolError::message(e.to_string()))?;
+                Ok(ToolOutput::json(&output.rows)
+                    .metadata(json!({ "query": query, "tables": output.tables })))
+            },
         )
-        .await;
-        let tables = result.as_ref().map(|output| output.tables.clone());
-        self.audit(
-            &scope,
-            AuditResource::Sql,
-            AuditAction::Query,
-            result.is_ok(),
-            AuditTarget::default(),
-            Some(json!({ "query": query, "tables": tables.unwrap_or_default() })),
-        )
-        .await;
-        match result {
-            Ok(output) => Ok(CallToolResult::success(vec![ContentBlock::text(
-                serde_json::to_string_pretty(&output.rows).unwrap_or_default(),
-            )])
-            .into()),
-            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(e.to_string())]).into()),
-        }
-    }
-
-    /// Get an LLM-optimized summary of a trace. Returns span hierarchy with timing,
-    /// inputs/outputs for LLM spans, and any errors.
-    ///
-    /// Use this when you have a specific trace_id and want to understand what happened.
-    /// Use query_laminar_sql first to find trace IDs, then this tool to drill down.
-    ///
-    /// Output includes:
-    /// - Span tree with parent-child relationships
-    /// - Duration and timing for each span
-    /// - Full input/output for LLM spans (truncated for others)
-    /// - Exception details if any spans failed
-    ///
-    /// If you need full information that is truncated, you should use query_laminar_sql tool to query spans that you're interested in.
-    ///
-    #[tool(name = "get_trace_context")]
-    async fn get_trace_context(
-        &self,
-        context: RequestContext<RoleServer>,
-        Parameters(params): Parameters<GetTraceContextParams>,
-    ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-
-        let result = self
-            .get_trace_context_for_mcp(&scope, params.trace_id)
-            .await;
-        self.audit(
-            &scope,
-            AuditResource::Trace,
-            AuditAction::View,
-            result.is_ok(),
-            AuditTarget::id(params.trace_id),
-            None,
-        )
-        .await;
-        match result {
-            Ok(trace_str) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(trace_str)]).into())
-            }
-            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
-                "Failed to retrieve trace: {}",
-                e
-            ))])
-            .into()),
-        }
-    }
-
-    /// Ask Laminar Agent a question about this project's traces in plain language and get a
-    /// grounded answer. The agent runs read-only SQL and reads traces itself. The answer ends
-    /// with a `conversationId`; pass it back to continue the conversation.
-    #[tool(name = "ask_agent")]
-    async fn ask_agent(
-        &self,
-        context: RequestContext<RoleServer>,
-        Parameters(params): Parameters<AskAgentParams>,
-    ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-
-        let result = self
-            .run_agent_for_mcp(&scope, params.prompt, params.conversation_id)
-            .await;
-        self.audit(
-            &scope,
-            AuditResource::Agent,
-            AuditAction::Run,
-            result.is_ok(),
-            result
-                .as_ref()
-                .map(|(_, id)| AuditTarget::id(id))
-                .unwrap_or_default(),
-            None,
-        )
-        .await;
-        match result {
-            Ok((answer, conversation_id)) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
-                    "{answer}\n\n---\nconversationId: {conversation_id}\n(Pass this `conversationId` to the next `ask_agent` call to continue this conversation.)"
-                ))]).into())
-            }
-            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
-                "Agent failed: {}",
-                e
-            ))]).into()),
-        }
+        .await
     }
 
     /// List the Laminar projects this connection can act on, with their workspaces. Pass a
@@ -401,17 +272,130 @@ fn tool_error(message: impl Into<String>) -> CallToolResponse {
     CallToolResult::error(vec![ContentBlock::text(message.into())]).into()
 }
 
-fn tool_json<T: Serialize>(value: &T) -> CallToolResponse {
-    CallToolResult::success(vec![ContentBlock::text(
-        serde_json::to_string_pretty(value).unwrap_or_default(),
-    )])
-    .into()
+// ============ Tool runner ============
+
+/// Why a tool call failed. The model reads `Message`; an `Internal` cause is logged, not shown.
+enum ToolError {
+    Message(String),
+    Internal(anyhow::Error),
 }
 
-/// Error text for a failed tool call. Internal errors are logged, not shown.
-fn internal_error(tool: &str, error: impl std::fmt::Debug) -> CallToolResponse {
-    log::error!("MCP tool {tool} failed: {error:?}");
-    tool_error("Internal server error")
+impl ToolError {
+    fn message(message: impl Into<String>) -> Self {
+        Self::Message(message.into())
+    }
+
+    fn into_response(self, tool: &str) -> CallToolResponse {
+        match self {
+            Self::Message(message) => tool_error(message),
+            Self::Internal(e) => {
+                log::error!("MCP tool {tool} failed: {e:?}");
+                tool_error("Internal server error")
+            }
+        }
+    }
+}
+
+impl From<anyhow::Error> for ToolError {
+    fn from(e: anyhow::Error) -> Self {
+        Self::Internal(e)
+    }
+}
+
+/// A successful tool call: the response, plus what its audit event names when that is only
+/// known after the call (a created resource's id, the tables a query read).
+struct ToolOutput {
+    response: CallToolResponse,
+    target: Option<AuditTarget>,
+    metadata: Option<Value>,
+}
+
+impl ToolOutput {
+    fn json<T: Serialize>(value: &T) -> Self {
+        Self::text(serde_json::to_string_pretty(value).unwrap_or_default())
+    }
+
+    fn text(text: impl Into<String>) -> Self {
+        Self {
+            response: CallToolResult::success(vec![ContentBlock::text(text.into())]).into(),
+            target: None,
+            metadata: None,
+        }
+    }
+
+    fn target(mut self, target: AuditTarget) -> Self {
+        self.target = Some(target);
+        self
+    }
+
+    fn metadata(mut self, metadata: Value) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
+}
+
+/// The audit event a tool emits. `target` and `metadata` describe a failed call; a successful
+/// call's [`ToolOutput`] can replace them.
+struct Audit {
+    resource: AuditResource,
+    action: AuditAction,
+    target: AuditTarget,
+    metadata: Option<Value>,
+}
+
+impl Audit {
+    fn new(resource: AuditResource, action: AuditAction) -> Self {
+        Self {
+            resource,
+            action,
+            target: AuditTarget::default(),
+            metadata: None,
+        }
+    }
+
+    fn target(mut self, target: AuditTarget) -> Self {
+        self.target = target;
+        self
+    }
+
+    fn metadata(mut self, metadata: Value) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
+}
+
+/// The access a tool body requires, picked by the type its closure takes. A caller without it
+/// gets a tool error before the body runs, and no audit event (like a failed membership check).
+trait ToolAccess: Sized {
+    fn grant(scope: &ProjectScope) -> Result<Self, ToolError>;
+}
+
+impl ToolAccess for ProjectScope {
+    fn grant(scope: &ProjectScope) -> Result<Self, ToolError> {
+        Ok(scope.clone())
+    }
+}
+
+/// A project scope whose caller is a signed-in user. Tools that take it refuse project API keys:
+/// they are writes the `/v1` API-key surface does not offer.
+struct UserScope {
+    user_id: Uuid,
+    project_id: Uuid,
+}
+
+impl ToolAccess for UserScope {
+    fn grant(scope: &ProjectScope) -> Result<Self, ToolError> {
+        match &scope.caller {
+            McpCaller::User(user) => Ok(Self {
+                user_id: user.user_id,
+                project_id: scope.project_id,
+            }),
+            McpCaller::ApiKey(_) => Err(ToolError::message(
+                "This tool needs a signed-in user. Reconnect the Laminar MCP server with OAuth \
+                 (no API key header) to use it.",
+            )),
+        }
+    }
 }
 
 /// The written resource an audit event names.
@@ -438,6 +422,55 @@ impl AuditTarget {
 }
 
 impl LaminarMcpServer {
+    /// Every project-scoped tool goes through here: resolve the project, check the access the
+    /// body's argument type asks for, run it, emit `audit` (when given), and render the result.
+    async fn run<A, Fut>(
+        &self,
+        tool: &str,
+        context: &RequestContext<RoleServer>,
+        project_id: Option<Uuid>,
+        audit: Option<Audit>,
+        body: impl FnOnce(A) -> Fut,
+    ) -> Result<CallToolResponse, McpError>
+    where
+        A: ToolAccess,
+        Fut: Future<Output = Result<ToolOutput, ToolError>>,
+    {
+        let scope = match self.project_scope(context, project_id).await {
+            Ok(scope) => scope,
+            Err(e) => return Ok(e.into_response(tool)),
+        };
+        let access = match A::grant(&scope) {
+            Ok(access) => access,
+            Err(e) => return Ok(e.into_response(tool)),
+        };
+        let mut result = body(access).await;
+        if let Some(audit) = audit {
+            let (success, target, metadata) = match &mut result {
+                Ok(output) => (
+                    true,
+                    output.target.take().unwrap_or(audit.target),
+                    output.metadata.take().or(audit.metadata),
+                ),
+                Err(_) => (false, audit.target, audit.metadata),
+            };
+            self.emit_audit(
+                &scope,
+                audit.resource,
+                audit.action,
+                success,
+                target,
+                metadata,
+            );
+        }
+        Ok(match result {
+            Ok(output) => output.response,
+            Err(e) => e.into_response(tool),
+        })
+    }
+}
+
+impl LaminarMcpServer {
     async fn user_projects(&self, user: &McpUser) -> anyhow::Result<Vec<Value>> {
         let projects = db::projects::get_projects_for_user(&self.db.pool, &user.user_id).await?;
         Ok(projects
@@ -452,17 +485,21 @@ impl LaminarMcpServer {
         &self,
         context: &RequestContext<RoleServer>,
         requested: Option<Uuid>,
-    ) -> Result<ProjectScope, CallToolResponse> {
+    ) -> Result<ProjectScope, ToolError> {
         let Some(caller) = context.extensions.get::<McpCaller>().cloned() else {
-            return Err(tool_error("Missing caller context"));
+            return Err(ToolError::Internal(anyhow::anyhow!(
+                "missing caller context"
+            )));
         };
         let user = match &caller {
             McpCaller::ApiKey(key) => {
                 return match requested {
-                    Some(project_id) if project_id != key.project_id => Err(tool_error(format!(
-                        "This connection uses a project API key for project {}; it cannot access project {project_id}.",
-                        key.project_id
-                    ))),
+                    Some(project_id) if project_id != key.project_id => {
+                        Err(ToolError::message(format!(
+                            "This connection uses a project API key for project {}; it cannot access project {project_id}.",
+                            key.project_id
+                        )))
+                    }
                     _ => Ok(ProjectScope {
                         project_id: key.project_id,
                         caller,
@@ -473,7 +510,7 @@ impl LaminarMcpServer {
         };
 
         let Some(project_id) = requested else {
-            return Err(tool_error(
+            return Err(ToolError::message(
                 "Pass `projectId`. Call `list_projects` to see your projects.",
             ));
         };
@@ -481,24 +518,13 @@ impl LaminarMcpServer {
         match is_user_member_of_project(&self.db.pool, &self.cache, user.user_id, project_id).await
         {
             Ok(true) => Ok(ProjectScope { caller, project_id }),
-            Ok(false) => Err(tool_error(format!(
+            Ok(false) => Err(ToolError::message(format!(
                 "Project {project_id} not found or you are not a member of it. Call `list_projects` to see your projects."
             ))),
             Err(e) => {
                 log::error!("MCP membership check failed: {e}");
-                Err(tool_error("Failed to verify project membership"))
+                Err(ToolError::message("Failed to verify project membership"))
             }
-        }
-    }
-
-    /// Writes the project-API-key surface (`/v1`) does not offer stay user-only here too.
-    fn require_user(scope: &ProjectScope) -> Result<&McpUser, CallToolResponse> {
-        match &scope.caller {
-            McpCaller::User(user) => Ok(user),
-            McpCaller::ApiKey(_) => Err(tool_error(
-                "This tool needs a signed-in user. Reconnect the Laminar MCP server with OAuth \
-                 (no API key header) to use it.",
-            )),
         }
     }
 
@@ -519,7 +545,7 @@ impl LaminarMcpServer {
     }
 
     /// Record a tool call made by the request's API key or user.
-    async fn audit(
+    fn emit_audit(
         &self,
         scope: &ProjectScope,
         resource: AuditResource,
@@ -550,140 +576,6 @@ impl LaminarMcpServer {
             self.queue.clone(),
             input,
         );
-    }
-}
-
-#[cfg(feature = "signals")]
-const LICENSE_REQUIRED_MESSAGE: &str =
-    "This tool requires a Laminar enterprise license. Add a license key in Settings → License.";
-
-#[cfg(feature = "signals")]
-impl LaminarMcpServer {
-    async fn get_trace_context_for_mcp(
-        &self,
-        scope: &ProjectScope,
-        trace_id: Uuid,
-    ) -> anyhow::Result<String> {
-        use crate::signals::private::compression::{
-            CompressPlan, TraceCompressor, budget::BudgetConfig, render, shape,
-        };
-        use crate::signals::private::spans::get_trace_ch_spans;
-        use crate::traces::previews::PreviewExtractor;
-
-        if !crate::license::is_ee_enabled(&self.db, &self.cache).await {
-            anyhow::bail!(LICENSE_REQUIRED_MESSAGE);
-        }
-
-        let spans = get_trace_ch_spans(
-            self.clickhouse.clone(),
-            scope.project_id,
-            trace_id,
-            &self.policy(scope).await,
-        )
-        .await?;
-        if spans.is_empty() {
-            return Ok(format!(
-                "No spans found for trace {trace_id}. Either the trace does not exist in this project or there are no spans in the trace."
-            ));
-        }
-
-        // Every span, raw prompts.
-        let compressor = TraceCompressor::new(Arc::new(PreviewExtractor::new()));
-        let plan = CompressPlan {
-            budget: BudgetConfig::for_chat(),
-            ..CompressPlan::default()
-        };
-        let compressed = compressor
-            .compress(shape(&spans, trace_id), plan)
-            .await
-            .map_err(|e| anyhow::anyhow!("Trace compression failed: {}", e))?;
-
-        Ok(render(&compressed))
-    }
-
-    /// Run the agent for one question, returning `(answer, conversation_id)`. The turn runs in the
-    /// frontend (`/api/internal/projects/{id}/agent/chat`), which continues `conversation_id` when it
-    /// is an MCP conversation of this project and starts a fresh one otherwise.
-    async fn run_agent_for_mcp(
-        &self,
-        scope: &ProjectScope,
-        prompt: String,
-        conversation_id: Option<String>,
-    ) -> anyhow::Result<(String, String)> {
-        #[derive(serde::Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct AgentReply {
-            #[serde(default)]
-            answer: String,
-            #[serde(default)]
-            conversation_id: String,
-            #[serde(default)]
-            error: Option<String>,
-        }
-
-        if !crate::license::is_ee_enabled(&self.db, &self.cache).await {
-            anyhow::bail!(LICENSE_REQUIRED_MESSAGE);
-        }
-
-        // API-key conversations have no owning user; OAuth ones belong to the user.
-        let user_id = match &scope.caller {
-            McpCaller::ApiKey(_) => None,
-            McpCaller::User(user) => Some(user.user_id),
-        };
-        let response = crate::next_api::open(
-            &self.http_client,
-            scope.project_id,
-            user_id,
-            "agent/chat",
-            serde_json::json!({
-                "source": "mcp",
-                "message": prompt,
-                "conversationId": conversation_id,
-            }),
-            "application/json",
-        )
-        .await?;
-        let status = response.status();
-        let reply: AgentReply = response
-            .json()
-            .await
-            .map_err(|e| anyhow::anyhow!("unexpected agent response ({status}): {e}"))?;
-        if let Some(error) = reply.error {
-            anyhow::bail!("{error}");
-        }
-        if !status.is_success() {
-            anyhow::bail!("the agent responded with {status}");
-        }
-        if reply.answer.trim().is_empty() {
-            anyhow::bail!("Agent finished without producing a textual answer.");
-        }
-        Ok((reply.answer, reply.conversation_id))
-    }
-}
-
-#[cfg(not(feature = "signals"))]
-impl LaminarMcpServer {
-    async fn get_trace_context_for_mcp(
-        &self,
-        _scope: &ProjectScope,
-        _trace_id: Uuid,
-    ) -> anyhow::Result<String> {
-        Ok(
-            "get_trace_context is unavailable in this build (signals feature disabled)."
-                .to_string(),
-        )
-    }
-
-    async fn run_agent_for_mcp(
-        &self,
-        _scope: &ProjectScope,
-        _prompt: String,
-        _conversation_id: Option<String>,
-    ) -> anyhow::Result<(String, String)> {
-        Ok((
-            "ask_agent is unavailable in this build (signals feature disabled).".to_string(),
-            String::new(),
-        ))
     }
 }
 
@@ -822,26 +714,29 @@ mod tests {
             .into_iter()
             .map(|t| t.name.to_string())
             .collect();
+        let mut expected = vec![
+            "add_trace_tags",
+            "create_llm_profile",
+            "create_signal",
+            "delete_llm_profile",
+            "delete_signal",
+            "get_llm_profile",
+            "get_signal",
+            "list_llm_profiles",
+            "list_projects",
+            "list_signal_versions",
+            "list_signals",
+            "query_laminar_sql",
+            "update_llm_profile",
+            "update_signal",
+        ];
+        // Enterprise tools are listed only when their implementation is compiled in.
+        if cfg!(feature = "signals") {
+            expected.extend(["ask_agent", "get_trace_context"]);
+            expected.sort();
+        }
         assert_eq!(
-            names,
-            vec![
-                "add_trace_tags",
-                "ask_agent",
-                "create_llm_profile",
-                "create_signal",
-                "delete_llm_profile",
-                "delete_signal",
-                "get_llm_profile",
-                "get_signal",
-                "get_trace_context",
-                "list_llm_profiles",
-                "list_projects",
-                "list_signal_versions",
-                "list_signals",
-                "query_laminar_sql",
-                "update_llm_profile",
-                "update_signal",
-            ],
+            names, expected,
             "unexpected MCP tool set (list_all is sorted by name)"
         );
     }
@@ -937,13 +832,13 @@ mod tests {
     /// `query_laminar_sql`.
     #[test]
     fn other_tools_keep_doc_comment_descriptions() {
-        let trace = tool("get_trace_context")
+        let signals = tool("list_signals")
             .description
-            .expect("get_trace_context keeps its doc-comment description")
+            .expect("list_signals keeps its doc-comment description")
             .to_string();
         assert!(
-            trace.contains("LLM-optimized summary of a trace"),
-            "get_trace_context description changed unexpectedly: {trace}"
+            signals.contains("List the project's signals"),
+            "list_signals description changed unexpectedly: {signals}"
         );
     }
 }

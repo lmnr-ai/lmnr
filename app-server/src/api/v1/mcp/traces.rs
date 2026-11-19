@@ -8,7 +8,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::{
-    LaminarMcpServer, ProjectParam, TRACE_ID_PATTERN, internal_error, tool_error, tool_json,
+    LaminarMcpServer, ProjectParam, ProjectScope, TRACE_ID_PATTERN, ToolError, ToolOutput,
 };
 use crate::ch::trace_tags::add_trace_tags;
 
@@ -33,35 +33,34 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<AddTraceTagsParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let tags: Vec<String> = params
-            .tags
-            .into_iter()
-            .map(|tag| tag.trim().to_string())
-            .filter(|tag| !tag.is_empty())
-            .collect();
-        if tags.is_empty() {
-            return Ok(tool_error("No tags provided"));
-        }
         // Unaudited, like `/v1/tag` and UI tagging.
-        match add_trace_tags(
-            self.clickhouse.clone(),
-            scope.project_id,
-            params.trace_id,
-            tags.clone(),
+        self.run(
+            "add_trace_tags",
+            &context,
+            params.project.project_id,
+            None,
+            |scope: ProjectScope| async move {
+                let tags: Vec<String> = params
+                    .tags
+                    .into_iter()
+                    .map(|tag| tag.trim().to_string())
+                    .filter(|tag| !tag.is_empty())
+                    .collect();
+                if tags.is_empty() {
+                    return Err(ToolError::message("No tags provided"));
+                }
+                add_trace_tags(
+                    self.clickhouse.clone(),
+                    scope.project_id,
+                    params.trace_id,
+                    tags.clone(),
+                )
+                .await?;
+                Ok(ToolOutput::json(
+                    &json!({ "traceId": params.trace_id, "tags": tags }),
+                ))
+            },
         )
         .await
-        {
-            Ok(()) => Ok(tool_json(
-                &json!({ "traceId": params.trace_id, "tags": tags }),
-            )),
-            Err(e) => Ok(internal_error("add_trace_tags", e)),
-        }
     }
 }

@@ -9,8 +9,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::{
-    AuditTarget, LaminarMcpServer, ProjectParam, ProjectScope, internal_error, tool_error,
-    tool_json,
+    Audit, AuditTarget, LaminarMcpServer, ProjectParam, ProjectScope, ToolError, ToolOutput,
 };
 use crate::{
     audit::{AuditAction, AuditResource},
@@ -55,19 +54,18 @@ pub struct UpdateLlmProfileParams {
     pub project: ProjectParam,
 }
 
-fn profile_error(tool: &str, error: CrudError) -> CallToolResponse {
-    match error {
-        CrudError::Internal(e) => internal_error(tool, e),
-        e => tool_error(e.to_string()),
+impl From<CrudError> for ToolError {
+    fn from(error: CrudError) -> Self {
+        match error {
+            CrudError::Internal(e) => Self::Internal(e),
+            e => Self::message(e.to_string()),
+        }
     }
 }
 
-fn profile_target(result: &Result<LlmProfileResponse, CrudError>, id: Option<Uuid>) -> AuditTarget {
-    match (result, id) {
-        (Ok(profile), _) => AuditTarget::named(profile.id, &profile.name),
-        (Err(_), Some(id)) => AuditTarget::id(id),
-        (Err(_), None) => AuditTarget::default(),
-    }
+fn profile_output(profile: LlmProfileResponse) -> ToolOutput {
+    let target = AuditTarget::named(profile.id, &profile.name);
+    ToolOutput::json(&profile).target(target)
 }
 
 impl LaminarMcpServer {
@@ -86,21 +84,18 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<ListLlmProfilesParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let result = match self.workspace_id(&scope).await {
-            Ok(workspace_id) => service::list_llm_profiles(&self.db.pool, workspace_id).await,
-            Err(e) => Err(e),
-        };
-        Ok(match result {
-            Ok(profiles) => tool_json(&json!({ "llmProfiles": profiles })),
-            Err(e) => profile_error("list_llm_profiles", e),
-        })
+        self.run(
+            "list_llm_profiles",
+            &context,
+            params.project.project_id,
+            None,
+            |scope: ProjectScope| async move {
+                let workspace_id = self.workspace_id(&scope).await?;
+                let profiles = service::list_llm_profiles(&self.db.pool, workspace_id).await?;
+                Ok(ToolOutput::json(&json!({ "llmProfiles": profiles })))
+            },
+        )
+        .await
     }
 
     /// Get one LLM profile. Secrets come back masked.
@@ -110,23 +105,20 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<LlmProfileIdParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let result = match self.workspace_id(&scope).await {
-            Ok(workspace_id) => {
-                service::get_llm_profile(&self.db.pool, workspace_id, params.profile_id).await
-            }
-            Err(e) => Err(e),
-        };
-        Ok(match result {
-            Ok(profile) => tool_json(&profile),
-            Err(e) => profile_error("get_llm_profile", e),
-        })
+        self.run(
+            "get_llm_profile",
+            &context,
+            params.project.project_id,
+            None,
+            |scope: ProjectScope| async move {
+                let workspace_id = self.workspace_id(&scope).await?;
+                let profile =
+                    service::get_llm_profile(&self.db.pool, workspace_id, params.profile_id)
+                        .await?;
+                Ok(ToolOutput::json(&profile))
+            },
+        )
+        .await
     }
 
     /// Create a workspace LLM profile. Secrets you pass are stored encrypted and never returned.
@@ -136,32 +128,20 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<CreateLlmProfileParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let result = match self.workspace_id(&scope).await {
-            Ok(workspace_id) => {
-                service::create_llm_profile(&self.db.pool, workspace_id, params.profile).await
-            }
-            Err(e) => Err(e),
-        };
-        self.audit(
-            &scope,
-            AuditResource::LlmProfile,
-            AuditAction::Create,
-            result.is_ok(),
-            profile_target(&result, None),
-            None,
+        self.run(
+            "create_llm_profile",
+            &context,
+            params.project.project_id,
+            Some(Audit::new(AuditResource::LlmProfile, AuditAction::Create)),
+            |scope: ProjectScope| async move {
+                let workspace_id = self.workspace_id(&scope).await?;
+                let profile =
+                    service::create_llm_profile(&self.db.pool, workspace_id, params.profile)
+                        .await?;
+                Ok(profile_output(profile))
+            },
         )
-        .await;
-        Ok(match result {
-            Ok(profile) => tool_json(&profile),
-            Err(e) => profile_error("create_llm_profile", e),
-        })
+        .await
     }
 
     /// Update an LLM profile; only the fields you pass change.
@@ -171,39 +151,27 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<UpdateLlmProfileParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let result = match self.workspace_id(&scope).await {
-            Ok(workspace_id) => {
-                service::update_llm_profile(
+        let audit = Audit::new(AuditResource::LlmProfile, AuditAction::Update)
+            .target(AuditTarget::id(params.profile_id));
+        self.run(
+            "update_llm_profile",
+            &context,
+            params.project.project_id,
+            Some(audit),
+            |scope: ProjectScope| async move {
+                let workspace_id = self.workspace_id(&scope).await?;
+                let profile = service::update_llm_profile(
                     &self.db.pool,
                     &self.cache,
                     workspace_id,
                     params.profile_id,
                     params.update,
                 )
-                .await
-            }
-            Err(e) => Err(e),
-        };
-        self.audit(
-            &scope,
-            AuditResource::LlmProfile,
-            AuditAction::Update,
-            result.is_ok(),
-            profile_target(&result, Some(params.profile_id)),
-            None,
+                .await?;
+                Ok(profile_output(profile))
+            },
         )
-        .await;
-        Ok(match result {
-            Ok(profile) => tool_json(&profile),
-            Err(e) => profile_error("update_llm_profile", e),
-        })
+        .await
     }
 
     /// Delete an LLM profile. Refused while a signal or feature route uses it.
@@ -213,37 +181,25 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<LlmProfileIdParams>,
     ) -> Result<CallToolResponse, McpError> {
-        let scope = match self
-            .project_scope(&context, params.project.project_id)
-            .await
-        {
-            Ok(scope) => scope,
-            Err(error) => return Ok(error),
-        };
-        let result = match self.workspace_id(&scope).await {
-            Ok(workspace_id) => {
-                service::delete_llm_profile(
+        let audit = Audit::new(AuditResource::LlmProfile, AuditAction::Delete)
+            .target(AuditTarget::id(params.profile_id));
+        self.run(
+            "delete_llm_profile",
+            &context,
+            params.project.project_id,
+            Some(audit),
+            |scope: ProjectScope| async move {
+                let workspace_id = self.workspace_id(&scope).await?;
+                let profile = service::delete_llm_profile(
                     &self.db.pool,
                     &self.cache,
                     workspace_id,
                     params.profile_id,
                 )
-                .await
-            }
-            Err(e) => Err(e),
-        };
-        self.audit(
-            &scope,
-            AuditResource::LlmProfile,
-            AuditAction::Delete,
-            result.is_ok(),
-            profile_target(&result, Some(params.profile_id)),
-            None,
+                .await?;
+                Ok(profile_output(profile))
+            },
         )
-        .await;
-        Ok(match result {
-            Ok(profile) => tool_json(&profile),
-            Err(e) => profile_error("delete_llm_profile", e),
-        })
+        .await
     }
 }
