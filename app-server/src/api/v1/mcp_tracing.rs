@@ -1,10 +1,10 @@
-//! Our own `/v1/mcp` server traced with the MCP observability span contract that the Laminar SDK
-//! MCP server wrappers emit (docs/internal/mcp-observability.md), built by hand: one root SERVER
-//! span per `tools/call`, grouped into one trace per agent turn, sent to
+//! Our own `/v1/mcp` server traced with the MCP observability span contract that the Laminar SDKs
+//! emit in MCP observability mode (docs/internal/mcp-observability.md), built by hand: one root
+//! SERVER span per `tools/call`, grouped into one trace per agent turn, sent to
 //! `MCP_SERVER_INTERNAL_PROJECT_ID`. Unset or invalid disables it, and the `context` field is then
 //! not advertised either.
 //!
-//! Differences from the SDK wrappers, because this server is stateless and multi-replica:
+//! Differences from the SDKs, because this server is stateless and multi-replica:
 //! - No transport session. Turns are grouped per API key, with the turn state in Redis so every
 //!   replica sees it. The Laminar session is the API key and UTC day.
 //! - Arguments are recorded (redacted), results are not: they are the caller's own trace data.
@@ -439,7 +439,7 @@ fn failure(response: &Value) -> Option<Failure> {
     })
 }
 
-/// Secret-looking keys, as the SDK wrappers decide them: matched on the key lowercased with
+/// Secret-looking keys, as the SDKs decide them: matched on the key lowercased with
 /// every non-alphanumeric removed.
 fn is_secret_key(key: &str) -> bool {
     const CONTAINS: &[&str] = &[

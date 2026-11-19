@@ -3,9 +3,12 @@
 <!-- Detailed working notes for coding agents and developers. -->
 <!-- Referenced from the index in the repo-root CLAUDE.md; read when working in this area. -->
 
-A company that runs an MCP server wraps its server object with one call from the Laminar SDK (`wrapMcpServer` in `@lmnr-ai/lmnr`, `wrap_mcp_server` in `lmnr`). Every request the server handles that does work becomes a span in its project; the agents calling it install nothing. The platform side is: ingestion mapping, the default "MCP" dashboard, and our own `/v1/mcp` server emitting the same spans by hand. The "MCP analysis" Signal template is enterprise (lmnr-private, `components/signals/prompts.ts`).
+A company that runs an MCP server turns on one option of `Laminar.initialize`, named `mcp` in both SDKs: Python `Laminar.initialize(mcp=True)` or `mcp={"context": True, "record_payloads": True, "redact_keys": [...], "turn_gap_seconds": 20}`; TS `Laminar.initialize({ mcp: true })` or `{ mcp: { context, recordPayloads, redactKeys, turnGapMs } }`. The SDKs' MCP auto-instrumentation reads it; there is no wrapper and nothing needs a reference to the server object. The agents calling the server install nothing. The platform side is: ingestion mapping, the default "MCP" dashboard, and our own `/v1/mcp` server emitting the same spans by hand. The "MCP analysis" Signal template is enterprise (lmnr-private, `components/signals/prompts.ts`).
 
-## Span contract (shared by both SDKs and `api/v1/mcp_tracing.rs`)
+- **Option on (MCP observability mode):** the span contract below in full: root SERVER spans with the client's `traceparent` as a link, one trace per turn grouped by session, the optional `context` field (on by default), payloads recorded with secret-looking keys redacted, one switch to turn payloads off.
+- **Option off (default):** server spans are parented on the client's `traceparent` (Python's claude_agent in-process MCP servers rely on this) and tool schemas are never changed. These spans still get the same span names, the session, client info and `error.type` (incl. `-32602`) attributes, so the MCP dashboard works for them, just without turns or `context`.
+
+## Span contract (both SDKs in MCP observability mode, and `api/v1/mcp_tracing.rs`)
 
 Follows the OTel GenAI MCP conventions (`open-telemetry/semantic-conventions-genai`, `docs/gen-ai/mcp.md`); Laminar attributes only where the spec has nothing.
 
@@ -42,9 +45,8 @@ Several server copies: (1) and (3) need no shared state. (2) lives in process me
 ## Default "MCP" dashboard
 
 - Charts: `frontend/lib/db/mcp-charts.ts` (calls per tool and per client over time; error rate, invalid-argument rate and p95 latency per tool; a tool × client table). They select `span_type = 'TOOL' AND JSONExtractString(attributes, 'mcp.method.name') = 'tools/call'`, so client-side MCP spans (e.g. the Python `McpInstrumentor` in an agent) count too.
-- Created on the project's first MCP span: `process_span_messages` → `dashboards::mcp::ensure_for_spans` (spawned, never blocks ingest) → `POST /api/internal/projects/{id}/dashboards/mcp` → `ensureMcpDashboard`. App-server dedupes with `mcp_dashboard:{project}` (permanent, set on success) and `mcp_dashboard_lock:{project}` (600 s, which doubles as the retry backoff when the frontend is unreachable, e.g. no `NEXT_INTERNAL_URL`/`NEXT_PUBLIC_URL`).
-- The once-per-project rule is durable in `projects.mcp_dashboard_created_at` (migration 0134), not in the cache: a user who deletes or renames the dashboard doesn't get it back when Redis loses the key. `ensureMcpDashboard` takes the same `dashboards:{projectId}` advisory lock as `getOrCreateDefaultDashboard`, creates "main" first when the project has no dashboard (the oldest one is the landing page), and stamps the MCP dashboard's `created_at` with `clock_timestamp()` because `now()` would tie with that "main".
-- Not in `projects.settings`: `parseStoredProjectSettings` parses with a `.strict()` schema, so an unknown key there resets every setting to its default on read.
+- Created with the project by `insertProject` (`lib/workspaces/insert.ts`), right after "main" and its default charts. No app-server involvement and nothing happens on ingest; existing projects don't get it (no backfill).
+- The landing dashboard is the oldest one (`getOrCreateDefaultDashboard` orders by `created_at`, then `id`), and `insertProject` runs inside the caller's transaction, where the column default `now()` is the transaction start and would tie with "main". So the MCP row's `created_at` is `GREATEST(clock_timestamp(), main.created_at + 1 µs)`: strictly later, never a tie broken by a random uuid.
 
 ## Our own `/v1/mcp` server (`api/v1/mcp_tracing.rs`)
 

@@ -2,8 +2,6 @@
 //! query checks, layout placement, the last-dashboard rule) lives in the frontend's
 //! `lib/actions/dashboard`, shared with the UI; this module forwards through `next_api`.
 
-pub mod mcp;
-
 use actix_web::{HttpResponse, ResponseError};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};

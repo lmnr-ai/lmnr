@@ -5,7 +5,8 @@ export const MCP_DASHBOARD_NAME = "MCP";
 
 // MCP tool calls are the TOOL spans the OTel MCP conventions mark with `mcp.method.name`
 // ("tools/call"). `error.type` "-32602" is invalid params: bad arguments or an unknown tool.
-// `lmnr.mcp.client.name` is set by the Laminar MCP server wrappers from the client's `initialize`.
+// `lmnr.mcp.client.name` is set by the Laminar SDKs' MCP server instrumentation from the client's
+// `initialize`.
 const TOOL_CALLS = `span_type = 'TOOL'
   AND JSONExtractString(attributes, 'mcp.method.name') = 'tools/call'
   AND start_time >= {start_time:DateTime64}

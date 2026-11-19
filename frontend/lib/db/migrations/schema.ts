@@ -882,7 +882,6 @@ export const projects = pgTable(
     workspaceId: uuid("workspace_id").notNull(),
     settings: jsonb().default({}).notNull(),
     hasTraces: boolean("has_traces"),
-    mcpDashboardCreatedAt: timestamp("mcp_dashboard_created_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
