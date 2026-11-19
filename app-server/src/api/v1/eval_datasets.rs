@@ -316,7 +316,7 @@ pub async fn handle_upload_task_version(
     if let Err(e) = version.validate() {
         return Ok(invalid_input(e));
     }
-    // A finished version's archive must keep matching its index.
+    // The finished version's archive must keep matching its index.
     if db::eval_datasets::task_version_exists(&db.pool, &project_id, &version).await? {
         return Ok(HttpResponse::NoContent().finish());
     }
@@ -346,6 +346,10 @@ pub async fn handle_upload_task_version_index(
     let version = path.version();
     if let Err(e) = version.validate() {
         return Ok(invalid_input(e));
+    }
+    // The finished version's index must keep matching its archive.
+    if db::eval_datasets::task_version_exists(&db.pool, &project_id, &version).await? {
+        return Ok(HttpResponse::NoContent().finish());
     }
     let stored = uploads::store_index(
         storage,
