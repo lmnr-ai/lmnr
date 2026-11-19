@@ -241,10 +241,6 @@ pub async fn mcp_auth(
     };
     match result {
         Ok(caller) => {
-            if let McpCaller::ApiKey(key) = &caller {
-                // Read by the `ProjectApiKey` extractor and the `/v1` audit middleware.
-                req.extensions_mut().insert(key.clone());
-            }
             req.extensions_mut().insert(caller);
             next.call(req).await
         }
