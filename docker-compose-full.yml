@@ -125,6 +125,11 @@ services:
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans_v2
       REDIS_URL: ${REDIS_URL}
+      # MCP OAuth: the endpoint's public URL (the token audience), the frontend's public URL
+      # (the authorization server, matching its NEXTAUTH_URL) and its in-network URL (JWKS).
+      MCP_RESOURCE_URL: http://localhost:${APP_SERVER_HOST_PORT:-8000}/v1/mcp
+      NEXT_PUBLIC_URL: http://localhost:5667
+      NEXT_INTERNAL_URL: http://frontend:5667
 
   frontend:
     image: ghcr.io/lmnr-ai/frontend
@@ -147,6 +152,8 @@ services:
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       NEXTAUTH_URL: http://localhost:5667
+      # Public URL of the app-server MCP endpoint; enables OAuth sign-in for MCP clients.
+      MCP_RESOURCE_URL: http://localhost:${APP_SERVER_HOST_PORT:-8000}/v1/mcp
       NEXTAUTH_SECRET: some_secret
       NEXT_PUBLIC_URL: http://localhost:5667
       ENVIRONMENT: FULL
