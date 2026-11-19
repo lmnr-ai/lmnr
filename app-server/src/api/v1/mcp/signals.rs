@@ -64,7 +64,7 @@ pub struct UpdateSignalParams {
 impl UpdateSignalParams {
     /// The service input, with sampling cleared only on request: schema-driven clients often
     /// send `null` for every optional field they leave unset.
-    fn into_update(self) -> Result<UpdateSignalInput, ToolError> {
+    fn try_into_update(self) -> Result<UpdateSignalInput, ToolError> {
         let mut update = self.update;
         update.sample_rate = match (update.sample_rate, self.clear_sample_rate) {
             (Some(Some(_)), true) => {
@@ -212,7 +212,7 @@ impl LaminarMcpServer {
             Some(audit),
             |scope: UserScope| async move {
                 let signal_id = params.signal_id;
-                let update = params.into_update()?;
+                let update = params.try_into_update()?;
                 let signal = service::update_signal(
                     &self.db.pool,
                     &self.cache,
@@ -272,12 +272,16 @@ mod tests {
     #[test]
     fn null_sample_rate_leaves_sampling_alone() {
         let update = params(json!({ "sampleRate": null, "prompt": null }))
-            .into_update()
+            .try_into_update()
             .ok()
             .unwrap();
         assert_eq!(update.sample_rate, None);
         assert_eq!(
-            params(json!({})).into_update().ok().unwrap().sample_rate,
+            params(json!({}))
+                .try_into_update()
+                .ok()
+                .unwrap()
+                .sample_rate,
             None
         );
     }
@@ -285,18 +289,18 @@ mod tests {
     #[test]
     fn sampling_changes_only_on_request() {
         let set = params(json!({ "sampleRate": 25 }))
-            .into_update()
+            .try_into_update()
             .ok()
             .unwrap();
         assert_eq!(set.sample_rate, Some(Some(25)));
         let cleared = params(json!({ "clearSampleRate": true, "sampleRate": null }))
-            .into_update()
+            .try_into_update()
             .ok()
             .unwrap();
         assert_eq!(cleared.sample_rate, Some(None));
         assert!(
             params(json!({ "clearSampleRate": true, "sampleRate": 25 }))
-                .into_update()
+                .try_into_update()
                 .is_err()
         );
     }
