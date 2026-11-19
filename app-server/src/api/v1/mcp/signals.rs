@@ -23,7 +23,7 @@ use crate::{
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListSignalsParams {
-    /// Case-insensitive substring of the signal name.
+    /// Only list signals whose name contains this text, ignoring case. Omit to list all.
     #[serde(default)]
     pub name: Option<String>,
     #[serde(flatten)]
@@ -33,6 +33,7 @@ pub struct ListSignalsParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SignalIdParams {
+    /// The signal's `id`, from `list_signals`.
     pub signal_id: Uuid,
     #[serde(flatten)]
     pub project: ProjectParam,
@@ -50,11 +51,12 @@ pub struct CreateSignalParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSignalParams {
+    /// The signal's `id`, from `list_signals`.
     pub signal_id: Uuid,
-    /// Only the fields you pass change.
     #[serde(flatten)]
     pub update: UpdateSignalInput,
-    /// Stop sampling, so the signal runs on every matching trace. `sampleRate: null` does not.
+    /// `true` stops sampling, so the signal runs on every matching trace. `sampleRate: null`
+    /// leaves sampling as it is.
     #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub clear_sample_rate: bool,
     #[serde(flatten)]
@@ -91,13 +93,19 @@ impl From<CrudError> for ToolError {
 
 #[tool_router(router = signal_tools, vis = "pub(super)")]
 impl LaminarMcpServer {
-    /// List the project's signals (LLM analyzers that run on matching traces) with their prompt,
-    /// payload schema, trigger, filters and mode. Signal events are queryable with
-    /// `query_laminar_sql` (`signal_events`).
+    /// List the project's signals (LLM judges that run on matching traces), each with its id,
+    /// prompt, payload schema, trigger, filters and mode. The events a signal produced are
+    /// queryable with `query_laminar_sql` (`signal_events`).
     #[tool(
         name = "list_signals",
         title = "List signals",
-        annotations(title = "List signals", read_only_hint = true, open_world_hint = false)
+        annotations(
+            title = "List signals",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     async fn list_signals(
         &self,
@@ -119,11 +127,18 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Get one signal with its trigger, filters and mode.
+    /// Get one signal: its name, prompt, payload schema, trigger, filters, mode, sample rate,
+    /// LLM profile and model.
     #[tool(
         name = "get_signal",
         title = "Get signal",
-        annotations(title = "Get signal", read_only_hint = true, open_world_hint = false)
+        annotations(
+            title = "Get signal",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     async fn get_signal(
         &self,
@@ -144,13 +159,16 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// List a signal's judge-definition (prompt + payload schema) versions, oldest first.
+    /// List a signal's definition versions, oldest first. Each holds the prompt and payload
+    /// schema it ran with; `signal_events` rows name the version that produced them.
     #[tool(
         name = "list_signal_versions",
         title = "List signal versions",
         annotations(
             title = "List signal versions",
             read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -182,7 +200,9 @@ impl LaminarMcpServer {
     /// is evaluated: `rootSpanFinished`, or `spanName` with `spanNames` for distributed traces),
     /// `filters` (whether it runs on a trace that fired) and `mode` (`realtime` or `batch`).
     /// Like the UI, this also creates a critical-severity alert, subscribed to your email when
-    /// signed in with OAuth.
+    /// signed in with OAuth. The signal starts running on new traces right away, and each run is
+    /// an LLM call billed as Signals usage (not available on the Free plan); use `sampleRate` or
+    /// `disabled` to limit that. Returns the created signal.
     #[tool(
         name = "create_signal",
         title = "Create signal",
@@ -190,6 +210,7 @@ impl LaminarMcpServer {
             title = "Create signal",
             read_only_hint = false,
             destructive_hint = false,
+            idempotent_hint = false,
             open_world_hint = false
         )
     )]
@@ -225,8 +246,9 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Update a signal; only the fields you pass change. Changing `prompt` or
-    /// `structuredOutput` adds a definition version.
+    /// Update a signal; only the fields you pass change, and the changes apply to traces
+    /// evaluated from now on. Changing `prompt` or `structuredOutput` adds a definition version
+    /// (`list_signal_versions`) instead of overwriting the old one. Returns the updated signal.
     #[tool(
         name = "update_signal",
         title = "Update signal",
@@ -234,6 +256,7 @@ impl LaminarMcpServer {
             title = "Update signal",
             read_only_hint = false,
             destructive_hint = true,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -266,7 +289,8 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Delete a signal with its triggers, alerts and events. Irreversible.
+    /// Delete a signal together with its triggers, alerts, events and clusters. Irreversible:
+    /// the events cannot be recovered. Returns the deleted signal.
     #[tool(
         name = "delete_signal",
         title = "Delete signal",
@@ -274,6 +298,7 @@ impl LaminarMcpServer {
             title = "Delete signal",
             read_only_hint = false,
             destructive_hint = true,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]

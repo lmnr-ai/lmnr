@@ -1,5 +1,5 @@
 //! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent (its prompt's
-//! table index and `describe_tables` tool) and the MCP `query_laminar_sql` tool description
+//! table index and `describe_tables` tool) and the MCP `get_sql_schema` tool
 //! (`api::v1::mcp`).
 //! Lives here next to the validator allowlist (`validator::TableRegistry`) it must mirror — drift
 //! between this list, the validator, and frontend `sql/utils.ts` (`tableSchemas`/`enumValues`) breaks
@@ -31,7 +31,7 @@ pub struct EnumDef {
 
 /// Wire shape of `GET /v1/sql/schema` (and its `/v1/cli` twin). Serialized
 /// straight from the `TABLES` / `ENUMS` consts below, so the endpoint, the MCP
-/// tool description, and the agent prompt cannot disagree.
+/// `get_sql_schema` tool, and the agent prompt cannot disagree.
 #[derive(serde::Serialize)]
 pub struct SqlSchema {
     pub tables: &'static [Table],
@@ -828,7 +828,7 @@ pub fn schema_payload() -> SqlSchema {
 }
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
-/// Embedded verbatim in the MCP tool description.
+/// Returned verbatim by the MCP `get_sql_schema` tool.
 pub fn build_schema_prompt() -> String {
     let mut out = String::new();
     out.push_str("<tables>\n");

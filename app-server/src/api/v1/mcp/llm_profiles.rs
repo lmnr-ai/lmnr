@@ -32,6 +32,7 @@ pub struct ListLlmProfilesParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmProfileIdParams {
+    /// The LLM profile's `id`, from `list_llm_profiles`.
     pub profile_id: Uuid,
     #[serde(flatten)]
     pub project: ProjectParam,
@@ -50,18 +51,23 @@ pub struct CreateLlmProfileParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLlmProfileParams {
+    /// The LLM profile's `id`, from `list_llm_profiles`.
     pub profile_id: Uuid,
+    /// New display name, unique within the workspace.
     #[serde(default)]
     pub name: Option<String>,
-    /// Changing it requires `config`, which then starts empty instead of from the stored one.
+    /// Switch the profile to another provider API. Also pass the new provider's `config`,
+    /// which then starts empty instead of from the stored one.
     #[serde(default)]
     pub provider: Option<LlmProfileProvider>,
+    /// Connection settings to change; fields you leave out keep their stored value.
     #[serde(default)]
     pub config: Option<ProfileConfigPatch>,
-    /// Absent keys, or the masks `get_llm_profile` returns, keep the stored secret.
+    /// Credentials to replace. Keys you leave out, or pass back as the masks `get_llm_profile`
+    /// returns, keep the stored secret.
     #[serde(default, deserialize_with = "echoed_secrets")]
     pub secrets: ProfileSecrets,
-    /// Replaces the whole list.
+    /// Model ids the profile offers; replaces the whole list.
     #[serde(default)]
     pub models: Option<Vec<String>>,
     #[serde(flatten)]
@@ -91,20 +97,27 @@ fn echoed_secrets<'de, D: serde::Deserializer<'de>>(
 /// the stored header secrets with it).
 #[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[schemars(
+    description = "The `config` fields to change; fields left out or `null` keep their stored value."
+)]
 pub struct ProfileConfigPatch {
+    /// How Bedrock authenticates; other providers always use an API key.
     #[serde(default)]
     pub auth: Option<ProfileAuth>,
-    /// `""` clears it; likewise `resourceId`, `baseUrl` and `apiVersion`.
+    /// AWS region of a Bedrock profile, e.g. `us-east-1`. `""` clears it.
     #[serde(default)]
     pub region: Option<String>,
+    /// Azure resource name. `""` clears it.
     #[serde(default)]
     pub resource_id: Option<String>,
+    /// Endpoint of an Azure deployment or a custom gateway. `""` clears it.
     #[serde(default)]
     pub base_url: Option<String>,
+    /// Azure API version. `""` clears it.
     #[serde(default)]
     pub api_version: Option<String>,
-    /// Custom header names, with their values in `secrets.headers`. `[]` removes every header
-    /// and its stored value.
+    /// Names of the extra headers a custom gateway receives, with their values in
+    /// `secrets.headers`. `[]` removes every header and its stored value.
     #[serde(default)]
     pub header_names: Option<Vec<String>>,
 }
@@ -169,14 +182,17 @@ impl LaminarMcpServer {
 
 #[tool_router(router = llm_profile_tools, vis = "pub(super)")]
 impl LaminarMcpServer {
-    /// List the workspace's LLM profiles (provider credentials + models that signals and the
-    /// playground run on). Secrets come back masked.
+    /// List the LLM profiles of the project's workspace: the provider credentials and models
+    /// that signals and the playground run on. Each comes with its id, name, provider, config
+    /// and models; secrets come back masked.
     #[tool(
         name = "list_llm_profiles",
         title = "List LLM profiles",
         annotations(
             title = "List LLM profiles",
             read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -199,13 +215,15 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Get one LLM profile. Secrets come back masked.
+    /// Get one LLM profile: its name, provider, config and models, with secrets masked.
     #[tool(
         name = "get_llm_profile",
         title = "Get LLM profile",
         annotations(
             title = "Get LLM profile",
             read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -230,7 +248,9 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Create a workspace LLM profile. Secrets you pass are stored encrypted and never returned.
+    /// Create an LLM profile in the project's workspace, shared by all of its projects. The
+    /// provider decides which `config` and `secrets` fields are needed. Secrets are stored
+    /// encrypted and never returned in full. Returns the created profile.
     #[tool(
         name = "create_llm_profile",
         title = "Create LLM profile",
@@ -238,6 +258,7 @@ impl LaminarMcpServer {
             title = "Create LLM profile",
             read_only_hint = false,
             destructive_hint = false,
+            idempotent_hint = false,
             open_world_hint = false
         )
     )]
@@ -262,7 +283,9 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Update an LLM profile; only the fields you pass change.
+    /// Update an LLM profile; only the fields you pass change. The change applies at once to
+    /// every signal and feature using the profile. A secret you pass overwrites the stored
+    /// one, and a model still used by a signal cannot be removed. Returns the updated profile.
     #[tool(
         name = "update_llm_profile",
         title = "Update LLM profile",
@@ -270,6 +293,7 @@ impl LaminarMcpServer {
             title = "Update LLM profile",
             read_only_hint = false,
             destructive_hint = true,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -305,7 +329,9 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Delete an LLM profile. Refused while a signal or feature route uses it.
+    /// Delete an LLM profile and its stored credentials. Irreversible. Refused while a signal
+    /// or an LLM feature route uses it: move those to another profile first. Returns the
+    /// deleted profile.
     #[tool(
         name = "delete_llm_profile",
         title = "Delete LLM profile",
@@ -313,6 +339,7 @@ impl LaminarMcpServer {
             title = "Delete LLM profile",
             read_only_hint = false,
             destructive_hint = true,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]

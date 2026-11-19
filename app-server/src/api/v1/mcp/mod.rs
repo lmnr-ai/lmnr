@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, future::Future, sync::Arc};
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use bytes::Bytes;
@@ -6,7 +6,7 @@ use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResponse, CallToolResult, ClientJsonRpcMessage, ContentBlock, GetExtensions,
+        CallToolResponse, CallToolResult, ClientJsonRpcMessage, ContentBlock, GetExtensions, Icon,
         Implementation, ServerCapabilities, ServerConfig,
     },
     schemars,
@@ -31,7 +31,7 @@ use crate::{
     db::{self, DB},
     mq::MessageQueue,
     query_engine::QueryEngine,
-    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
+    sql::{self, ClickhouseReadonlyClient, SqlQueryError, SqlQuerySource},
 };
 
 #[cfg(feature = "signals")]
@@ -55,8 +55,8 @@ struct ProjectScope {
 #[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectParam {
-    /// Laminar project to act on. Required when signed in with OAuth: call `list_projects` and
-    /// pass the project's id. Ignored for a project API key, which is bound to its project.
+    /// The Laminar project to act on, as returned by `list_projects`. OAuth sessions must name
+    /// it; a project API key is bound to one project and may leave it out.
     #[serde(default)]
     pub project_id: Option<Uuid>,
 }
@@ -64,10 +64,10 @@ pub struct ProjectParam {
 /// Parameters for the SQL query tool.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct QuerySqlParams {
-    /// ClickHouse SQL query. Must be SELECT only. See the `query_laminar_sql` tool description for the
-    /// full table/column schema, enums, joins, and example queries.
+    /// The SELECT statement to run, written against the tables `get_sql_schema` describes.
     pub query: String,
-    /// Query parameters for {name:Type} placeholders, e.g., {trace_id:UUID}
+    /// Values for the `{name:Type}` placeholders in `query`, keyed by name: `{"trace_id": "..."}`
+    /// fills `{trace_id:UUID}`.
     #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub parameters: HashMap<String, Value>,
     #[serde(flatten)]
@@ -77,13 +77,7 @@ pub struct QuerySqlParams {
 /// A trace id as a hyphenated GUID or the 32 hex digits OpenTelemetry emits; `Uuid` parses both.
 const TRACE_ID_PATTERN: &str = r"^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})$";
 
-// ============ query_laminar_sql description ============
-
-/// One-line lead for the `query_laminar_sql` tool description; the schema block is shared with the
-/// Platform Agent prompt (`query_engine::schema`), the extras below are MCP-only.
-const MCP_SQL_INTRO: &str = "Execute a read-only SQL query (full ClickHouse SELECT syntax) against \
-this project's Laminar trace data and get rows back as a JSON array. Queries are automatically \
-scoped to your project — never filter on or reference a `project_id` column. Only SELECT is allowed.";
+// ============ SQL schema ============
 
 /// MCP-only suffix (joins + parameter note + examples) appended after the shared schema block. Kept
 /// out of `query_engine::schema` so it doesn't bloat the agent's system prompt (the agent learns
@@ -116,29 +110,28 @@ Use the `parameters` argument for {name:Type} placeholders in the query, e.g. {t
 - Top clusters: SELECT name, num_signal_events FROM clusters ORDER BY num_signal_events DESC LIMIT 10
 </examples>"#;
 
-/// The tool name `query_laminar_sql`'s description is injected at construction (see `new`) rather than
-/// taken from the `#[tool]` doc comment, so the schema has a single source (`query_engine::schema`).
-const QUERY_SQL_TOOL_NAME: &str = "query_laminar_sql";
-
-/// Compose the full `query_laminar_sql` description: MCP intro + shared schema block + MCP extras.
-fn query_sql_tool_description() -> String {
+/// What `get_sql_schema` returns. It is a tool result rather than part of `query_laminar_sql`'s
+/// description because Claude Code truncates descriptions past 2 KB.
+fn sql_schema_text() -> String {
     format!(
-        "{MCP_SQL_INTRO}\n\n{schema}\n\n{MCP_SQL_EXTRAS}",
+        "{schema}\n\n{MCP_SQL_EXTRAS}",
         schema = crate::query_engine::schema::build_schema_prompt(),
     )
 }
 
-/// Sent on `initialize`; tells the model how project selection works.
-const SERVER_INSTRUCTIONS: &str = "Laminar is an observability platform for AI agents. Every \
-tool acts on one Laminar project. With a project API key the project is fixed. When signed in \
-with OAuth, call `list_projects` and pass the project's id as `projectId` to every other tool.";
+/// Sent on `initialize`.
+const SERVER_INSTRUCTIONS: &str = "Laminar is an observability platform for AI agents: traces, \
+spans, evaluations and signals (LLM judges that flag patterns in traces). Every tool except \
+`list_projects` and `get_sql_schema` acts on one Laminar project. With a project API key the \
+project is fixed. When signed in with OAuth, call `list_projects` and pass the project's id as \
+`projectId` to every other tool. To answer questions about traces, call `get_sql_schema` once, \
+then `query_laminar_sql`.";
 
 // ============ MCP Server ============
 
 #[derive(Clone)]
 pub struct LaminarMcpServer {
-    /// Stored so the `#[tool_handler(router = self.tool_router)]` macro serves THIS instance (with the
-    /// injected `query_laminar_sql` description) instead of rebuilding a fresh router per request.
+    /// Every area's tools, summed once; the `#[tool_handler]` default would serve only this file's.
     tool_router: ToolRouter<Self>,
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
@@ -161,7 +154,7 @@ impl LaminarMcpServer {
         queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
-            tool_router: Self::tool_router_with_descriptions(),
+            tool_router: Self::all_tools(),
             clickhouse,
             clickhouse_ro,
             query_engine,
@@ -172,39 +165,30 @@ impl LaminarMcpServer {
         }
     }
 
-    /// Build the tool router and inject the unified `query_laminar_sql` description (intro + shared
-    /// `query_engine::schema` + MCP extras), so the schema has ONE source for both this tool and the
-    /// Platform Agent prompt. The map is keyed by tool NAME; a missing entry means the tool was
-    /// renamed without updating `QUERY_SQL_TOOL_NAME` (caught by the tests). Other tools keep their
-    /// `#[tool]` doc-comment descriptions untouched. Separate from `new` so the resulting router is
-    /// testable without the server's DB/CH/cache deps.
-    fn tool_router_with_descriptions() -> ToolRouter<Self> {
-        let mut router = Self::tool_router()
+    /// Every area's router; a new tool file's must be added here, or its tools are silently
+    /// missing. Separate from `new` so tests can list the tools without the server's deps.
+    fn all_tools() -> ToolRouter<Self> {
+        let router = Self::tool_router()
             + Self::signal_tools()
             + Self::llm_profile_tools()
             + Self::trace_tools();
         #[cfg(feature = "signals")]
-        {
-            router = router + Self::enterprise_tools();
-        }
-        match router.map.get_mut(QUERY_SQL_TOOL_NAME) {
-            Some(route) => route.attr.description = Some(Cow::Owned(query_sql_tool_description())),
-            None => log::error!(
-                "MCP tool '{QUERY_SQL_TOOL_NAME}' not found in router; SQL schema not injected into its description"
-            ),
-        }
+        let router = router + Self::enterprise_tools();
         router
     }
 
-    /// Run a read-only ClickHouse SELECT against this project's Laminar data. The real description
-    /// (intro + full schema + joins + examples) is injected at construction from
-    /// `query_engine::schema` — see `query_sql_tool_description` / `new`.
+    /// Run a read-only ClickHouse SELECT on the project's Laminar data and get the rows back as
+    /// a JSON array. Call `get_sql_schema` first for the tables, columns, enum values, joins and
+    /// examples. Queries are already scoped to the project: never filter on or select a
+    /// `project_id` column.
     #[tool(
         name = "query_laminar_sql",
         title = "Query Laminar SQL",
         annotations(
             title = "Query Laminar SQL",
             read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -240,7 +224,14 @@ impl LaminarMcpServer {
                     self.cache.clone(),
                 )
                 .await
-                .map_err(|e| ToolError::message(e.to_string()))?;
+                .map_err(|e| match e {
+                    SqlQueryError::ValidationError(_) | SqlQueryError::BadResponseError(_) => {
+                        ToolError::message(format!(
+                            "{e}\n\nCall `get_sql_schema` for the tables and columns you can query."
+                        ))
+                    }
+                    e => ToolError::message(e.to_string()),
+                })?;
                 Ok(ToolOutput::json(&output.rows)
                     .metadata(json!({ "query": query, "tables": output.tables })))
             },
@@ -248,14 +239,34 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// List the Laminar projects this connection can act on, with their workspaces. Pass a
-    /// project's `id` as `projectId` to the other tools.
+    /// Get the schema `query_laminar_sql` runs against: every table with its columns and what
+    /// they mean, the accepted enum values, join keys and example queries. It is the same for
+    /// every project, so one call per session is enough.
+    #[tool(
+        name = "get_sql_schema",
+        title = "Get SQL schema",
+        annotations(
+            title = "Get SQL schema",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn get_sql_schema(&self) -> Result<CallToolResponse, McpError> {
+        Ok(CallToolResult::success(vec![ContentBlock::text(sql_schema_text())]).into())
+    }
+
+    /// List the Laminar projects this connection can act on, each with its `id`, `name` and
+    /// (for OAuth sessions) workspace. Pass a project's `id` as `projectId` to the other tools.
     #[tool(
         name = "list_projects",
         title = "List projects",
         annotations(
             title = "List projects",
             read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -563,8 +574,24 @@ impl LaminarMcpServer {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for LaminarMcpServer {
     fn get_info(&self) -> ServerConfig {
+        let icons = vec![
+            Icon::new("https://laminar.sh/brand/icon.svg")
+                .with_mime_type("image/svg+xml")
+                .with_sizes(vec!["any".to_string()]),
+            Icon::new("https://laminar.sh/brand/logo-square.png")
+                .with_mime_type("image/png")
+                .with_sizes(vec!["560x560".to_string()]),
+        ];
+        let server_info = Implementation::new("laminar", env!("CARGO_PKG_VERSION"))
+            .with_title("Laminar")
+            .with_description(
+                "Query your AI agents' traces in Laminar with SQL, and manage the signals and \
+                 LLM profiles that analyze them.",
+            )
+            .with_website_url("https://laminar.sh/docs/platform/mcp")
+            .with_icons(icons);
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new("laminar", env!("CARGO_PKG_VERSION")))
+            .with_server_info(server_info)
             .with_instructions(SERVER_INSTRUCTIONS)
     }
 }
@@ -678,9 +705,8 @@ mod tests {
     use super::*;
     use rmcp::model::Tool;
 
-    /// Look up a tool's definition from the fully-built (description-injected) router.
     fn tool(name: &str) -> Tool {
-        LaminarMcpServer::tool_router_with_descriptions()
+        LaminarMcpServer::all_tools()
             .get(name)
             .unwrap_or_else(|| panic!("tool '{name}' not registered in router"))
             .clone()
@@ -690,7 +716,7 @@ mod tests {
     /// merging the per-area routers.
     #[test]
     fn router_exposes_expected_tools() {
-        let names: Vec<String> = LaminarMcpServer::tool_router_with_descriptions()
+        let names: Vec<String> = LaminarMcpServer::all_tools()
             .list_all()
             .into_iter()
             .map(|t| t.name.to_string())
@@ -703,6 +729,7 @@ mod tests {
             "delete_signal",
             "get_llm_profile",
             "get_signal",
+            "get_sql_schema",
             "list_llm_profiles",
             "list_projects",
             "list_signal_versions",
@@ -726,7 +753,7 @@ mod tests {
     /// tool; clients use them to decide which calls run without confirmation.
     #[test]
     fn every_tool_has_title_and_safety_hints() {
-        for tool in LaminarMcpServer::tool_router_with_descriptions().list_all() {
+        for tool in LaminarMcpServer::all_tools().list_all() {
             let name = tool.name.to_string();
             assert!(tool.title.is_some(), "{name} has no title");
             let annotations = tool
@@ -757,11 +784,11 @@ mod tests {
         }
     }
 
-    /// Every tool but `list_projects` acts on a project, so each advertises `projectId`, and
-    /// flattened inputs (signal / LLM profile bodies) land as top-level properties.
+    /// Every tool but `list_projects` and `get_sql_schema` acts on a project, so each advertises
+    /// `projectId`, and flattened inputs (signal / LLM profile bodies) land as top-level properties.
     #[test]
     fn project_scoped_tools_advertise_project_id() {
-        for tool in LaminarMcpServer::tool_router_with_descriptions().list_all() {
+        for tool in LaminarMcpServer::all_tools().list_all() {
             let properties = tool
                 .input_schema
                 .get("properties")
@@ -773,7 +800,7 @@ mod tests {
                 "{} has no description",
                 tool.name
             );
-            if tool.name == "list_projects" {
+            if matches!(tool.name.as_ref(), "list_projects" | "get_sql_schema") {
                 continue;
             }
             assert!(
@@ -799,36 +826,68 @@ mod tests {
         }
     }
 
-    /// `query_laminar_sql`'s description is the INJECTED one (intro + shared schema + MCP extras),
-    /// not the trimmed one-line doc comment. The schema block is keyed by tool name, so a rename
-    /// without updating `QUERY_SQL_TOOL_NAME` would silently drop it — this catches that in CI.
+    /// `get_sql_schema` carries the shared schema block plus the MCP-only extras.
     #[test]
-    fn query_sql_tool_has_injected_schema_description() {
-        let desc = tool(QUERY_SQL_TOOL_NAME)
-            .description
-            .expect("query_laminar_sql must have a description")
-            .to_string();
+    fn sql_schema_tool_returns_the_shared_schema() {
+        let schema = sql_schema_text();
         assert!(
-            desc.contains("full ClickHouse SELECT syntax"),
-            "intro missing"
+            schema.contains("TABLE spans"),
+            "shared schema block missing"
         );
-        assert!(desc.contains("TABLE spans"), "shared schema block missing");
         assert!(
-            desc.contains("TABLE clusters"),
+            schema.contains("TABLE clusters"),
             "shared schema missing clusters"
         );
-        assert!(desc.contains("span_type:"), "shared enum block missing");
-        assert!(desc.contains("<examples>"), "MCP extras missing");
-        assert!(
-            !desc.contains("The real description"),
-            "doc comment leaked instead of the injected description"
-        );
+        assert!(schema.contains("span_type:"), "shared enum block missing");
+        assert!(schema.contains("<examples>"), "MCP extras missing");
     }
 
-    /// The query tool still advertises its two input params after the param-doc slimming.
+    /// Claude Code truncates each tool description and the server instructions past 2 KB.
+    #[test]
+    fn metadata_fits_claude_code_limit() {
+        const LIMIT: usize = 2048;
+        assert!(SERVER_INSTRUCTIONS.len() < LIMIT, "server instructions");
+        for tool in LaminarMcpServer::all_tools().list_all() {
+            let len = tool.description.as_deref().unwrap_or_default().len();
+            assert!(len < LIMIT, "{} description is {len} bytes", tool.name);
+        }
+    }
+
+    /// ChatGPT's app review also wants every hint as an explicit boolean, and directory scorers
+    /// count undocumented inputs.
+    #[test]
+    fn every_tool_has_all_hints_and_input_docs() {
+        for tool in LaminarMcpServer::all_tools().list_all() {
+            let name = &tool.name;
+            let hints = tool
+                .annotations
+                .as_ref()
+                .unwrap_or_else(|| panic!("{name} has no annotations"));
+            assert!(
+                hints.read_only_hint.is_some()
+                    && hints.destructive_hint.is_some()
+                    && hints.idempotent_hint.is_some()
+                    && hints.open_world_hint.is_some(),
+                "{name} lacks a behavior hint: {hints:?}"
+            );
+            let properties = tool
+                .input_schema
+                .get("properties")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            for (field, schema) in properties {
+                assert!(
+                    schema.get("description").is_some(),
+                    "{name}.{field} has no description"
+                );
+            }
+        }
+    }
+
     #[test]
     fn query_sql_tool_input_schema_has_params() {
-        let schema = serde_json::to_string(&tool(QUERY_SQL_TOOL_NAME).input_schema)
+        let schema = serde_json::to_string(&tool("query_laminar_sql").input_schema)
             .expect("input_schema serializes");
         assert!(
             schema.contains("query"),
@@ -841,20 +900,6 @@ mod tests {
         assert!(
             schema.contains("projectId"),
             "flattened `projectId` missing from input schema"
-        );
-    }
-
-    /// The OTHER tools keep their `#[tool]` doc-comment descriptions — the refactor only touches
-    /// `query_laminar_sql`.
-    #[test]
-    fn other_tools_keep_doc_comment_descriptions() {
-        let signals = tool("list_signals")
-            .description
-            .expect("list_signals keeps its doc-comment description")
-            .to_string();
-        assert!(
-            signals.contains("List the project's signals"),
-            "list_signals description changed unexpectedly: {signals}"
         );
     }
 
@@ -924,7 +969,7 @@ mod tests {
             schema["properties"]["clearSampleRate"]["type"],
             serde_json::json!("boolean")
         );
-        let schema = tool(QUERY_SQL_TOOL_NAME).input_schema;
+        let schema = tool("query_laminar_sql").input_schema;
         assert_eq!(
             schema["properties"]["parameters"]["type"],
             serde_json::json!("object")
