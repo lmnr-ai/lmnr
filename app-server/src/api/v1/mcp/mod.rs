@@ -199,7 +199,15 @@ impl LaminarMcpServer {
     /// Run a read-only ClickHouse SELECT against this project's Laminar data. The real description
     /// (intro + full schema + joins + examples) is injected at construction from
     /// `query_engine::schema` — see `query_sql_tool_description` / `new`.
-    #[tool(name = "query_laminar_sql")]
+    #[tool(
+        name = "query_laminar_sql",
+        title = "Query Laminar SQL",
+        annotations(
+            title = "Query Laminar SQL",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn query_laminar_sql(
         &self,
         context: RequestContext<RoleServer>,
@@ -242,7 +250,15 @@ impl LaminarMcpServer {
 
     /// List the Laminar projects this connection can act on, with their workspaces. Pass a
     /// project's `id` as `projectId` to the other tools.
-    #[tool(name = "list_projects")]
+    #[tool(
+        name = "list_projects",
+        title = "List projects",
+        annotations(
+            title = "List projects",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn list_projects(
         &self,
         context: RequestContext<RoleServer>,
@@ -290,7 +306,11 @@ impl ToolError {
             Self::Message(message) => tool_error(message),
             Self::Internal(e) => {
                 log::error!("MCP tool {tool} failed: {e:?}");
-                tool_error("Internal server error")
+                // The cause stays in the logs: it can name internal hosts or queries.
+                tool_error(format!(
+                    "`{tool}` failed on Laminar's side, not because of its arguments. \
+                     Retry shortly; if it keeps failing, report it to Laminar support."
+                ))
             }
         }
     }
@@ -700,6 +720,41 @@ mod tests {
             names, expected,
             "unexpected MCP tool set (list_all is sorted by name)"
         );
+    }
+
+    /// Claude's connector directory requires a title and an explicit read/destructive hint on every
+    /// tool; clients use them to decide which calls run without confirmation.
+    #[test]
+    fn every_tool_has_title_and_safety_hints() {
+        for tool in LaminarMcpServer::tool_router_with_descriptions().list_all() {
+            let name = tool.name.to_string();
+            assert!(tool.title.is_some(), "{name} has no title");
+            let annotations = tool
+                .annotations
+                .unwrap_or_else(|| panic!("{name} has no annotations"));
+            assert!(
+                annotations.title.is_some(),
+                "{name} has no annotations.title"
+            );
+            let read_only = annotations
+                .read_only_hint
+                .unwrap_or_else(|| panic!("{name} has no readOnlyHint"));
+            let destructive = annotations.destructive_hint;
+            assert!(
+                read_only || destructive.is_some(),
+                "write tool {name} has no destructiveHint"
+            );
+            let is_read = ["list_", "get_", "query_", "ask_"]
+                .iter()
+                .any(|p| name.starts_with(p));
+            assert_eq!(
+                read_only, is_read,
+                "{name} readOnlyHint disagrees with its name"
+            );
+            if name.starts_with("update_") || name.starts_with("delete_") {
+                assert_eq!(destructive, Some(true), "{name} must be destructive");
+            }
+        }
     }
 
     /// Every tool but `list_projects` acts on a project, so each advertises `projectId`, and

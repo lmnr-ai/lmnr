@@ -63,7 +63,15 @@ impl LaminarMcpServer {
     ///
     /// If you need full information that is truncated, you should use query_laminar_sql tool to query spans that you're interested in.
     ///
-    #[tool(name = "get_trace_context")]
+    #[tool(
+        name = "get_trace_context",
+        title = "Get trace context",
+        annotations(
+            title = "Get trace context",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn get_trace_context(
         &self,
         context: RequestContext<RoleServer>,
@@ -89,7 +97,15 @@ impl LaminarMcpServer {
     /// Ask Laminar Agent a question about this project's traces in plain language and get a
     /// grounded answer. The agent runs read-only SQL and reads traces itself. The answer ends
     /// with a `conversationId`; pass it back to continue the conversation.
-    #[tool(name = "ask_agent")]
+    #[tool(
+        name = "ask_agent",
+        title = "Ask Laminar Agent",
+        annotations(
+            title = "Ask Laminar Agent",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn ask_agent(
         &self,
         context: RequestContext<RoleServer>,

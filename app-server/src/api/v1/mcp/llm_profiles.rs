@@ -171,7 +171,15 @@ impl LaminarMcpServer {
 impl LaminarMcpServer {
     /// List the workspace's LLM profiles (provider credentials + models that signals and the
     /// playground run on). Secrets come back masked.
-    #[tool(name = "list_llm_profiles")]
+    #[tool(
+        name = "list_llm_profiles",
+        title = "List LLM profiles",
+        annotations(
+            title = "List LLM profiles",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn list_llm_profiles(
         &self,
         context: RequestContext<RoleServer>,
@@ -192,7 +200,15 @@ impl LaminarMcpServer {
     }
 
     /// Get one LLM profile. Secrets come back masked.
-    #[tool(name = "get_llm_profile")]
+    #[tool(
+        name = "get_llm_profile",
+        title = "Get LLM profile",
+        annotations(
+            title = "Get LLM profile",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn get_llm_profile(
         &self,
         context: RequestContext<RoleServer>,
@@ -215,7 +231,16 @@ impl LaminarMcpServer {
     }
 
     /// Create a workspace LLM profile. Secrets you pass are stored encrypted and never returned.
-    #[tool(name = "create_llm_profile")]
+    #[tool(
+        name = "create_llm_profile",
+        title = "Create LLM profile",
+        annotations(
+            title = "Create LLM profile",
+            read_only_hint = false,
+            destructive_hint = false,
+            open_world_hint = false
+        )
+    )]
     async fn create_llm_profile(
         &self,
         context: RequestContext<RoleServer>,
@@ -238,7 +263,16 @@ impl LaminarMcpServer {
     }
 
     /// Update an LLM profile; only the fields you pass change.
-    #[tool(name = "update_llm_profile")]
+    #[tool(
+        name = "update_llm_profile",
+        title = "Update LLM profile",
+        annotations(
+            title = "Update LLM profile",
+            read_only_hint = false,
+            destructive_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn update_llm_profile(
         &self,
         context: RequestContext<RoleServer>,
@@ -272,7 +306,16 @@ impl LaminarMcpServer {
     }
 
     /// Delete an LLM profile. Refused while a signal or feature route uses it.
-    #[tool(name = "delete_llm_profile")]
+    #[tool(
+        name = "delete_llm_profile",
+        title = "Delete LLM profile",
+        annotations(
+            title = "Delete LLM profile",
+            read_only_hint = false,
+            destructive_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn delete_llm_profile(
         &self,
         context: RequestContext<RoleServer>,

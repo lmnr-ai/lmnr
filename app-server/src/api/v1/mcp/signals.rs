@@ -94,7 +94,11 @@ impl LaminarMcpServer {
     /// List the project's signals (LLM analyzers that run on matching traces) with their prompt,
     /// payload schema, trigger, filters and mode. Signal events are queryable with
     /// `query_laminar_sql` (`signal_events`).
-    #[tool(name = "list_signals")]
+    #[tool(
+        name = "list_signals",
+        title = "List signals",
+        annotations(title = "List signals", read_only_hint = true, open_world_hint = false)
+    )]
     async fn list_signals(
         &self,
         context: RequestContext<RoleServer>,
@@ -116,7 +120,11 @@ impl LaminarMcpServer {
     }
 
     /// Get one signal with its trigger, filters and mode.
-    #[tool(name = "get_signal")]
+    #[tool(
+        name = "get_signal",
+        title = "Get signal",
+        annotations(title = "Get signal", read_only_hint = true, open_world_hint = false)
+    )]
     async fn get_signal(
         &self,
         context: RequestContext<RoleServer>,
@@ -137,7 +145,15 @@ impl LaminarMcpServer {
     }
 
     /// List a signal's judge-definition (prompt + payload schema) versions, oldest first.
-    #[tool(name = "list_signal_versions")]
+    #[tool(
+        name = "list_signal_versions",
+        title = "List signal versions",
+        annotations(
+            title = "List signal versions",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn list_signal_versions(
         &self,
         context: RequestContext<RoleServer>,
@@ -167,7 +183,16 @@ impl LaminarMcpServer {
     /// `filters` (whether it runs on a trace that fired) and `mode` (`realtime` or `batch`).
     /// Like the UI, this also creates a critical-severity alert, subscribed to your email when
     /// signed in with OAuth.
-    #[tool(name = "create_signal")]
+    #[tool(
+        name = "create_signal",
+        title = "Create signal",
+        annotations(
+            title = "Create signal",
+            read_only_hint = false,
+            destructive_hint = false,
+            open_world_hint = false
+        )
+    )]
     async fn create_signal(
         &self,
         context: RequestContext<RoleServer>,
@@ -202,7 +227,16 @@ impl LaminarMcpServer {
 
     /// Update a signal; only the fields you pass change. Changing `prompt` or
     /// `structuredOutput` adds a definition version.
-    #[tool(name = "update_signal")]
+    #[tool(
+        name = "update_signal",
+        title = "Update signal",
+        annotations(
+            title = "Update signal",
+            read_only_hint = false,
+            destructive_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn update_signal(
         &self,
         context: RequestContext<RoleServer>,
@@ -233,7 +267,16 @@ impl LaminarMcpServer {
     }
 
     /// Delete a signal with its triggers, alerts and events. Irreversible.
-    #[tool(name = "delete_signal")]
+    #[tool(
+        name = "delete_signal",
+        title = "Delete signal",
+        annotations(
+            title = "Delete signal",
+            read_only_hint = false,
+            destructive_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn delete_signal(
         &self,
         context: RequestContext<RoleServer>,

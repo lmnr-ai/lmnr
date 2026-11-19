@@ -27,7 +27,16 @@ pub struct AddTraceTagsParams {
 impl LaminarMcpServer {
     /// Add tags to a trace, e.g. to mark traces you reviewed. Tags are queryable with
     /// `query_laminar_sql` (`traces.tags`).
-    #[tool(name = "add_trace_tags")]
+    #[tool(
+        name = "add_trace_tags",
+        title = "Add trace tags",
+        annotations(
+            title = "Add trace tags",
+            read_only_hint = false,
+            destructive_hint = false,
+            open_world_hint = false
+        )
+    )]
     async fn add_trace_tags(
         &self,
         context: RequestContext<RoleServer>,
