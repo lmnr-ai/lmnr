@@ -232,7 +232,7 @@ const buildColumnFilters = (filters: Filter[], config: ColumnFilterConfig): Cond
 
       return processor ? { filter, result: processor(filter, paramKey) } : null;
     })
-    .filter((p): p is { filter: Filter; result: ConditionResult } => p !== null && p.result.condition !== null);
+    .filter((p): p is { filter: Filter; result: ConditionResult } => p !== null && !!p.result.condition);
   const results = processed.map((p) => p.result);
 
   const anyOfGroups = new Map<string, string[]>();

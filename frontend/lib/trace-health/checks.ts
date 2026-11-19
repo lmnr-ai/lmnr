@@ -20,11 +20,13 @@ import { Operator } from "@/lib/actions/common/operators";
 /**
  * Where "View in table" opens. `filters` reproduce the check with table filters; checks the filters
  * can't express (empty payloads, root-span counts) list the matching ids under `idColumn` instead.
+ * Span ids also carry their trace ids and the check's `filters`, since a span id can repeat across
+ * traces and must not pull in another trace's span of a different type.
  */
 export type TraceHealthTableLink =
   | { view: "traces" | "spans"; filters: Filter[] }
   | { view: "traces"; idColumn: "id" }
-  | { view: "spans"; idColumn: "span_id" };
+  | { view: "spans"; idColumn: "span_id"; filters: Filter[] };
 
 export interface TraceHealthCheck {
   id: TraceHealthCheckId;
@@ -43,6 +45,8 @@ export interface TraceHealthCheck {
 }
 
 const LLM_SPANS: Filter = { column: "span_type", operator: Operator.Eq, value: "LLM", dataType: "string" };
+const TOOL_SPANS: Filter = { column: "span_type", operator: Operator.Eq, value: "TOOL", dataType: "string" };
+const NOT_ERROR: Filter = { column: "status", operator: Operator.Eq, value: "success", dataType: "string" };
 
 export interface TraceHealthCategoryInfo {
   title: string;
@@ -74,7 +78,7 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     impact: "Traces are missing the prompt sent to the model.",
     fix: "Record the request messages on each LLM span (gen_ai.input.messages, or lmnr.span.input via the Laminar SDK).",
     unit: "LLM spans",
-    table: { view: "spans", idColumn: "span_id" },
+    table: { view: "spans", idColumn: "span_id", filters: [LLM_SPANS, NOT_ERROR] },
   },
   {
     id: "llm-missing-output",
@@ -84,7 +88,7 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     impact: "Traces are missing the model's response.",
     fix: "Record the response messages on each LLM span (gen_ai.output.messages, or lmnr.span.output via the Laminar SDK).",
     unit: "LLM spans",
-    table: { view: "spans", idColumn: "span_id" },
+    table: { view: "spans", idColumn: "span_id", filters: [LLM_SPANS, NOT_ERROR] },
   },
   {
     id: "tool-missing-output",
@@ -94,7 +98,7 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     impact: "Traces are missing what tool calls returned.",
     fix: "Record the tool result on each tool span (gen_ai.tool.call.result, or wrap the tool with Laminar's observe so its return value is captured).",
     unit: "tool spans",
-    table: { view: "spans", idColumn: "span_id" },
+    table: { view: "spans", idColumn: "span_id", filters: [TOOL_SPANS, NOT_ERROR] },
   },
   {
     id: "multiple-root-spans",
@@ -129,7 +133,7 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     unit: "LLM spans",
     table: {
       view: "spans",
-      filters: [LLM_SPANS, { column: "total_tokens", operator: Operator.Eq, value: 0, dataType: "number" }],
+      filters: [LLM_SPANS, NOT_ERROR, { column: "total_tokens", operator: Operator.Eq, value: 0, dataType: "number" }],
     },
   },
   {
@@ -172,6 +176,8 @@ export interface TraceHealthCheckResult {
   failing: number;
   /** Matching span or trace ids (at most `TRACE_HEALTH_MAX_LINKED_IDS`) for checks linked by id. */
   matchIds: string[];
+  /** For span ids: the traces they belong to. */
+  matchTraceIds: string[];
 }
 
 export interface TraceHealthResponse {
@@ -185,8 +191,8 @@ export interface TraceHealthResponse {
 /** Checks run over the project's most recent traces. */
 export const TRACE_HEALTH_SAMPLE_SIZE = 100;
 
-/** Each id becomes one `filter` URL param (~140 chars), so this keeps links well under URL size limits. */
-export const TRACE_HEALTH_MAX_LINKED_IDS = 50;
+/** Each span id and its trace id become `filter` URL params (~140 chars each), so this keeps links well under URL size limits. */
+export const TRACE_HEALTH_MAX_LINKED_IDS = 30;
 
 export const isBlockingFailure = (result: TraceHealthCheckResult) => {
   const check = TRACE_HEALTH_CHECKS.find((c) => c.id === result.id);

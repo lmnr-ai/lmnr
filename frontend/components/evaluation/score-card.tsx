@@ -64,8 +64,8 @@ export default function ScoreCard({
             {shouldShowComparison && (
               <div
                 className={cn("text-md font-medium", {
-                  "text-green-400": average >= comparedAverage,
-                  "text-red-400": average < comparedAverage,
+                  "text-success-text": average >= comparedAverage,
+                  "text-destructive-text": average < comparedAverage,
                 })}
               >
                 <span className="mx-1">{average >= comparedAverage ? "▲" : "▼"}</span>
