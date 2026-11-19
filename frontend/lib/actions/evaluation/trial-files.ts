@@ -8,8 +8,7 @@ import { db } from "@/lib/db/drizzle";
 import { evaluations, taskVersions } from "@/lib/db/migrations/schema";
 import {
   type ArchiveDir,
-  isDatasetName,
-  isTaskName,
+  isEvalName,
   joinArchivePath,
   listTrialFiles,
   resolveTrialPath,
@@ -83,7 +82,7 @@ type Trial = Awaited<ReturnType<typeof getTrial>>;
 /** The trial's pushed task version, if Laminar has it. */
 const getTaskVersion = async (projectId: string, trial: Trial) => {
   const { dataset, datasetTask: task, hash } = trial;
-  if (!dataset || !task || !isDatasetName(dataset) || !isTaskName(task) || !TASK_HASH_RE.test(hash)) {
+  if (!dataset || !task || !isEvalName(dataset) || !isEvalName(task) || !TASK_HASH_RE.test(hash)) {
     return null;
   }
   const version = await db.query.taskVersions.findFirst({

@@ -29,6 +29,9 @@ use crate::{
 /// Entries per `versions/missing` or `push` request.
 const MAX_ENTRIES: usize = 10_000;
 
+const NAME_RULE: &str = "expected org/name, each part letters, digits, '.', '_' and '-' \
+                         starting with a letter or digit, without '..'";
+
 #[derive(Deserialize)]
 pub struct MissingVersionsRequest {
     versions: Vec<TaskHash>,
@@ -39,67 +42,121 @@ pub struct PushRequest {
     tasks: Vec<PushEntry>,
 }
 
+/// `{org}/{name}`: a dataset name takes two path segments, so no slash is ever encoded.
+#[derive(Deserialize)]
+pub struct DatasetPath {
+    org: String,
+    name: String,
+}
+
+impl DatasetPath {
+    /// The full `org/name`, still to be validated.
+    pub fn dataset(&self) -> String {
+        format!("{}/{}", self.org, self.name)
+    }
+}
+
+/// `{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}`.
+#[derive(Deserialize)]
+pub struct VersionPath {
+    org: String,
+    name: String,
+    task_org: String,
+    task_name: String,
+    hash: String,
+}
+
+impl VersionPath {
+    /// The full names, still to be validated.
+    pub fn version(&self) -> VersionRef {
+        VersionRef {
+            dataset: format!("{}/{}", self.org, self.name),
+            task: format!("{}/{}", self.task_org, self.task_name),
+            hash: self.hash.clone(),
+        }
+    }
+}
+
 /// `{id, createdAt, tasks: [{id, hash, createdAt}]}`: each task's latest version.
-#[get("/eval-datasets/{dataset}")]
+#[get("/eval-datasets/{org}/{name}")]
 pub async fn get_dataset(
-    path: web::Path<String>,
+    path: web::Path<DatasetPath>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
 ) -> ResponseResult {
-    handle_get_dataset(&project_api_key.project_id, &path, &db).await
+    handle_get_dataset(&project_api_key.project_id, &path.dataset(), &db).await
 }
 
 /// `{versions: [{task, hash}]}` → `{missing}`: the versions still to upload.
-#[post("/eval-datasets/{dataset}/versions/missing")]
+#[post("/eval-datasets/{org}/{name}/versions/missing")]
 pub async fn missing_versions(
-    path: web::Path<String>,
+    path: web::Path<DatasetPath>,
     body: Json<MissingVersionsRequest>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
 ) -> ResponseResult {
-    handle_missing_versions(&project_api_key.project_id, &path, body.into_inner(), &db).await
+    handle_missing_versions(
+        &project_api_key.project_id,
+        &path.dataset(),
+        body.into_inner(),
+        &db,
+    )
+    .await
 }
 
 /// Body: the version's archive (`.tar.gz`), streamed to S3. Postgres learns
 /// about the version only once its index arrives.
-#[put("/eval-datasets/{dataset}/tasks/{task}/versions/{hash}")]
+#[put("/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}")]
 pub async fn upload_version(
-    path: web::Path<VersionRef>,
+    path: web::Path<VersionPath>,
     payload: web::Payload,
     project_api_key: ProjectApiKey,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
-    handle_upload_version(&project_api_key.project_id, &path, payload, &storage).await
+    handle_upload_version(
+        &project_api_key.project_id,
+        &path.version(),
+        payload,
+        &storage,
+    )
+    .await
 }
 
 /// Body: the archive's file index. Makes the version its task's latest.
-#[put("/eval-datasets/{dataset}/tasks/{task}/versions/{hash}/index")]
+#[put("/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}/index")]
 pub async fn upload_version_index(
-    path: web::Path<VersionRef>,
+    path: web::Path<VersionPath>,
     payload: web::Payload,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
-    handle_upload_version_index(&project_api_key.project_id, &path, payload, &db, &storage).await
+    handle_upload_version_index(
+        &project_api_key.project_id,
+        &path.version(),
+        payload,
+        &db,
+        &storage,
+    )
+    .await
 }
 
-#[get("/eval-datasets/{dataset}/tasks/{task}/versions/{hash}")]
+#[get("/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}")]
 pub async fn download_version(
-    path: web::Path<VersionRef>,
+    path: web::Path<VersionPath>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,
 ) -> ResponseResult {
-    handle_download_version(&project_api_key.project_id, &path, &db, &storage).await
+    handle_download_version(&project_api_key.project_id, &path.version(), &db, &storage).await
 }
 
 /// `{tasks: [{task, hash, base}]}` → `{tasks: [{id, hash, createdAt}]}`; `409`
 /// with `versions_missing` or `moved` and nothing written otherwise.
-#[post("/eval-datasets/{dataset}/push")]
+#[post("/eval-datasets/{org}/{name}/push")]
 pub async fn push(
     req: HttpRequest,
-    path: web::Path<String>,
+    path: web::Path<DatasetPath>,
     body: Json<PushRequest>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
@@ -107,7 +164,7 @@ pub async fn push(
     handle_push(
         &req,
         &project_api_key.project_id,
-        &path,
+        &path.dataset(),
         body.into_inner(),
         &db,
     )
@@ -344,8 +401,7 @@ fn check_dataset(dataset: &str) -> Option<HttpResponse> {
             StatusCode::BAD_REQUEST,
             "invalid_name",
             format!(
-                "Invalid dataset name {dataset:?}: use letters, digits, '.', '_' and '-', \
-                 starting with a letter or digit, at most {} bytes",
+                "Invalid dataset name {dataset:?}: {NAME_RULE}, at most {} bytes",
                 eval_datasets::MAX_DATASET_NAME_BYTES
             ),
         )
@@ -358,8 +414,7 @@ fn check_task_hash(task: &str, hash: &str) -> Option<HttpResponse> {
             StatusCode::BAD_REQUEST,
             "invalid_name",
             format!(
-                "Invalid task name {task:?}: use letters, digits, '.', '_' and '-', \
-                 starting with a letter or digit, at most {} bytes",
+                "Invalid task name {task:?}: {NAME_RULE}, at most {} bytes",
                 eval_datasets::MAX_TASK_NAME_BYTES
             ),
         ));

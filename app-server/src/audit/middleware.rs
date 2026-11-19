@@ -126,7 +126,7 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
         ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
         // A push is what changes a dataset's pins. Version uploads only add
         // candidates (per-item traffic of a push), and reads are pull traffic.
-        ("POST", "/eval-datasets/{dataset}/push") => log_write(EvalDataset, Update),
+        ("POST", "/eval-datasets/{org}/{name}/push") => log_write(EvalDataset, Update),
         (_, p) if p.starts_with("/eval-datasets/") => Skip,
         (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
@@ -309,13 +309,18 @@ mod tests {
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
             (
                 Method::PUT,
-                "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}/index",
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}",
+            ),
+            (
+                Method::PUT,
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}/index",
             ),
             (
                 Method::GET,
-                "/eval-datasets/{dataset}/tasks/{task}/versions/{hash}",
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}",
             ),
-            (Method::GET, "/eval-datasets/{dataset}"),
+            (Method::GET, "/eval-datasets/{org}/{name}"),
+            (Method::POST, "/eval-datasets/{org}/{name}/versions/missing"),
             (Method::POST, "/mcp"),
         ] {
             assert_eq!(
@@ -341,7 +346,7 @@ mod tests {
             Some(log_read(AuditResource::Dataset, AuditAction::Export))
         );
         assert_eq!(
-            classify(&Method::POST, "/eval-datasets/{dataset}/push"),
+            classify(&Method::POST, "/eval-datasets/{org}/{name}/push"),
             Some(log_write(AuditResource::EvalDataset, AuditAction::Update))
         );
         assert_eq!(classify(&Method::POST, "/unknown"), None);

@@ -6,6 +6,7 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import Header from "@/components/ui/header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type EvalDatasetSummary } from "@/lib/actions/eval-datasets/types";
+import { nameToPath } from "@/lib/evaluation/trial-files";
 
 interface EvalDatasetsProps {
   projectId: string;
@@ -41,7 +42,7 @@ export default function EvalDatasets({ projectId, datasets }: EvalDatasetsProps)
                   <TableRow key={dataset.id} className="h-10 border-b last:border-b-0">
                     <TableCell className="px-3 font-medium">
                       <Link
-                        href={`/project/${projectId}/eval-datasets/${encodeURIComponent(dataset.id)}`}
+                        href={`/project/${projectId}/eval-datasets/${nameToPath(dataset.id)}`}
                         className="hover:underline"
                       >
                         {dataset.id}

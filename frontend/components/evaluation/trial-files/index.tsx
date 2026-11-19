@@ -15,7 +15,7 @@ const LOGS_PENDING = "logs/ arrives once the run's dataset finishes.";
 
 const taskHint = (task: TrialTaskSource | null): string => {
   if (!task) return "No task folder";
-  if (task.source === "dataset") return `task/: ${task.dataset}/${task.task} version ${shortHash(task.hash)}`;
+  if (task.source === "dataset") return `task/: ${task.task} version ${shortHash(task.hash)} in ${task.dataset}`;
   return `task/: ${task.path}, uploaded with the run (this version isn't in the dataset)`;
 };
 

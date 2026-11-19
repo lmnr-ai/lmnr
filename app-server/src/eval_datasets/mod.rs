@@ -14,11 +14,12 @@ use crate::db::{
     eval_datasets::{TaskHash, TaskVersion},
 };
 
-pub const MAX_DATASET_NAME_BYTES: usize = 100;
+pub const MAX_DATASET_NAME_BYTES: usize = 255;
 pub const MAX_TASK_NAME_BYTES: usize = 255;
 
-/// One version of a dataset's task, as the version routes name it in their path.
-#[derive(Deserialize, Debug)]
+/// One version of a dataset's task. The routes take each name as two path
+/// segments (`{org}/{name}`) and join them into these full names.
+#[derive(Debug)]
 pub struct VersionRef {
     pub dataset: String,
     pub task: String,
@@ -53,23 +54,31 @@ pub enum PushRejection {
     Moved(Vec<MovedTask>),
 }
 
-/// `^[A-Za-z0-9][A-Za-z0-9._-]*$`, at most 100 bytes. Names go into S3 keys, so
-/// no separators or dot segments get through.
+/// Harbor's `org/name` (`[dataset] name` in `dataset.toml`): two parts of
+/// `^[A-Za-z0-9][A-Za-z0-9._-]*$` joined by one `/`, no `..` anywhere, at most
+/// 255 bytes. Names go into S3 keys as exactly two segments, neither a dot segment.
 pub fn is_dataset_name(name: &str) -> bool {
     is_name(name, MAX_DATASET_NAME_BYTES)
 }
 
-/// Same alphabet as [`is_dataset_name`], at most 255 bytes.
+/// Same rule as [`is_dataset_name`] (`[task] name` in `task.toml`).
 pub fn is_task_name(name: &str) -> bool {
     is_name(name, MAX_TASK_NAME_BYTES)
 }
 
 fn is_name(name: &str, max_bytes: usize) -> bool {
-    match name.as_bytes() {
+    name.len() <= max_bytes
+        && !name.contains("..")
+        && name
+            .split_once('/')
+            .is_some_and(|(org, rest)| is_name_part(org) && is_name_part(rest))
+}
+
+fn is_name_part(part: &str) -> bool {
+    match part.as_bytes() {
         [] => false,
         [first, rest @ ..] => {
-            name.len() <= max_bytes
-                && first.is_ascii_alphanumeric()
+            first.is_ascii_alphanumeric()
                 && rest
                     .iter()
                     .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
@@ -92,6 +101,9 @@ pub fn index_key(project_id: &Uuid, version: &VersionRef) -> String {
     format!("{}.index.json", key_prefix(project_id, version))
 }
 
+/// `<project_id>/datasets/<org>/<name>/<task org>/<task name>/<hash>`. A valid name
+/// is exactly two segments, neither empty nor a dot segment, so the layout is fixed
+/// and distinct versions never share a key.
 fn key_prefix(project_id: &Uuid, version: &VersionRef) -> String {
     format!(
         "{project_id}/datasets/{}/{}/{}",
@@ -234,37 +246,46 @@ mod tests {
 
     #[test]
     fn names_follow_the_contract() {
+        let longest = format!("{}/{}", "o".repeat(127), "n".repeat(127));
         for good in [
-            "a",
-            "Z9",
-            "refund",
-            "customer-complaint",
-            "a.b_c-d",
-            "0..",
-            "x".repeat(100).as_str(),
+            "a/b",
+            "A.b-c_d/x1",
+            "acme/support",
+            "0/9",
+            "a.b/c.d",
+            longest.as_str(),
         ] {
             assert!(is_dataset_name(good), "{good}");
+            assert!(is_task_name(good), "{good}");
         }
-        let long = "x".repeat(101);
+        let too_long = format!("{}/{}", "o".repeat(128), "n".repeat(127));
         for bad in [
             "",
-            ".",
-            "..",
-            ".hidden",
-            "-a",
-            "_a",
-            "a/b",
-            "a\\b",
-            "a b",
-            "é",
-            "a\n",
-            long.as_str(),
+            "a",
+            "/",
+            "a/b/c",
+            "/b",
+            "a/",
+            "a//b",
+            ".a/b",
+            "a/.b",
+            "-a/b",
+            "_a/b",
+            "a/..b",
+            "a..b/c",
+            "a/b..",
+            "../b",
+            "a/..",
+            "a/b ",
+            "a b/c",
+            "a\\b/c",
+            "é/b",
+            "a/b\n",
+            too_long.as_str(),
         ] {
-            assert!(!is_dataset_name(bad), "{bad}");
+            assert!(!is_dataset_name(bad), "{bad:?}");
+            assert!(!is_task_name(bad), "{bad:?}");
         }
-        assert!(is_task_name(&"t".repeat(255)));
-        assert!(!is_task_name(&"t".repeat(256)));
-        assert!(!is_task_name("../x"));
     }
 
     #[test]
@@ -287,17 +308,17 @@ mod tests {
     fn keys_are_scoped_by_project_and_dataset() {
         let project_id = Uuid::nil();
         let version = VersionRef {
-            dataset: "support".to_string(),
-            task: "refund".to_string(),
+            dataset: "acme/support".to_string(),
+            task: "acme/refund".to_string(),
             hash: H1.to_string(),
         };
         assert_eq!(
             archive_key(&project_id, &version),
-            format!("{project_id}/datasets/support/refund/{H1}.tar.gz")
+            format!("{project_id}/datasets/acme/support/acme/refund/{H1}.tar.gz")
         );
         assert_eq!(
             index_key(&project_id, &version),
-            format!("{project_id}/datasets/support/refund/{H1}.index.json")
+            format!("{project_id}/datasets/acme/support/acme/refund/{H1}.index.json")
         );
     }
 

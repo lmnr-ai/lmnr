@@ -40,13 +40,17 @@ export interface TrialFiles {
   logsPending: boolean;
 }
 
-export const DATASET_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** Harbor's `org/name`, as `[dataset] name` / `[task] name` set it; `..` is refused separately. */
+export const EVAL_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const TASK_HASH_RE = /^[0-9a-f]{64}$/;
+const MAX_NAME_BYTES = 255;
 
-export const isDatasetName = (name: string): boolean =>
-  DATASET_NAME_RE.test(name) && new TextEncoder().encode(name).length <= 100;
-export const isTaskName = (name: string): boolean =>
-  DATASET_NAME_RE.test(name) && new TextEncoder().encode(name).length <= 255;
+/** A dataset or task name (the app-server's rule): `org/name`, no `..`, at most 255 bytes. */
+export const isEvalName = (name: string): boolean =>
+  EVAL_NAME_RE.test(name) && !name.includes("..") && new TextEncoder().encode(name).length <= MAX_NAME_BYTES;
+
+/** `org/name` as the two URL path segments the pages and routes take (`[org]/[name]`). */
+export const nameToPath = (name: string): string => name.split("/").map(encodeURIComponent).join("/");
 
 /** The exports-bucket prefix of a pushed task version (see the LAM-2562 storage layout). */
 export const taskVersionPrefix = (projectId: string, dataset: string, task: string, hash: string): string =>

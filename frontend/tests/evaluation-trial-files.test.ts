@@ -13,11 +13,14 @@ import {
 import { groupTaskVersions } from "@/lib/actions/eval-datasets/types";
 import {
   type ArchiveFile,
+  isEvalName,
   joinArchivePath,
   listTrialFiles,
+  nameToPath,
   resolveTrialPath,
   type TrialFiles,
   type TrialFileSources,
+  taskVersionPrefix,
 } from "@/lib/evaluation/trial-files";
 
 const files = (...paths: string[]) =>
@@ -61,8 +64,9 @@ describe("trial file sources", () => {
     "ds/tasks/refund-2/instruction.md"
   );
   const job = archive("refund__abc/trial.log", "refund__abc/agent/oracle.txt", "other__def/trial.log");
+  const versionPrefix = taskVersionPrefix("p", "acme/ds", "acme/refund", "h");
   const sources: TrialFileSources = {
-    task: { prefix: "p/datasets/ds/refund/h", dir: "", files: archive("instruction.md", "tests/test.sh") },
+    task: { prefix: versionPrefix, dir: "", files: archive("instruction.md", "tests/test.sh") },
     agent: { prefix: "hosted-evals/p/u", dir: joinArchivePath("ds", "agent"), files: upload },
     logs: { prefix: "hosted-evals/p/u/jobs/ds", dir: "refund__abc", files: job },
   };
@@ -91,7 +95,7 @@ describe("trial file sources", () => {
 
   it("resolves a tree path to its archive file only when listed", () => {
     assert.deepEqual(resolveTrialPath(sources, "task/tests/test.sh"), {
-      prefix: "p/datasets/ds/refund/h",
+      prefix: versionPrefix,
       path: "tests/test.sh",
     });
     assert.deepEqual(resolveTrialPath(sources, "agent/agent.py"), {
@@ -110,6 +114,10 @@ describe("trial file sources", () => {
     assert.equal(resolveTrialPath(sources, "task"), null);
     assert.equal(resolveTrialPath(sources, "/task/instruction.md"), null);
     assert.equal(resolveTrialPath({ task: sources.task }, "logs/trial.log"), null);
+  });
+
+  it("keys a task version by its dataset's and task's org/name", () => {
+    assert.equal(versionPrefix, "p/datasets/acme/ds/acme/refund/h");
   });
 
   it("joins archive paths, treating an empty or `.` suite path as the root", () => {
@@ -145,7 +153,7 @@ describe("Files visibility", () => {
   const found: TrialFiles = {
     trialId: "t",
     files: archive("task/instruction.md"),
-    task: { source: "dataset", dataset: "ds", task: "refund", hash: "h", pushedAt: "" },
+    task: { source: "dataset", dataset: "acme/ds", task: "acme/refund", hash: "h", pushedAt: "" },
     logsPending: false,
   };
   const notFound: TrialFiles = { trialId: "t", files: [], task: null, logsPending: false };
@@ -177,29 +185,63 @@ describe("Files visibility", () => {
   });
 
   it("looks a local trial up only when it can have a pushed version", () => {
-    const row = { id: "t", taskVersionHash: "a".repeat(64), metadata: JSON.stringify({ dataset_task: "refund" }) };
-    assert.equal(mayHaveTaskVersion(row, "ds"), true);
-    assert.equal(mayHaveTaskVersion({ ...row, taskVersionHash: undefined }, "ds"), true);
+    const row = { id: "t", taskVersionHash: "a".repeat(64), metadata: JSON.stringify({ dataset_task: "acme/refund" }) };
+    assert.equal(mayHaveTaskVersion(row, "acme/ds"), true);
+    assert.equal(mayHaveTaskVersion({ ...row, taskVersionHash: undefined }, "acme/ds"), true);
     assert.equal(mayHaveTaskVersion(row, null), false);
-    assert.equal(mayHaveTaskVersion({ ...row, taskVersionHash: "" }, "ds"), false);
-    assert.equal(mayHaveTaskVersion({ ...row, metadata: "{}" }, "ds"), false);
-    assert.equal(mayHaveTaskVersion(undefined, "ds"), false);
+    assert.equal(mayHaveTaskVersion({ ...row, taskVersionHash: "" }, "acme/ds"), false);
+    assert.equal(mayHaveTaskVersion({ ...row, metadata: "{}" }, "acme/ds"), false);
+    assert.equal(mayHaveTaskVersion(undefined, "acme/ds"), false);
   });
 });
 
 describe("groupTaskVersions", () => {
   it("groups by task and keeps the query's newest-first order", () => {
     const tasks = groupTaskVersions([
-      { taskId: "a", hash: "h2", pushedAt: "2026-01-02T00:00:00.000Z" },
-      { taskId: "a", hash: "h1", pushedAt: "2026-01-01T00:00:00.000Z" },
-      { taskId: "b", hash: "h3", pushedAt: "2026-01-03T00:00:00.000Z" },
+      { taskId: "acme/a", hash: "h2", pushedAt: "2026-01-02T00:00:00.000Z" },
+      { taskId: "acme/a", hash: "h1", pushedAt: "2026-01-01T00:00:00.000Z" },
+      { taskId: "acme/b", hash: "h3", pushedAt: "2026-01-03T00:00:00.000Z" },
     ]);
     assert.deepEqual(
       tasks.map((t) => [t.id, t.versions.map((v) => v.hash)]),
       [
-        ["a", ["h2", "h1"]],
-        ["b", ["h3"]],
+        ["acme/a", ["h2", "h1"]],
+        ["acme/b", ["h3"]],
       ]
     );
+  });
+});
+
+describe("eval dataset and task names", () => {
+  it("are Harbor's org/name: two parts, no '..', at most 255 bytes", () => {
+    const longest = `${"o".repeat(127)}/${"n".repeat(127)}`;
+    for (const good of ["a/b", "A.b-c_d/x1", "acme/support", "a.b/c.d", longest]) {
+      assert.equal(isEvalName(good), true, good);
+    }
+    const tooLong = `${"o".repeat(128)}/${"n".repeat(127)}`;
+    for (const bad of [
+      "",
+      "a",
+      "a/b/c",
+      "/b",
+      "a/",
+      "a//b",
+      ".a/b",
+      "-a/b",
+      "a/..b",
+      "a..b/c",
+      "../b",
+      "a/b ",
+      "a/b\n",
+      "é/b",
+      "a%2Fb/c",
+      tooLong,
+    ]) {
+      assert.equal(isEvalName(bad), false, JSON.stringify(bad));
+    }
+  });
+
+  it("map onto two URL path segments", () => {
+    assert.equal(nameToPath("acme/refund-double-charge"), "acme/refund-double-charge");
   });
 });

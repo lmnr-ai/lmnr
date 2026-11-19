@@ -8,9 +8,11 @@ export const metadata: Metadata = {
   title: "Eval dataset",
 };
 
-export default async function EvalDatasetPage(props: { params: Promise<{ projectId: string; datasetId: string }> }) {
-  const { projectId, datasetId } = await props.params;
-  const dataset = await getEvalDataset(projectId, datasetId);
+export default async function EvalDatasetPage(props: {
+  params: Promise<{ projectId: string; org: string; name: string }>;
+}) {
+  const { projectId, org, name } = await props.params;
+  const dataset = await getEvalDataset(projectId, `${org}/${name}`);
   if (!dataset) {
     return notFound();
   }

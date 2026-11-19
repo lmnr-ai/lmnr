@@ -5,13 +5,7 @@ import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { datasetsV2, tasks, taskVersions } from "@/lib/db/migrations/schema";
 import { ascNameFold } from "@/lib/db/utils";
-import {
-  type ArchiveFile,
-  isDatasetName,
-  isTaskName,
-  TASK_HASH_RE,
-  taskVersionPrefix,
-} from "@/lib/evaluation/trial-files";
+import { type ArchiveFile, isEvalName, TASK_HASH_RE, taskVersionPrefix } from "@/lib/evaluation/trial-files";
 
 import { type EvalDataset, type EvalDatasetSummary, groupTaskVersions } from "./types";
 
@@ -49,7 +43,7 @@ export const getEvalDatasets = async (projectId: string): Promise<EvalDatasetSum
 
 /** The dataset with every version of each task; null when the project has no such dataset. */
 export const getEvalDataset = async (projectId: string, datasetId: string): Promise<EvalDataset | null> => {
-  if (!isDatasetName(datasetId)) return null;
+  if (!isEvalName(datasetId)) return null;
   const dataset = await db.query.datasetsV2.findFirst({
     columns: { id: true, createdAt: true },
     where: and(eq(datasetsV2.projectId, projectId), eq(datasetsV2.id, datasetId)),
@@ -69,7 +63,7 @@ export const getEvalDataset = async (projectId: string, datasetId: string): Prom
 
 /** The archive of a pushed task version, which must have a `task_versions` row in the project. */
 const getVersionPrefix = async (projectId: string, datasetId: string, taskId: string, hash: string) => {
-  if (!isDatasetName(datasetId) || !isTaskName(taskId) || !TASK_HASH_RE.test(hash)) {
+  if (!isEvalName(datasetId) || !isEvalName(taskId) || !TASK_HASH_RE.test(hash)) {
     throw new NotFoundError("Task version not found");
   }
   const version = await db.query.taskVersions.findFirst({
