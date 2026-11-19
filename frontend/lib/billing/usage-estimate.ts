@@ -29,10 +29,14 @@ export interface BillEstimate {
   totalUsd: number;
 }
 
+// Signals cost billed past the plan's monthly allowance, in micro-USD.
+export const billableSignalCostMicroUsd = (costMicroUsd: number, includedMicroUsd: number): number =>
+  Math.max(0, costMicroUsd - includedMicroUsd);
+
 export interface BillInputs {
   gbUsed: number;
   includedGB: number;
-  // Excludes runs paid for by the one-time Signals credit.
+  // Signals cost past the plan's monthly allowance.
   billableSignalCostMicroUsd: number;
 }
 

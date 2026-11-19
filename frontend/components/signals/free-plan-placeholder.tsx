@@ -37,7 +37,7 @@ export default function SignalsFreePlanPlaceholder() {
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pt-8">
           <div className="flex flex-col gap-3">
             <span className="self-start rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
-              Starter and Pro
+              Pro and Scale
             </span>
             <h1 className="text-2xl font-medium">Signals answer any question, from any trace, at scale.</h1>
             <p className="text-sm text-muted-foreground">
@@ -94,7 +94,7 @@ export default function SignalsFreePlanPlaceholder() {
 
           <UpgradeNotice
             title="Signals aren't included in the Free plan"
-            description="Upgrade to Starter to run Signals, see clusters and get Slack alerts."
+            description="Upgrade to Pro to run Signals, see clusters and get Slack alerts."
             source="signals"
             actions={
               <a href="https://laminar.sh/docs/signals" target="_blank" rel="noopener noreferrer">

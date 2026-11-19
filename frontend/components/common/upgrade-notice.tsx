@@ -8,8 +8,9 @@ import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
-import { TRIAL_DAYS } from "@/lib/actions/checkout/types";
+import { type PaidTier, TRIAL_DAYS } from "@/lib/actions/checkout/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
+import { TIERS } from "@/lib/billing/tiers";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
@@ -18,18 +19,18 @@ interface UpgradeNoticeProps {
   description: string;
   source: string;
   actions?: ReactNode;
-  /** The plan that unlocks the feature. The free trial is of Starter, so it is only offered for Starter. */
-  tier?: "Starter" | "Pro";
+  /** The plan that unlocks the feature. The free trial is of the `hobby` tier, so it is only offered for `hobby`. */
+  tier?: PaidTier;
 }
 
-export default function UpgradeNotice({ title, description, source, actions, tier = "Starter" }: UpgradeNoticeProps) {
+export default function UpgradeNotice({ title, description, source, actions, tier = "hobby" }: UpgradeNoticeProps) {
   const { project, settingsHref } = useProjectContext();
   const router = useRouter();
   const { toast } = useToast();
   const [isStarting, setIsStarting] = useState(false);
   const workspaceId = project?.workspaceId;
   const { data } = useSWR<{ eligible: boolean }>(
-    workspaceId && tier === "Starter" ? `/api/workspaces/${workspaceId}/subscription/trial/eligibility` : null,
+    workspaceId && tier === "hobby" ? `/api/workspaces/${workspaceId}/subscription/trial/eligibility` : null,
     swrFetcher
   );
 
@@ -66,7 +67,7 @@ export default function UpgradeNotice({ title, description, source, actions, tie
         ) : (
           <Link href={settingsHref("billing")} onClick={() => track("billing", "upgrade_clicked", { source })}>
             <Button>
-              Upgrade to {tier}
+              Upgrade to {TIERS[tier].name}
               <ArrowUpRight className="ml-1 size-3.5" />
             </Button>
           </Link>
