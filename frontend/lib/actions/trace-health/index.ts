@@ -17,6 +17,7 @@ import {
   RAW_LLM_NO_MODEL,
   RAW_LLM_NO_OUTPUT,
   RAW_LLM_NO_USAGE,
+  RAW_LLM_OK,
   RAW_TOOL,
   RAW_TOOL_NO_OUTPUT,
 } from "@/lib/trace-health/sql";
@@ -46,6 +47,7 @@ const SPAN_CHECKS_QUERY = `
   SELECT
     sum(n_llm) AS llmSpans,
     sum(n_tool) AS toolSpans,
+    sum(n_llm_ok) AS llmOkSpans,
     sum(n_llm_with_tokens) AS llmSpansWithTokens,
     sum(n_llm_no_input) AS llmNoInput,
     arraySlice(groupArrayArray(ids_llm_no_input), 1, ${MAX_IDS}) AS llmNoInputIds,
@@ -64,6 +66,7 @@ const SPAN_CHECKS_QUERY = `
       trace_id,
       countIf(${RAW_LLM}) AS n_llm,
       countIf(${RAW_TOOL}) AS n_tool,
+      countIf(${RAW_LLM_OK}) AS n_llm_ok,
       countIf(${RAW_LLM} AND total_tokens > 0) AS n_llm_with_tokens,
       countIf(${RAW_LLM_NO_INPUT}) AS n_llm_no_input,
       groupArrayIf(${MAX_IDS})(span_id, ${RAW_LLM_NO_INPUT}) AS ids_llm_no_input,
@@ -94,6 +97,7 @@ interface RecentTraceRow {
 interface SpanChecksRow {
   llmSpans: Num;
   toolSpans: Num;
+  llmOkSpans: Num;
   llmSpansWithTokens: Num;
   llmNoInput: Num;
   llmNoInputIds: string[];
@@ -166,7 +170,7 @@ export async function getTraceHealth(input: z.infer<typeof GetTraceHealthSchema>
       result("llm-missing-output", s.llmSpans, s.llmNoOutput, s.llmNoOutputIds),
       result("tool-missing-output", s.toolSpans, s.toolNoOutput, s.toolNoOutputIds),
       result("llm-missing-model", s.llmSpans, s.llmNoModel),
-      result("llm-missing-usage", s.llmSpans, s.llmNoUsage),
+      result("llm-missing-usage", s.llmOkSpans, s.llmNoUsage),
       result("llm-missing-cost", s.llmSpansWithTokens, s.llmNoCost),
       result("multiple-root-spans", s.traces, s.multiRoot, s.multiRootIds)
     );

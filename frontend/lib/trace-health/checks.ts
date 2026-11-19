@@ -129,7 +129,11 @@ export const TRACE_HEALTH_CHECKS: TraceHealthCheck[] = [
     unit: "LLM spans",
     table: {
       view: "spans",
-      filters: [LLM_SPANS, { column: "total_tokens", operator: Operator.Eq, value: 0, dataType: "number" }],
+      filters: [
+        LLM_SPANS,
+        { column: "status", operator: Operator.Eq, value: "success", dataType: "string" },
+        { column: "total_tokens", operator: Operator.Eq, value: 0, dataType: "number" },
+      ],
     },
   },
   {
