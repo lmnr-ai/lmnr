@@ -440,6 +440,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5-mini", &req);
@@ -465,6 +466,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
@@ -499,6 +501,7 @@ mod tests {
             }]),
             generation_config: None,
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
@@ -526,6 +529,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
 
@@ -561,6 +565,7 @@ mod tests {
                 ..Default::default()
             }),
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         };
 

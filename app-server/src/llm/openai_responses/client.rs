@@ -2,13 +2,14 @@
 
 use super::conversions::{parse_openai_responses_response, provider_request_to_responses_body};
 use crate::llm::openai::{
-    OpenAIError, OpenAIExplicitConfig, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult,
+    OpenAIError, OpenAIExplicitConfig, OpenAIFlavor, OpenAIHttpConfig, OpenAIResult, affinity_for,
     build_http_config, build_http_config_from, endpoint_url, send_openai_request,
 };
 use crate::llm::{
     LanguageModelClient, ProviderResult,
     models::{ProviderRequest, ProviderResponse},
 };
+use reqwest::header::HeaderName;
 
 /// OpenAI provider using the Responses API (`/responses`). Registered under the
 /// `openai_responses` provider name (via `LLM_PROVIDER`), separate from the
@@ -20,6 +21,7 @@ pub struct OpenAIResponsesClient {
     api_base_url: String,
     api_version: Option<String>,
     flavor: OpenAIFlavor,
+    affinity_header: Option<HeaderName>,
 }
 
 impl OpenAIResponsesClient {
@@ -48,6 +50,7 @@ impl OpenAIResponsesClient {
             api_base_url,
             api_version,
             flavor,
+            affinity_header,
         } = config;
         Self {
             client,
@@ -55,6 +58,7 @@ impl OpenAIResponsesClient {
             api_base_url,
             api_version,
             flavor,
+            affinity_header,
         }
     }
 
@@ -80,8 +84,15 @@ impl LanguageModelClient for OpenAIResponsesClient {
         let body = provider_request_to_responses_body(model, request)?;
         let url = self.url();
 
-        let response =
-            send_openai_request(&self.client, self.flavor, &self.api_key, &url, &body).await?;
+        let response = send_openai_request(
+            &self.client,
+            self.flavor,
+            &self.api_key,
+            &url,
+            &body,
+            affinity_for(&self.affinity_header, request),
+        )
+        .await?;
         let response_text = response.text().await.map_err(OpenAIError::from)?;
         let response_json: serde_json::Value =
             serde_json::from_str(&response_text).map_err(OpenAIError::from)?;

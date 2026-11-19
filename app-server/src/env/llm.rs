@@ -19,6 +19,11 @@ pub const API_KEY: &str = "LLM_API_KEY";
 pub const BASE_URL: &str = "LLM_BASE_URL";
 /// Optional JSON map of default headers sent on every LLM request.
 pub const DEFAULT_HEADERS_JSON: &str = "LLM_DEFAULT_HEADERS_JSON";
+/// Optional header name the OpenAI-compatible clients put a request's affinity
+/// key in (signal steps use the run id), e.g. `Modal-Routing-Affinity-Key` so a
+/// replicated backend keeps every turn of a run on the replica that already
+/// cached its prefix. Unset = no header.
+pub const AFFINITY_HEADER: &str = "LLM_AFFINITY_HEADER";
 
 /// Azure AI Foundry resource name — the `<name>` in
 /// `https://<name>.services.ai.azure.com`. One host serves every API shape, so all

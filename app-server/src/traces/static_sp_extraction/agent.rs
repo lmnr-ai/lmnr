@@ -234,6 +234,7 @@ async fn run_agent_loop(
                 ..Default::default()
             }),
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::feature(
                 LlmFeature::StaticPromptExtraction,
                 tracing_ctx.source_project_id,

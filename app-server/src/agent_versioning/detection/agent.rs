@@ -201,6 +201,7 @@ impl<'a> DetectionAgent<'a> {
                     ..Default::default()
                 }),
                 service_tier: None,
+                affinity_key: None,
                 route: LlmRoute::feature(LlmFeature::AgentDetection, Some(self.project_id)),
             };
             let parts = self.generate(&request, step).await?;
