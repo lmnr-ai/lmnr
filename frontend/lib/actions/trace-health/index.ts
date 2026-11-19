@@ -11,11 +11,13 @@ import {
 } from "@/lib/trace-health/checks";
 import {
   IS_ROOT,
-  LLM_NO_COST,
-  LLM_NO_MODEL,
-  LLM_NO_USAGE,
+  RAW_LLM,
+  RAW_LLM_NO_COST,
   RAW_LLM_NO_INPUT,
+  RAW_LLM_NO_MODEL,
   RAW_LLM_NO_OUTPUT,
+  RAW_LLM_NO_USAGE,
+  RAW_TOOL,
   RAW_TOOL_NO_OUTPUT,
 } from "@/lib/trace-health/sql";
 
@@ -36,13 +38,21 @@ const recentTracesQuery = (days: number | null) => `
 
 const MAX_IDS = TRACE_HEALTH_MAX_LINKED_IDS;
 
+// Raw `spans`, not the query engine's view: see RAW_LLM_NO_INPUT. Bypassing the engine means scoping
+// to the project here; the trace ids come from the engine-scoped lookup above.
 // Per-trace counts first, so the root-span check (a per-trace property) shares the scan with the span checks.
-// A trace's spans never start before the trace, so the oldest trace start bounds the span scan.
+// A trace's spans never start before the trace, so the oldest trace start bounds the scan.
 const SPAN_CHECKS_QUERY = `
   SELECT
     sum(n_llm) AS llmSpans,
     sum(n_tool) AS toolSpans,
     sum(n_llm_with_tokens) AS llmSpansWithTokens,
+    sum(n_llm_no_input) AS llmNoInput,
+    arraySlice(groupArrayArray(ids_llm_no_input), 1, ${MAX_IDS}) AS llmNoInputIds,
+    sum(n_llm_no_output) AS llmNoOutput,
+    arraySlice(groupArrayArray(ids_llm_no_output), 1, ${MAX_IDS}) AS llmNoOutputIds,
+    sum(n_tool_no_output) AS toolNoOutput,
+    arraySlice(groupArrayArray(ids_tool_no_output), 1, ${MAX_IDS}) AS toolNoOutputIds,
     sum(n_llm_no_model) AS llmNoModel,
     sum(n_llm_no_usage) AS llmNoUsage,
     sum(n_llm_no_cost) AS llmNoCost,
@@ -52,33 +62,25 @@ const SPAN_CHECKS_QUERY = `
   FROM (
     SELECT
       trace_id,
-      countIf(span_type = 'LLM') AS n_llm,
-      countIf(span_type = 'TOOL') AS n_tool,
-      countIf(span_type = 'LLM' AND total_tokens > 0) AS n_llm_with_tokens,
-      countIf(${LLM_NO_MODEL}) AS n_llm_no_model,
-      countIf(${LLM_NO_USAGE}) AS n_llm_no_usage,
-      countIf(${LLM_NO_COST}) AS n_llm_no_cost,
+      countIf(${RAW_LLM}) AS n_llm,
+      countIf(${RAW_TOOL}) AS n_tool,
+      countIf(${RAW_LLM} AND total_tokens > 0) AS n_llm_with_tokens,
+      countIf(${RAW_LLM_NO_INPUT}) AS n_llm_no_input,
+      groupArrayIf(${MAX_IDS})(span_id, ${RAW_LLM_NO_INPUT}) AS ids_llm_no_input,
+      countIf(${RAW_LLM_NO_OUTPUT}) AS n_llm_no_output,
+      groupArrayIf(${MAX_IDS})(span_id, ${RAW_LLM_NO_OUTPUT}) AS ids_llm_no_output,
+      countIf(${RAW_TOOL_NO_OUTPUT}) AS n_tool_no_output,
+      groupArrayIf(${MAX_IDS})(span_id, ${RAW_TOOL_NO_OUTPUT}) AS ids_tool_no_output,
+      countIf(${RAW_LLM_NO_MODEL}) AS n_llm_no_model,
+      countIf(${RAW_LLM_NO_USAGE}) AS n_llm_no_usage,
+      countIf(${RAW_LLM_NO_COST}) AS n_llm_no_cost,
       countIf(${IS_ROOT}) AS n_roots
     FROM spans
-    WHERE trace_id IN ({traceIds: Array(UUID)}) AND start_time >= {oldestStart: String}
+    WHERE project_id = {projectId: UUID}
+      AND trace_id IN ({traceIds: Array(UUID)})
+      AND start_time >= {oldestStart: DateTime64(9, 'UTC')}
     GROUP BY trace_id
   )
-`;
-
-// Raw `spans`, not the query engine's view: see RAW_LLM_NO_INPUT. Bypassing the engine means scoping
-// to the project here; the trace ids come from the engine-scoped lookup above.
-const IO_CHECKS_QUERY = `
-  SELECT
-    countIf(${RAW_LLM_NO_INPUT}) AS llmNoInput,
-    groupArrayIf(${MAX_IDS})(span_id, ${RAW_LLM_NO_INPUT}) AS llmNoInputIds,
-    countIf(${RAW_LLM_NO_OUTPUT}) AS llmNoOutput,
-    groupArrayIf(${MAX_IDS})(span_id, ${RAW_LLM_NO_OUTPUT}) AS llmNoOutputIds,
-    countIf(${RAW_TOOL_NO_OUTPUT}) AS toolNoOutput,
-    groupArrayIf(${MAX_IDS})(span_id, ${RAW_TOOL_NO_OUTPUT}) AS toolNoOutputIds
-  FROM spans
-  WHERE project_id = {projectId: UUID}
-    AND trace_id IN ({traceIds: Array(UUID)})
-    AND start_time >= {oldestStart: DateTime64(9, 'UTC')}
 `;
 
 type Num = number | string;
@@ -93,21 +95,18 @@ interface SpanChecksRow {
   llmSpans: Num;
   toolSpans: Num;
   llmSpansWithTokens: Num;
-  llmNoModel: Num;
-  llmNoUsage: Num;
-  llmNoCost: Num;
-  traces: Num;
-  multiRoot: Num;
-  multiRootIds: string[];
-}
-
-interface IoChecksRow {
   llmNoInput: Num;
   llmNoInputIds: string[];
   llmNoOutput: Num;
   llmNoOutputIds: string[];
   toolNoOutput: Num;
   toolNoOutputIds: string[];
+  llmNoModel: Num;
+  llmNoUsage: Num;
+  llmNoCost: Num;
+  traces: Num;
+  multiRoot: Num;
+  multiRootIds: string[];
 }
 
 const result = (
@@ -135,13 +134,16 @@ const getRecentTraces = async (projectId: string) => {
   return traces;
 };
 
-const getIoChecks = async (projectId: string, traceIds: string[], oldestStart: string) => {
+const getSpanChecks = async (projectId: string, traceIds: string[], oldestStart: string) => {
   const result = await clickhouseClient.query({
-    query: IO_CHECKS_QUERY,
+    query: SPAN_CHECKS_QUERY,
     format: "JSONEachRow",
     query_params: { projectId, traceIds, oldestStart },
+    // Reads `length(input)` from the column's size subcolumn instead of the payload itself. Prod pins
+    // `compatibility = 24.6`, which turns this off and makes the query read every raw payload.
+    clickhouse_settings: { optimize_functions_to_subcolumns: 1 },
   });
-  const [row] = await result.json<IoChecksRow>();
+  const [row] = await result.json<SpanChecksRow>();
   return row;
 };
 
@@ -157,24 +159,17 @@ export async function getTraceHealth(input: z.infer<typeof GetTraceHealthSchema>
   const results = [result("traces-missing-session", traces.length, noSession.length)];
   const traceIds = traces.map((t) => t.id);
 
-  const [[s], io] = await Promise.all([
-    executeQuery<SpanChecksRow>({ query: SPAN_CHECKS_QUERY, parameters: { traceIds, oldestStart }, projectId }),
-    getIoChecks(projectId, traceIds, oldestStart),
-  ]);
+  const s = await getSpanChecks(projectId, traceIds, oldestStart);
   if (s) {
     results.push(
+      result("llm-missing-input", s.llmSpans, s.llmNoInput, s.llmNoInputIds),
+      result("llm-missing-output", s.llmSpans, s.llmNoOutput, s.llmNoOutputIds),
+      result("tool-missing-output", s.toolSpans, s.toolNoOutput, s.toolNoOutputIds),
       result("llm-missing-model", s.llmSpans, s.llmNoModel),
       result("llm-missing-usage", s.llmSpans, s.llmNoUsage),
       result("llm-missing-cost", s.llmSpansWithTokens, s.llmNoCost),
       result("multiple-root-spans", s.traces, s.multiRoot, s.multiRootIds)
     );
-    if (io) {
-      results.push(
-        result("llm-missing-input", s.llmSpans, io.llmNoInput, io.llmNoInputIds),
-        result("llm-missing-output", s.llmSpans, io.llmNoOutput, io.llmNoOutputIds),
-        result("tool-missing-output", s.toolSpans, io.toolNoOutput, io.toolNoOutputIds)
-      );
-    }
   }
 
   return { traceCount: traces.length, oldestStart: toIso(oldestStart), results };

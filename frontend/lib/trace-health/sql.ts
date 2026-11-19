@@ -11,13 +11,18 @@ export const LLM_NO_USAGE = "span_type = 'LLM' AND total_tokens = 0";
 export const LLM_NO_COST = "span_type = 'LLM' AND total_tokens > 0 AND total_cost = 0";
 export const IS_ROOT = `parent_span_id = toUUID('${NIL_UUID}')`;
 
-// Same checks over the raw `spans` table. The view rebuilds each deduped payload from the content
-// dictionaries just to measure it, which exceeds the query memory limit on large projects; a raw row
-// carries content only as message hashes or as a literal payload, so either one being present is enough.
+// Same checks over the raw `spans` table, which the dialog queries. The view rebuilds each deduped
+// payload from the content dictionaries just to measure it (~100x the memory); a raw row carries
+// content only as message hashes or as a literal payload, so either one being present is enough.
 // span_kind 1 = LLM, 6 = TOOL.
-export const RAW_LLM_NO_INPUT = "span_kind = 1 AND empty(input_message_hashes) AND length(input) <= 4";
-export const RAW_LLM_NO_OUTPUT = "span_kind = 1 AND empty(output_message_hashes) AND length(output) <= 4";
-export const RAW_TOOL_NO_OUTPUT = "span_kind = 6 AND empty(output_message_hashes) AND length(output) <= 4";
+export const RAW_LLM = "span_kind = 1";
+export const RAW_TOOL = "span_kind = 6";
+export const RAW_LLM_NO_INPUT = `${RAW_LLM} AND empty(input_message_hashes) AND length(input) <= 4`;
+export const RAW_LLM_NO_OUTPUT = `${RAW_LLM} AND empty(output_message_hashes) AND length(output) <= 4`;
+export const RAW_TOOL_NO_OUTPUT = `${RAW_TOOL} AND empty(output_message_hashes) AND length(output) <= 4`;
+export const RAW_LLM_NO_MODEL = `${RAW_LLM} AND model = ''`;
+export const RAW_LLM_NO_USAGE = `${RAW_LLM} AND total_tokens = 0`;
+export const RAW_LLM_NO_COST = `${RAW_LLM} AND total_tokens > 0 AND total_cost = 0`;
 
 /** Per-trace column for each span-level check, used in the copied prompt's verification query. */
 export const SPAN_CHECK_COLUMNS: Partial<Record<TraceHealthCheckId, string>> = {
