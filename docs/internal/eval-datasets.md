@@ -10,7 +10,7 @@
 
 - `app-server/src/eval_datasets/mod.rs`: name and hash rules, S3 key builders, the push transaction and its pure checks (`check_push`, `has_moved`, `latest`, unit-tested). `db/eval_datasets.rs`: the queries. Routes: `api/v1/eval_datasets.rs` (with the `DatasetPath` / `VersionPath` extractors that join path segments into full names), CLI twins `api/v1/cli/eval_datasets.rs` (every route, only the extractor differs).
 - Streamed bodies, the index check and `upstream_error` are shared with hosted evals through `api/v1/payload.rs`.
-- Postgres (migration `0134`): `datasets_v2 (project_id, id)`, `tasks (project_id, dataset_id, id)`, `task_versions (project_id, dataset_id, task_id, hash, created_at)`. Ids are the full `org/name` names. `evaluations.dataset_v2_id` has no FK: a local run of an unpushed dataset still records its name.
+- Postgres (migration `0135`; its SQL is hand-kept because `drizzle-kit generate` renders an index column that has `.op()` without its `DESC NULLS FIRST`, so after regenerating restore `task_versions_latest_idx` by hand): `datasets_v2 (project_id, id)`, `tasks (project_id, dataset_id, id)`, `task_versions (project_id, dataset_id, task_id, hash, created_at)`. Ids are the full `org/name` names. `evaluations.dataset_v2_id` has no FK: a local run of an unpushed dataset still records its name.
 - ClickHouse (migration `87`): `evaluation_datapoints.task_version_hash` (`''` when unknown), exposed in `evaluation_datapoints_v0` and the SQL editor's `evaluation_trials`.
 - Storage: `S3_EXPORTS_BUCKET`, gated on `Feature::Storage` only (no Daytona / hosted evals needed). Without it every route answers `501 {code: "storage_not_configured"}`.
 

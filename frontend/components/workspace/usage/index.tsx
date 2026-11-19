@@ -84,10 +84,18 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner, tri
       <SettingsSectionHeader title="Usage" description="Monitor your workspace usage" />
 
       {trial && <TrialUsageNotice trial={trial} />}
-      {isPaid && bill && !trial && <PlanOverview tier={tier} bill={bill} model={model} period={cycleRange} />}
+      {isPaid && bill && (
+        <PlanOverview
+          tier={tier}
+          bill={bill}
+          model={model}
+          period={trial ? cycleLabel : cycleRange}
+          trialEndsAt={trial?.endsAt}
+        />
+      )}
 
       <SettingsSection>
-        {!(isPaid && bill && !trial) && (
+        {!(isPaid && bill) && (
           <p className="text-sm text-muted-foreground">
             {tier === "free"
               ? `${cycleLabel}. The Free plan is never billed. Data stops once the included amount is used up, and Signals aren't included.`

@@ -127,7 +127,7 @@ export const startStarterTrial = async (input: z.infer<typeof StartTrialSchema>)
   const prices = await s.prices.list({ lookup_keys: [TIER_CONFIG.hobby.lookupKey] });
   const flatPrice = prices.data.find((p) => p.lookup_key === TIER_CONFIG.hobby.lookupKey);
   if (!flatPrice) {
-    throw new Error("Could not resolve Starter price in Stripe");
+    throw new Error("Could not resolve Pro price in Stripe");
   }
 
   // Overage prices are attached only on conversion: a card-less trial must never accrue metered charges.
@@ -325,8 +325,10 @@ export const handleTrialConversion = async (
 
   await attachOveragePrices(subscription);
   // The first paid invoice carries only the flat price, so invoice.finalized never resets usage for it.
+  // Trials are uncapped, so the paid period must start exactly at the trial end: no trial usage
+  // rolls into it.
   const periodStart = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
-  await handleInvoiceFinalized(workspaceId, true, true, periodStart);
+  await handleInvoiceFinalized(workspaceId, true, true, periodStart, { exactStart: true });
   if (await endTrial(workspaceId, "converted")) {
     const trialDays =
       subscription.trial_start && subscription.trial_end

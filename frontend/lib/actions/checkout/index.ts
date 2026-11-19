@@ -7,10 +7,10 @@ import { z } from "zod/v4";
 import { stripe } from "@/lib/actions/checkout/stripe";
 import { findPaymentMethod } from "@/lib/actions/checkout/trial";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import { calculateBillableSignalCostMicroUsd } from "@/lib/actions/usage/signal-credit";
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { normalizeTier } from "@/lib/billing/tiers";
+import { billableSignalCostMicroUsd } from "@/lib/billing/usage-estimate";
 import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
@@ -256,10 +256,9 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     newMegabytesOverageStr = (10 ** 15 - 1).toString();
   }
 
-  // Credited runs are excluded from the Stripe meter baseline.
-  const newSignalCostOverageMicroUsd = calculateBillableSignalCostMicroUsd(
+  // Runs covered by the retired one-time credit stay out of the Stripe meter baseline.
+  const newSignalCostOverageMicroUsd = billableSignalCostMicroUsd(
     usage.uncreditedSignalCostMicroUsd,
-    0,
     newTierConfig.includedSignalCostMicroUsd
   );
   const newSignalCostOverageUsd = (newSignalCostOverageMicroUsd / 1_000_000).toFixed(5);

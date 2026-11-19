@@ -73,10 +73,10 @@ export default function AuditLog({ workspaceId, available }: AuditLogProps) {
         </InfiniteDataTableProvider>
       ) : (
         <UpgradeNotice
-          title="The audit log is available on the Pro plan"
-          description="Upgrade to Pro to see who changed what in your workspace and who accessed trace data."
+          title="The audit log is available on the Scale plan"
+          description="Upgrade to Scale to see who changed what in your workspace and who accessed trace data."
           source="audit-log"
-          tier="Pro"
+          tier="pro"
         />
       )}
     </>

@@ -216,7 +216,7 @@ const SharedSettings = ({
               <SettingsSectionHeader title="Integrations" description="Manage your workspace integrations" />
               <UpgradeNotice
                 title="Slack alerts aren't included in the Free plan"
-                description="Upgrade to Starter to get Signal events and clusters in Slack."
+                description="Upgrade to Pro to get Signal events and clusters in Slack."
                 source="integrations"
               />
             </>
@@ -290,7 +290,7 @@ const SharedSettings = ({
               <SettingsSectionHeader title="Alerts" description="Get notified about new events or clusters." />
               <UpgradeNotice
                 title="Alerts aren't included in the Free plan"
-                description="Upgrade to Starter to get alerts on Signal events and clusters by Slack and email."
+                description="Upgrade to Pro to get alerts on Signal events and clusters by Slack and email."
                 source="alerts"
               />
             </>

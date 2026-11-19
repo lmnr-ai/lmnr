@@ -159,9 +159,9 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling |
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
 | `docs/internal/audit.md` | Workspace audit log (`audit_events`), `handlerWithAudit`/`handlerNoAudit` route wrappers, `/v1` audit middleware, `sql.query` events, `SqlQuerySource` |
-| `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |
+| `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, MCP OAuth (frontend as authorization server), project API keys |
 | `docs/internal/rbac.md` | `piiMode` (off/redact/dual), PII masks (`*_masks`, `pii_checked`, redactor contract), `spans_v1`/`traces_v1` policy param, `AccessPolicy` (`maskPii`, `traceFilters`), `trace_access_policy_dict`, SQL route `actor`, role-based PII masking |
-| `docs/internal/billing.md` | Tiers, Starter free trial, usage warnings/hard limits, signal cost metering, custom model costs |
+| `docs/internal/billing.md` | Tiers (display names vs internal keys), free trial, usage warnings/hard limits, signal cost metering, custom model costs |
 | `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
@@ -173,7 +173,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
 | `docs/internal/frontend-dependencies.md` | Adding/bumping frontend deps, `pnpm-workspace.yaml` `allowBuilds` (build-script policy) |
-| `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs, TLS/crypto-backend deps |
+| `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs, TLS/crypto-backend deps, MCP server (`/v1/mcp` auth, tools, project scoping) |
 | `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator, uploaded evals folder + file view (`evaluations.hosted_metadata`) |
 | `docs/internal/eval-datasets.md` | Eval datasets (`/v1/eval-datasets/*`, `src/eval_datasets/`): task versions and pins, push `moved` rule, `evaluations.dataset_v2_id`, `evaluation_datapoints.task_version_hash` |
 | `docs/internal/oss-release.md` | `.github/workflows/build-push.yml` (GHCR images, attestations, release-source gate) |

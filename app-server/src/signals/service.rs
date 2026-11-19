@@ -87,9 +87,7 @@ pub enum CrudError {
     DuplicateName(String),
     #[error("Signal not found")]
     SignalNotFound,
-    #[error(
-        "Signals aren't included in the Free plan. Upgrade to Starter or Pro to create signals."
-    )]
+    #[error("Signals aren't included in the Free plan. Upgrade to Pro or Scale to create signals.")]
     FreePlan,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
@@ -128,7 +126,7 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
 /// WHEN a signal is evaluated, answerable from a single span batch. A closed set
 /// rather than a `{column, operator, value}` list: these are the only shapes the
 /// evaluator implements, so anything else was stored and then never fired.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Trigger {
     /// The trace's root span finished. Right for most traces.
@@ -230,7 +228,9 @@ impl Trigger {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
     Batch,
@@ -417,11 +417,17 @@ pub fn default_filters() -> Vec<Value> {
     vec![json!({ "column": "total_token_count", "operator": "gt", "value": "1000" })]
 }
 
-#[derive(Debug, Deserialize)]
+// `JsonSchema`: the MCP `create_signal` tool advertises this shape; doc comments are its field docs.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SignalInput {
+    /// Unique within the project, at most 255 characters.
     pub name: String,
+    /// LLM instruction describing what to detect in a trace.
     pub prompt: String,
+    /// Payload JSON schema: `{"type": "object", "properties": {"<field>": {"type":
+    /// "string"|"number"|"boolean", "description": "...", "enum": [...]}}, "required": [<every
+    /// field name>]}`. Field names match `^[a-zA-Z_][a-zA-Z0-9_]*$`.
     pub structured_output: Value,
     /// Absent or `null` → no sampling (key is not stored).
     #[serde(default)]
@@ -431,7 +437,10 @@ pub struct SignalInput {
     /// Absent or `null` → `rootSpanFinished`.
     #[serde(default)]
     pub trigger: Option<Trigger>,
-    /// Absent = the default filters; `[]` = run on every firing trace.
+    /// Absent = the default filters; `[]` = run on every firing trace. ANDed
+    /// `{"column", "operator", "value"}` objects: `total_token_count` (eq, ne, gt, gte, lt,
+    /// lte; number), `status` (eq, ne; "error" | "success"), `span_names` and `tags`
+    /// (includes, not_includes; list of names).
     #[serde(default)]
     pub filters: Option<Vec<Value>>,
     /// Absent or `null` → realtime.
@@ -576,7 +585,7 @@ pub async fn list_signal_versions(
     Ok(rows.into_iter().map(SignalVersionResponse::from).collect())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSignalInput {
     #[serde(default)]
@@ -585,7 +594,9 @@ pub struct UpdateSignalInput {
     pub prompt: Option<String>,
     #[serde(default)]
     pub structured_output: Option<Value>,
-    /// Absent = leave stored; `null` = clear sampling. Plain `Option` collapses both.
+    // Absent = leave stored; `null` = clear sampling. Plain `Option` collapses both. The MCP
+    // `update_signal` tool ignores `null` and clears through `clearSampleRate` instead.
+    /// Percent of matching traces to evaluate, 1-95.
     #[serde(default, deserialize_with = "double_option")]
     pub sample_rate: Option<Option<i64>>,
     #[serde(default)]

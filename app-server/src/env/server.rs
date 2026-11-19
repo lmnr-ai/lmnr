@@ -17,6 +17,14 @@ pub fn next_server_url() -> Option<String> {
         .map(|v| v.trim_end_matches('/').to_string())
 }
 
+/// Public URL of this server's MCP endpoint (e.g. `https://api.lmnr.ai/v1/mcp`). Setting it
+/// enables OAuth user tokens on `/v1/mcp`; it is the access tokens' `aud` and must equal the
+/// frontend's `MCP_RESOURCE_URL`. No default: unset keeps MCP project-API-key-only.
+pub const MCP_RESOURCE_URL: &str = "MCP_RESOURCE_URL";
+/// OAuth issuer that mints MCP access tokens. Defaults to `<NEXT_PUBLIC_URL origin>/api/auth`
+/// (Better Auth's issuer), so it only needs setting when the frontend's public origin differs.
+pub const MCP_AUTHORIZATION_SERVER_URL: &str = "MCP_AUTHORIZATION_SERVER_URL";
+
 /// REST API port.
 pub const PORT: NumEnv<u16> = NumEnv::new("PORT", 8000);
 /// gRPC ingestion port.

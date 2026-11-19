@@ -2054,6 +2054,237 @@ export const scimGroupMembers = pgTable(
   ]
 );
 
+export const oauthClients = pgTable(
+  "oauth_clients",
+  {
+    id: text().primaryKey().notNull(),
+    clientId: text("client_id").notNull(),
+    clientSecret: text("client_secret"),
+    clientDiscoveryId: text("client_discovery_id"),
+    disabled: boolean().default(false),
+    skipConsent: boolean("skip_consent"),
+    enableEndSession: boolean("enable_end_session"),
+    subjectType: text("subject_type"),
+    scopes: text().array(),
+    clientCredentialsScopes: text("client_credentials_scopes").array().default([]),
+    userId: uuid("user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }),
+    name: text(),
+    uri: text(),
+    icon: text(),
+    contacts: text().array(),
+    tos: text(),
+    policy: text(),
+    softwareId: text("software_id"),
+    softwareVersion: text("software_version"),
+    softwareStatement: text("software_statement"),
+    redirectUris: text("redirect_uris").array().notNull(),
+    postLogoutRedirectUris: text("post_logout_redirect_uris").array(),
+    backchannelLogoutUri: text("backchannel_logout_uri"),
+    backchannelLogoutSessionRequired: boolean("backchannel_logout_session_required"),
+    tokenEndpointAuthMethod: text("token_endpoint_auth_method"),
+    applicationType: text("application_type"),
+    jwks: text(),
+    jwksUri: text("jwks_uri"),
+    grantTypes: text("grant_types").array(),
+    responseTypes: text("response_types").array(),
+    requirePKCE: boolean("require_pkce"),
+    dpopBoundAccessTokens: boolean("dpop_bound_access_tokens").default(false),
+    referenceId: text("reference_id"),
+    metadata: jsonb(),
+  },
+  (table) => [
+    index("oauth_clients_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_clients_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("oauth_clients_client_id_key").on(table.clientId),
+  ]
+);
+
+export const oauthResources = pgTable(
+  "oauth_resources",
+  {
+    id: text().primaryKey().notNull(),
+    identifier: text().notNull(),
+    name: text().notNull(),
+    accessTokenTtl: integer("access_token_ttl"),
+    refreshTokenTtl: integer("refresh_token_ttl"),
+    signingAlgorithm: text("signing_algorithm"),
+    signingKeyId: text("signing_key_id"),
+    allowedScopes: text("allowed_scopes").array(),
+    customClaims: jsonb("custom_claims"),
+    dpopBoundAccessTokensRequired: boolean("dpop_bound_access_tokens_required").default(false),
+    disabled: boolean().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }),
+    policyVersion: integer("policy_version").default(1),
+    metadata: jsonb(),
+  },
+  (table) => [unique("oauth_resources_identifier_key").on(table.identifier)]
+);
+
+export const oauthClientResources = pgTable(
+  "oauth_client_resources",
+  {
+    id: text().primaryKey().notNull(),
+    clientId: text("client_id").notNull(),
+    resourceId: text("resource_id").notNull(),
+    metadata: jsonb(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    uniqueIndex("oauth_client_resources_client_id_resource_id_idx").using(
+      "btree",
+      table.clientId.asc().nullsLast(),
+      table.resourceId.asc().nullsLast()
+    ),
+    index("oauth_client_resources_resource_id_idx").using("btree", table.resourceId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.clientId],
+      foreignColumns: [oauthClients.clientId],
+      name: "oauth_client_resources_client_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.resourceId],
+      foreignColumns: [oauthResources.identifier],
+      name: "oauth_client_resources_resource_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const oauthRefreshTokens = pgTable(
+  "oauth_refresh_tokens",
+  {
+    id: text().primaryKey().notNull(),
+    token: text().notNull(),
+    clientId: text("client_id").notNull(),
+    sessionId: text("session_id"),
+    userId: uuid("user_id").notNull(),
+    referenceId: text("reference_id"),
+    authorizationCodeId: text("authorization_code_id"),
+    resources: text().array(),
+    requestedUserInfoClaims: text("requested_user_info_claims").array(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    revoked: timestamp({ withTimezone: true, mode: "date" }),
+    rotatedAt: timestamp("rotated_at", { withTimezone: true, mode: "date" }),
+    rotationReplayResponse: text("rotation_replay_response"),
+    rotationReplayExpiresAt: timestamp("rotation_replay_expires_at", { withTimezone: true, mode: "date" }),
+    authTime: timestamp("auth_time", { withTimezone: true, mode: "date" }),
+    confirmation: jsonb(),
+    scopes: text().array().notNull(),
+  },
+  (table) => [
+    index("oauth_refresh_tokens_client_id_idx").using("btree", table.clientId.asc().nullsLast()),
+    index("oauth_refresh_tokens_session_id_idx").using("btree", table.sessionId.asc().nullsLast()),
+    index("oauth_refresh_tokens_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    index("oauth_refresh_tokens_authorization_code_id_idx").using("btree", table.authorizationCodeId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.clientId],
+      foreignColumns: [oauthClients.clientId],
+      name: "oauth_refresh_tokens_client_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [sessions.id],
+      name: "oauth_refresh_tokens_session_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_refresh_tokens_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("oauth_refresh_tokens_token_key").on(table.token),
+  ]
+);
+
+export const oauthAccessTokens = pgTable(
+  "oauth_access_tokens",
+  {
+    id: text().primaryKey().notNull(),
+    token: text(),
+    clientId: text("client_id").notNull(),
+    sessionId: text("session_id"),
+    userId: uuid("user_id"),
+    referenceId: text("reference_id"),
+    authorizationCodeId: text("authorization_code_id"),
+    resources: text().array(),
+    requestedUserInfoClaims: text("requested_user_info_claims").array(),
+    refreshId: text("refresh_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    revoked: timestamp({ withTimezone: true, mode: "date" }),
+    confirmation: jsonb(),
+    scopes: text().array().notNull(),
+  },
+  (table) => [
+    index("oauth_access_tokens_client_id_idx").using("btree", table.clientId.asc().nullsLast()),
+    index("oauth_access_tokens_session_id_idx").using("btree", table.sessionId.asc().nullsLast()),
+    index("oauth_access_tokens_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    index("oauth_access_tokens_authorization_code_id_idx").using("btree", table.authorizationCodeId.asc().nullsLast()),
+    index("oauth_access_tokens_refresh_id_idx").using("btree", table.refreshId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.clientId],
+      foreignColumns: [oauthClients.clientId],
+      name: "oauth_access_tokens_client_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [sessions.id],
+      name: "oauth_access_tokens_session_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_access_tokens_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.refreshId],
+      foreignColumns: [oauthRefreshTokens.id],
+      name: "oauth_access_tokens_refresh_id_fkey",
+    }).onDelete("cascade"),
+    unique("oauth_access_tokens_token_key").on(table.token),
+  ]
+);
+
+export const oauthConsents = pgTable(
+  "oauth_consents",
+  {
+    id: text().primaryKey().notNull(),
+    clientId: text("client_id").notNull(),
+    userId: uuid("user_id"),
+    referenceId: text("reference_id"),
+    resources: text().array(),
+    requestedUserInfoClaims: text("requested_user_info_claims").array(),
+    scopes: text().array().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    index("oauth_consents_client_id_idx").using("btree", table.clientId.asc().nullsLast()),
+    index("oauth_consents_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.clientId],
+      foreignColumns: [oauthClients.clientId],
+      name: "oauth_consents_client_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_consents_user_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const oauthClientAssertions = pgTable("oauth_client_assertions", {
+  id: text().primaryKey().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+});
+
 export const debuggerSessions = pgTable(
   "debugger_sessions",
   {

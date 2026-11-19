@@ -93,10 +93,19 @@ pub(super) fn merge_secrets(stored: ProfileSecrets, incoming: ProfileSecrets) ->
     let mut headers: HashMap<String, String> = stored.headers;
     headers.extend(incoming.headers);
     ProfileSecrets {
-        api_key: incoming.api_key.or(stored.api_key),
-        secret_access_key: incoming.secret_access_key.or(stored.secret_access_key),
-        token: incoming.token.or(stored.token),
+        api_key: overlay_secret(incoming.api_key, stored.api_key),
+        secret_access_key: overlay_secret(incoming.secret_access_key, stored.secret_access_key),
+        token: overlay_secret(incoming.token, stored.token),
         headers,
+    }
+}
+
+/// The incoming value, unless it is the stored value's own mask: a caller that echoes a
+/// fetched profile back (e.g. an MCP agent) must not save the mask as the credential.
+fn overlay_secret(incoming: Option<String>, stored: Option<String>) -> Option<String> {
+    match incoming {
+        Some(value) if mask_secret(stored.as_ref()).as_ref() != Some(&value) => Some(value),
+        _ => stored,
     }
 }
 
@@ -227,6 +236,35 @@ mod tests {
         assert_eq!(merged.api_key.as_deref(), Some("old"));
         assert_eq!(merged.headers["X-A"], "1");
         assert_eq!(merged.headers["X-B"], "9");
+    }
+
+    #[test]
+    fn merge_ignores_an_echoed_mask() {
+        let stored = ProfileSecrets {
+            api_key: Some("sk-abcdefghij456".into()),
+            token: Some("short".into()),
+            ..Default::default()
+        };
+        let incoming = presence(&stored);
+        let merged = merge_secrets(
+            stored.clone(),
+            ProfileSecrets {
+                api_key: incoming.api_key,
+                token: incoming.token,
+                ..Default::default()
+            },
+        );
+        assert_eq!(merged.api_key, stored.api_key);
+        assert_eq!(merged.token, stored.token);
+
+        let replaced = merge_secrets(
+            stored,
+            ProfileSecrets {
+                api_key: Some("sk-new".into()),
+                ..Default::default()
+            },
+        );
+        assert_eq!(replaced.api_key.as_deref(), Some("sk-new"));
     }
 
     #[test]

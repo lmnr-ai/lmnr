@@ -30,6 +30,7 @@ pub async fn probe(profile: &LlmProfile, model: &str) -> ProviderResult<Duration
             ..Default::default()
         }),
         service_tier: None,
+        affinity_key: None,
         route: LlmRoute::default(),
     };
 
