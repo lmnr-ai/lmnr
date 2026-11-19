@@ -5,19 +5,23 @@ import { createGunzip } from "node:zlib";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { findTaskVersionPrefix } from "@/lib/actions/eval-datasets/storage";
 import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
+import { filesUnder, trimDir } from "@/lib/evaluation/trial-files";
 import { readExportText, streamExportRange } from "@/lib/s3";
 import { SimpleLRU } from "@/lib/simple-lru";
 
 /*
- * Archives a remote run (`lmnr-cli eval run --remote`) uploads: the evals
- * folder (the Task view) and, once each suite ends, its Harbor job output (the
- * trial Log view, `<upload>/jobs/<suite>`). Each is a `.tar.gz` made of one gzip
- * member per group of files, and its index (written by lmnr-cli's `pack.ts`)
- * gives each file's member, so one file is read with a ranged GET instead of
- * the whole archive.
+ * The trial Files view's archives: pushed task versions
+ * (`<project>/datasets/<dataset>/<task>/<hash>`, also read by the eval dataset
+ * pages through `lib/actions/eval-datasets/files.ts`), and what a remote run
+ * (`lmnr-cli eval run --remote`) uploads: the evals folder and, once each
+ * dataset's run ends, its Harbor job output (`<upload>/jobs/<suitePath>`). Each
+ * is a `.tar.gz` made of one gzip member per group of files, and its index
+ * (written by lmnr-cli's `pack.ts`) gives each file's member, so one file is
+ * read with a ranged GET instead of the whole archive.
  */
 
 const HostedMetadataSchema = z.object({
@@ -44,15 +48,22 @@ export interface ArchiveFile {
   size: number;
 }
 
-export interface EvaluationFiles {
-  /** The evaluation's suite dir, relative to the archive root. */
-  suitePath: string;
+/** Where a trial's `task/` root comes from. */
+export type TaskFilesSource =
+  | { kind: "version"; dataset: string; task: string; hash: string }
+  | { kind: "upload"; path: string };
+
+export interface TrialTaskFiles {
+  source: TaskFilesSource;
+  /** Relative to the task dir. */
   files: ArchiveFile[];
 }
 
-export interface TrialLogFiles {
-  /** Relative to the trial's dir in its Harbor job. */
-  files: ArchiveFile[];
+/** What the client knows about a trial's task (its datapoint's `task_id`, `task_version_hash`, `metadata.task_path`). */
+export interface TrialTaskRef {
+  task: string | null;
+  hash: string | null;
+  taskPath: string | null;
 }
 
 class FilesUnavailableError extends NotFoundError {
@@ -61,30 +72,44 @@ class FilesUnavailableError extends NotFoundError {
   }
 }
 
-class LogsUnavailableError extends NotFoundError {
+class OutputUnavailableError extends NotFoundError {
   constructor() {
-    super("This trial's logs aren't available yet: a remote run uploads them when its suite finishes");
+    super("This trial's logs aren't available yet: a remote run uploads them when its dataset finishes.");
   }
 }
 
-type Unavailable = new () => NotFoundError;
+class TaskUnavailableError extends NotFoundError {
+  constructor() {
+    super("This trial's task files are not available");
+  }
+}
+
+export type Unavailable = new () => NotFoundError;
 
 // Indexes never change once uploaded.
 const indexes = new SimpleLRU<string, ArchiveIndex>(16);
 
-const getHostedRun = async (projectId: string, evaluationId: string) => {
+const getEvaluationRun = async (projectId: string, evaluationId: string) => {
   const evaluation = await db.query.evaluations.findFirst({
-    columns: { hostedMetadata: true },
+    columns: { hostedMetadata: true, datasetV2Id: true },
     where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
   });
   if (!evaluation) {
     throw new NotFoundError("Evaluation not found");
   }
   const hosted = HostedMetadataSchema.safeParse(evaluation.hostedMetadata);
-  if (!hosted.success) {
+  return {
+    dataset: evaluation.datasetV2Id,
+    hosted: hosted.success ? { ...hosted.data, runPrefix: `hosted-evals/${projectId}/${hosted.data.uploadId}` } : null,
+  };
+};
+
+const getHostedRun = async (projectId: string, evaluationId: string) => {
+  const { hosted } = await getEvaluationRun(projectId, evaluationId);
+  if (!hosted) {
     throw new NotFoundError("This evaluation has no uploaded files");
   }
-  return { ...hosted.data, runPrefix: `hosted-evals/${projectId}/${hosted.data.uploadId}` };
+  return hosted;
 };
 
 /** `<prefix>.index.json`, the index of `<prefix>.tar.gz`. */
@@ -95,7 +120,7 @@ const getIndex = async (prefix: string, unavailable: Unavailable): Promise<Archi
   }
   const text = await readExportText(`${prefix}.index.json`);
   if (text === null) {
-    // Not uploaded (an older CLI, or a suite still running), or expired.
+    // Not uploaded (an older CLI, or a dataset still running), or expired.
     throw new unavailable();
   }
   const index = ArchiveIndexSchema.parse(JSON.parse(text));
@@ -103,8 +128,14 @@ const getIndex = async (prefix: string, unavailable: Unavailable): Promise<Archi
   return index;
 };
 
+/** The files in `<prefix>.tar.gz`, paths relative to its root. */
+export const listArchiveFiles = async (prefix: string, unavailable: Unavailable): Promise<ArchiveFile[]> => {
+  const index = await getIndex(prefix, unavailable);
+  return index.files.map(({ path, size }) => ({ path, size }));
+};
+
 /** Streams one file's content out of `<prefix>.tar.gz`. */
-const readArchiveFile = async (
+export const readArchiveFile = async (
   prefix: string,
   path: string,
   unavailable: Unavailable
@@ -127,40 +158,90 @@ const readArchiveFile = async (
   return { size: file.size, stream: Readable.from(slice(gunzip, file.dataOffset, file.size)) };
 };
 
-export const getEvaluationFiles = async (projectId: string, evaluationId: string): Promise<EvaluationFiles> => {
-  const { suitePath, runPrefix } = await getHostedRun(projectId, evaluationId);
-  const index = await getIndex(runPrefix, FilesUnavailableError);
-  return { suitePath, files: index.files.map(({ path, size }) => ({ path, size })) };
+/** The dataset dir (`suitePath`) in the run's uploaded evals folder, with a trailing slash unless it's the root. */
+const datasetDirOf = (suitePath: string) => {
+  const root = trimDir(suitePath);
+  return root ? `${root}/` : "";
 };
 
-/** Streams one file of the run's evals folder, `path` relative to its root. */
-export const readEvaluationFile = async (projectId: string, evaluationId: string, path: string) => {
-  const { runPrefix } = await getHostedRun(projectId, evaluationId);
-  return readArchiveFile(runPrefix, path, FilesUnavailableError);
+/**
+ * The archive and dir a trial's task is read from: the pushed task version the
+ * datapoint names (`task_version_hash`) when the project has it, else the task
+ * dir of the run's uploaded evals folder (`metadata.task_path`, remote runs).
+ */
+const resolveTask = async (projectId: string, evaluationId: string, ref: TrialTaskRef) => {
+  const { dataset, hosted } = await getEvaluationRun(projectId, evaluationId);
+  if (dataset && ref.task && ref.hash) {
+    const prefix = await findTaskVersionPrefix({ projectId, dataset, task: ref.task, hash: ref.hash });
+    if (prefix) {
+      const source: TaskFilesSource = { kind: "version", dataset, task: ref.task, hash: ref.hash };
+      return { prefix, dir: "", source };
+    }
+  }
+  // Only the trial's own `<dataset>/tasks/<task>` dir, so a forged `taskPath` can't list harbor.yaml or other tasks.
+  const taskDir = ref.taskPath ? trimDir(ref.taskPath) : "";
+  if (hosted && ref.task && taskDir === `${datasetDirOf(hosted.suitePath)}tasks/${ref.task}`) {
+    const source: TaskFilesSource = { kind: "upload", path: taskDir };
+    return { prefix: hosted.runPrefix, dir: `${taskDir}/`, source };
+  }
+  if (dataset && ref.hash) {
+    throw new NotFoundError(
+      `This trial's task version isn't in the ${dataset} eval dataset: push it with \`lmnr-cli eval dataset push\`.`
+    );
+  }
+  throw new TaskUnavailableError();
+};
+
+export const getTrialTaskFiles = async (
+  projectId: string,
+  evaluationId: string,
+  ref: TrialTaskRef
+): Promise<TrialTaskFiles> => {
+  const { prefix, dir, source } = await resolveTask(projectId, evaluationId, ref);
+  const files = filesUnder(await listArchiveFiles(prefix, TaskUnavailableError), dir);
+  if (files.length === 0) throw new TaskUnavailableError();
+  return { source, files };
+};
+
+/** Streams one file of a trial's task, `path` relative to the task dir. */
+export const readTrialTaskFile = async (projectId: string, evaluationId: string, ref: TrialTaskRef, path: string) => {
+  const { prefix, dir } = await resolveTask(projectId, evaluationId, ref);
+  return readArchiveFile(prefix, `${dir}${path}`, TaskUnavailableError);
+};
+
+/** The dataset's `agent/` dir in the run's uploaded evals folder. */
+const agentDirOf = (suitePath: string) => `${datasetDirOf(suitePath)}agent/`;
+
+/** The run's agent dir (`<suitePath>/agent/`), paths relative to it. */
+export const getRunAgentFiles = async (projectId: string, evaluationId: string): Promise<{ files: ArchiveFile[] }> => {
+  const { runPrefix, suitePath } = await getHostedRun(projectId, evaluationId);
+  return { files: filesUnder(await listArchiveFiles(runPrefix, FilesUnavailableError), agentDirOf(suitePath)) };
+};
+
+/** Streams one file of the run's agent dir, `path` relative to it. */
+export const readRunAgentFile = async (projectId: string, evaluationId: string, path: string) => {
+  const { runPrefix, suitePath } = await getHostedRun(projectId, evaluationId);
+  return readArchiveFile(runPrefix, `${agentDirOf(suitePath)}${path}`, FilesUnavailableError);
 };
 
 const jobPrefix = (runPrefix: string, suitePath: string) => `${runPrefix}/jobs/${suitePath}`;
 
-/** The files of one trial's dir in its suite's Harbor job (`trialName` is Harbor's trial name). */
+/** The files of one trial's dir in its dataset's Harbor job (`trialName` is Harbor's trial name). */
 export const getTrialLogs = async (
   projectId: string,
   evaluationId: string,
   trialName: string
-): Promise<TrialLogFiles> => {
+): Promise<{ files: ArchiveFile[] }> => {
   const { runPrefix, suitePath } = await getHostedRun(projectId, evaluationId);
-  const index = await getIndex(jobPrefix(runPrefix, suitePath), LogsUnavailableError);
-  const dir = `${trialName}/`;
   return {
-    files: index.files
-      .filter((f) => f.path.startsWith(dir))
-      .map(({ path, size }) => ({ path: path.slice(dir.length), size })),
+    files: filesUnder(await listArchiveFiles(jobPrefix(runPrefix, suitePath), OutputUnavailableError), `${trialName}/`),
   };
 };
 
 /** Streams one file of a trial's dir, `path` relative to it. */
 export const readTrialLogFile = async (projectId: string, evaluationId: string, trialName: string, path: string) => {
   const { runPrefix, suitePath } = await getHostedRun(projectId, evaluationId);
-  return readArchiveFile(jobPrefix(runPrefix, suitePath), `${trialName}/${path}`, LogsUnavailableError);
+  return readArchiveFile(jobPrefix(runPrefix, suitePath), `${trialName}/${path}`, OutputUnavailableError);
 };
 
 /** `size` bytes of `source` from `start` on. */

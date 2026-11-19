@@ -1,3 +1,4 @@
+import { isTaskHash } from "@/lib/actions/eval-datasets/types";
 import { type EvalRow } from "@/lib/evaluation/types";
 import { tryParseJson } from "@/lib/utils";
 
@@ -29,7 +30,13 @@ export const taskNameOf = (row: EvalRow | undefined): string | null => {
   return typeof taskId === "string" && taskId ? taskId : null;
 };
 
-/** Harbor's name for the trial, which is also its dir in the suite's job; set by the Harbor plugin. */
+/** The pushed eval dataset task version the trial ran (`task_version_hash`); null when it names none. */
+export const taskVersionHashOf = (row: EvalRow | undefined): string | null => {
+  const hash = row?.["taskVersionHash"];
+  return typeof hash === "string" && isTaskHash(hash) ? hash : null;
+};
+
+/** Harbor's name for the trial, which is also its dir in the dataset's job; set by the Harbor plugin. */
 export const trialNameOf = (row: EvalRow | undefined): string | null => metadataString(row, "trial_name");
 
 const sortNodes = (nodes: FileNode[]): FileNode[] =>

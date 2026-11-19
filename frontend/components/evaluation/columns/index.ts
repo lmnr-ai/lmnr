@@ -29,6 +29,19 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     meta: { ...EVAL_COLUMN_SQL.evaluationId, dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
+    id: "taskVersionHash",
+    accessorFn: (row) => row["taskVersionHash"],
+    header: "Task version",
+    enableSorting: false,
+    meta: {
+      ...EVAL_COLUMN_SQL.taskVersionHash,
+      dataType: "string",
+      filterable: false,
+      comparable: false,
+      hidden: true,
+    },
+  },
+  {
     id: "status",
     accessorFn: (row) => deriveStatus(row),
     cell: StatusCell,

@@ -6,6 +6,10 @@
 
 ## Frontend Best Practices
 
+### `react-resizable-panels` v4: numeric sizes are PIXELS
+
+`defaultSize={30}` / `minSize={15}` on a `ResizablePanel` mean 30px / 15px, not percent (v4 changed this). Write percentages as strings (`defaultSize="30%"`) or pixels explicitly (`"288px"`).
+
 ### Lint and format
 
 Frontend lint is oxlint (`frontend/.oxlintrc.json`), format is oxfmt (`frontend/.oxfmtrc.json`). Do not add ESLint or Prettier. Policy markdown and blog MDX are oxfmt-ignored — see the policy-pages note in `docs/internal/frontend-app.md`.
@@ -45,6 +49,8 @@ New tables built on `InfiniteDataTable` MUST follow the split established for tr
 - **`table-controls.tsx`** — the toolbar/filter/search/chart JSX (`DataTableFilter`, `AdvancedSearch`, `ViewsToolbar`, `DateRangeFilter`, `RefreshButton`, columns menu, charts). It re-renders freely on filter/search changes; because it's rendered as `children` inside a separate `<div>` in `InfiniteDataTable`, its churn doesn't touch the virtualized rows.
 
 Row/cell memoization lives inside `InfiniteDataTable` (row + cell are `memo`'d with custom comparators) — you get it for free. Your job is only to (a) keep the props you pass into `*TableContents` referentially stable, and (b) keep cell components cheap (see the tooltip rule below). For a heavy custom virtualized list outside the datatable (e.g. the trace-view transcript), apply the same idea: a `memo`'d row component with a hand-written comparator that checks only the fields that row actually reads.
+
+- **`useInfiniteScroll` dedupes rows by `uniqueKey`, default `"id"`.** Rows without an `id` field all share `undefined`, so only the first one renders (no error). Pass `uniqueKey="<field>"` to `InfiniteDataTableProvider` for tables keyed by something else (the eval dataset tables use `name`).
 
 ### Tooltips in table cells / hot render paths
 
