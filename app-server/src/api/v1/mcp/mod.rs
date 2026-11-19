@@ -30,13 +30,10 @@ use crate::{
     cache::Cache,
     db::{self, DB},
     mq::MessageQueue,
-    pubsub::PubSub,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
-mod datasets;
-mod debug_sessions;
 mod llm_profiles;
 mod signals;
 mod traces;
@@ -176,7 +173,6 @@ pub struct LaminarMcpServer {
     db: Arc<DB>,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
-    pubsub: Arc<PubSub>,
 }
 
 #[tool_router]
@@ -189,7 +185,6 @@ impl LaminarMcpServer {
         db: Arc<DB>,
         cache: Arc<Cache>,
         queue: Arc<MessageQueue>,
-        pubsub: Arc<PubSub>,
     ) -> Self {
         Self {
             tool_router: Self::tool_router_with_descriptions(),
@@ -200,7 +195,6 @@ impl LaminarMcpServer {
             db,
             cache,
             queue,
-            pubsub,
         }
     }
 
@@ -212,11 +206,9 @@ impl LaminarMcpServer {
     /// testable without the server's DB/CH/cache deps.
     fn tool_router_with_descriptions() -> ToolRouter<Self> {
         let mut router = Self::tool_router()
-            + Self::dataset_tools()
             + Self::signal_tools()
             + Self::llm_profile_tools()
-            + Self::trace_tools()
-            + Self::debug_session_tools();
+            + Self::trace_tools();
         match router.map.get_mut(QUERY_SQL_TOOL_NAME) {
             Some(route) => route.attr.description = Some(Cow::Owned(query_sql_tool_description())),
             None => log::error!(
@@ -720,7 +712,6 @@ impl McpState {
         db: Arc<DB>,
         cache: Arc<Cache>,
         queue: Arc<MessageQueue>,
-        pubsub: Arc<PubSub>,
     ) -> Self {
         Self {
             server: LaminarMcpServer::new(
@@ -731,7 +722,6 @@ impl McpState {
                 db,
                 cache,
                 queue,
-                pubsub,
             ),
         }
     }
@@ -835,29 +825,20 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                "add_datapoints",
-                "add_debug_session_note",
                 "add_trace_tags",
                 "ask_agent",
-                "create_dataset",
                 "create_llm_profile",
                 "create_signal",
-                "delete_dataset",
                 "delete_llm_profile",
                 "delete_signal",
-                "get_datapoints",
-                "get_debug_session",
                 "get_llm_profile",
                 "get_signal",
                 "get_trace_context",
-                "list_datasets",
                 "list_llm_profiles",
                 "list_projects",
                 "list_signal_versions",
                 "list_signals",
                 "query_laminar_sql",
-                "rename_dataset",
-                "rename_debug_session",
                 "update_llm_profile",
                 "update_signal",
             ],
