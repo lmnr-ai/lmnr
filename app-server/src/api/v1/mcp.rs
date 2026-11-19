@@ -35,14 +35,6 @@ use crate::{
 
 // ============ Per-request context ============
 
-/// Header an OAuth caller can set (e.g. `claude mcp add --header`) to pin a project without
-/// passing `projectId` on every call. Same header as the CLI's.
-const PROJECT_ID_HEADER: &str = "x-lmnr-project-id";
-
-/// The `x-lmnr-project-id` header value, passed through rmcp extensions.
-#[derive(Clone)]
-struct ProjectHeader(Uuid);
-
 /// The caller and the project a tool call acts on, after membership checks.
 struct ProjectScope {
     caller: McpCaller,
@@ -55,8 +47,8 @@ struct ProjectScope {
 #[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectParam {
-    /// Laminar project to act on. Optional when you can access a single project or the
-    /// connection pins one; otherwise call `list_projects` and pass the project's id.
+    /// Laminar project to act on. Required when signed in with OAuth: call `list_projects` and
+    /// pass the project's id. Ignored for a project API key, which is bound to its project.
     #[serde(default)]
     pub project_id: Option<Uuid>,
 }
@@ -162,8 +154,7 @@ fn query_sql_tool_description() -> String {
 /// Sent on `initialize`; tells the model how project selection works.
 const SERVER_INSTRUCTIONS: &str = "Laminar is an observability platform for AI agents. Every \
 tool acts on one Laminar project. With a project API key the project is fixed. When signed in \
-with OAuth, tools use your only project, or the project pinned by the `x-lmnr-project-id` \
-header; otherwise call `list_projects` and pass `projectId`.";
+with OAuth, call `list_projects` and pass the project's id as `projectId` to every other tool.";
 
 // ============ MCP Server ============
 
@@ -368,7 +359,7 @@ impl LaminarMcpServer {
     }
 
     /// List the Laminar projects this connection can act on, with their workspaces. Pass a
-    /// project's `id` as `projectId` to the other tools when you can access more than one.
+    /// project's `id` as `projectId` to the other tools.
     #[tool(name = "list_projects")]
     async fn list_projects(
         &self,
@@ -409,8 +400,7 @@ impl LaminarMcpServer {
     }
 
     /// Resolve the project a tool call acts on. An API key is bound to its project. An OAuth
-    /// user picks one with `projectId`, else the `x-lmnr-project-id` header, else their only
-    /// project; membership is checked on every call. The error is a tool result the model reads.
+    /// user must pass `projectId`; membership is checked on every call. The error is a tool result the model reads.
     async fn project_scope(
         &self,
         context: &RequestContext<RoleServer>,
@@ -435,29 +425,10 @@ impl LaminarMcpServer {
             McpCaller::User(user) => user,
         };
 
-        let project_id = if let Some(project_id) = requested {
-            project_id
-        } else if let Some(ProjectHeader(project_id)) = context.extensions.get::<ProjectHeader>() {
-            *project_id
-        } else {
-            let projects = self
-                .user_projects(user)
-                .await
-                .map_err(|e| tool_error(format!("Failed to list projects: {e}")))?;
-            match projects.as_slice() {
-                [project] => project
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .and_then(|id| Uuid::parse_str(id).ok())
-                    .ok_or_else(|| tool_error("Failed to read project id"))?,
-                [] => return Err(tool_error("You don't have access to any Laminar project.")),
-                _ => {
-                    return Err(tool_error(format!(
-                        "You can access several Laminar projects; pass `projectId`. Projects: {}",
-                        serde_json::to_string(&projects).unwrap_or_default()
-                    )));
-                }
-            }
+        let Some(project_id) = requested else {
+            return Err(tool_error(
+                "Pass `projectId`. Call `list_projects` to see your projects.",
+            ));
         };
 
         match is_user_member_of_project(&self.db.pool, &self.cache, user.user_id, project_id).await
@@ -730,18 +701,10 @@ pub async fn mcp_handler(
 
         // Requests (initialize, tools/list, tools/call, etc.) → process via rmcp
         ClientJsonRpcMessage::Request(mut request) => {
-            // Hand the authenticated caller (from `mcp_auth`) and the project header to the tools.
+            // Hand the authenticated caller (from `mcp_auth`) to the tools.
             let extensions = request.request.extensions_mut();
             if let Some(caller) = req.extensions().get::<McpCaller>() {
                 extensions.insert(caller.clone());
-            }
-            if let Some(project_id) = req
-                .headers()
-                .get(PROJECT_ID_HEADER)
-                .and_then(|value| value.to_str().ok())
-                .and_then(|value| Uuid::parse_str(value.trim()).ok())
-            {
-                extensions.insert(ProjectHeader(project_id));
             }
 
             // Use rmcp's OneshotTransport + serve_directly (same pattern as the
