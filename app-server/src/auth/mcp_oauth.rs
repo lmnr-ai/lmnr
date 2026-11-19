@@ -180,8 +180,9 @@ async fn verify_access_token(
 }
 
 /// Project API keys are 64 alphanumerics; anything shaped like a JWT is an OAuth token.
+/// Project API keys are alphanumeric, so only a JWT has a decodable JOSE header.
 fn is_jwt(token: &str) -> bool {
-    token.split('.').count() == 3
+    decode_header(token).is_ok()
 }
 
 fn bearer_token(req: &ServiceRequest) -> Option<String> {
@@ -348,8 +349,15 @@ mod tests {
 
     #[test]
     fn api_keys_are_not_jwts() {
+        let (encoding, _) = make_key("k1");
         assert!(!is_jwt(&"a".repeat(64)));
-        assert!(is_jwt("x.y.z"));
+        assert!(!is_jwt("x.y.z"));
+        assert!(is_jwt(&sign(
+            &encoding,
+            "k1",
+            Some("at+jwt"),
+            access_claims(Uuid::new_v4())
+        )));
     }
 
     #[tokio::test]
