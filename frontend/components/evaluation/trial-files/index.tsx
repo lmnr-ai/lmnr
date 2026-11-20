@@ -34,9 +34,9 @@ const TaskVersionLink = ({ projectId, task }: { projectId: string; task: TrialTa
     <Link
       href={taskVersionHref(projectId, task.dataset, task.task, task.hash)}
       title={`Open ${task.task} version ${shortHash(task.hash)} in ${task.dataset}`}
-      className="flex shrink-0 items-center gap-0.5 hover:text-foreground"
+      aria-label={`Open ${task.task} version ${shortHash(task.hash)} in ${task.dataset}`}
+      className="flex shrink-0 items-center hover:text-foreground"
     >
-      {shortHash(task.hash)}
       <ArrowUpRight className="size-3" />
     </Link>
   ) : null;

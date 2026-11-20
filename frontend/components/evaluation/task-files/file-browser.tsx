@@ -13,7 +13,7 @@ interface FileBrowserProps {
   title: string;
   /** Where the files come from, on hover. */
   hint: string;
-  /** Shown at the end of the title row, e.g. a link to where the files come from. */
+  /** Shown right after the title, e.g. a link to where the files come from. */
   titleAction?: ReactNode;
   nodes: FileNode[];
   open: FileNode;
@@ -43,8 +43,8 @@ export default function FileBrowser({
     <ResizablePanelGroup id={id} orientation="horizontal">
       <ResizablePanel id={`${id}-tree`} defaultSize={30} minSize={15} className="min-w-0">
         <div className="h-full overflow-auto">
-          <div className="flex items-center gap-2 border-b px-3 py-1.5 font-mono text-xs text-muted-foreground">
-            <span className="min-w-0 flex-1 truncate" title={hint}>
+          <div className="flex items-center gap-1 border-b px-3 py-1.5 font-mono text-xs text-muted-foreground">
+            <span className="min-w-0 truncate" title={hint}>
               {title}
             </span>
             {titleAction}

@@ -1,4 +1,4 @@
-import { FolderTree } from "lucide-react";
+import { Database } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ const EvalDatasetLink = ({ projectId, dataset }: EvalDatasetLinkProps) => (
     <TooltipTrigger asChild>
       <Button variant="outline" className="h-7 gap-1.5 px-2 text-xs min-w-0 max-w-64" asChild>
         <Link href={`/project/${projectId}/eval-datasets/${nameToPath(dataset)}`}>
-          <FolderTree className="size-3.5 shrink-0" />
+          <Database className="size-3.5 shrink-0" />
           <span className="truncate">{dataset}</span>
         </Link>
       </Button>
