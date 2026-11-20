@@ -30,7 +30,9 @@ const usePushedTaskVersion = (row: EvalRow): PushedTaskVersion | null => {
   if (!projectId || !data?.dataset) return null;
 
   const pushed = new Set(data.versions.map((v) => `${v.task}\n${v.hash}`));
-  for (const trial of (row["subRows"] as EvalRow[] | undefined) ?? []) {
+  // A Task with one Trial stays a plain row (no `subRows`): the row is the Trial.
+  const trials = (row["subRows"] as EvalRow[] | undefined) ?? [row];
+  for (const trial of trials) {
     const task = datasetTaskOf(trial);
     const hash = trial["taskVersionHash"];
     if (task && typeof hash === "string" && pushed.has(`${task}\n${hash}`)) {
