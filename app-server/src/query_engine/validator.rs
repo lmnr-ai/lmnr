@@ -1786,10 +1786,10 @@ fn time_col_from_name(name: &str) -> Option<TimeCol> {
     }
 }
 
-/// Wrap a value expression in `toDateTime64(<v>, 9)` so all bound candidates
-/// share one comparable type when combined via `least` / `greatest`.
+/// Match the UTC time columns so string bounds use the same timezone as the
+/// original filter and all candidates share a type for `least` / `greatest`.
 fn to_dt64(value_sql: &str) -> String {
-    format!("toDateTime64({value_sql}, 9)")
+    format!("toDateTime64({value_sql}, 9, 'UTC')")
 }
 
 /// Lower/upper start_time bound candidates (as ClickHouse scalar-expression
@@ -1946,11 +1946,19 @@ fn traces_time_bound_args(where_clause: Option<&Expr>, alias: &str) -> (Expr, Ex
         None => to_dt64(&format!("'{DEFAULT_MAX_START_TIME}'")),
     };
 
-    // These strings are built only from validated column classifications plus
-    // constant value sub-expressions, so parsing them back always succeeds; fall
-    // back to the broad default rather than propagate an error.
-    let min_expr = parse_ch_expr(&min_sql).unwrap_or_else(|_| string_expr(DEFAULT_MIN_START_TIME));
-    let max_expr = parse_ch_expr(&max_sql).unwrap_or_else(|_| string_expr(DEFAULT_MAX_START_TIME));
+    // ClickHouse reparses view arguments from text using the declared parameter
+    // type. Use decimal epoch seconds (including a fractional digit) to avoid
+    // both timezone conversion and ambiguous integer timestamp units. Round
+    // outward to whole seconds so pruning cannot exclude matching rows.
+    let view_arg = |bound: &str, round: &str| {
+        parse_ch_expr(&format!(
+            "toDecimalString({round}(toDecimal128(toUnixTimestamp64Nano({bound}), 9) / 1000000000), 1)"
+        ))
+    };
+    let min_expr =
+        view_arg(&min_sql, "floor").unwrap_or_else(|_| string_expr(DEFAULT_MIN_START_TIME));
+    let max_expr =
+        view_arg(&max_sql, "ceil").unwrap_or_else(|_| string_expr(DEFAULT_MAX_START_TIME));
     (min_expr, max_expr)
 }
 
