@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import useSWR from "swr";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { type EvalTaskVersion } from "@/lib/actions/eval-datasets/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
+import { nameToPath } from "@/lib/evaluation/trial-files";
 
-import { type TaskVersion } from "./rows";
+import { numberVersions } from "./rows";
 import VersionFiles from "./version-files";
 import VersionLabel from "./version-label";
 import VersionsRail from "./versions-rail";
@@ -12,8 +16,6 @@ interface VersionFilesDialogProps {
   datasetId: string;
   taskId: string;
   hash: string;
-  /** The task's versions, newest first. */
-  versions: TaskVersion[];
   onSelectVersion: (hash: string) => void;
   onClose: () => void;
 }
@@ -23,12 +25,16 @@ export default function VersionFilesDialog({
   datasetId,
   taskId,
   hash,
-  versions,
   onSelectVersion,
   onClose,
 }: VersionFilesDialogProps) {
   // Lives above the versions so switching version keeps the same file open, when it has one.
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const { data } = useSWR<EvalTaskVersion[]>(
+    `/api/projects/${projectId}/eval-datasets/${nameToPath(datasetId)}/tasks/${nameToPath(taskId)}/versions`,
+    swrFetcher
+  );
+  const versions = useMemo(() => numberVersions(data ?? []), [data]);
   const version = versions.find((v) => v.hash === hash);
 
   return (

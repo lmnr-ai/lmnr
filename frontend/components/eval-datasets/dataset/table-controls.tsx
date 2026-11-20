@@ -13,7 +13,6 @@ interface TasksTableControlsProps {
   onFiltersChange: (filters: Filter[]) => void;
   searchValue: AdvancedSearchValue;
   onSearchChange: (value: AdvancedSearchValue) => void;
-  suggestions: Map<string, string[]>;
   taskCount: number | null;
 }
 
@@ -22,7 +21,6 @@ export function TasksTableControls({
   onFiltersChange,
   searchValue,
   onSearchChange,
-  suggestions,
   taskCount,
 }: TasksTableControlsProps) {
   return (
@@ -43,7 +41,6 @@ export function TasksTableControls({
           value={searchValue}
           onChange={onSearchChange}
           filters={searchFilters}
-          options={{ suggestions }}
           placeholder="Search tasks by name..."
           className="w-full flex-1"
         />

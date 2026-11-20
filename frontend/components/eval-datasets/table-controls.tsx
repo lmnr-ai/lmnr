@@ -13,7 +13,6 @@ interface EvalDatasetsTableControlsProps {
   onFiltersChange: (filters: Filter[]) => void;
   searchValue: AdvancedSearchValue;
   onSearchChange: (value: AdvancedSearchValue) => void;
-  suggestions: Map<string, string[]>;
 }
 
 export function EvalDatasetsTableControls({
@@ -21,7 +20,6 @@ export function EvalDatasetsTableControls({
   onFiltersChange,
   searchValue,
   onSearchChange,
-  suggestions,
 }: EvalDatasetsTableControlsProps) {
   return (
     <>
@@ -35,7 +33,6 @@ export function EvalDatasetsTableControls({
           value={searchValue}
           onChange={onSearchChange}
           filters={searchFilters}
-          options={{ suggestions }}
           placeholder="Search datasets by name..."
           className="w-full flex-1"
         />

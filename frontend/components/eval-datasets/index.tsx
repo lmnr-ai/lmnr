@@ -1,17 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
-import useSWR from "swr";
-
 import Header from "@/components/ui/header";
-import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import { type EvalDatasetSummary } from "@/lib/actions/eval-datasets/types";
-import { swrFetcher } from "@/lib/api/fetch-api";
 
-import { defaults, filterFields, RESOURCE } from "./constants";
-import { filterRows } from "./filter-rows";
+import { defaults, RESOURCE } from "./constants";
 import LegacyDatasetsBanner from "./legacy-banner";
+import { useListQuery } from "./list-query";
 import { EvalDatasetsTableContents } from "./table-contents";
 import { EvalDatasetsTableControls } from "./table-controls";
 
@@ -19,22 +13,8 @@ interface EvalDatasetsProps {
   projectId: string;
 }
 
-const EMPTY: EvalDatasetSummary[] = [];
-
 function EvalDatasetsContent({ projectId }: EvalDatasetsProps) {
-  const { data, error, isLoading } = useSWR<EvalDatasetSummary[]>(
-    `/api/projects/${projectId}/eval-datasets`,
-    swrFetcher
-  );
-  const datasets = data ?? EMPTY;
-  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
-  const value = useMemo(
-    () => ({ filters: effective.filters, search: effective.search }),
-    [effective.filters, effective.search]
-  );
-  const shown = useMemo(() => filterRows(datasets, value, filterFields.name, filterFields), [datasets, value]);
-  const suggestions = useMemo(() => new Map([["name", datasets.map((d) => d.id)]]), [datasets]);
-  const isSearching = value.filters.length > 0 || value.search.length > 0;
+  const { value, filter, search, isSearching, isViewLoading, setSearchAndFilters, setFilters } = useListQuery();
 
   return (
     <>
@@ -44,9 +24,9 @@ function EvalDatasetsContent({ projectId }: EvalDatasetsProps) {
         <div className="flex flex-1 overflow-hidden">
           <EvalDatasetsTableContents
             projectId={projectId}
-            datasets={shown}
-            isLoading={isLoading || isViewLoading}
-            error={error instanceof Error ? error.message : null}
+            filter={filter}
+            search={search}
+            isViewLoading={isViewLoading}
             isSearching={isSearching}
           >
             <EvalDatasetsTableControls
@@ -54,7 +34,6 @@ function EvalDatasetsContent({ projectId }: EvalDatasetsProps) {
               onFiltersChange={setFilters}
               searchValue={value}
               onSearchChange={setSearchAndFilters}
-              suggestions={suggestions}
             />
           </EvalDatasetsTableContents>
         </div>

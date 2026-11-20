@@ -10,7 +10,6 @@ import {
   mayHaveTaskVersion,
   showFilesToggle,
 } from "@/components/evaluation/trial-files/utils";
-import { groupTaskVersions } from "@/lib/actions/eval-datasets/types";
 import {
   type ArchiveFile,
   isEvalName,
@@ -204,23 +203,6 @@ describe("Files visibility", () => {
     assert.equal(mayHaveTaskVersion({ ...row, taskVersionHash: "" }, "acme/ds"), false);
     assert.equal(mayHaveTaskVersion({ ...row, metadata: "{}" }, "acme/ds"), false);
     assert.equal(mayHaveTaskVersion(undefined, "acme/ds"), false);
-  });
-});
-
-describe("groupTaskVersions", () => {
-  it("groups by task and keeps the query's newest-first order", () => {
-    const tasks = groupTaskVersions([
-      { taskId: "acme/a", hash: "h2", pushedAt: "2026-01-02T00:00:00.000Z" },
-      { taskId: "acme/a", hash: "h1", pushedAt: "2026-01-01T00:00:00.000Z" },
-      { taskId: "acme/b", hash: "h3", pushedAt: "2026-01-03T00:00:00.000Z" },
-    ]);
-    assert.deepEqual(
-      tasks.map((t) => [t.id, t.versions.map((v) => v.hash)]),
-      [
-        ["acme/a", ["h2", "h1"]],
-        ["acme/b", ["h3"]],
-      ]
-    );
   });
 });
 

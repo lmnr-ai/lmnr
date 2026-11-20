@@ -3,11 +3,14 @@
 import { memo, type PropsWithChildren, useCallback } from "react";
 
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type EvalDatasetSummary } from "@/lib/actions/eval-datasets/types";
 import { nameToPath } from "@/lib/evaluation/trial-files";
+import { useToast } from "@/lib/hooks/use-toast";
 
 import { evalDatasetsColumns } from "./columns";
+import { fetchPage } from "./list-query";
 import MessageRow from "./message-row";
 
 const EmptyRow = (
@@ -28,25 +31,41 @@ const EmptyRow = (
 
 const NoMatchesRow = <MessageRow>No eval datasets match your search.</MessageRow>;
 
-const noop = () => {};
 const getRowId = (row: EvalDatasetSummary) => row.id;
 
 interface EvalDatasetsTableContentsProps {
   projectId: string;
-  datasets: EvalDatasetSummary[];
-  isLoading: boolean;
-  error: string | null;
+  filter: string[];
+  search: string | null;
+  isViewLoading: boolean;
   isSearching: boolean;
 }
 
 export const EvalDatasetsTableContents = memo(function EvalDatasetsTableContents({
   children,
   projectId,
-  datasets,
-  isLoading,
-  error,
+  filter,
+  search,
+  isViewLoading,
   isSearching,
 }: PropsWithChildren<EvalDatasetsTableContentsProps>) {
+  const { toast } = useToast();
+  const fetchDatasets = useCallback(
+    (pageNumber: number) =>
+      fetchPage<EvalDatasetSummary>(`/api/projects/${projectId}/eval-datasets`, pageNumber, filter, search).catch(
+        (error: Error) => {
+          toast({ title: error.message, variant: "destructive" });
+          throw error;
+        }
+      ),
+    [projectId, filter, search, toast]
+  );
+  const { data, hasMore, isFetching, isLoading, error, fetchNextPage } = useInfiniteScroll<EvalDatasetSummary>({
+    fetchFn: fetchDatasets,
+    enabled: !isViewLoading,
+    deps: [projectId, filter, search],
+  });
+
   const getRowHref = useCallback(
     (row: { original: EvalDatasetSummary }) => `/project/${projectId}/eval-datasets/${nameToPath(row.original.id)}`,
     [projectId]
@@ -56,14 +75,14 @@ export const EvalDatasetsTableContents = memo(function EvalDatasetsTableContents
     <InfiniteDataTable<EvalDatasetSummary>
       className="w-full"
       columns={evalDatasetsColumns}
-      data={datasets}
+      data={data}
       getRowId={getRowId}
       getRowHref={getRowHref}
-      hasMore={false}
-      isFetching={false}
-      isLoading={isLoading}
-      fetchNextPage={noop}
-      emptyRow={error ? <MessageRow>{error}</MessageRow> : isSearching ? NoMatchesRow : EmptyRow}
+      hasMore={hasMore}
+      isFetching={isFetching}
+      isLoading={isLoading || isViewLoading}
+      fetchNextPage={fetchNextPage}
+      emptyRow={error ? <MessageRow>{error.message}</MessageRow> : isSearching ? NoMatchesRow : EmptyRow}
     >
       {children}
     </InfiniteDataTable>

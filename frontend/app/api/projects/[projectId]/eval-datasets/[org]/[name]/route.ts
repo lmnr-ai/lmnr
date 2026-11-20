@@ -4,7 +4,7 @@ import { NotFoundError } from "@/lib/api/errors";
 
 type Params = { projectId: string; org: string; name: string };
 
-/** The dataset with every version of each task. */
+/** The dataset and its task count. */
 export const GET = apiHandler<Params>(async (_req, ctx) => {
   const { projectId, org, name } = await ctx.params;
   const dataset = await getEvalDataset(projectId, `${org}/${name}`);

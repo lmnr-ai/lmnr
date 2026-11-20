@@ -1,22 +1,22 @@
 import { type ColumnDef } from "@tanstack/react-table";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { type EvalTaskSummary } from "@/lib/actions/eval-datasets/types";
 
-import { type TaskRow } from "./rows";
 import VersionLabel from "./version-label";
 
-export const taskColumns: ColumnDef<TaskRow>[] = [
+export const taskColumns: ColumnDef<EvalTaskSummary>[] = [
   {
     id: "task",
     header: "Task",
     size: 360,
-    cell: ({ row }) => <span className="font-medium">{row.original.taskId}</span>,
+    cell: ({ row }) => <span className="font-medium">{row.original.id}</span>,
   },
   {
     id: "version",
     header: "Latest version",
     size: 240,
-    cell: ({ row }) => <VersionLabel version={row.original.latest} />,
+    cell: ({ row }) => <VersionLabel version={{ ...row.original.latest, number: row.original.versionCount }} />,
   },
   {
     id: "pushedAt",
