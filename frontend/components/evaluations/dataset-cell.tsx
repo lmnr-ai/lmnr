@@ -16,6 +16,8 @@ export default function DatasetCell({ evaluation }: { evaluation: Evaluation }) 
   return (
     <LinkChip
       name={name}
+      // No vertical padding, so the chip is as tall as plain text and the row keeps its height.
+      className="py-0"
       icon={<Database className="size-3.5 shrink-0 text-secondary-foreground" />}
       onClick={() => router.push(`/project/${projectId}/eval-datasets/${nameToPath(name)}`)}
     />

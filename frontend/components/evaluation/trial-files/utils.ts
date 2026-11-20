@@ -12,6 +12,9 @@ const metadataString = (row: EvalRow | undefined, key: string): string | null =>
   return typeof value === "string" && value ? value : null;
 };
 
+/** The trial's task inside its eval dataset (`metadata.dataset_task`); null when unset. */
+export const datasetTaskOf = (row: EvalRow | undefined): string | null => metadataString(row, "dataset_task");
+
 /** The trial's task, as the table's Task column shows it; null when unset. */
 export const taskNameOf = (row: EvalRow | undefined): string | null => {
   const taskId = row?.["taskId"];
