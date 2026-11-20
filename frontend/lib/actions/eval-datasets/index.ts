@@ -91,23 +91,19 @@ export const getEvalDataset = async (projectId: string, datasetId: string): Prom
   return dataset ? { ...dataset, createdAt: toIso(dataset.createdAt), taskCount } : null;
 };
 
-/** One page of the dataset's tasks, each at its latest version. */
+/** One page of the dataset's tasks. */
 export const getEvalDatasetTasks = async (
   projectId: string,
   datasetId: string,
   { pageNumber, pageSize, filter, search }: z.infer<typeof evalListParamsSchema>
 ): Promise<PaginatedResponse<EvalTaskSummary>> => {
   if (!isEvalName(datasetId)) throw new NotFoundError("Eval dataset not found");
-  // Latest = greatest created_at, then greatest hash (as the app-server defines it).
   const summary = db
     .select({
       id: taskVersions.taskId,
       versionCount: sql<number>`count(*)::int`.as("version_count"),
       createdAt: sql<string>`min(${taskVersions.createdAt})`.as("first_pushed_at"),
-      pushedAt: sql<string>`max(${taskVersions.createdAt})`.as("pushed_at"),
-      hash: sql<string>`(array_agg(${taskVersions.hash} order by ${taskVersions.createdAt} desc, ${taskVersions.hash} desc))[1]`.as(
-        "latest_hash"
-      ),
+      lastPushedAt: sql<string>`max(${taskVersions.createdAt})`.as("last_pushed_at"),
     })
     .from(taskVersions)
     .where(and(eq(taskVersions.projectId, projectId), eq(taskVersions.datasetId, datasetId)))
@@ -134,8 +130,8 @@ export const getEvalDatasetTasks = async (
   return {
     items: rows.map((row) => ({
       id: row.id,
-      latest: { hash: row.hash, pushedAt: toIso(row.pushedAt) },
       versionCount: row.versionCount,
+      lastPushedAt: toIso(row.lastPushedAt),
       createdAt: toIso(row.createdAt),
     })),
     totalCount: count,

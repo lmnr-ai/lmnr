@@ -932,7 +932,7 @@ export const taskVersions = pgTable(
       columns: [table.projectId, table.datasetId, table.taskId, table.hash],
       name: "task_versions_pkey",
     }),
-    index("task_versions_latest_idx").using(
+    index("task_versions_created_at_idx").using(
       "btree",
       table.projectId.asc().nullsLast().op("uuid_ops"),
       table.datasetId.asc().nullsLast().op("text_ops"),

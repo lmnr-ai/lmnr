@@ -4,7 +4,7 @@ import { taskColumns } from "./columns";
 
 export const RESOURCE = "eval-dataset";
 
-export const defaults = { columnOrder: ["task", "version", "pushedAt", "createdAt"] };
+export const defaults = { columnOrder: ["task", "versionCount", "lastPushedAt", "createdAt"] };
 
 export const searchFilters: ColumnFilter[] = [{ name: "Task", key: "task", dataType: "string" }];
 

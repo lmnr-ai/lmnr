@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use actix_web::{
-    HttpRequest, HttpResponse, get,
+    HttpResponse, get,
     http::StatusCode,
     post, put,
     web::{self, Json},
@@ -14,19 +14,15 @@ use uuid::Uuid;
 
 use super::payload::{self, IndexError, MAX_ARCHIVE_BYTES, body_error_response, forward_payload};
 use crate::{
-    audit,
     db::{self, DB, eval_datasets::TaskHash, project_api_keys::ProjectApiKey},
     env,
-    eval_datasets::{
-        self, PushEntry, PushOutcome, PushRejection, VersionRef, is_dataset_name, is_task_name,
-        is_version_hash,
-    },
+    eval_datasets::{self, VersionRef, is_dataset_name, is_task_name, is_version_hash},
     features::{Feature, is_feature_enabled},
     routes::types::ResponseResult,
     storage::{Storage, StorageTrait},
 };
 
-/// Entries per `versions/missing` or `push` request.
+/// Entries per `versions/missing` request.
 const MAX_ENTRIES: usize = 10_000;
 
 const NAME_RULE: &str = "expected org/name, each part letters, digits, '.', '_' and '-' \
@@ -35,11 +31,6 @@ const NAME_RULE: &str = "expected org/name, each part letters, digits, '.', '_' 
 #[derive(Deserialize)]
 pub struct MissingVersionsRequest {
     versions: Vec<TaskHash>,
-}
-
-#[derive(Deserialize)]
-pub struct PushRequest {
-    tasks: Vec<PushEntry>,
 }
 
 /// `{org}/{name}`: a dataset name takes two path segments, so no slash is ever encoded.
@@ -77,16 +68,6 @@ impl VersionPath {
     }
 }
 
-/// `{id, createdAt, tasks: [{id, hash, createdAt}]}`: each task's latest version.
-#[get("/eval-datasets/{org}/{name}")]
-pub async fn get_dataset(
-    path: web::Path<DatasetPath>,
-    project_api_key: ProjectApiKey,
-    db: web::Data<DB>,
-) -> ResponseResult {
-    handle_get_dataset(&project_api_key.project_id, &path.dataset(), &db).await
-}
-
 /// `{versions: [{task, hash}]}` → `{missing}`: the versions still to upload.
 #[post("/eval-datasets/{org}/{name}/versions/missing")]
 pub async fn missing_versions(
@@ -122,7 +103,8 @@ pub async fn upload_version(
     .await
 }
 
-/// Body: the archive's file index. Makes the version its task's latest.
+/// Body: the archive's file index. Registers the version (and its dataset and
+/// task); re-uploading a known version keeps its `created_at`.
 #[put("/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}/index")]
 pub async fn upload_version_index(
     path: web::Path<VersionPath>,
@@ -151,50 +133,8 @@ pub async fn download_version(
     handle_download_version(&project_api_key.project_id, &path.version(), &db, &storage).await
 }
 
-/// `{tasks: [{task, hash, base}]}` → `{tasks: [{id, hash, createdAt}]}`; `409`
-/// with `versions_missing` or `moved` and nothing written otherwise.
-#[post("/eval-datasets/{org}/{name}/push")]
-pub async fn push(
-    req: HttpRequest,
-    path: web::Path<DatasetPath>,
-    body: Json<PushRequest>,
-    project_api_key: ProjectApiKey,
-    db: web::Data<DB>,
-) -> ResponseResult {
-    handle_push(
-        &req,
-        &project_api_key.project_id,
-        &path.dataset(),
-        body.into_inner(),
-        &db,
-    )
-    .await
-}
-
 // Shared by the project-API-key routes above and their CLI twins
 // (`api::v1::cli::eval_datasets`).
-
-pub async fn handle_get_dataset(project_id: &Uuid, dataset: &str, db: &DB) -> ResponseResult {
-    if storage_bucket().is_none() {
-        return Ok(storage_not_configured());
-    }
-    if let Some(invalid) = check_dataset(dataset) {
-        return Ok(invalid);
-    }
-    let Some(found) = db::eval_datasets::get_dataset(&db.pool, project_id, dataset).await? else {
-        return Ok(error_response(
-            StatusCode::NOT_FOUND,
-            "dataset_not_found",
-            format!("Dataset {dataset:?} not found"),
-        ));
-    };
-    let tasks = db::eval_datasets::get_latest_versions(&db.pool, project_id, dataset).await?;
-    Ok(HttpResponse::Ok().json(json!({
-        "id": found.id,
-        "createdAt": found.created_at,
-        "tasks": tasks,
-    })))
-}
 
 pub async fn handle_missing_versions(
     project_id: &Uuid,
@@ -281,7 +221,7 @@ pub async fn handle_upload_version_index(
     .await;
     let response = match stored {
         Ok(()) => {
-            db::eval_datasets::upsert_version(&db.pool, project_id, version).await?;
+            db::eval_datasets::insert_version(&db.pool, project_id, version).await?;
             HttpResponse::NoContent().finish()
         }
         Err(IndexError::Body(e)) => body_error_response(e),
@@ -332,60 +272,6 @@ pub async fn handle_download_version(
     })
 }
 
-pub async fn handle_push(
-    http_req: &HttpRequest,
-    project_id: &Uuid,
-    dataset: &str,
-    req: PushRequest,
-    db: &DB,
-) -> ResponseResult {
-    if storage_bucket().is_none() {
-        return Ok(storage_not_configured());
-    }
-    if let Some(invalid) = check_dataset(dataset) {
-        return Ok(invalid);
-    }
-    audit::target_named(http_req, dataset, dataset.to_string());
-    if req.tasks.is_empty() {
-        return Ok(error_response(
-            StatusCode::BAD_REQUEST,
-            "invalid_request",
-            "tasks must not be empty",
-        ));
-    }
-    if req.tasks.len() > MAX_ENTRIES {
-        return Ok(too_many_entries());
-    }
-    if let Some(invalid) = req.tasks.iter().find_map(check_push_entry) {
-        return Ok(invalid);
-    }
-    let mut seen = HashSet::new();
-    if let Some(duplicate) = req.tasks.iter().find(|e| !seen.insert(e.task.as_str())) {
-        return Ok(error_response(
-            StatusCode::BAD_REQUEST,
-            "invalid_request",
-            format!("Task {:?} is listed more than once", duplicate.task),
-        ));
-    }
-
-    let response = match eval_datasets::push(db, project_id, dataset, &req.tasks).await? {
-        PushOutcome::Pushed(tasks) => HttpResponse::Ok().json(json!({ "tasks": tasks })),
-        PushOutcome::Rejected(PushRejection::VersionsMissing(missing)) => {
-            HttpResponse::Conflict().json(json!({
-                "error": "Upload these task versions before pushing them",
-                "code": "versions_missing",
-                "missing": missing,
-            }))
-        }
-        PushOutcome::Rejected(PushRejection::Moved(moved)) => HttpResponse::Conflict().json(json!({
-            "error": "These tasks changed in Laminar since they were pulled; pull, then push again",
-            "code": "moved",
-            "moved": moved,
-        })),
-    };
-    Ok(response)
-}
-
 /// `S3_EXPORTS_BUCKET`, when storage is configured. Eval datasets need nothing else
 /// (no hosted evals, no sandbox provider).
 fn storage_bucket() -> Option<String> {
@@ -434,10 +320,6 @@ fn check_hash(hash: &str) -> Option<HttpResponse> {
 
 fn check_version(version: &VersionRef) -> Option<HttpResponse> {
     check_dataset(&version.dataset).or_else(|| check_task_hash(&version.task, &version.hash))
-}
-
-fn check_push_entry(entry: &PushEntry) -> Option<HttpResponse> {
-    check_task_hash(&entry.task, &entry.hash).or_else(|| entry.base.as_deref().and_then(check_hash))
 }
 
 fn error_response(status: StatusCode, code: &str, error: impl Into<String>) -> HttpResponse {

@@ -5,6 +5,6 @@ export interface TaskVersion extends EvalTaskVersion {
   number: number;
 }
 
-/** Numbers a task's versions, given newest first. */
+/** Numbers a task's versions, given newest first. A version's push time never changes, so neither does its number. */
 export const numberVersions = (versions: EvalTaskVersion[]): TaskVersion[] =>
   versions.map((v, i) => ({ ...v, number: versions.length - i }));

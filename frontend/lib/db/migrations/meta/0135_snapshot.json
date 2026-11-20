@@ -8980,8 +8980,8 @@
         }
       },
       "indexes": {
-        "task_versions_latest_idx": {
-          "name": "task_versions_latest_idx",
+        "task_versions_created_at_idx": {
+          "name": "task_versions_created_at_idx",
           "columns": [
             {
               "expression": "project_id",

@@ -7,18 +7,20 @@ export interface EvalDatasetSummary {
   lastPushedAt: string | null;
 }
 
+/** One version of a task. Versions are independent: a dataset.toml pin, not Laminar, picks one. */
 export interface EvalTaskVersion {
   hash: string;
-  /** When this version was last pushed (a re-push moves it). */
+  /** When this version was first pushed; re-pushing the same content keeps it. */
   pushedAt: string;
 }
 
-/** A task as the dataset page lists it: its latest version; older ones load with the files dialog. */
+/** A task as the dataset page lists it; its versions load with the files dialog. */
 export interface EvalTaskSummary {
   id: string;
-  latest: EvalTaskVersion;
   versionCount: number;
-  /** The oldest version's push time; re-pushing that exact hash moves it. */
+  /** When its newest version was pushed. */
+  lastPushedAt: string;
+  /** When its first version was pushed. */
   createdAt: string;
 }
 

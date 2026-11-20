@@ -23,8 +23,8 @@ interface EvalDatasetViewProps {
 }
 
 /**
- * One eval dataset: a row per task at its latest version. A row opens the files
- * dialog, which also browses the task's older versions; the open one is `?task=&hash=`.
+ * One eval dataset: a row per task. A row opens the files dialog on the task's
+ * newest version, browsable to the others; the open one is `?task=&hash=`.
  */
 function EvalDatasetContent({ projectId, datasetId }: EvalDatasetViewProps) {
   const { data: dataset, error } = useSWR<EvalDataset>(
@@ -34,11 +34,8 @@ function EvalDatasetContent({ projectId, datasetId }: EvalDatasetViewProps) {
   const [open, setOpen] = useQueryStates({ task: parseAsString, hash: parseAsString });
   const { value, filter, search, isViewLoading, setSearchAndFilters, setFilters } = useListQuery();
 
-  const onOpenVersion = useCallback((task: string, hash: string) => setOpen({ task, hash }), [setOpen]);
-  const onRowClick = useCallback(
-    (row: Row<EvalTaskSummary>) => onOpenVersion(row.original.id, row.original.latest.hash),
-    [onOpenVersion]
-  );
+  const onOpenVersion = useCallback((task: string, hash: string | null) => setOpen({ task, hash }), [setOpen]);
+  const onRowClick = useCallback((row: Row<EvalTaskSummary>) => onOpenVersion(row.original.id, null), [onOpenVersion]);
   const onClose = useCallback(() => setOpen({ task: null, hash: null }), [setOpen]);
 
   return (
@@ -71,7 +68,7 @@ function EvalDatasetContent({ projectId, datasetId }: EvalDatasetViewProps) {
           </TasksTableContents>
         </div>
       </div>
-      {open.task && open.hash && (
+      {open.task && (
         <VersionFilesDialog
           projectId={projectId}
           datasetId={datasetId}

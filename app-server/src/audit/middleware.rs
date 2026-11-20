@@ -124,9 +124,8 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
             | "/evals/{eval_id}/datapoints/{trial_id}",
         ) => Skip,
         ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
-        // A push is what changes a dataset's pins. Version uploads only add
-        // candidates (per-item traffic of a push), and reads are pull traffic.
-        ("POST", "/eval-datasets/{org}/{name}/push") => log_write(EvalDataset, Update),
+        // Version uploads and downloads are per-task traffic of a CLI push or
+        // pull; which versions a dataset uses lives in its dataset.toml in git.
         (_, p) if p.starts_with("/eval-datasets/") => Skip,
         (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
@@ -319,7 +318,6 @@ mod tests {
                 Method::GET,
                 "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}",
             ),
-            (Method::GET, "/eval-datasets/{org}/{name}"),
             (Method::POST, "/eval-datasets/{org}/{name}/versions/missing"),
             (Method::POST, "/mcp"),
         ] {
@@ -344,10 +342,6 @@ mod tests {
         assert_eq!(
             classify(&Method::GET, "/datasets/{dataset_id}/parquets/{idx}"),
             Some(log_read(AuditResource::Dataset, AuditAction::Export))
-        );
-        assert_eq!(
-            classify(&Method::POST, "/eval-datasets/{org}/{name}/push"),
-            Some(log_write(AuditResource::EvalDataset, AuditAction::Update))
         );
         assert_eq!(classify(&Method::POST, "/unknown"), None);
     }

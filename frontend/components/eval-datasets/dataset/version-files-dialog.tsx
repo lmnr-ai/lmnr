@@ -15,7 +15,8 @@ interface VersionFilesDialogProps {
   projectId: string;
   datasetId: string;
   taskId: string;
-  hash: string;
+  /** The version to show; the newest when null. */
+  hash: string | null;
   onSelectVersion: (hash: string) => void;
   onClose: () => void;
 }
@@ -35,26 +36,29 @@ export default function VersionFilesDialog({
     swrFetcher
   );
   const versions = useMemo(() => numberVersions(data ?? []), [data]);
-  const version = versions.find((v) => v.hash === hash);
+  const selected = hash ?? versions[0]?.hash;
+  const version = versions.find((v) => v.hash === selected);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex h-[80vh] max-w-6xl flex-col gap-0 overflow-hidden p-0">
         <DialogTitle className="flex items-center gap-3 border-b px-4 py-3 text-sm font-medium">
           {taskId}
-          {version && <VersionLabel version={version} isLatest={version.hash === versions[0]?.hash} />}
+          {version && <VersionLabel version={version} />}
         </DialogTitle>
         <div className="flex min-h-0 flex-1">
-          <VersionsRail versions={versions} selected={hash} onSelect={onSelectVersion} />
+          <VersionsRail versions={versions} selected={selected} onSelect={onSelectVersion} />
           <div className="flex min-w-0 flex-1">
-            <VersionFiles
-              projectId={projectId}
-              datasetId={datasetId}
-              taskId={taskId}
-              hash={hash}
-              selectedPath={selectedPath}
-              onSelectPath={setSelectedPath}
-            />
+            {selected && (
+              <VersionFiles
+                projectId={projectId}
+                datasetId={datasetId}
+                taskId={taskId}
+                hash={selected}
+                selectedPath={selectedPath}
+                onSelectPath={setSelectedPath}
+              />
+            )}
           </div>
         </div>
       </DialogContent>

@@ -6,7 +6,7 @@ import VersionLabel from "./version-label";
 
 interface VersionsRailProps {
   versions: TaskVersion[];
-  selected: string;
+  selected?: string;
   onSelect: (hash: string) => void;
 }
 
@@ -15,7 +15,7 @@ export default function VersionsRail({ versions, selected, onSelect }: VersionsR
   return (
     <div className="flex w-56 shrink-0 flex-col overflow-auto border-r">
       <div className="border-b px-3 py-1.5 text-xs text-muted-foreground">Versions</div>
-      {versions.map((version, i) => (
+      {versions.map((version) => (
         <button
           key={version.hash}
           type="button"
@@ -25,7 +25,7 @@ export default function VersionsRail({ versions, selected, onSelect }: VersionsR
             version.hash === selected && "bg-emphasis-1"
           )}
         >
-          <VersionLabel version={version} isLatest={i === 0} />
+          <VersionLabel version={version} />
           <span className="text-xs text-muted-foreground">
             <ClientTimestampFormatter timestamp={version.pushedAt} />
           </span>

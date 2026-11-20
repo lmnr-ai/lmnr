@@ -6,7 +6,7 @@ import { apiHandler } from "@/lib/api/api-handler";
 
 type Params = { projectId: string; org: string; name: string };
 
-/** One page of the dataset's tasks, each at its latest version. */
+/** One page of the dataset's tasks. */
 export const GET = apiHandler<Params>(async (req: NextRequest, ctx) => {
   const { projectId, org, name } = await ctx.params;
   const params = parseUrlParams(req.nextUrl.searchParams, evalListParamsSchema);
