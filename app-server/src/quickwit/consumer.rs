@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 
 use crate::{
-    quickwit::{FlattenJson, IndexerQueuePayload, PreprocessForIndexing, client::QuickwitClient},
+    quickwit::{
+        FlattenJson, IndexerQueuePayload, PreprocessForIndexing, SPANS_INDEXER_QUEUE,
+        client::QuickwitClient,
+    },
     worker::MessageHandler,
 };
 
@@ -40,5 +43,15 @@ impl MessageHandler for QuickwitIndexerHandler {
         } else {
             Ok(())
         }
+    }
+
+    async fn on_retries_exhausted(&self, payload: Self::Message) {
+        let index_id = payload.index_id();
+        log::error!(
+            "Lost {} documents for Quickwit index '{}' from '{}' after exhausting delayed retries",
+            payload.into_documents().len(),
+            index_id,
+            SPANS_INDEXER_QUEUE,
+        );
     }
 }

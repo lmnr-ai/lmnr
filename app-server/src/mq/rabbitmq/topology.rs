@@ -21,11 +21,15 @@ use crate::{
         NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE,
         delivery::{NOTIFICATION_DELIVERIES_EXCHANGE, NOTIFICATION_DELIVERIES_QUEUE},
     },
-    quickwit::{SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE},
+    quickwit::{
+        SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_RETRY_EXCHANGE,
+        SPANS_INDEXER_RETRY_QUEUE, SPANS_INDEXER_RETRY_ROUTING_KEY, SPANS_INDEXER_ROUTING_KEY,
+    },
     reports::{REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE},
     traces::{
-        OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, SPANS_DATA_PLANE_EXCHANGE,
-        SPANS_DATA_PLANE_QUEUE,
+        OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_RETRY_EXCHANGE,
+        OBSERVATIONS_RETRY_QUEUE, OBSERVATIONS_RETRY_ROUTING_KEY, OBSERVATIONS_ROUTING_KEY,
+        SPANS_DATA_PLANE_EXCHANGE, SPANS_DATA_PLANE_QUEUE,
         input_extraction::{
             queue::{INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE},
             regex_agent::{USER_TASK_REGEX_EXCHANGE, USER_TASK_REGEX_QUEUE},
@@ -145,6 +149,36 @@ fn add_main_queue(ops: &mut Vec<Op>, main: MainQueue) {
     }
 }
 
+/// Span ingestion queues with a retry delay queue, so a ClickHouse or Quickwit
+/// outage parks span batches for `*_TRANSIENT_RETRY_DELAY_MS` instead of
+/// burning the quorum delivery limit in seconds and losing them.
+fn spans_main_queues() -> [MainQueue; 2] {
+    [
+        MainQueue {
+            exchange: OBSERVATIONS_EXCHANGE,
+            queue: OBSERVATIONS_QUEUE,
+            waiting: None,
+            retry: Some(DelayQueue {
+                exchange: OBSERVATIONS_RETRY_EXCHANGE,
+                queue: OBSERVATIONS_RETRY_QUEUE,
+                routing_key: OBSERVATIONS_RETRY_ROUTING_KEY,
+                dead_letter_routing_key: Some(OBSERVATIONS_ROUTING_KEY),
+            }),
+        },
+        MainQueue {
+            exchange: SPANS_INDEXER_EXCHANGE,
+            queue: SPANS_INDEXER_QUEUE,
+            waiting: None,
+            retry: Some(DelayQueue {
+                exchange: SPANS_INDEXER_RETRY_EXCHANGE,
+                queue: SPANS_INDEXER_RETRY_QUEUE,
+                routing_key: SPANS_INDEXER_RETRY_ROUTING_KEY,
+                dead_letter_routing_key: Some(SPANS_INDEXER_ROUTING_KEY),
+            }),
+        },
+    ]
+}
+
 /// The signals agent's queues: main + waiting + retry delay queues. Realtime serves
 /// trigger runs and backfill serves job runs, so a large backfill scales on
 /// its own workers and never queues realtime traffic behind it. The admission
@@ -207,15 +241,18 @@ fn signals_main_queues() -> [MainQueue; 3] {
 fn plan() -> Vec<Op> {
     let mut ops = Vec::new();
 
-    // Single exchange + queue, no waiting/retry delay queues. Failures on the
-    // user-task regex agent and SP regex extraction queues drop and the next
-    // attempt (cohort accumulator interval / next demand) retries instead;
-    // the user-task agent has its own queue because a run takes minutes while
-    // a per-trace extraction takes seconds.
+    for main in spans_main_queues() {
+        add_main_queue(&mut ops, main);
+    }
+
+    // Single exchange + queue, no waiting/retry delay queues: a transient
+    // failure requeues immediately, bounded by the quorum delivery limit.
+    // Failures on the user-task regex agent and SP regex extraction queues drop
+    // and the next attempt (cohort accumulator interval / next demand) retries
+    // instead; the user-task agent has its own queue because a run takes
+    // minutes while a per-trace extraction takes seconds.
     let simple = [
-        (OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE),
         (SPANS_DATA_PLANE_EXCHANGE, SPANS_DATA_PLANE_QUEUE),
-        (SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE),
         (BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE),
         (AUDIT_EXCHANGE, AUDIT_QUEUE),
         (INPUT_EXTRACTION_EXCHANGE, INPUT_EXTRACTION_QUEUE),
@@ -329,4 +366,96 @@ pub fn declare_topology(channel: &Channel) -> BoxFuture<'_, anyhow::Result<()>> 
         }
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn queue_args(ops: &[Op], name: &str) -> FieldTable {
+        ops.iter()
+            .find_map(|op| match op {
+                Op::Queue { name: n, args } if *n == name => Some(args.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("queue '{name}' is not declared"))
+    }
+
+    fn dead_letter_args(exchange: &str, routing_key: &str) -> FieldTable {
+        let mut args = quorum_args();
+        args.insert(
+            "x-dead-letter-exchange".into(),
+            AMQPValue::LongString(exchange.into()),
+        );
+        args.insert(
+            "x-dead-letter-routing-key".into(),
+            AMQPValue::LongString(routing_key.into()),
+        );
+        args
+    }
+
+    #[test]
+    fn span_retry_queues_dead_letter_back_into_their_main_queue() {
+        let ops = plan();
+
+        for (retry_exchange, retry_queue, retry_routing_key, main_exchange, main_routing_key) in [
+            (
+                OBSERVATIONS_RETRY_EXCHANGE,
+                OBSERVATIONS_RETRY_QUEUE,
+                OBSERVATIONS_RETRY_ROUTING_KEY,
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
+            ),
+            (
+                SPANS_INDEXER_RETRY_EXCHANGE,
+                SPANS_INDEXER_RETRY_QUEUE,
+                SPANS_INDEXER_RETRY_ROUTING_KEY,
+                SPANS_INDEXER_EXCHANGE,
+                SPANS_INDEXER_ROUTING_KEY,
+            ),
+        ] {
+            assert_eq!(
+                queue_args(&ops, retry_queue),
+                dead_letter_args(main_exchange, main_routing_key)
+            );
+            assert!(ops.contains(&Op::Exchange(retry_exchange)));
+            assert!(ops.contains(&Op::Bind {
+                queue: retry_queue,
+                exchange: retry_exchange,
+                routing_key: retry_routing_key,
+            }));
+        }
+    }
+
+    /// Redeclaring an existing queue with different `x-*` arguments fails with
+    /// PRECONDITION_FAILED on a live broker, so main queues must stay as they are.
+    #[test]
+    fn span_main_queues_keep_their_arguments() {
+        let ops = plan();
+
+        for queue in [
+            OBSERVATIONS_QUEUE,
+            SPANS_INDEXER_QUEUE,
+            SPANS_DATA_PLANE_QUEUE,
+        ] {
+            assert_eq!(queue_args(&ops, queue), quorum_args());
+        }
+    }
+
+    #[test]
+    fn every_queue_is_declared_once() {
+        let ops = plan();
+        let mut names: Vec<_> = ops
+            .iter()
+            .filter_map(|op| match op {
+                Op::Queue { name, .. } => Some(*name),
+                _ => None,
+            })
+            .collect();
+        let declared = names.len();
+        names.sort();
+        names.dedup();
+
+        assert_eq!(names.len(), declared);
+    }
 }

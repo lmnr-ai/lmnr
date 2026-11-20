@@ -25,7 +25,8 @@ pub struct HandlerResult<M> {
     pub to_ack: Vec<MessageDelivery<M>>,
     /// Deliveries to reject permanently (unrecoverable error, no requeue)
     pub to_reject: Vec<MessageDelivery<M>>,
-    /// Deliveries to requeue (transient error, will be redelivered)
+    /// Deliveries to requeue (transient error, will be redelivered — after a
+    /// delay when the queue has a `RetryConfig`)
     pub to_requeue: Vec<MessageDelivery<M>>,
 }
 
@@ -101,4 +102,9 @@ pub trait BatchMessageHandler: Send + Sync + 'static {
     ///
     /// Example: flush batches that haven't been flushed for too long.
     async fn handle_interval(&self, state: &mut Self::State) -> HandlerResult<Self::Message>;
+
+    /// Called for a requeued delivery that is dropped for exceeding its
+    /// delayed-retry budget (see `RetryConfig::max_attempts`), so a handler can
+    /// say what was lost. Only queues with a `RetryConfig` ever reach it.
+    async fn on_retries_exhausted(&self, _message: &Self::Message) {}
 }

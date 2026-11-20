@@ -4,17 +4,23 @@ use lapin::{
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
 };
 pub mod rabbitmq;
+#[cfg(test)]
+pub mod recording;
 pub mod stream;
 pub mod tokio_mpsc;
 pub mod utils;
 
 use rabbitmq::{RabbitMQ, RabbitMQDelivery, RabbitMQReceiver};
+#[cfg(test)]
+use recording::{RecordingQueue, Settlement, SettlementLog};
 use tokio_mpsc::{TokioMpscDelivery, TokioMpscQueue, TokioMpscReceiver};
 
 #[enum_dispatch]
 pub enum MessageQueue {
     Rabbit(RabbitMQ),
     TokioMpsc(TokioMpscQueue),
+    #[cfg(test)]
+    Recording(RecordingQueue),
 }
 
 #[enum_dispatch]
@@ -37,6 +43,11 @@ pub trait MessageQueueReceiverTrait {
 pub enum MessageQueueAcker {
     RabbitAcker(Acker),
     TokioMpscAcker,
+    #[cfg(test)]
+    Recording {
+        delivery_tag: u64,
+        log: SettlementLog,
+    },
 }
 
 impl MessageQueueAcker {
@@ -47,6 +58,11 @@ impl MessageQueueAcker {
                 Err(e) => Err(anyhow::anyhow!("Failed to ack message: {}", e)),
             },
             Self::TokioMpscAcker => Ok(()),
+            #[cfg(test)]
+            Self::Recording { delivery_tag, log } => {
+                log.record(*delivery_tag, Settlement::Ack);
+                Ok(())
+            }
         }
     }
 
@@ -64,6 +80,11 @@ impl MessageQueueAcker {
                 Err(e) => Err(anyhow::anyhow!("Failed to nack message: {}", e)),
             },
             Self::TokioMpscAcker => Ok(()),
+            #[cfg(test)]
+            Self::Recording { delivery_tag, log } => {
+                log.record(*delivery_tag, Settlement::Nack { requeue });
+                Ok(())
+            }
         }
     }
 
@@ -74,6 +95,11 @@ impl MessageQueueAcker {
                 Err(e) => Err(anyhow::anyhow!("Failed to reject message: {}", e)),
             },
             Self::TokioMpscAcker => Ok(()),
+            #[cfg(test)]
+            Self::Recording { delivery_tag, log } => {
+                log.record(*delivery_tag, Settlement::Reject { requeue });
+                Ok(())
+            }
         }
     }
 }

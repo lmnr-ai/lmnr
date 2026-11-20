@@ -1,9 +1,10 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 
-use super::processor::process_span_messages;
+use super::{OBSERVATIONS_QUEUE, processor::process_span_messages};
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -84,6 +85,16 @@ impl BatchMessageHandler for SpanHandler {
         }
 
         HandlerResult::empty()
+    }
+
+    async fn on_retries_exhausted(&self, message: &Self::Message) {
+        let project_ids: HashSet<_> = message.iter().map(|m| m.span.project_id).collect();
+        log::error!(
+            "Lost {} spans from '{}' after exhausting delayed retries (projects: {:?})",
+            message.len(),
+            OBSERVATIONS_QUEUE,
+            project_ids,
+        );
     }
 }
 
