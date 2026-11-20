@@ -75,6 +75,11 @@ impl McpOAuthConfig {
         }
     }
 
+    /// The public `/v1/mcp` URL.
+    pub fn resource(&self) -> &str {
+        &self.resource
+    }
+
     fn new(resource: &str, issuer: &str) -> anyhow::Result<Self> {
         let resource_url = Url::parse(resource)?;
         Url::parse(issuer)?;

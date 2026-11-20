@@ -1953,6 +1953,11 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(project_auth.clone())
                                     .service(api::v1::tag::tag_trace),
                             )
+                            // Public, so registered before the authenticated `/v1/mcp` scope.
+                            .route(
+                                "/v1/mcp/server-card",
+                                web::get().to(api::v1::mcp::server_card),
+                            )
                             .service(
                                 web::scope("/v1/mcp")
                                     .wrap(actix_web::middleware::from_fn(

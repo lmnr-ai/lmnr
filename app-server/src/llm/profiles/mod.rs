@@ -24,6 +24,7 @@ use uuid::Uuid;
 /// Wire names shared with the frontend (`LLM_PROFILE_PROVIDERS`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(description = "The provider API a profile calls.")]
 pub enum LlmProfileProvider {
     OpenaiCompletions,
     OpenaiResponses,
@@ -91,17 +92,27 @@ impl LlmProfileProvider {
 /// Absent options are omitted on the wire because the Zod schema rejects `null`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[schemars(
+    description = "Provider connection settings; which fields apply depends on the provider."
+)]
 pub struct ProfileConfig {
+    /// How Bedrock authenticates; every other provider uses `api_key`, the default.
     #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub auth: ProfileAuth,
+    /// AWS region, e.g. `us-east-1`. Bedrock only, and required there.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
+    /// Azure resource name. Azure takes this or `baseUrl`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resource_id: Option<String>,
+    /// Endpoint URL: required for a custom gateway; Azure takes this or `resourceId`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
+    /// Azure API version; omit for the provider default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_version: Option<String>,
+    /// Names of extra headers a custom gateway receives, with their values in
+    /// `secrets.headers`.
     #[serde(
         default,
         deserialize_with = "crate::utils::null_as_default",
@@ -113,12 +124,16 @@ pub struct ProfileConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ProfileAuth {
+    /// The key in `secrets.apiKey`.
     #[default]
     ApiKey,
+    /// An AWS access key pair, with the secret half in `secrets.secretAccessKey`.
     AwsKeys {
+        /// AWS access key id.
         #[serde(rename = "accessKeyId")]
         access_key_id: String,
     },
+    /// A Bedrock API key, in `secrets.token`.
     BearerToken,
 }
 
@@ -126,13 +141,18 @@ pub enum ProfileAuth {
 /// write routes accept. Absent keys are omitted on the wire (Zod rejects `null`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[schemars(description = "Provider credentials, stored encrypted and only ever returned masked.")]
 pub struct ProfileSecrets {
+    /// Provider API key, for every provider except Bedrock.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
+    /// AWS secret access key, for Bedrock with `aws_keys` auth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secret_access_key: Option<String>,
+    /// Bedrock API key, for `bearer_token` auth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
+    /// Values of the custom gateway headers named in `config.headerNames`, keyed by name.
     #[serde(
         default,
         deserialize_with = "crate::utils::null_as_default",

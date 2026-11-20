@@ -15,9 +15,11 @@ use crate::ch::trace_tags::add_trace_tags;
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AddTraceTagsParams {
+    /// The trace to tag, as `traces.id` or `spans.trace_id` from `query_laminar_sql`.
     #[schemars(with = "String", regex(pattern = TRACE_ID_PATTERN))]
     pub trace_id: Uuid,
     /// Tag names to add; tags the trace already has are kept.
+    #[schemars(length(min = 1))]
     pub tags: Vec<String>,
     #[serde(flatten)]
     pub project: ProjectParam,
@@ -25,9 +27,20 @@ pub struct AddTraceTagsParams {
 
 #[tool_router(router = trace_tools, vis = "pub(super)")]
 impl LaminarMcpServer {
-    /// Add tags to a trace, e.g. to mark traces you reviewed. Tags are queryable with
-    /// `query_laminar_sql` (`traces.tags`).
-    #[tool(name = "add_trace_tags")]
+    /// Add tags to a trace, e.g. to mark traces you reviewed. Existing tags are kept, and adding
+    /// a tag the trace already has changes nothing. Tags are queryable with `query_laminar_sql`
+    /// (`traces.tags`). Returns the trace id and the tags added.
+    #[tool(
+        name = "add_trace_tags",
+        title = "Add trace tags",
+        annotations(
+            title = "Add trace tags",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn add_trace_tags(
         &self,
         context: RequestContext<RoleServer>,

@@ -5,6 +5,7 @@ use rmcp::{
     ErrorData as McpError, RoleServer, handler::server::wrapper::Parameters,
     model::CallToolResponse, schemars, service::RequestContext, tool, tool_router,
 };
+use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -31,6 +32,7 @@ pub struct ListLlmProfilesParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmProfileIdParams {
+    /// The LLM profile's `id`, from `list_llm_profiles`.
     pub profile_id: Uuid,
     #[serde(flatten)]
     pub project: ProjectParam,
@@ -49,22 +51,45 @@ pub struct CreateLlmProfileParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLlmProfileParams {
+    /// The LLM profile's `id`, from `list_llm_profiles`.
     pub profile_id: Uuid,
+    /// New display name, unique within the workspace.
     #[serde(default)]
     pub name: Option<String>,
-    /// Changing it requires `config`, which then starts empty instead of from the stored one.
+    /// Switch the profile to another provider API. Also pass the new provider's `config`,
+    /// which then starts empty instead of from the stored one.
     #[serde(default)]
     pub provider: Option<LlmProfileProvider>,
+    /// Connection settings to change; fields you leave out keep their stored value.
     #[serde(default)]
     pub config: Option<ProfileConfigPatch>,
-    /// Absent keys, or the masks `get_llm_profile` returns, keep the stored secret.
-    #[serde(default, deserialize_with = "crate::utils::null_as_default")]
+    /// Credentials to replace. Keys you leave out, or pass back as the masks `get_llm_profile`
+    /// returns, keep the stored secret.
+    #[serde(default, deserialize_with = "echoed_secrets")]
     pub secrets: ProfileSecrets,
-    /// Replaces the whole list.
+    /// Model ids the profile offers; replaces the whole list.
     #[serde(default)]
     pub models: Option<Vec<String>>,
     #[serde(flatten)]
     pub project: ProjectParam,
+}
+
+/// `get_llm_profile` lists header names (`["X-Tenant"]`) where updates take a name → value map;
+/// an agent echoing a fetched profile sends the list, which keeps the stored header values.
+fn echoed_secrets<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<ProfileSecrets, D::Error> {
+    let Some(mut value) = Option::<serde_json::Value>::deserialize(deserializer)? else {
+        return Ok(ProfileSecrets::default());
+    };
+    if let Some(secrets) = value.as_object_mut()
+        && secrets
+            .get("headers")
+            .is_some_and(serde_json::Value::is_array)
+    {
+        secrets.remove("headers");
+    }
+    serde_json::from_value(value).map_err(serde::de::Error::custom)
 }
 
 /// The `config` fields to change. The service replaces `config` whole, so a field a
@@ -72,20 +97,27 @@ pub struct UpdateLlmProfileParams {
 /// the stored header secrets with it).
 #[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[schemars(
+    description = "The `config` fields to change; fields left out or `null` keep their stored value."
+)]
 pub struct ProfileConfigPatch {
+    /// How Bedrock authenticates; other providers always use an API key.
     #[serde(default)]
     pub auth: Option<ProfileAuth>,
-    /// `""` clears it; likewise `resourceId`, `baseUrl` and `apiVersion`.
+    /// AWS region of a Bedrock profile, e.g. `us-east-1`. `""` clears it.
     #[serde(default)]
     pub region: Option<String>,
+    /// Azure resource name. `""` clears it.
     #[serde(default)]
     pub resource_id: Option<String>,
+    /// Endpoint of an Azure deployment or a custom gateway. `""` clears it.
     #[serde(default)]
     pub base_url: Option<String>,
+    /// Azure API version. `""` clears it.
     #[serde(default)]
     pub api_version: Option<String>,
-    /// Custom header names, with their values in `secrets.headers`. `[]` removes every header
-    /// and its stored value.
+    /// Names of the extra headers a custom gateway receives, with their values in
+    /// `secrets.headers`. `[]` removes every header and its stored value.
     #[serde(default)]
     pub header_names: Option<Vec<String>>,
 }
@@ -150,9 +182,20 @@ impl LaminarMcpServer {
 
 #[tool_router(router = llm_profile_tools, vis = "pub(super)")]
 impl LaminarMcpServer {
-    /// List the workspace's LLM profiles (provider credentials + models that signals and the
-    /// playground run on). Secrets come back masked.
-    #[tool(name = "list_llm_profiles")]
+    /// List the LLM profiles of the project's workspace: the provider credentials and models
+    /// that signals and the playground run on. Each comes with its id, name, provider, config
+    /// and models; secrets come back masked.
+    #[tool(
+        name = "list_llm_profiles",
+        title = "List LLM profiles",
+        annotations(
+            title = "List LLM profiles",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn list_llm_profiles(
         &self,
         context: RequestContext<RoleServer>,
@@ -172,8 +215,18 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Get one LLM profile. Secrets come back masked.
-    #[tool(name = "get_llm_profile")]
+    /// Get one LLM profile: its name, provider, config and models, with secrets masked.
+    #[tool(
+        name = "get_llm_profile",
+        title = "Get LLM profile",
+        annotations(
+            title = "Get LLM profile",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn get_llm_profile(
         &self,
         context: RequestContext<RoleServer>,
@@ -195,8 +248,20 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Create a workspace LLM profile. Secrets you pass are stored encrypted and never returned.
-    #[tool(name = "create_llm_profile")]
+    /// Create an LLM profile in the project's workspace, shared by all of its projects. The
+    /// provider decides which `config` and `secrets` fields are needed. Secrets are stored
+    /// encrypted and never returned in full. Returns the created profile.
+    #[tool(
+        name = "create_llm_profile",
+        title = "Create LLM profile",
+        annotations(
+            title = "Create LLM profile",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     async fn create_llm_profile(
         &self,
         context: RequestContext<RoleServer>,
@@ -218,8 +283,20 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Update an LLM profile; only the fields you pass change.
-    #[tool(name = "update_llm_profile")]
+    /// Update an LLM profile; only the fields you pass change. The change applies at once to
+    /// every signal and feature using the profile. A secret you pass overwrites the stored
+    /// one, and a model still used by a signal cannot be removed. Returns the updated profile.
+    #[tool(
+        name = "update_llm_profile",
+        title = "Update LLM profile",
+        annotations(
+            title = "Update LLM profile",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn update_llm_profile(
         &self,
         context: RequestContext<RoleServer>,
@@ -252,8 +329,20 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Delete an LLM profile. Refused while a signal or feature route uses it.
-    #[tool(name = "delete_llm_profile")]
+    /// Delete an LLM profile and its stored credentials. Irreversible. Refused while a signal
+    /// or an LLM feature route uses it: move those to another profile first. Returns the
+    /// deleted profile.
+    #[tool(
+        name = "delete_llm_profile",
+        title = "Delete LLM profile",
+        annotations(
+            title = "Delete LLM profile",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn delete_llm_profile(
         &self,
         context: RequestContext<RoleServer>,
@@ -371,5 +460,20 @@ mod tests {
         .config
         .unwrap();
         assert_eq!(config.header_names, vec!["X-Tenant".to_string()]);
+    }
+
+    #[test]
+    fn an_echoed_profile_keeps_the_stored_secrets() {
+        let input = update(
+            json!({ "secrets": { "apiKey": "sk-***xyz", "headers": ["X-Tenant"] } }),
+            LlmProfileProvider::Custom,
+        );
+        assert_eq!(input.secrets.api_key.as_deref(), Some("sk-***xyz"));
+        assert!(input.secrets.headers.is_empty());
+        let input = update(
+            json!({ "secrets": { "headers": { "X-Tenant": "t2" } } }),
+            LlmProfileProvider::Custom,
+        );
+        assert_eq!(input.secrets.headers["X-Tenant"], "t2");
     }
 }

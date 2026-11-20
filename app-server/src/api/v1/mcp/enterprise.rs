@@ -22,9 +22,7 @@ use crate::{
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GetTraceContextParams {
-    /// The trace ID to retrieve: 32 hex digits, either as a hyphenated GUID (e.g.,
-    /// '123e4567-e89b-12d3-a456-426614174000') or unhyphenated as in OpenTelemetry
-    /// (e.g., '123e4567e89b12d3a456426614174000')
+    /// The trace to summarize, as `traces.id` or `spans.trace_id` from `query_laminar_sql`.
     // Not advertised as `format: uuid`: zod maps that to the RFC-strict `z.uuid()`, which rejects
     // valid OTel trace ids. The pattern mirrors the two forms OTel/Laminar emit; `Uuid` parses both.
     #[schemars(with = "String", regex(pattern = TRACE_ID_PATTERN))]
@@ -38,6 +36,7 @@ pub struct GetTraceContextParams {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AskAgentParams {
+    /// The question, in plain language. Name any trace, signal or time range it is about.
     pub prompt: String,
     /// Server-minted id to continue a prior conversation. Omit to start fresh; the response returns
     /// the new id to pass back on the next call.
@@ -63,7 +62,17 @@ impl LaminarMcpServer {
     ///
     /// If you need full information that is truncated, you should use query_laminar_sql tool to query spans that you're interested in.
     ///
-    #[tool(name = "get_trace_context")]
+    #[tool(
+        name = "get_trace_context",
+        title = "Get trace context",
+        annotations(
+            title = "Get trace context",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn get_trace_context(
         &self,
         context: RequestContext<RoleServer>,
@@ -89,7 +98,17 @@ impl LaminarMcpServer {
     /// Ask Laminar Agent a question about this project's traces in plain language and get a
     /// grounded answer. The agent runs read-only SQL and reads traces itself. The answer ends
     /// with a `conversationId`; pass it back to continue the conversation.
-    #[tool(name = "ask_agent")]
+    #[tool(
+        name = "ask_agent",
+        title = "Ask Laminar Agent",
+        annotations(
+            title = "Ask Laminar Agent",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     async fn ask_agent(
         &self,
         context: RequestContext<RoleServer>,
