@@ -74,7 +74,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Storage => {
             std::env::var(env::secrets::AWS_ACCESS_KEY_ID).is_ok()
                 && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok()
-                && std::env::var(env::storage::S3_EXPORTS_BUCKET).is_ok()
         }
         Feature::FullBuild => ["FULL", "PRODUCTION"].contains(
             &std::env::var(env::connections::ENVIRONMENT)

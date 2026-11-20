@@ -64,11 +64,13 @@ describe("trial file sources", () => {
     "ds/tasks/refund-2/instruction.md"
   );
   const job = archive("refund__abc/trial.log", "refund__abc/agent/oracle.txt", "other__def/trial.log");
-  const versionPrefix = taskVersionPrefix("p", "acme/ds", "acme/refund", "h");
+  const version = { bucket: "datasets", prefix: taskVersionPrefix("p", "acme/ds", "acme/refund", "h") };
+  const run = { bucket: "hosted-evals", prefix: "p/u" };
+  const jobRun = { bucket: "hosted-evals", prefix: "p/u/jobs/ds" };
   const sources: TrialFileSources = {
-    task: { prefix: versionPrefix, dir: "", files: archive("instruction.md", "tests/test.sh") },
-    agent: { prefix: "hosted-evals/p/u", dir: joinArchivePath("ds", "agent"), files: upload },
-    logs: { prefix: "hosted-evals/p/u/jobs/ds", dir: "refund__abc", files: job },
+    task: { archive: version, dir: "", files: archive("instruction.md", "tests/test.sh") },
+    agent: { archive: run, dir: joinArchivePath("ds", "agent"), files: upload },
+    logs: { archive: jobRun, dir: "refund__abc", files: job },
   };
 
   it("lists each source under its root, and only the trial's own dirs", () => {
@@ -86,7 +88,7 @@ describe("trial file sources", () => {
   });
 
   it("falls back to the uploaded task dir without matching its siblings by prefix", () => {
-    const fallback = { task: { prefix: "hosted-evals/p/u", dir: "ds/tasks/refund", files: upload } };
+    const fallback = { task: { archive: run, dir: "ds/tasks/refund", files: upload } };
     assert.deepEqual(
       listTrialFiles(fallback).map((f) => f.path),
       ["task/instruction.md", "task/tests/test.sh"]
@@ -95,15 +97,15 @@ describe("trial file sources", () => {
 
   it("resolves a tree path to its archive file only when listed", () => {
     assert.deepEqual(resolveTrialPath(sources, "task/tests/test.sh"), {
-      prefix: versionPrefix,
+      archive: version,
       path: "tests/test.sh",
     });
     assert.deepEqual(resolveTrialPath(sources, "agent/agent.py"), {
-      prefix: "hosted-evals/p/u",
+      archive: run,
       path: "ds/agent/agent.py",
     });
     assert.deepEqual(resolveTrialPath(sources, "logs/trial.log"), {
-      prefix: "hosted-evals/p/u/jobs/ds",
+      archive: jobRun,
       path: "refund__abc/trial.log",
     });
     // harbor.yaml is in the upload but outside agent/; another trial's dir is in the job but not this trial's.
@@ -117,7 +119,7 @@ describe("trial file sources", () => {
   });
 
   it("keys a task version by its dataset's and task's org/name", () => {
-    assert.equal(versionPrefix, "p/datasets/acme/ds/acme/refund/h");
+    assert.equal(version.prefix, "p/acme/ds/acme/refund/h");
   });
 
   it("joins archive paths, treating an empty or `.` suite path as the root", () => {

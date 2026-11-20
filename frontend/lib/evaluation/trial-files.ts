@@ -1,6 +1,6 @@
 /*
  * A trial's Files panel: one tree whose top-level folders each map onto a dir
- * of an archive in the exports bucket. Client-safe (no server imports): the
+ * of an archive in S3 (the datasets or the hosted-evals bucket). Client-safe (no server imports): the
  * routes resolve paths with these, the panel builds its tree from the listing.
  */
 
@@ -13,10 +13,15 @@ export interface ArchiveFile {
   size: number;
 }
 
-/** A dir inside an archive (`<prefix>.tar.gz` + `<prefix>.index.json`). */
-export interface ArchiveDir {
-  /** Exports-bucket key of the archive, without `.tar.gz` / `.index.json`. */
+/** An archive in S3: `<prefix>.tar.gz` + `<prefix>.index.json` in `bucket`. */
+export interface ArchiveRef {
+  bucket: string;
   prefix: string;
+}
+
+/** A dir inside an archive. */
+export interface ArchiveDir {
+  archive: ArchiveRef;
   /** Relative to the archive root; `""` for the whole archive. */
   dir: string;
   /** Every file in the archive (its index). */
@@ -56,9 +61,9 @@ export const nameToPath = (name: string): string => name.split("/").map(encodeUR
 export const taskVersionHref = (projectId: string, dataset: string, task: string, hash: string): string =>
   `/project/${projectId}/eval-datasets/${nameToPath(dataset)}?${new URLSearchParams({ task, hash })}`;
 
-/** The exports-bucket prefix of a pushed task version (see the LAM-2562 storage layout). */
+/** The datasets-bucket key prefix of a pushed task version (the app-server's `datasets_v2::archive_key`). */
 export const taskVersionPrefix = (projectId: string, dataset: string, task: string, hash: string): string =>
-  `${projectId}/datasets/${dataset}/${task}/${hash}`;
+  `${projectId}/${dataset}/${task}/${hash}`;
 
 /** Joins archive path segments, dropping empty and `.` ones (a `suitePath` of `""` or `.` is the root). */
 export const joinArchivePath = (...parts: string[]): string =>
@@ -91,7 +96,7 @@ export const listTrialFiles = (sources: TrialFileSources): ArchiveFile[] =>
 export const resolveTrialPath = (
   sources: TrialFileSources,
   treePath: string
-): { prefix: string; path: string } | null => {
+): { archive: ArchiveRef; path: string } | null => {
   const slash = treePath.indexOf("/");
   if (slash <= 0) return null;
   const root = treePath.slice(0, slash);
@@ -100,5 +105,5 @@ export const resolveTrialPath = (
   const source = sources[root as TrialFileRoot];
   if (!source) return null;
   const path = source.dir ? `${source.dir}/${rest}` : rest;
-  return source.files.some((f) => f.path === path) ? { prefix: source.prefix, path } : null;
+  return source.files.some((f) => f.path === path) ? { archive: source.archive, path } : null;
 };

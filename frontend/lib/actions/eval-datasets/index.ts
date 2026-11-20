@@ -8,7 +8,14 @@ import { NotFoundError } from "@/lib/api/errors";
 import { db } from "@/lib/db/drizzle";
 import { datasetsV2, tasks, taskVersions } from "@/lib/db/migrations/schema";
 import { ascNameFold } from "@/lib/db/utils";
-import { type ArchiveFile, isEvalName, TASK_HASH_RE, taskVersionPrefix } from "@/lib/evaluation/trial-files";
+import {
+  type ArchiveFile,
+  type ArchiveRef,
+  isEvalName,
+  TASK_HASH_RE,
+  taskVersionPrefix,
+} from "@/lib/evaluation/trial-files";
+import { datasetsBucket } from "@/lib/s3";
 import { type PaginatedResponse } from "@/lib/types";
 
 import { type EvalDataset, type EvalDatasetSummary, type EvalTaskSummary, type EvalTaskVersion } from "./types";
@@ -157,7 +164,12 @@ export const getEvalTaskVersions = async (
 };
 
 /** The archive of a pushed task version, which must have a `task_versions` row in the project. */
-const getVersionPrefix = async (projectId: string, datasetId: string, taskId: string, hash: string) => {
+const getVersionArchive = async (
+  projectId: string,
+  datasetId: string,
+  taskId: string,
+  hash: string
+): Promise<ArchiveRef> => {
   if (!isEvalName(datasetId) || !isEvalName(taskId) || !TASK_HASH_RE.test(hash)) {
     throw new NotFoundError("Task version not found");
   }
@@ -173,7 +185,7 @@ const getVersionPrefix = async (projectId: string, datasetId: string, taskId: st
   if (!version) {
     throw new NotFoundError("Task version not found");
   }
-  return taskVersionPrefix(projectId, datasetId, taskId, hash);
+  return { bucket: datasetsBucket(), prefix: taskVersionPrefix(projectId, datasetId, taskId, hash) };
 };
 
 export const getTaskVersionFiles = async (
@@ -182,7 +194,7 @@ export const getTaskVersionFiles = async (
   taskId: string,
   hash: string
 ): Promise<{ files: ArchiveFile[] }> => {
-  const index = await getArchiveIndex(await getVersionPrefix(projectId, datasetId, taskId, hash));
+  const index = await getArchiveIndex(await getVersionArchive(projectId, datasetId, taskId, hash));
   if (!index) {
     throw new NotFoundError("This task version's files are not available");
   }
@@ -196,4 +208,4 @@ export const readTaskVersionFile = async (
   taskId: string,
   hash: string,
   path: string
-) => readArchiveFile(await getVersionPrefix(projectId, datasetId, taskId, hash), path);
+) => readArchiveFile(await getVersionArchive(projectId, datasetId, taskId, hash), path);

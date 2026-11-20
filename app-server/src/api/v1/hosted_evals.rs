@@ -937,7 +937,7 @@ fn uploads_bucket(hosted: &HostedEvalsData) -> Option<String> {
     if hosted.get_ref().is_none() || !is_feature_enabled(Feature::Storage) {
         return None;
     }
-    env::optional_string(env::storage::S3_EXPORTS_BUCKET)
+    Some(env::storage::HOSTED_EVALS_BUCKET.get())
 }
 
 fn not_enabled() -> HttpResponse {

@@ -8,6 +8,7 @@ import { db } from "@/lib/db/drizzle";
 import { evaluations, taskVersions } from "@/lib/db/migrations/schema";
 import {
   type ArchiveDir,
+  type ArchiveRef,
   isEvalName,
   joinArchivePath,
   listTrialFiles,
@@ -18,6 +19,7 @@ import {
   type TrialTaskSource,
   taskVersionPrefix,
 } from "@/lib/evaluation/trial-files";
+import { datasetsBucket, hostedEvalsBucket } from "@/lib/s3";
 
 /*
  * A trial's Files panel. Everything is resolved from the trial's own rows (its
@@ -95,21 +97,24 @@ const getTaskVersion = async (projectId: string, trial: Trial) => {
     ),
   });
   if (!version) return null;
-  const prefix = taskVersionPrefix(projectId, dataset, task, hash);
-  const index = await getArchiveIndex(prefix);
+  const archive = { bucket: datasetsBucket(), prefix: taskVersionPrefix(projectId, dataset, task, hash) };
+  const index = await getArchiveIndex(archive);
   if (!index) return null;
   const source: TrialTaskSource = { source: "dataset", dataset, task, hash, pushedAt: version.createdAt };
-  return { source, dir: { prefix, dir: "", files: index.files } satisfies ArchiveDir };
+  return { source, dir: { archive, dir: "", files: index.files } satisfies ArchiveDir };
 };
 
 const resolveSources = async (projectId: string, trial: Trial) => {
   const { hosted } = trial;
-  const runPrefix = hosted ? `hosted-evals/${projectId}/${hosted.uploadId}` : null;
-  const jobPrefix = hosted ? `${runPrefix}/jobs/${hosted.suitePath}` : null;
+  const run: ArchiveRef | null = hosted
+    ? { bucket: hostedEvalsBucket(), prefix: `${projectId}/${hosted.uploadId}` }
+    : null;
+  const jobArchive: ArchiveRef | null =
+    run && hosted ? { bucket: run.bucket, prefix: `${run.prefix}/jobs/${hosted.suitePath}` } : null;
   const [version, upload, job] = await Promise.all([
     getTaskVersion(projectId, trial),
-    runPrefix ? getArchiveIndex(runPrefix) : null,
-    jobPrefix && trial.trialName ? getArchiveIndex(jobPrefix) : null,
+    run ? getArchiveIndex(run) : null,
+    jobArchive && trial.trialName ? getArchiveIndex(jobArchive) : null,
   ]);
 
   const sources: TrialFileSources = {};
@@ -117,18 +122,18 @@ const resolveSources = async (projectId: string, trial: Trial) => {
   if (version) {
     sources.task = version.dir;
     task = version.source;
-  } else if (runPrefix && upload && trial.taskPath) {
-    sources.task = { prefix: runPrefix, dir: joinArchivePath(trial.taskPath), files: upload.files };
+  } else if (run && upload && trial.taskPath) {
+    sources.task = { archive: run, dir: joinArchivePath(trial.taskPath), files: upload.files };
     task = { source: "upload", path: trial.taskPath };
   }
-  if (runPrefix && upload && hosted) {
+  if (run && upload && hosted) {
     // Only the dataset's `agent/`: the rest of its dir (harbor.yaml, tasks/) is run config.
-    sources.agent = { prefix: runPrefix, dir: joinArchivePath(hosted.suitePath, "agent"), files: upload.files };
+    sources.agent = { archive: run, dir: joinArchivePath(hosted.suitePath, "agent"), files: upload.files };
   }
-  if (jobPrefix && job && trial.trialName) {
-    sources.logs = { prefix: jobPrefix, dir: joinArchivePath(trial.trialName), files: job.files };
+  if (jobArchive && job && trial.trialName) {
+    sources.logs = { archive: jobArchive, dir: joinArchivePath(trial.trialName), files: job.files };
   }
-  return { sources, task, logsPending: !!jobPrefix && !!trial.trialName && !job };
+  return { sources, task, logsPending: !!jobArchive && !!trial.trialName && !job };
 };
 
 export const getTrialFiles = async (projectId: string, evaluationId: string, trialId: string): Promise<TrialFiles> => {
@@ -148,5 +153,5 @@ export const readTrialFile = async (projectId: string, evaluationId: string, tri
   if (!resolved) {
     throw new NotFoundError("File not found");
   }
-  return readArchiveFile(resolved.prefix, resolved.path);
+  return readArchiveFile(resolved.archive, resolved.path);
 };

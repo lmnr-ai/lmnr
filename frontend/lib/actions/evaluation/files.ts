@@ -5,13 +5,15 @@ import { createGunzip } from "node:zlib";
 import { z } from "zod/v4";
 
 import { NotFoundError } from "@/lib/api/errors";
-import { readExportText, streamExportRange } from "@/lib/s3";
+import { type ArchiveRef } from "@/lib/evaluation/trial-files";
+import { readObjectText, streamObjectRange } from "@/lib/s3";
 import { SimpleLRU } from "@/lib/simple-lru";
 
 /*
- * Archives in the exports bucket: what a remote run (`lmnr-cli eval run
- * --remote`) uploads (the evals folder, and each dataset's Harbor job output at
- * `<upload>/jobs/<suite>`) and pushed task versions (`<project>/datasets/…`).
+ * Archives in S3: what a remote run (`lmnr-cli eval run --remote`) uploads to
+ * the hosted-evals bucket (the evals folder, and each dataset's Harbor job
+ * output at `<upload>/jobs/<suite>`), and pushed task versions in the datasets
+ * bucket.
  * Each is a `.tar.gz` made of one gzip member per group of files, and its index
  * (written by lmnr-cli's `pack.ts`) gives each file's member, so one file is
  * read with a ranged GET instead of the whole archive.
@@ -34,32 +36,42 @@ export type ArchiveIndex = z.infer<typeof ArchiveIndexSchema>;
 // Indexes never change once uploaded.
 const indexes = new SimpleLRU<string, ArchiveIndex>(64);
 
+const cacheKey = ({ bucket, prefix }: ArchiveRef) => `${bucket}/${prefix}`;
+
 /** `<prefix>.index.json`, the index of `<prefix>.tar.gz`; null when it isn't uploaded (or expired). */
-export const getArchiveIndex = async (prefix: string): Promise<ArchiveIndex | null> => {
-  const cached = indexes.get(prefix);
+export const getArchiveIndex = async (archive: ArchiveRef): Promise<ArchiveIndex | null> => {
+  const cached = indexes.get(cacheKey(archive));
   if (cached) {
     return cached;
   }
-  const text = await readExportText(`${prefix}.index.json`);
+  const text = await readObjectText(archive.bucket, `${archive.prefix}.index.json`);
   if (text === null) {
     return null;
   }
   const index = ArchiveIndexSchema.parse(JSON.parse(text));
-  indexes.set(prefix, index);
+  indexes.set(cacheKey(archive), index);
   return index;
 };
 
 /** Streams one file's content out of `<prefix>.tar.gz`, `path` relative to the archive root. */
-export const readArchiveFile = async (prefix: string, path: string): Promise<{ size: number; stream: Readable }> => {
-  const index = await getArchiveIndex(prefix);
+export const readArchiveFile = async (
+  archive: ArchiveRef,
+  path: string
+): Promise<{ size: number; stream: Readable }> => {
+  const index = await getArchiveIndex(archive);
   const file = index?.files.find((f) => f.path === path);
   if (!file) {
     throw new NotFoundError("File not found");
   }
-  const member = await streamExportRange(`${prefix}.tar.gz`, file.offset, file.offset + file.length - 1);
+  const member = await streamObjectRange(
+    archive.bucket,
+    `${archive.prefix}.tar.gz`,
+    file.offset,
+    file.offset + file.length - 1
+  );
   if (!member) {
-    // Expired (the bucket's lifecycle rule on `hosted-evals/`) while its index was still cached.
-    indexes.delete(prefix);
+    // Expired (the hosted-evals bucket's lifecycle rule) while its index was still cached.
+    indexes.delete(cacheKey(archive));
     throw new NotFoundError("This file is no longer available");
   }
   const gunzip = createGunzip();

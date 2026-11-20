@@ -55,7 +55,7 @@ pub fn is_version_hash(hash: &str) -> bool {
     hash.len() == 64 && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-/// The version's archive (lmnr-cli `pack.ts` output). Never expires, unlike `hosted-evals/`.
+/// The version's archive (lmnr-cli `pack.ts` output), in the datasets bucket.
 pub fn archive_key(project_id: &Uuid, version: &VersionRef) -> String {
     format!("{}.tar.gz", key_prefix(project_id, version))
 }
@@ -65,12 +65,12 @@ pub fn index_key(project_id: &Uuid, version: &VersionRef) -> String {
     format!("{}.index.json", key_prefix(project_id, version))
 }
 
-/// `<project_id>/datasets/<org>/<name>/<task org>/<task name>/<hash>`. A valid name
+/// `<project_id>/<org>/<name>/<task org>/<task name>/<hash>`. A valid name
 /// is exactly two segments, neither empty nor a dot segment, so the layout is fixed
 /// and distinct versions never share a key.
 fn key_prefix(project_id: &Uuid, version: &VersionRef) -> String {
     format!(
-        "{project_id}/datasets/{}/{}/{}",
+        "{project_id}/{}/{}/{}",
         version.dataset, version.task, version.hash
     )
 }
@@ -151,11 +151,11 @@ mod tests {
         };
         assert_eq!(
             archive_key(&project_id, &version),
-            format!("{project_id}/datasets/acme/support/acme/refund/{H1}.tar.gz")
+            format!("{project_id}/acme/support/acme/refund/{H1}.tar.gz")
         );
         assert_eq!(
             index_key(&project_id, &version),
-            format!("{project_id}/datasets/acme/support/acme/refund/{H1}.index.json")
+            format!("{project_id}/acme/support/acme/refund/{H1}.index.json")
         );
     }
 }

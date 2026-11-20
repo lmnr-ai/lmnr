@@ -83,21 +83,21 @@ impl From<anyhow::Error> for RunError {
 }
 
 pub fn archive_key(project_id: &Uuid, upload_id: &Uuid) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}.tar.gz")
+    format!("{project_id}/{upload_id}.tar.gz")
 }
 
 pub fn index_key(project_id: &Uuid, upload_id: &Uuid) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}.index.json")
+    format!("{project_id}/{upload_id}.index.json")
 }
 
 /// One suite's Harbor job output (its trial dirs), packed like the run's archive.
 /// `suite` must pass [`is_suite_name`].
 pub fn job_archive_key(project_id: &Uuid, upload_id: &Uuid, suite: &str) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}/jobs/{suite}.tar.gz")
+    format!("{project_id}/{upload_id}/jobs/{suite}.tar.gz")
 }
 
 pub fn job_index_key(project_id: &Uuid, upload_id: &Uuid, suite: &str) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}/jobs/{suite}.index.json")
+    format!("{project_id}/{upload_id}/jobs/{suite}.index.json")
 }
 
 /// A suite is a directory directly inside the evals folder, so its name is one

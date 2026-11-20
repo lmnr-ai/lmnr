@@ -272,13 +272,10 @@ pub async fn handle_download_version(
     })
 }
 
-/// `S3_EXPORTS_BUCKET`, when storage is configured. Eval datasets need nothing else
-/// (no hosted evals, no sandbox provider).
+/// The datasets bucket, when storage is configured. Eval datasets need nothing
+/// else (no hosted evals, no sandbox provider).
 fn storage_bucket() -> Option<String> {
-    if !is_feature_enabled(Feature::Storage) {
-        return None;
-    }
-    env::optional_string(env::storage::S3_EXPORTS_BUCKET)
+    is_feature_enabled(Feature::Storage).then(|| env::storage::DATASETS_BUCKET.get())
 }
 
 fn check_dataset(dataset: &str) -> Option<HttpResponse> {
