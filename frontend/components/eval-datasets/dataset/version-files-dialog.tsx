@@ -1,14 +1,15 @@
+import { X } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { type EvalTaskVersion } from "@/lib/actions/eval-datasets/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { nameToPath } from "@/lib/evaluation/trial-files";
 
 import { numberVersions } from "./rows";
 import VersionFiles from "./version-files";
-import VersionLabel from "./version-label";
 import VersionsRail from "./versions-rail";
 
 interface VersionFilesDialogProps {
@@ -42,19 +43,23 @@ export default function VersionFilesDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex h-[80vh] max-w-6xl flex-col gap-0 overflow-hidden p-0">
-        <DialogTitle className="flex items-center gap-3 border-b px-4 py-3 text-sm font-medium">
-          {taskId}
-          {version && <VersionLabel version={version} />}
-        </DialogTitle>
+        <div className="flex items-center justify-between gap-3 border-b py-2 pl-4 pr-2">
+          <DialogTitle className="min-w-0 truncate text-sm font-medium">{taskId}</DialogTitle>
+          <DialogClose asChild>
+            <Button variant="ghost" size="icon" className="size-7 shrink-0" aria-label="Close">
+              <X className="size-4" />
+            </Button>
+          </DialogClose>
+        </div>
         <div className="flex min-h-0 flex-1">
           <VersionsRail versions={versions} selected={selected} onSelect={onSelectVersion} />
           <div className="flex min-w-0 flex-1">
-            {selected && (
+            {version && (
               <VersionFiles
                 projectId={projectId}
                 datasetId={datasetId}
                 taskId={taskId}
-                hash={selected}
+                version={version}
                 selectedPath={selectedPath}
                 onSelectPath={setSelectedPath}
               />

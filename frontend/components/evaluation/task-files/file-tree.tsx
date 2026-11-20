@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react";
 
+import { cn } from "@/lib/utils";
+
 import FileTreeNode from "./file-tree-node";
 import { expandTo, type FileNode } from "./utils";
 
@@ -9,10 +11,11 @@ interface FileTreeProps {
   onSelect: (node: FileNode) => void;
   /** Directories that start collapsed; every other one starts expanded (tasks and trial dirs are small). */
   initiallyCollapsed?: string[];
+  className?: string;
 }
 
 /** A directory holding the selected file is always expanded, also when the selection moves into it. */
-export default function FileTree({ nodes, selectedPath, onSelect, initiallyCollapsed }: FileTreeProps) {
+export default function FileTree({ nodes, selectedPath, onSelect, initiallyCollapsed, className }: FileTreeProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() =>
     expandTo(new Set(initiallyCollapsed), selectedPath)
   );
@@ -31,7 +34,7 @@ export default function FileTree({ nodes, selectedPath, onSelect, initiallyColla
   }, []);
 
   return (
-    <ul className="flex flex-col p-1">
+    <ul className={cn("flex flex-col gap-0.5 p-1", className)}>
       {nodes.map((node) => (
         <FileTreeNode
           key={node.path}

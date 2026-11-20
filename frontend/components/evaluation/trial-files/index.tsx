@@ -28,18 +28,20 @@ const taskHint = (task: TrialTaskSource | null): string => {
   return `task/: ${task.path}, uploaded with the run (this version isn't in the dataset)`;
 };
 
-/** Opens the trial's task version on its eval dataset page; none for a copy uploaded with the run. */
-const TaskVersionLink = ({ projectId, task }: { projectId: string; task: TrialTaskSource | null }) =>
+/** The tree's header: links to the trial's task version on its eval dataset page; plain for a copy uploaded with the run. */
+const TaskTitle = ({ projectId, task, title }: { projectId: string; task: TrialTaskSource | null; title: string }) =>
   task?.source === "dataset" ? (
     <Link
       href={taskVersionHref(projectId, task.dataset, task.task, task.hash)}
-      title={`Open ${task.task} version ${shortHash(task.hash)} in ${task.dataset}`}
       aria-label={`Open ${task.task} version ${shortHash(task.hash)} in ${task.dataset}`}
-      className="flex shrink-0 items-center hover:text-foreground"
+      className="mx-3 flex min-w-0 items-center gap-1 transition-colors hover:text-foreground"
     >
-      <ArrowUpRight className="size-3" />
+      <span className="min-w-0 truncate">{title}</span>
+      <ArrowUpRight className="size-3 shrink-0" />
     </Link>
-  ) : null;
+  ) : (
+    <span className="mx-3 min-w-0 truncate">{title}</span>
+  );
 
 interface TrialFilesProps {
   projectId: string;
@@ -79,9 +81,8 @@ export default function TrialFiles({ projectId, evaluationId, trialId, listing, 
   return (
     <FileBrowser
       id="evaluation-trial-files"
-      title={title}
+      title={<TaskTitle projectId={projectId} task={listing.task} title={title} />}
       hint={taskHint(listing.task)}
-      titleAction={<TaskVersionLink projectId={projectId} task={listing.task} />}
       nodes={tree}
       open={open}
       onSelect={(node) => setFile(node.path)}

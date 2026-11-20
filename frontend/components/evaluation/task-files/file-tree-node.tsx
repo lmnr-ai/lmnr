@@ -19,7 +19,8 @@ export default function FileTreeNode({ node, depth, selectedPath, collapsed, onT
   const Icon = isDir ? (isOpen ? FolderOpen : Folder) : FileText;
 
   return (
-    <li>
+    // 2px gaps keep a hovered row visibly apart from the selected one next to it.
+    <li className="flex flex-col gap-0.5">
       <button
         type="button"
         title={node.path}
@@ -38,7 +39,7 @@ export default function FileTreeNode({ node, depth, selectedPath, collapsed, onT
         <span className="truncate">{node.name}</span>
       </button>
       {isOpen && (
-        <ul>
+        <ul className="flex flex-col gap-0.5">
           {node.children!.map((child) => (
             <FileTreeNode
               key={child.path}

@@ -22,20 +22,20 @@ export default function FileViewer({ url, path, size }: FileViewerProps) {
 
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <div className="flex flex-none items-center justify-between gap-2 border-b px-3 py-1.5">
-        <span className="truncate font-mono text-xs" title={path}>
+      <div className="flex h-8 flex-none items-center justify-between gap-2 border-b px-3">
+        <span className="truncate font-mono text-xs text-muted-foreground" title={path}>
           {path}
         </span>
         <div className="flex flex-none items-center gap-2">
           <span className="text-xs text-muted-foreground">{formatBytes(size)}</span>
-          <Button variant="ghost" size="icon" asChild title="Download">
+          <Button variant="ghost" size="icon" className="size-6" asChild title="Download">
             <a href={url} download>
               <Download className="size-3.5" />
             </a>
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div className="min-h-0 flex-1 overflow-auto bg-emphasis-0.5 p-3">
         {isLoading && (
           <div className="flex flex-col gap-2">
             <Skeleton className="h-4 w-2/3" />

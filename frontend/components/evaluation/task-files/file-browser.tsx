@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { cn } from "@/lib/utils";
 
 import FileTree from "./file-tree";
 import FileViewer from "./file-viewer";
@@ -9,12 +10,12 @@ import { type FileNode } from "./utils";
 interface FileBrowserProps {
   /** Prefix for the resizable panels' ids. */
   id: string;
-  /** Shown above the tree: the task. */
-  title: string;
+  /** Shown above the tree: the task. No header when omitted. */
+  title?: ReactNode;
   /** Where the files come from, on hover. */
-  hint: string;
-  /** Shown right after the title, e.g. a link to where the files come from. */
-  titleAction?: ReactNode;
+  hint?: string;
+  /** A plain label header ("Files") with no divider, like a list's heading, instead of the bordered title. */
+  plainTitle?: boolean;
   nodes: FileNode[];
   open: FileNode;
   onSelect: (node: FileNode) => void;
@@ -31,7 +32,7 @@ export default function FileBrowser({
   id,
   title,
   hint,
-  titleAction,
+  plainTitle,
   nodes,
   open,
   onSelect,
@@ -43,17 +44,21 @@ export default function FileBrowser({
     <ResizablePanelGroup id={id} orientation="horizontal">
       <ResizablePanel id={`${id}-tree`} defaultSize={30} minSize={15} className="min-w-0">
         <div className="h-full overflow-auto">
-          <div className="flex items-center gap-1 border-b px-3 py-1.5 font-mono text-xs text-muted-foreground">
-            <span className="min-w-0 truncate" title={hint}>
+          {title && (
+            <div
+              className={cn("flex h-8 items-center text-xs text-muted-foreground", plainTitle ? "px-3" : "border-b")}
+              title={hint}
+            >
               {title}
-            </span>
-            {titleAction}
-          </div>
+            </div>
+          )}
           <FileTree
             nodes={nodes}
             selectedPath={open.path}
             onSelect={onSelect}
             initiallyCollapsed={initiallyCollapsed}
+            // A plain heading sits flush on the tree, as "Versions" does on its list.
+            className={plainTitle ? "pt-0" : undefined}
           />
           {note && <p className="px-3 py-2 text-xs text-muted-foreground">{note}</p>}
         </div>

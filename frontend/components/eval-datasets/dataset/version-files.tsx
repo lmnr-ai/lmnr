@@ -9,11 +9,13 @@ import { buildFileTree, DEFAULT_FILE, flattenFiles } from "@/components/evaluati
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { type ArchiveFile, nameToPath } from "@/lib/evaluation/trial-files";
 
+import { type TaskVersion } from "./rows";
+
 interface VersionFilesProps {
   projectId: string;
   datasetId: string;
   taskId: string;
-  hash: string;
+  version: TaskVersion;
   /** The file to open; falls back to `instruction.md` when this version doesn't have it. */
   selectedPath: string | null;
   onSelectPath: (path: string) => void;
@@ -24,10 +26,11 @@ export default function VersionFiles({
   projectId,
   datasetId,
   taskId,
-  hash,
+  version,
   selectedPath,
   onSelectPath,
 }: VersionFilesProps) {
+  const { hash } = version;
   const base = `/api/projects/${projectId}/eval-datasets/${nameToPath(datasetId)}/tasks/${nameToPath(taskId)}/versions/${hash}/files`;
   // A version's files never change.
   const { data, error, isLoading } = useSWR<{ files: ArchiveFile[] }>(base, swrFetcher, {
@@ -47,8 +50,8 @@ export default function VersionFiles({
   return (
     <FileBrowser
       id="eval-dataset-version-files"
-      title={taskId}
-      hint={`${taskId} version ${hash} in ${datasetId}`}
+      title="Files"
+      plainTitle
       nodes={tree}
       open={open}
       onSelect={(node) => onSelectPath(node.path)}
