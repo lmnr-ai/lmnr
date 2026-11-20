@@ -49,6 +49,7 @@ import AuditLog from "@/components/workspace/audit-log";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
 import WorkspaceLicense from "@/components/workspace/license";
+import LlmFeatureRoutes from "@/components/workspace/llm-feature-routes";
 import LlmProfiles from "@/components/workspace/llm-profiles";
 import WorkspaceReports from "@/components/workspace/reports";
 import WorkspaceUsage from "@/components/workspace/usage";
@@ -252,7 +253,15 @@ const SharedSettings = ({
       case "workspace-general":
         return <WorkspaceSettings workspace={workspace} isOwner={isOwner} />;
       case "llm-profiles":
-        return <LlmProfiles workspaceId={workspaceId} />;
+        return (
+          <>
+            <LlmProfiles workspaceId={workspaceId} />
+            <LlmFeatureRoutes
+              workspaceId={workspaceId}
+              canEdit={currentUserRole === "owner" || currentUserRole === "admin"}
+            />
+          </>
+        );
       case "license":
         return license && <WorkspaceLicense license={license} workspaceId={workspaceId} isOwner={isOwner} />;
       case "audit-log":
