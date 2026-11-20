@@ -11,6 +11,8 @@ export type Evaluation = {
   hostedMetadata?: { uploadId: string; suitePath: string } | null;
   /** The eval dataset (`lmnr-cli eval dataset`) the run used, by name; its trials carry `taskVersionHash`. */
   datasetV2Id?: string | null;
+  /** Whether `datasetV2Id` names a pushed dataset (runs can name one that was never pushed). */
+  datasetExists?: boolean;
 };
 
 /** A dataset an evaluation's Trials are linked to. */
