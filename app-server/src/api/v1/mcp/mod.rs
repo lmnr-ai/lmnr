@@ -121,7 +121,7 @@ fn sql_schema_text() -> String {
 
 /// Sent on `initialize`.
 const SERVER_INSTRUCTIONS: &str = "Laminar is an observability platform for AI agents: traces, \
-spans, evaluations and signals (LLM judges that flag patterns in traces). Every tool except \
+spans, evaluations and signals. Every tool except \
 `list_projects` and `get_sql_schema` acts on one Laminar project. With a project API key the \
 project is fixed. When signed in with OAuth, call `list_projects` and pass the project's id as \
 `projectId` to every other tool. To answer questions about traces, call `get_sql_schema` once, \
@@ -582,11 +582,12 @@ impl ServerHandler for LaminarMcpServer {
 
 /// Sent on `initialize` and in the server card. The card caps `description` at 100 characters.
 fn server_info() -> Implementation {
+    let frontend = crate::utils::frontend_url_with_default("https://laminar.sh");
     let icons = vec![
-        Icon::new("https://laminar.sh/brand/icon.svg")
+        Icon::new(format!("{frontend}/brand/icon.svg"))
             .with_mime_type("image/svg+xml")
             .with_sizes(vec!["any".to_string()]),
-        Icon::new("https://laminar.sh/brand/logo-square.png")
+        Icon::new(format!("{frontend}/brand/logo-square.png"))
             .with_mime_type("image/png")
             .with_sizes(vec!["560x560".to_string()]),
     ];
