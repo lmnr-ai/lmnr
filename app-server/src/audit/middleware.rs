@@ -124,6 +124,9 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
             | "/evals/{eval_id}/datapoints/{trial_id}",
         ) => Skip,
         ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
+        // Version uploads and downloads are per-task traffic of a CLI push or
+        // pull; which versions a dataset uses lives in its dataset.toml in git.
+        (_, p) if p.starts_with("/eval-datasets/") => Skip,
         (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
         ("POST", "/rollouts/{session_id}") => log_write(DebuggerSession, Create),
@@ -303,6 +306,19 @@ mod tests {
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
+            (
+                Method::PUT,
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}",
+            ),
+            (
+                Method::PUT,
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}/index",
+            ),
+            (
+                Method::GET,
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}",
+            ),
+            (Method::POST, "/eval-datasets/{org}/{name}/versions/missing"),
             (Method::POST, "/mcp"),
         ] {
             assert_eq!(

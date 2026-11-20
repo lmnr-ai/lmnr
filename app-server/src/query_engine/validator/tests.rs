@@ -263,6 +263,7 @@ fn rewrite_under_both_eval_names(query: &str) -> (String, String) {
 fn test_evaluation_trials_alias_rewrites_like_evaluation_datapoints() {
     for query in [
         "SELECT id, task_id FROM {t}",
+        "SELECT {t}.task_version_hash FROM {t}",
         "SELECT {t}.task_id, count() FROM {t} \
          WHERE evaluation_id = {evalId: UUID} AND start_time > '2024-01-01' GROUP BY {t}.task_id",
         "SELECT e.id FROM {t} AS e WHERE e.evaluation_id IN ('0195b6e0-0000-7000-8000-000000000001')",

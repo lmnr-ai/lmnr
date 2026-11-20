@@ -21,6 +21,8 @@ export interface SidebarMenuOption {
   href: string;
   icon: LucideIcon | ComponentType<{ className?: string }>;
   badge?: string;
+  /** Other route prefixes that highlight this item. */
+  alsoActiveOn?: string[];
 }
 
 export interface SidebarMenuGroup {
@@ -48,7 +50,12 @@ export const getSidebarMenus = (projectId: string): SidebarMenuGroup[] => [
     label: "Improve",
     items: [
       { name: "Evaluations", href: `/project/${projectId}/evaluations`, icon: FlaskConical },
-      { name: "Datasets", href: `/project/${projectId}/datasets`, icon: Database },
+      {
+        name: "Datasets",
+        href: `/project/${projectId}/eval-datasets`,
+        icon: Database,
+        alsoActiveOn: [`/project/${projectId}/datasets`],
+      },
       { name: "Labeling", href: `/project/${projectId}/labeling-queues`, icon: Pen },
       { name: "Playgrounds", href: `/project/${projectId}/playgrounds`, icon: PlayCircle },
       { name: "Debugger", href: `/project/${projectId}/debugger-sessions`, icon: GitFork },

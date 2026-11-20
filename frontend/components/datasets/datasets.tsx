@@ -12,6 +12,7 @@ import { track } from "@/lib/posthog";
 
 import Header from "../ui/header";
 import { RESOURCE } from "./constants";
+import RetiringDatasetsBanner from "./retiring-banner";
 
 const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
 
@@ -37,8 +38,9 @@ function DatasetsContent() {
 
   return (
     <>
-      <Header path="datasets" />
+      <Header path={[{ name: "datasets", href: `/project/${projectId}/eval-datasets` }, { name: "legacy" }]} />
       <div className="flex flex-1 flex-col gap-4 px-4 pb-4 overflow-hidden">
+        <RetiringDatasetsBanner />
         <div className="flex flex-1 overflow-hidden">
           <DatasetsTableContents
             updateDataRef={updateDataRef}

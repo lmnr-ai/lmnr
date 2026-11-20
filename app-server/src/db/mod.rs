@@ -7,6 +7,7 @@ pub mod agent_versioning;
 pub mod alert_targets;
 pub mod custom_model_costs;
 pub mod datasets;
+pub mod datasets_v2;
 pub mod debugger_session_blocks;
 pub mod debugger_sessions;
 pub mod evaluations;

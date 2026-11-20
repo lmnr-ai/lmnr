@@ -38,6 +38,7 @@ import Mono from "../ui/mono";
 import { browserLayoutStorage, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resizable";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { defaultEvaluationsColumnOrder, RESOURCE } from "./constants";
+import DatasetCell from "./dataset-cell";
 import GroupsList from "./groups-list";
 import { useEvaluationsProgression } from "./use-evaluations-progression";
 
@@ -61,6 +62,13 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     accessorKey: "name",
     header: "Name",
     size: 300,
+  },
+  {
+    id: "dataset",
+    accessorKey: "datasetV2Id",
+    header: "Dataset",
+    size: 200,
+    cell: ({ row }) => <DatasetCell evaluation={row.original} />,
   },
   {
     id: "dataPointsCount",

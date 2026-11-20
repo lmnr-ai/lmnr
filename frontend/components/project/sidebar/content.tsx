@@ -68,7 +68,7 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
                     <SidebarMenuButton
                       asChild
                       className="h-[30px]"
-                      isActive={pathname.startsWith(option.href)}
+                      isActive={[option.href, ...(option.alsoActiveOn ?? [])].some((h) => pathname.startsWith(h))}
                       tooltip={option.name}
                     >
                       <Link href={option.href}>

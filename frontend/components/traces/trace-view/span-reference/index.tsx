@@ -35,11 +35,13 @@ export function LinkChip({
   icon,
   onClick,
   loading,
+  className,
 }: {
   name: string;
   icon?: React.ReactNode;
   onClick: () => void;
   loading?: boolean;
+  className?: string;
 }) {
   return (
     <button
@@ -58,7 +60,8 @@ export function LinkChip({
       className={cn(
         // Always one line: a long name truncates instead of wrapping the chip.
         "inline-flex max-w-full min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap rounded px-1 py-0.25 text-left align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer",
-        !icon && "pl-1.5"
+        !icon && "pl-1.5",
+        className
       )}
     >
       {icon}

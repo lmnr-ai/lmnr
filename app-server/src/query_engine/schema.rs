@@ -309,6 +309,11 @@ const TABLES: &[Table] = &[
                 "String",
                 "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
             ),
+            col(
+                "task_version_hash",
+                "String",
+                "Content hash of the eval dataset task version the trial ran ('' if unknown); the task's name is metadata.dataset_task",
+            ),
             col("group_id", "String", "Group id of the evaluation run"),
             col(
                 "scores",
@@ -769,7 +774,7 @@ const TABLES: &[Table] = &[
             col(
                 "resource",
                 "String",
-                "Table the view belongs to: traces, spans, sessions, evaluations, evaluation-v1.1 (an evaluation's datapoints), datasets, dataset (a dataset's datapoints), queues, playgrounds, debugger-sessions, signal-runs, or signal-events:<signal id>",
+                "Table the view belongs to: traces, spans, sessions, evaluations, evaluation-v1.1 (an evaluation's datapoints), datasets, dataset (a dataset's datapoints), eval-datasets, eval-dataset (an eval dataset's tasks), queues, playgrounds, debugger-sessions, signal-runs, or signal-events:<signal id>",
             ),
             col("name", "String", "View name, unique per resource"),
             col(

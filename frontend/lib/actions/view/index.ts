@@ -31,6 +31,8 @@ const VIEW_RESOURCES = [
   "evaluation-v1.1",
   "datasets",
   "dataset",
+  "eval-datasets",
+  "eval-dataset",
   "queues",
   "playgrounds",
   "debugger-sessions",

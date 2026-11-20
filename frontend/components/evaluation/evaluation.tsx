@@ -25,10 +25,10 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
-import TaskFiles from "@/components/evaluation/task-files";
-import PanelToggle, { PANELS } from "@/components/evaluation/task-files/panel-toggle";
-import { taskNameOf, taskPathOf, trialNameOf } from "@/components/evaluation/task-files/utils";
-import TrialLog from "@/components/evaluation/trial-log";
+import TrialFiles from "@/components/evaluation/trial-files";
+import PanelToggle, { PANELS } from "@/components/evaluation/trial-files/panel-toggle";
+import { useTrialFiles } from "@/components/evaluation/trial-files/use-trial-files";
+import { taskNameOf } from "@/components/evaluation/trial-files/utils";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
   type EvaluationStatsPayload,
@@ -57,6 +57,8 @@ interface EvaluationProps {
   evaluationName: string;
   initialScoreNames: string[];
   datasets: LinkedDataset[];
+  /** The eval dataset the run used, when it exists in the project. */
+  evalDataset: string | null;
 }
 
 const PAGE_SIZE = 50;
@@ -64,7 +66,7 @@ const PAGE_SIZE = 50;
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
 
-function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId, datasets, evalDataset }: EvaluationProps) {
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
@@ -268,13 +270,19 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // shared links carried traceId without trialId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
-  // Remote-run evaluations can show each trial's task folder or its Harbor output instead of its trace.
-  const isHosted = !isShared && !!evaluations.find((e) => e.id === evaluationId)?.hostedMetadata;
+  // A trial can show its files (task, agent, Harbor output) instead of its trace: remote runs always,
+  // local runs once its task version is found in the dataset.
+  const evaluation = evaluations.find((e) => e.id === evaluationId);
   const [panel, setPanel] = useQueryState("panel", parseAsStringLiteral(PANELS).withDefault("trace"));
-  const shownPanel = isHosted ? panel : "trace";
-  const taskPath = taskPathOf(selectedRow);
-  const trialName = trialNameOf(selectedRow);
-  const taskName = taskNameOf(selectedRow);
+  const trialFiles = useTrialFiles({
+    projectId: params.projectId,
+    evaluation,
+    row: selectedRow,
+    isShared,
+    isOpen: panel === "files",
+  });
+  const shownPanel = panel === "files" && trialFiles.availability !== "unavailable" ? "files" : "trace";
+  const selectedTrialId = selectedRow?.["id"] as string | undefined;
 
   const handleRowClick = useCallback(
     (row: Row<EvalRow>) => {
@@ -354,6 +362,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
         urlKey={statsUrl}
         evaluations={evaluations}
         datasets={datasets}
+        evalDataset={evalDataset}
       />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         {/* Left + top padding only: the trace panel must run flush to the right
@@ -393,26 +402,18 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
                       row={selectedRow}
                     />
                   </div>
-                  {isHosted && <PanelToggle value={panel} onChange={setPanel} />}
+                  {trialFiles.showToggle && <PanelToggle value={shownPanel} onChange={setPanel} />}
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                  {/* Task and Log wait for the trial: before it loads there's no task path or trial name, which isn't "not uploaded". */}
-                  {shownPanel === "task" && selectedRow && (
-                    <TaskFiles
-                      key={taskPath ?? "none"}
+                  {/* Files waits for the trial: before it loads there's nothing to look up. */}
+                  {shownPanel === "files" && selectedTrialId && (
+                    <TrialFiles
                       projectId={params.projectId}
                       evaluationId={evaluationId}
-                      taskPath={taskPath}
-                      taskName={taskName}
-                    />
-                  )}
-                  {shownPanel === "log" && selectedRow && (
-                    <TrialLog
-                      key={trialName ?? "none"}
-                      projectId={params.projectId}
-                      evaluationId={evaluationId}
-                      trialName={trialName}
-                      taskName={taskName}
+                      trialId={selectedTrialId}
+                      listing={trialFiles.listing}
+                      error={trialFiles.error}
+                      title={taskNameOf(selectedRow) ?? selectedTrialId}
                     />
                   )}
                   {/* No onClose ⇒ always-open: the trace header shows no close button. */}

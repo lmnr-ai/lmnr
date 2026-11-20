@@ -645,6 +645,7 @@ impl TableRegistry {
             "executor_output",
             "index",
             "task_id",
+            "task_version_hash",
             "trace_id",
             "group_id",
             "scores",
