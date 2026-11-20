@@ -8,7 +8,7 @@ pub mod agent;
 pub mod alerts;
 pub mod dashboards;
 pub mod datasets;
-pub mod eval_datasets;
+pub mod datasets_v2;
 pub mod hosted_evals;
 pub mod llm_profiles;
 pub mod rollouts;

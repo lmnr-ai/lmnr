@@ -137,10 +137,10 @@ mod clustering;
 mod dashboards;
 mod data_plane;
 mod datasets;
+mod datasets_v2;
 mod db;
 mod debugger;
 mod env;
-mod eval_datasets;
 mod evaluations;
 mod features;
 mod hosted_evals;
@@ -1868,10 +1868,10 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_dataset)
                             .service(api::v1::cli::datasets::update_dataset)
                             .service(api::v1::cli::datasets::delete_dataset)
-                            .service(api::v1::cli::eval_datasets::missing_versions)
-                            .service(api::v1::cli::eval_datasets::upload_version)
-                            .service(api::v1::cli::eval_datasets::upload_version_index)
-                            .service(api::v1::cli::eval_datasets::download_version)
+                            .service(api::v1::cli::datasets_v2::missing_versions)
+                            .service(api::v1::cli::datasets_v2::upload_version)
+                            .service(api::v1::cli::datasets_v2::upload_version_index)
+                            .service(api::v1::cli::datasets_v2::download_version)
                             .service(api::v1::cli::hosted_evals::missing_layers)
                             .service(api::v1::cli::hosted_evals::upload_layer)
                             .service(api::v1::cli::hosted_evals::create_image)
@@ -2006,10 +2006,10 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval)
                                     .service(api::v1::evals::save_eval_trials)
                                     .service(api::v1::evals::update_eval_trial)
-                                    .service(api::v1::eval_datasets::missing_versions)
-                                    .service(api::v1::eval_datasets::upload_version)
-                                    .service(api::v1::eval_datasets::upload_version_index)
-                                    .service(api::v1::eval_datasets::download_version)
+                                    .service(api::v1::datasets_v2::missing_versions)
+                                    .service(api::v1::datasets_v2::upload_version)
+                                    .service(api::v1::datasets_v2::upload_version_index)
+                                    .service(api::v1::datasets_v2::download_version)
                                     .service(api::v1::hosted_evals::missing_layers)
                                     .service(api::v1::hosted_evals::upload_layer)
                                     .service(api::v1::hosted_evals::ensure_snapshot)

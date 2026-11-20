@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use crate::eval_datasets::VersionRef;
+use crate::datasets_v2::VersionRef;
 
 #[derive(Serialize, Deserialize, FromRow, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TaskHash {

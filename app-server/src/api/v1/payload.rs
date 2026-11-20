@@ -1,5 +1,5 @@
 //! Streamed request bodies shared by the routes that store archives in S3
-//! (`hosted_evals`, `eval_datasets`).
+//! (`hosted_evals`, `datasets_v2`).
 
 use actix_web::{HttpResponse, error::PayloadError, http::StatusCode};
 use anyhow::anyhow;

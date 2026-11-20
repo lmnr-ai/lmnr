@@ -4,8 +4,8 @@ use super::debugger;
 use crate::{
     audit,
     cache::Cache,
+    datasets_v2,
     db::{self, DB, project_api_keys::ProjectApiKey},
-    eval_datasets,
     evaluations::{
         EvaluationTrialResult, UpdatedTrialStrings, insert_evaluation_trials,
         realtime::{
@@ -37,7 +37,7 @@ pub struct InitEvalRequest {
     /// Set by the Laminar Harbor plugin in a remote run's orchestrator.
     #[serde(default)]
     pub hosted_metadata: Option<HostedMetadata>,
-    /// The eval dataset (`eval_datasets`) the run is of, set by the Laminar Harbor plugin.
+    /// The eval dataset (`datasets_v2`) the run is of, set by the Laminar Harbor plugin.
     #[serde(default)]
     pub dataset_v2_id: Option<String>,
 }
@@ -55,7 +55,7 @@ pub async fn init_eval(
     if let Some(dataset) = body
         .dataset_v2_id
         .as_deref()
-        .filter(|d| !eval_datasets::is_dataset_name(d))
+        .filter(|d| !datasets_v2::is_dataset_name(d))
     {
         return Ok(HttpResponse::BadRequest().json(json!({
             "error": format!("Invalid datasetV2Id {dataset:?}: not a dataset name"),

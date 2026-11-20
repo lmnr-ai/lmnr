@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    eval_datasets,
+    datasets_v2,
     evaluations::{DEFAULT_GROUP_NAME, EvaluationTrialResult},
     utils::json_value_to_string,
 };
@@ -64,7 +64,7 @@ impl CHEvaluationTrial {
         // A re-save without the hash (e.g. an SDK's second save of the Trial) keeps the stored one.
         let task_version_hash = result
             .task_version_hash
-            .filter(|hash| eval_datasets::is_version_hash(hash))
+            .filter(|hash| datasets_v2::is_version_hash(hash))
             .or_else(|| stored.map(|s| s.task_version_hash.clone()))
             .unwrap_or_default();
         CHEvaluationTrial {

@@ -65,7 +65,7 @@ pub struct EvaluationTrialResult {
     pub scores: HashMap<String, Option<f64>>,
     #[serde(default)]
     pub dataset_link: Option<EvaluationTrialDatasetLink>,
-    /// The eval dataset task version the Trial ran (`eval_datasets`); kept only when valid.
+    /// The eval dataset task version the Trial ran (`datasets_v2`); kept only when valid.
     #[serde(default)]
     pub task_version_hash: Option<String>,
 }

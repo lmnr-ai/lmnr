@@ -19,7 +19,7 @@ pub struct Evaluation {
     /// Conceptually, evaluations with different group ids are used to test different features.
     pub group_id: String,
     pub metadata: Option<Value>,
-    /// The eval dataset the run is of (`eval_datasets`); no FK, so a local run of
+    /// The eval dataset the run is of (`datasets_v2`); no FK, so a local run of
     /// an unpushed dataset still records its name.
     pub dataset_v2_id: Option<String>,
 }

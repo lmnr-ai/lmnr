@@ -14,9 +14,9 @@ use uuid::Uuid;
 
 use super::payload::{self, IndexError, MAX_ARCHIVE_BYTES, body_error_response, forward_payload};
 use crate::{
-    db::{self, DB, eval_datasets::TaskHash, project_api_keys::ProjectApiKey},
+    datasets_v2::{self, VersionRef, is_dataset_name, is_task_name, is_version_hash},
+    db::{self, DB, datasets_v2::TaskHash, project_api_keys::ProjectApiKey},
     env,
-    eval_datasets::{self, VersionRef, is_dataset_name, is_task_name, is_version_hash},
     features::{Feature, is_feature_enabled},
     routes::types::ResponseResult,
     storage::{Storage, StorageTrait},
@@ -134,7 +134,7 @@ pub async fn download_version(
 }
 
 // Shared by the project-API-key routes above and their CLI twins
-// (`api::v1::cli::eval_datasets`).
+// (`api::v1::cli::datasets_v2`).
 
 pub async fn handle_missing_versions(
     project_id: &Uuid,
@@ -159,7 +159,7 @@ pub async fn handle_missing_versions(
         return Ok(invalid);
     }
     let existing =
-        db::eval_datasets::get_existing_versions(&db.pool, project_id, dataset, &req.versions)
+        db::datasets_v2::get_existing_versions(&db.pool, project_id, dataset, &req.versions)
             .await?;
     let existing: HashSet<&TaskHash> = existing.iter().collect();
     let missing: Vec<&TaskHash> = req
@@ -182,7 +182,7 @@ pub async fn handle_upload_version(
     if let Some(invalid) = check_version(version) {
         return Ok(invalid);
     }
-    let key = eval_datasets::archive_key(project_id, version);
+    let key = datasets_v2::archive_key(project_id, version);
     // `web::Payload` isn't `Send`, so it's pumped through a channel the upload reads.
     let (tx, rx) = mpsc::channel(4);
     let (received, stored) = futures_util::join!(
@@ -214,14 +214,14 @@ pub async fn handle_upload_version_index(
     let stored = payload::store_index(
         storage,
         &bucket,
-        &eval_datasets::archive_key(project_id, version),
-        &eval_datasets::index_key(project_id, version),
+        &datasets_v2::archive_key(project_id, version),
+        &datasets_v2::index_key(project_id, version),
         payload,
     )
     .await;
     let response = match stored {
         Ok(()) => {
-            db::eval_datasets::insert_version(&db.pool, project_id, version).await?;
+            db::datasets_v2::insert_version(&db.pool, project_id, version).await?;
             HttpResponse::NoContent().finish()
         }
         Err(IndexError::Body(e)) => body_error_response(e),
@@ -252,10 +252,10 @@ pub async fn handle_download_version(
     if let Some(invalid) = check_version(version) {
         return Ok(invalid);
     }
-    if !db::eval_datasets::version_exists(&db.pool, project_id, version).await? {
+    if !db::datasets_v2::version_exists(&db.pool, project_id, version).await? {
         return Ok(version_not_found());
     }
-    let key = eval_datasets::archive_key(project_id, version);
+    let key = datasets_v2::archive_key(project_id, version);
     let stream = match storage.exists(&bucket, &key).await {
         Ok(true) => storage.get_stream(&bucket, &key).await,
         Ok(false) => {
@@ -288,7 +288,7 @@ fn check_dataset(dataset: &str) -> Option<HttpResponse> {
             "invalid_name",
             format!(
                 "Invalid dataset name {dataset:?}: {NAME_RULE}, at most {} bytes",
-                eval_datasets::MAX_DATASET_NAME_BYTES
+                datasets_v2::MAX_DATASET_NAME_BYTES
             ),
         )
     })
@@ -301,7 +301,7 @@ fn check_task_hash(task: &str, hash: &str) -> Option<HttpResponse> {
             "invalid_name",
             format!(
                 "Invalid task name {task:?}: {NAME_RULE}, at most {} bytes",
-                eval_datasets::MAX_TASK_NAME_BYTES
+                datasets_v2::MAX_TASK_NAME_BYTES
             ),
         ));
     }
