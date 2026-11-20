@@ -199,6 +199,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::ch::traces_agg::CHTraceAgg;
     use crate::traces::{span_attributes::SPAN_RELEASE, spans::SpanAttributes};
 
     fn make_span(trace_id: Uuid, span_type: SpanType, output_tokens: i64) -> Span {
@@ -260,6 +261,31 @@ mod tests {
         assert_eq!(agg.total_tokens, 100);
         assert_eq!(agg.total_cost, 1.5);
         assert_eq!(agg.num_spans, 2);
+    }
+
+    #[test]
+    fn unsigned_trace_token_counters_clamp_negative_totals() {
+        let span = make_span(Uuid::new_v4(), SpanType::LLM, 0);
+
+        for (counts, expected) in [((-1, -2, -3), (0, 0, 0)), ((3, 5, 7), (3, 5, 7))] {
+            let mut usage = make_usage(0, 0.0);
+            (
+                usage.cache_read_input_tokens,
+                usage.cache_creation_input_tokens,
+                usage.reasoning_tokens,
+            ) = counts;
+            let aggregations = TraceAggregation::from_spans(std::slice::from_ref(&span), &[usage]);
+            let row = CHTraceAgg::from_aggregation(&aggregations[0], 0);
+
+            assert_eq!(
+                (
+                    row.cache_read_input_tokens,
+                    row.cache_creation_input_tokens,
+                    row.reasoning_tokens
+                ),
+                expected
+            );
+        }
     }
 
     #[test]
