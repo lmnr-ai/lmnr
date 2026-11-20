@@ -1,7 +1,7 @@
 import { ArrowUpRight, Info } from "lucide-react";
 
-// Planned in lmnr-ai/docs#294 (closed); 404s until a docs PR for the new datasets ships.
-const NEW_DATASETS_DOCS_URL = "https://docs.laminar.sh/agent-evaluations/eval-datasets";
+// Added by lmnr-ai/docs#297; 404s until it merges.
+const NEW_DATASETS_DOCS_URL = "https://docs.laminar.sh/datasets/overview";
 
 export default function RetiringDatasetsBanner() {
   return (
