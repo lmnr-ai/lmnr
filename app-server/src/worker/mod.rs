@@ -82,7 +82,6 @@ impl HandlerError {
 /// `delay_ms` — RabbitMQ expires messages only at the head of a queue, so a
 /// long-TTL message would hold up shorter ones behind it.
 #[derive(Clone, Copy)]
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub struct RetryConfig {
     pub exchange: &'static str,
     pub routing_key: &'static str,
@@ -139,7 +138,6 @@ impl QueueConfig {
     }
 
     /// Route this queue's transient failures through a delay queue.
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn with_retry(mut self, retry: RetryConfig) -> Self {
         self.retry = Some(retry);
         self
@@ -193,14 +191,65 @@ impl std::fmt::Display for WorkerType {
 }
 
 /// What becomes of a delivery whose handler failed transiently.
-#[derive(Debug, PartialEq, Eq)]
-enum TransientOutcome {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransientOutcome {
     /// Waiting in the retry queue; the original delivery is finished with.
     Parked,
     /// Handed straight back to the broker, undelayed.
     RequeueNow,
     /// Retry budget spent — discarded.
     Drop,
+}
+
+/// Hold a transiently-failed message in `retry`'s delay queue instead of having
+/// the broker redeliver it at once, so the dependency that failed gets time to
+/// recover. On a near-empty queue an immediate requeue comes straight back to
+/// the same worker, which burns the whole retry budget in seconds.
+///
+/// `data` MUST be the original wire bytes. Returns `Drop` once `attempt` reaches
+/// the cap; what dropping means (logging, writing the work off) is the
+/// caller's. Falls back to `RequeueNow` when the publish fails — some transient
+/// causes ARE broker failures, and the in-memory transport cannot delay at all.
+///
+/// `priority` is echoed from the delivery rather than recomputed, which is
+/// what keeps priority out of the handler APIs: only the publish site knows
+/// how to rank a payload, and the worker sees opaque bytes. The `RequeueNow`
+/// fallback is the one path that cannot preserve it — quorum queues requeue
+/// returned messages in return order, ignoring priority — so a prioritized
+/// message that fails to park loses its rank for that one redelivery, and
+/// regains it on the next republish by the handler.
+pub async fn park(
+    queue: &MessageQueue,
+    retry: &RetryConfig,
+    data: &[u8],
+    attempt: u32,
+    priority: Option<u8>,
+) -> TransientOutcome {
+    if attempt >= retry.max_attempts {
+        return TransientOutcome::Drop;
+    }
+
+    match queue
+        .publish_retry(
+            data,
+            retry.exchange,
+            retry.routing_key,
+            retry.delay_ms,
+            attempt + 1,
+            priority,
+        )
+        .await
+    {
+        Ok(()) => TransientOutcome::Parked,
+        Err(e) => {
+            log::warn!(
+                "Could not park a failed message on '{}' for retry, requeueing immediately: {:?}",
+                retry.exchange,
+                e
+            );
+            TransientOutcome::RequeueNow
+        }
+    }
 }
 
 /// Queue worker that processes messages until shutdown.
@@ -304,22 +353,9 @@ impl<H: MessageHandler> QueueWorker<H> {
         }
     }
 
-    /// Hold a transiently-failed message in the retry queue instead of having the
-    /// broker redeliver it at once, so the dependency that failed gets time to
-    /// recover. On a near-empty queue an immediate requeue comes straight back to
-    /// the same worker, which burns the whole retry budget in seconds.
-    ///
-    /// Falls back to an immediate requeue when the queue has no retry target, or
-    /// when parking the message fails — some transient causes ARE broker
-    /// failures, and the in-memory transport cannot delay at all.
-    ///
-    /// `priority` is echoed from the delivery rather than recomputed, which is
-    /// what keeps priority out of the `MessageHandler` API: only the publish site
-    /// knows how to rank a payload, and the worker sees opaque bytes. The
-    /// `RequeueNow` fallback below is the one path that cannot preserve it —
-    /// quorum queues requeue returned messages in return order, ignoring
-    /// priority — so a prioritized message that fails to park loses its rank for
-    /// that one redelivery, and regains it on the next republish by the handler.
+    /// Park a transiently-failed message ([`park`]), or requeue it at
+    /// once when the queue has no retry target. A spent budget is written off
+    /// through [`MessageHandler::on_retries_exhausted`].
     async fn park_for_retry(
         &self,
         data: &[u8],
@@ -330,7 +366,8 @@ impl<H: MessageHandler> QueueWorker<H> {
             return TransientOutcome::RequeueNow;
         };
 
-        if attempt >= retry.max_attempts {
+        let outcome = park(&self.queue, &retry, data, attempt, priority).await;
+        if outcome == TransientOutcome::Drop {
             log::error!(
                 "Worker {} ({:?}) dropping a message from '{}' after {} delayed retries",
                 self.id,
@@ -343,32 +380,8 @@ impl<H: MessageHandler> QueueWorker<H> {
             if let Ok(message) = serde_json::from_slice::<H::Message>(data) {
                 self.handler.on_retries_exhausted(message).await;
             }
-            return TransientOutcome::Drop;
         }
-
-        match self
-            .queue
-            .publish_retry(
-                data,
-                retry.exchange,
-                retry.routing_key,
-                retry.delay_ms,
-                attempt + 1,
-                priority,
-            )
-            .await
-        {
-            Ok(()) => TransientOutcome::Parked,
-            Err(e) => {
-                log::warn!(
-                    "Worker {} ({:?}) could not park a failed message for retry, requeueing immediately: {:?}",
-                    self.id,
-                    self.worker_type,
-                    e
-                );
-                TransientOutcome::RequeueNow
-            }
-        }
+        outcome
     }
 
     async fn connect(&self) -> anyhow::Result<MessageQueueReceiver> {
@@ -492,6 +505,7 @@ impl WorkerPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mq::recording::{RecordedRetry, RecordingQueue};
     use crate::mq::tokio_mpsc::TokioMpscQueue;
     use serde::Deserialize;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -552,6 +566,38 @@ mod tests {
 
     fn payload() -> Vec<u8> {
         serde_json::to_vec(&TestMessage { id: 1 }).unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_transient_failure_parks_the_original_bytes_for_the_next_attempt() {
+        let worker = QueueWorker::new(
+            WorkerType::Logs,
+            CountingHandler::default(),
+            Arc::new(RecordingQueue::default().into()),
+            QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY)
+                .with_retry(retry_config(3)),
+            CancellationToken::new(),
+        );
+
+        assert_eq!(
+            worker.park_for_retry(&payload(), 1, Some(8)).await,
+            TransientOutcome::Parked
+        );
+        let MessageQueue::Recording(queue) = worker.queue.as_ref() else {
+            unreachable!()
+        };
+        assert_eq!(
+            queue.retries(),
+            vec![RecordedRetry {
+                message: payload(),
+                exchange: TEST_RETRY_EXCHANGE.to_string(),
+                routing_key: TEST_RETRY_ROUTING_KEY.to_string(),
+                ttl_ms: 30_000,
+                attempt: 2,
+                priority: Some(8),
+            }]
+        );
+        assert_eq!(worker.handler.written_off.load(Ordering::Relaxed), 0);
     }
 
     #[tokio::test]
