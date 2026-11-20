@@ -54,18 +54,16 @@ impl CHEvaluationTrial {
         evaluation_id: Uuid,
         project_id: Uuid,
         group_name: &String,
-        stored: Option<&StoredTrial>,
+        created_at: Option<i64>,
     ) -> Self {
         let updated_at = chrono_to_nanoseconds(Utc::now());
         let task_id = result
             .task_id
             .filter(|task_id| !task_id.is_empty())
             .unwrap_or_else(|| result.index.to_string());
-        // A re-save without the hash (e.g. an SDK's second save of the Trial) keeps the stored one.
         let task_version_hash = result
             .task_version_hash
             .filter(|hash| datasets_v2::is_version_hash(hash))
-            .or_else(|| stored.map(|s| s.task_version_hash.clone()))
             .unwrap_or_default();
         CHEvaluationTrial {
             id: result.id,
@@ -76,7 +74,7 @@ impl CHEvaluationTrial {
             task_id,
             task_version_hash,
             updated_at,
-            created_at: stored.map(|s| s.created_at).unwrap_or(updated_at),
+            created_at: created_at.unwrap_or(updated_at),
             data: json_value_to_string(&result.data),
             target: json_value_to_string(&result.target),
             metadata: json_value_to_string(
@@ -118,31 +116,23 @@ impl CHEvaluationTrial {
 }
 
 #[derive(Row, Deserialize)]
-struct StoredTrialRow {
+struct TrialCreatedAt {
     #[serde(with = "clickhouse::serde::uuid")]
     id: Uuid,
     created_at: i64,
-    task_version_hash: String,
 }
 
-/// What a re-save of an already-stored Trial keeps from it.
-pub struct StoredTrial {
-    pub created_at: i64,
-    pub task_version_hash: String,
-}
-
-/// The stored Trials among `ids`. The SDK saves a Trial once before it runs and again with its
-/// output, and the second save must keep the first one's time.
-pub async fn get_stored_trials(
+/// `created_at` of each already-stored Trial in `ids`. The SDK saves a Trial once before it
+/// runs and again with its output, and the second save must keep the first one's time.
+pub async fn get_trial_created_ats(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     evaluation_id: Uuid,
     ids: &[Uuid],
-) -> Result<HashMap<Uuid, StoredTrial>> {
+) -> Result<HashMap<Uuid, i64>> {
     let rows = clickhouse
         .query(
-            "SELECT id, toUnixTimestamp64Nano(min(created_at)) AS created_at,
-                argMaxIf(task_version_hash, updated_at, task_version_hash != '') AS task_version_hash
+            "SELECT id, toUnixTimestamp64Nano(min(created_at)) AS created_at
              FROM evaluation_datapoints
              WHERE project_id = {project_id:UUID} AND evaluation_id = {evaluation_id:UUID}
                 AND id IN {ids:Array(UUID)}
@@ -151,19 +141,11 @@ pub async fn get_stored_trials(
         .param("project_id", project_id)
         .param("evaluation_id", evaluation_id)
         .param("ids", ids)
-        .fetch_all::<StoredTrialRow>()
+        .fetch_all::<TrialCreatedAt>()
         .await?;
     Ok(rows
         .into_iter()
-        .map(|row| {
-            (
-                row.id,
-                StoredTrial {
-                    created_at: row.created_at,
-                    task_version_hash: row.task_version_hash,
-                },
-            )
-        })
+        .map(|row| (row.id, row.created_at))
         .collect())
 }
 
@@ -236,42 +218,30 @@ mod tests {
         );
     }
 
-    fn task_version_hash_of(point: serde_json::Value, stored: Option<&StoredTrial>) -> String {
+    fn task_version_hash_of(point: serde_json::Value) -> String {
         let result: EvaluationTrialResult = serde_json::from_value(point).unwrap();
         CHEvaluationTrial::from_evaluation_trial_result(
             result,
             Uuid::nil(),
             Uuid::nil(),
             &DEFAULT_GROUP_NAME.to_string(),
-            stored,
+            None,
         )
         .task_version_hash
     }
 
     #[test]
-    fn task_version_hash_is_valid_or_kept() {
+    fn task_version_hash_is_valid_or_empty() {
         use serde_json::json;
         let hash = "ab".repeat(32);
-        let stored = StoredTrial {
-            created_at: 1,
-            task_version_hash: "cd".repeat(32),
-        };
         assert_eq!(
-            task_version_hash_of(json!({"data": {}, "taskVersionHash": hash}), None),
+            task_version_hash_of(json!({"data": {}, "taskVersionHash": hash})),
             hash
         );
         assert_eq!(
-            task_version_hash_of(json!({"data": {}, "taskVersionHash": "AB"}), None),
+            task_version_hash_of(json!({"data": {}, "taskVersionHash": "AB"})),
             ""
         );
-        assert_eq!(task_version_hash_of(json!({"data": {}}), None), "");
-        assert_eq!(
-            task_version_hash_of(json!({"data": {}}), Some(&stored)),
-            stored.task_version_hash
-        );
-        assert_eq!(
-            task_version_hash_of(json!({"data": {}, "taskVersionHash": hash}), Some(&stored)),
-            hash
-        );
+        assert_eq!(task_version_hash_of(json!({"data": {}})), "");
     }
 }
