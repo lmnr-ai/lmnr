@@ -7,7 +7,7 @@
 
 # Laminar
 
-[Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents.
+[Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents. It traces every agent run, analyzes each trace to catch failures, and alerts you when a run goes wrong.
 
 - [x] Tracing. [Docs](https://laminar.sh/docs/tracing/introduction)
     - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
