@@ -14,7 +14,7 @@ use clickhouse::Row;
 use crate::{
     ch::{
         evaluation_datapoints::{
-            CHEvaluationTrial, ch_insert_evaluation_trials, get_stored_trials,
+            CHEvaluationTrial, ch_insert_evaluation_trials, get_trial_created_ats,
         },
         utils::chrono_to_nanoseconds,
     },
@@ -132,18 +132,18 @@ pub async fn insert_evaluation_trials(
     }
 
     let ids: Vec<Uuid> = evaluation_datapoints.iter().map(|dp| dp.id).collect();
-    let stored = get_stored_trials(&clickhouse, project_id, evaluation_id, &ids).await?;
+    let created_ats = get_trial_created_ats(&clickhouse, project_id, evaluation_id, &ids).await?;
 
     let ch_rows: Vec<CHEvaluationTrial> = evaluation_datapoints
         .into_iter()
         .map(|dp| {
-            let stored = stored.get(&dp.id);
+            let created_at = created_ats.get(&dp.id).copied();
             CHEvaluationTrial::from_evaluation_trial_result(
                 dp,
                 evaluation_id,
                 project_id,
                 group_name,
-                stored,
+                created_at,
             )
         })
         .collect();
