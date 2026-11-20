@@ -7,13 +7,14 @@
 
 # Laminar
 
-[Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents. It traces every agent run, analyzes each trace to catch failures, and alerts you when a run goes wrong.
+[Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents. It traces every agent run, analyzes each trace with [flow-1](https://laminar.sh/blog/flow-1), our own model trained for agent trace analysis, and alerts you when a run goes wrong. flow-1 matches frontier models on failure detection at a fraction of the cost, so you can analyze every run instead of a sample.
 
 - [x] Tracing. [Docs](https://laminar.sh/docs/tracing/introduction)
     - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
 - [x] Signals. [Docs](https://laminar.sh/docs/signals/introduction)
     - [x] Describe any behavior of your agent that you want to track in plain English (e.g. "agent is stuck in a loop")
     - [x] Laminar reads every agent run and pings you in Slack when it happens.
+    - [x] Powered by [flow-1](https://laminar.sh/blog/flow-1), our own model trained with reinforcement learning for agent trace analysis. It matches GPT-6-sol on failure detection at 23x lower cost.
 - [x] Evals. [Docs](https://laminar.sh/docs/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
