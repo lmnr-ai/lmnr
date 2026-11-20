@@ -1033,6 +1033,10 @@
 .code-highlighter .token {
   font-style: normal;
 }
+/* Prism tags TOML headers ([task]) `table`, which Tailwind's .table utility turns into display: table. */
+.code-highlighter .token.table {
+  display: inline;
+}
 .code-highlighter .token:is(.comment, .prolog, .doctype, .cdata, .punctuation) {
   color: var(--code-muted);
 }
