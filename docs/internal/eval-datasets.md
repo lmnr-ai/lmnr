@@ -12,7 +12,7 @@
 - Streamed bodies, the index check and `upstream_error` are shared with hosted evals through `api/v1/payload.rs`.
 - Postgres (migration `0135`; its SQL is hand-kept because `drizzle-kit generate` renders an index column that has `.op()` without its `DESC NULLS FIRST`, so after regenerating restore `task_versions_created_at_idx` by hand): `datasets_v2 (project_id, id)`, `tasks (project_id, dataset_id, id)`, `task_versions (project_id, dataset_id, task_id, hash, created_at)`. Ids are the full `org/name` names. `evaluations.dataset_v2_id` has no FK: a local run of an unpushed dataset still records its name.
 - ClickHouse (migration `87`): `evaluation_datapoints.task_version_hash` (`''` when unknown), exposed in `evaluation_datapoints_v0` and the SQL editor's `evaluation_trials`.
-- Storage: its own bucket, `S3_DATASETS_BUCKET` (default `lmnr-datasets`; the frontend reads the same var with the same default), gated on `Feature::Storage` only, which is just AWS credentials (no Daytona / hosted evals needed). Without credentials every route answers `501 {code: "storage_not_configured"}`. With credentials but no such bucket, S3 errors surface as `502 upstream_error`.
+- Storage: its own bucket, `S3_DATASETS_BUCKET` (the frontend reads the same var), plus AWS credentials (`Feature::Storage`); no Daytona / hosted evals needed. The bucket has **no default**: S3 bucket names are global, and AWS credentials are often set for other reasons (Bedrock), so a default would point such deployments at a bucket they may not own. Without credentials or the bucket env every route answers `501 {code: "storage_not_configured"}` (lmnr-cli then uploads tasks with `--remote` runs as before); with a bucket that doesn't exist, S3 errors surface as `502 upstream_error`.
 
 ## Names
 
@@ -47,7 +47,7 @@ All under `/v1/eval-datasets/{org}/{name}` (project key) and `/v1/cli/eval-datas
 
 ## Testing locally
 
-- moto as in `hosted-evals.md` → "Testing locally" (`AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_ENDPOINT_URL=http://127.0.0.1:9100`, and create `lmnr-datasets` or set `S3_DATASETS_BUCKET`); no `DAYTONA_API_KEY` needed. Unset the AWS credentials for the `501` path.
+- moto as in `hosted-evals.md` → "Testing locally" (`AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_ENDPOINT_URL=http://127.0.0.1:9100`, create a bucket and set `S3_DATASETS_BUCKET` to it on both the app-server and the frontend); no `DAYTONA_API_KEY` needed. Unset `S3_DATASETS_BUCKET` for the `501` path.
 - The server doesn't validate archives, so any `.tar.gz` and `{"files": []}` exercise every route.
 - CLI twins: mint a token as in `app-server.md` → "Local `/v1/cli/*` testing", plus `x-lmnr-project-id: <project>`.
 - **The evaluation page needs the ClickHouse dictionaries** (`evaluations_dict`, ...), which the frontend creates at boot only with `CLICKHOUSE_POSTGRES_USER` / `_PASSWORD` set (plus `CLICKHOUSE_POSTGRES_HOST=postgres`, the compose service name as ClickHouse sees it). Without them the page errors with `Dictionary (evaluations_dict) not found`, which looks like a bug in whatever you are testing.

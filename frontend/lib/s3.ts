@@ -10,11 +10,11 @@ const client = new S3Client({
   },
 });
 
-/** Eval dataset task versions. Must match the app-server's `S3_DATASETS_BUCKET`. */
-export const datasetsBucket = (): string => process.env.S3_DATASETS_BUCKET || "lmnr-datasets";
+/** Eval dataset task versions, as the app-server's `S3_DATASETS_BUCKET`; null when unset (no default: bucket names are global). */
+export const datasetsBucket = (): string | null => process.env.S3_DATASETS_BUCKET?.trim() || null;
 
-/** Remote eval runs' uploads and job output. Must match the app-server's `S3_HOSTED_EVALS_BUCKET`. */
-export const hostedEvalsBucket = (): string => process.env.S3_HOSTED_EVALS_BUCKET || "lmnr-hosted-evals";
+/** Remote eval runs' uploads and job output, as the app-server's `S3_HOSTED_EVALS_BUCKET`; null when unset. */
+export const hostedEvalsBucket = (): string | null => process.env.S3_HOSTED_EVALS_BUCKET?.trim() || null;
 
 export const streamExportDataByPath = async (path: string): Promise<ReadableStream<Uint8Array>> => {
   const request = new GetObjectCommand({

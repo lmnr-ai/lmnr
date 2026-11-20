@@ -185,7 +185,11 @@ const getVersionArchive = async (
   if (!version) {
     throw new NotFoundError("Task version not found");
   }
-  return { bucket: datasetsBucket(), prefix: taskVersionPrefix(projectId, datasetId, taskId, hash) };
+  const bucket = datasetsBucket();
+  if (!bucket) {
+    throw new NotFoundError("This task version's files are not available");
+  }
+  return { bucket, prefix: taskVersionPrefix(projectId, datasetId, taskId, hash) };
 };
 
 export const getTaskVersionFiles = async (

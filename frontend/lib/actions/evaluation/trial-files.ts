@@ -84,7 +84,8 @@ type Trial = Awaited<ReturnType<typeof getTrial>>;
 /** The trial's pushed task version, if Laminar has it. */
 const getTaskVersion = async (projectId: string, trial: Trial) => {
   const { dataset, datasetTask: task, hash } = trial;
-  if (!dataset || !task || !isEvalName(dataset) || !isEvalName(task) || !TASK_HASH_RE.test(hash)) {
+  const bucket = datasetsBucket();
+  if (!bucket || !dataset || !task || !isEvalName(dataset) || !isEvalName(task) || !TASK_HASH_RE.test(hash)) {
     return null;
   }
   const version = await db.query.taskVersions.findFirst({
@@ -97,7 +98,7 @@ const getTaskVersion = async (projectId: string, trial: Trial) => {
     ),
   });
   if (!version) return null;
-  const archive = { bucket: datasetsBucket(), prefix: taskVersionPrefix(projectId, dataset, task, hash) };
+  const archive = { bucket, prefix: taskVersionPrefix(projectId, dataset, task, hash) };
   const index = await getArchiveIndex(archive);
   if (!index) return null;
   const source: TrialTaskSource = { source: "dataset", dataset, task, hash, pushedAt: version.createdAt };
@@ -106,9 +107,9 @@ const getTaskVersion = async (projectId: string, trial: Trial) => {
 
 const resolveSources = async (projectId: string, trial: Trial) => {
   const { hosted } = trial;
-  const run: ArchiveRef | null = hosted
-    ? { bucket: hostedEvalsBucket(), prefix: `${projectId}/${hosted.uploadId}` }
-    : null;
+  const runBucket = hostedEvalsBucket();
+  const run: ArchiveRef | null =
+    hosted && runBucket ? { bucket: runBucket, prefix: `${projectId}/${hosted.uploadId}` } : null;
   const jobArchive: ArchiveRef | null =
     run && hosted ? { bucket: run.bucket, prefix: `${run.prefix}/jobs/${hosted.suitePath}` } : null;
   const [version, upload, job] = await Promise.all([
