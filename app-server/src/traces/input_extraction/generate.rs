@@ -406,10 +406,21 @@ pub(super) async fn call_llm(
         LLM_RETRY_MAX_RETRIES,
     );
 
-    let retried = (|| call_llm_once(llm_client, request, scope, span_name))
-        .retry(backoff)
-        .when(|e| e.retryable)
-        .notify(|e, _| log::warn!("user-task: LLM call failed, will retry: {}", e.message));
+    let breaker = llm_client.breaker(&llm_client.resolve_model_provider(request).await.provider);
+    let retried = (|| {
+        retry::through_breaker(
+            &breaker,
+            call_llm_once(llm_client, request, scope, span_name),
+            |e| e.retryable,
+            || LlmCallError {
+                message: "LLM provider circuit breaker is open".to_string(),
+                retryable: false,
+            },
+        )
+    })
+    .retry(backoff)
+    .when(|e| e.retryable)
+    .notify(|e, _| log::warn!("user-task: LLM call failed, will retry: {}", e.message));
 
     tokio::time::timeout(
         std::time::Duration::from_secs(LLM_RETRY_MAX_ELAPSED_SECS),
@@ -558,6 +569,35 @@ mod tests {
             started.elapsed() <= std::time::Duration::from_secs(LLM_RETRY_MAX_ELAPSED_SECS),
             "the retry window is the binding bound and must be honoured"
         );
+    }
+
+    /// Once a provider has failed enough attempts, the next extraction fails
+    /// fast instead of spending its own full retry window on it.
+    #[tokio::test(start_paused = true)]
+    async fn call_llm_fails_fast_once_the_provider_breaker_opens() {
+        let mock = MockProviderClient::with_generate_failure(
+            usize::MAX,
+            GenerateFailureMode::Retryable429,
+        );
+        let counter = mock.clone();
+        let client = mock_llm_client(mock);
+        let request = build_request(vec![], Uuid::new_v4());
+
+        assert!(
+            call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME)
+                .await
+                .is_err()
+        );
+        let calls_after_first = counter.generate_call_count();
+
+        let started = tokio::time::Instant::now();
+        assert!(
+            call_llm(&client, &request, &test_scope(), GENERATE_SPAN_NAME)
+                .await
+                .is_err()
+        );
+        assert_eq!(counter.generate_call_count(), calls_after_first);
+        assert_eq!(started.elapsed(), std::time::Duration::ZERO);
     }
 
     // ---- reject_submission --------------------------------------------------

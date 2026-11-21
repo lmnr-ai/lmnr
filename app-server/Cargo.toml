@@ -43,6 +43,7 @@ itertools = "0.14.0"
 jsonwebtoken = {version = "11", default-features = false, features = ["use_pem", "aws_lc_rs"]}
 jwks_client_rs = {version = "0.6", default-features = false, features = ["rustls", "aws_lc_rs"]}
 lapin = "4.12"
+llm-resilience = "0.2.1"
 log = "0.4.34"
 moka = {version = "0.12", features = ["sync", "future"]}
 ndarray = {version = "0.17", optional = true}

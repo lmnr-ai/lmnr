@@ -255,10 +255,21 @@ async fn run_agent_loop(
             LLM_RETRY_MAX_INTERVAL,
             LLM_RETRY_MAX_RETRIES,
         );
+        let breaker = llm_client.breaker(&provider);
         let retried = (|| {
-            llm_client
-                .generate_content(&request)
-                .instrument(llm_span.clone())
+            retry::through_breaker(
+                &breaker,
+                llm_client
+                    .generate_content(&request)
+                    .instrument(llm_span.clone()),
+                ProviderError::is_retryable,
+                || ProviderError::ApiError {
+                    status_code: 503,
+                    message: "LLM provider circuit breaker is open".to_string(),
+                    retryable: false,
+                    resource_exhausted: false,
+                },
+            )
         })
         .retry(retry_backoff)
         .when(ProviderError::is_retryable)
