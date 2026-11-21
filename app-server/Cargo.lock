@@ -399,6 +399,7 @@ dependencies = [
  "jsonwebtoken",
  "jwks_client_rs",
  "lapin",
+ "llm-resilience",
  "log",
  "moka",
  "ndarray",
@@ -3544,6 +3545,17 @@ name = "litemap"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
+
+[[package]]
+name = "llm-resilience"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4fafca5201b2933a00b87b97c03a73d0e577e504cd53a50781b05be9d119b3c"
+dependencies = [
+ "parking_lot",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "local-channel"

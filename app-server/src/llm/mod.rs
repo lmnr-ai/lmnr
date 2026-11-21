@@ -446,6 +446,9 @@ pub struct LlmClient {
     env_provider: Option<EnvProvider>,
     /// `None` only in unit tests built with [`LlmClient::from_provider`].
     profiles: Option<Arc<profiles::LlmProfileStore>>,
+    /// One circuit breaker per reported provider, shared by every retry loop
+    /// on this client.
+    breakers: Arc<dashmap::DashMap<String, llm_resilience::CircuitBreaker>>,
 }
 
 #[derive(Clone)]
@@ -574,6 +577,7 @@ impl LlmClient {
         Ok(Self {
             env_provider,
             profiles: Some(profiles),
+            breakers: Default::default(),
         })
     }
 
@@ -586,7 +590,19 @@ impl LlmClient {
                 client: Arc::new(client),
             }),
             profiles: None,
+            breakers: Default::default(),
         }
+    }
+
+    /// The circuit breaker for `provider`: opens after 5 consecutive failed
+    /// attempts and lets one probe through after 30s.
+    pub fn breaker(&self, provider: &str) -> llm_resilience::CircuitBreaker {
+        self.breakers
+            .entry(provider.to_string())
+            .or_insert_with(|| {
+                llm_resilience::CircuitBreaker::new(5, 1.0, std::time::Duration::from_secs(30))
+            })
+            .clone()
     }
 
     /// Validates a route the way a call would (profile exists, belongs to the

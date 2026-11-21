@@ -58,6 +58,27 @@ pub fn unbounded(min_delay: Duration, max_delay: Duration) -> ExponentialBuilder
     base(min_delay, max_delay).without_max_times()
 }
 
+/// Runs one attempt through `breaker`. While the breaker is open the attempt
+/// is never polled and `open()` is returned; only errors `is_outage` accepts
+/// count against it, so a bad request cannot trip a healthy provider.
+pub async fn through_breaker<T, E>(
+    breaker: &llm_resilience::CircuitBreaker,
+    attempt: impl Future<Output = Result<T, E>>,
+    is_outage: impl Fn(&E) -> bool,
+    open: impl FnOnce() -> E,
+) -> Result<T, E> {
+    let Some(permit) = breaker.try_acquire() else {
+        return Err(open());
+    };
+    let result = attempt.await;
+    match &result {
+        Ok(_) => permit.success(),
+        Err(e) if is_outage(e) => permit.failure(),
+        Err(_) => drop(permit),
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use backon::BackoffBuilder;
@@ -100,6 +121,44 @@ mod tests {
                 .build()
                 .any(|delay| delay > Duration::from_millis(1050)),
             "delays are not jittered"
+        );
+    }
+
+    /// Once the breaker opens, attempts fail fast without reaching the provider,
+    /// and errors that say nothing about provider health never open it.
+    #[tokio::test]
+    async fn through_breaker_fails_fast_once_open() {
+        let breaker = llm_resilience::CircuitBreaker::new(2, 1.0, Duration::from_secs(30));
+        let calls = std::cell::Cell::new(0);
+        let (breaker_ref, calls_ref) = (&breaker, &calls);
+        let attempt = move |outage: bool| {
+            through_breaker(
+                breaker_ref,
+                async move {
+                    calls_ref.set(calls_ref.get() + 1);
+                    Err::<(), bool>(outage)
+                },
+                |outage| *outage,
+                || false,
+            )
+        };
+
+        for _ in 0..5 {
+            let _ = attempt(false).await;
+        }
+        assert_eq!(
+            calls.get(),
+            5,
+            "non-outage errors must not open the breaker"
+        );
+
+        let _ = attempt(true).await;
+        let _ = attempt(true).await;
+        let _ = attempt(true).await;
+        assert_eq!(
+            calls.get(),
+            7,
+            "the third outage attempt must not reach the provider"
         );
     }
 
