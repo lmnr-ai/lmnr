@@ -80,15 +80,15 @@ pub async fn get_workspace_bytes_ingested_by_project_ids(
     Ok(result.unwrap_or(0))
 }
 
-/// Returns uncredited signal token spend in the requested usage window.
+/// Returns billable signal token spend in the requested usage window.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_workspace_signal_tokens_by_project_ids(
     clickhouse: Client,
     project_ids: Vec<Uuid>,
     billing_period_start: DateTime<Utc>,
 ) -> Result<WorkspaceSignalTokens> {
-    // Completed runs are marked when covered by the one-time credit. Return only
-    // uncredited raw tokens; callers derive their cost at the current rates.
+    // Runs covered by the retired one-time credit (`credit_applied`) were free, so
+    // only uncredited raw tokens count; callers derive their cost at current rates.
     let query = "
     SELECT
       SUM(input_tokens) as total_input_tokens,

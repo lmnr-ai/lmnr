@@ -35,7 +35,7 @@ export default function ErrorPage({ error, backAction, backLabel }: ErrorPagePro
         </div>
 
         <div className="flex flex-col items-center gap-2">
-          <h1 className="text-2xl font-semibold text-center text-foreground">Something went wrong</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-center text-foreground">Something went wrong</h1>
           <p className="text-sm text-center text-secondary-foreground leading-relaxed">
             An unexpected error occurred. Please try again, or go back.
           </p>

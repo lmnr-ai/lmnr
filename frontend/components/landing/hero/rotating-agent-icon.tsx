@@ -3,13 +3,15 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 
+import { cn } from "@/lib/utils";
+
 import ClaudeLogo from "./claude-logo";
 import CodexLogo from "./codex-logo";
 import CursorLogo from "./cursor-logo";
 
 const AGENTS = [ClaudeLogo, CursorLogo, CodexLogo] as const;
 
-export default function RotatingAgentIcon() {
+export default function RotatingAgentIcon({ className }: { className?: string }) {
   const [index, setIndex] = useState(0);
   const reduceMotion = useReducedMotion();
 
@@ -26,7 +28,12 @@ export default function RotatingAgentIcon() {
   const AgentIcon = AGENTS[index];
 
   return (
-    <span className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden text-foreground-200">
+    <span
+      className={cn(
+        "relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden text-foreground-200",
+        className
+      )}
+    >
       <AnimatePresence mode="wait" initial={false}>
         <motion.span
           key={index}
@@ -36,7 +43,7 @@ export default function RotatingAgentIcon() {
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
         >
-          <AgentIcon className="size-5" />
+          <AgentIcon className="size-full" />
         </motion.span>
       </AnimatePresence>
     </span>

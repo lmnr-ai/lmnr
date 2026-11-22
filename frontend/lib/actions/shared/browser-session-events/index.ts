@@ -27,10 +27,11 @@ export const getSharedBrowserSessionEvents = async (input: z.infer<typeof GetSha
         event_type as type,
         base64Encode(data) as data
       FROM browser_session_events
-      WHERE trace_id = {traceId: UUID}
+      WHERE project_id = {projectId: UUID} AND trace_id = {traceId: UUID}
       ORDER BY timestamp ASC`,
     format: "JSONEachRow",
     query_params: {
+      projectId: sharedTrace.projectId,
       traceId: traceId,
     },
   });

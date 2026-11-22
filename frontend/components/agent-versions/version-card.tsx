@@ -64,7 +64,7 @@ export default function VersionCard({
             <CardExpandIndicator expanded={open} />
           </div>
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
           <VersionDetails
             version={version}
             previous={previous}

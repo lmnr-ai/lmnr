@@ -2,10 +2,22 @@ pub mod limits;
 pub mod retry;
 pub mod text_cleaning;
 
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 #[cfg(feature = "signals")]
 use crate::env::private::signals;
+
+/// `null` deserializes like an absent field, to `T::default()`. Use it on `#[serde(default)]`
+/// fields of tool inputs: schema-driven MCP clients send `null` for every optional field they
+/// leave unset, and plain `serde(default)` rejects that.
+pub fn null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Option::<T>::deserialize(deserializer).map(Option::unwrap_or_default)
+}
 
 /// Cost in micro-USD (1e-6 USD) of the given signal token spend (see
 /// `env::private::signals`).

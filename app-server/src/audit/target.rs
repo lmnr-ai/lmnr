@@ -64,6 +64,10 @@ fn name_source(resource: AuditResource) -> Option<NameSource> {
             "SELECT id, name, project_id AS owner_id FROM dashboards WHERE id = ANY($1)",
             Owner::Project,
         ),
+        View => (
+            "SELECT id, name, project_id AS owner_id FROM table_views WHERE id = ANY($1)",
+            Owner::Project,
+        ),
         Chart => (
             "SELECT id, name, project_id AS owner_id FROM dashboard_charts WHERE id = ANY($1)",
             Owner::Project,

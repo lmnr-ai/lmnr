@@ -42,10 +42,10 @@ export default function SchemaFieldsBuilder() {
           Add Field
         </Button>
       </div>
-      <div className="space-y-2 border rounded-md p-3 bg-muted/30">
+      <div className="space-y-2 ring-1 ring-border rounded-md p-3 bg-muted/30">
         <div className="flex gap-2 text-xs text-muted-foreground font-medium mb-1">
           <span className="w-32">Name</span>
-          <span className="w-28">Type</span>
+          <span className="w-34">Type</span>
           <span className="flex-1">Description</span>
           <span className="w-9" />
         </div>

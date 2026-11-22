@@ -3,7 +3,7 @@
 import { type Row } from "@tanstack/react-table";
 import { debounce } from "lodash";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
+import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
@@ -25,6 +25,10 @@ import {
   selectVisibleColumnDefs,
   useEvalStore,
 } from "@/components/evaluation/store";
+import TrialFiles from "@/components/evaluation/trial-files";
+import PanelToggle, { PANELS } from "@/components/evaluation/trial-files/panel-toggle";
+import { useTrialFiles } from "@/components/evaluation/trial-files/use-trial-files";
+import { taskNameOf } from "@/components/evaluation/trial-files/utils";
 import { useScoreDirections } from "@/components/evaluation/use-score-directions";
 import {
   type EvaluationStatsPayload,
@@ -53,6 +57,8 @@ interface EvaluationProps {
   evaluationName: string;
   initialScoreNames: string[];
   datasets: LinkedDataset[];
+  /** The eval dataset the run used, when it exists in the project. */
+  evalDataset: string | null;
 }
 
 const PAGE_SIZE = 50;
@@ -60,7 +66,7 @@ const PAGE_SIZE = 50;
 // config never fights the new defaults.
 const RESOURCE = "evaluation-v1.1";
 
-function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId, datasets, evalDataset }: EvaluationProps) {
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
@@ -264,6 +270,20 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
   // shared links carried traceId without trialId).
   const traceId = (selectedRow?.["traceId"] as string | undefined) ?? traceIdParam ?? undefined;
 
+  // A trial can show its files (task, agent, Harbor output) instead of its trace: remote runs always,
+  // local runs once its task version is found in the dataset.
+  const evaluation = evaluations.find((e) => e.id === evaluationId);
+  const [panel, setPanel] = useQueryState("panel", parseAsStringLiteral(PANELS).withDefault("trace"));
+  const trialFiles = useTrialFiles({
+    projectId: params.projectId,
+    evaluation,
+    row: selectedRow,
+    isShared,
+    isOpen: panel === "files",
+  });
+  const shownPanel = panel === "files" && trialFiles.availability !== "unavailable" ? "files" : "trace";
+  const selectedTrialId = selectedRow?.["id"] as string | undefined;
+
   const handleRowClick = useCallback(
     (row: Row<EvalRow>) => {
       if (isTaskGroupRow(row.original)) {
@@ -342,6 +362,7 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
         urlKey={statsUrl}
         evaluations={evaluations}
         datasets={datasets}
+        evalDataset={evalDataset}
       />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         {/* Left + top padding only: the trace panel must run flush to the right
@@ -371,18 +392,32 @@ function EvaluationContent({ evaluations, evaluationId, datasets }: EvaluationPr
             }
             traceColumn={
               <div className="flex h-full flex-col overflow-hidden rounded-tl-lg border-l border-t bg-background">
-                <div className="flex-none border-b px-3 py-2">
-                  <RowScoreChips
-                    projectId={params.projectId}
-                    evaluations={evaluations}
-                    currentEvaluationId={evaluationId}
-                    scoreNames={scoreNames}
-                    row={selectedRow}
-                  />
+                <div className="flex flex-none items-center gap-2 border-b px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <RowScoreChips
+                      projectId={params.projectId}
+                      evaluations={evaluations}
+                      currentEvaluationId={evaluationId}
+                      scoreNames={scoreNames}
+                      row={selectedRow}
+                    />
+                  </div>
+                  {trialFiles.showToggle && <PanelToggle value={shownPanel} onChange={setPanel} />}
                 </div>
                 <div className="flex min-h-0 flex-1 overflow-hidden">
+                  {/* Files waits for the trial: before it loads there's nothing to look up. */}
+                  {shownPanel === "files" && selectedTrialId && (
+                    <TrialFiles
+                      projectId={params.projectId}
+                      evaluationId={evaluationId}
+                      trialId={selectedTrialId}
+                      listing={trialFiles.listing}
+                      error={trialFiles.error}
+                      title={taskNameOf(selectedRow) ?? selectedTrialId}
+                    />
+                  )}
                   {/* No onClose ⇒ always-open: the trace header shows no close button. */}
-                  {traceId && <TraceView key={traceId} traceId={traceId} />}
+                  {shownPanel === "trace" && traceId && <TraceView key={traceId} traceId={traceId} urlState />}
                 </div>
               </div>
             }

@@ -44,14 +44,7 @@ const MessageItem = ({
   messageIndex: number;
 }) => {
   if (typeof item.content === "string") {
-    return (
-      <TextContentPart
-        content={item.content}
-        presetKey={`${messageIndex}-text-0-${presetKey}`}
-        messageIndex={messageIndex}
-        contentPartIndex={0}
-      />
-    );
+    return <TextContentPart content={item.content} presetKey={`${messageIndex}-text-0-${presetKey}`} />;
   }
 
   return (
@@ -61,39 +54,15 @@ const MessageItem = ({
         switch (part.type) {
           case "input_text":
           case "output_text":
-            return (
-              <TextContentPart
-                key={k}
-                content={part.text}
-                presetKey={k}
-                messageIndex={messageIndex}
-                contentPartIndex={index}
-              />
-            );
+            return <TextContentPart key={k} content={part.text} presetKey={k} />;
           case "refusal":
-            return (
-              <TextContentPart
-                key={k}
-                content={`[Refusal] ${part.refusal}`}
-                presetKey={k}
-                messageIndex={messageIndex}
-                contentPartIndex={index}
-              />
-            );
+            return <TextContentPart key={k} content={`[Refusal] ${part.refusal}`} presetKey={k} />;
           case "input_image": {
             if (part.image_url) {
               return <ImageContentPart key={k} src={part.image_url} />;
             }
             if (part.file_id) {
-              return (
-                <TextContentPart
-                  key={k}
-                  content={`[Image file: ${part.file_id}]`}
-                  presetKey={k}
-                  messageIndex={messageIndex}
-                  contentPartIndex={index}
-                />
-              );
+              return <TextContentPart key={k} content={`[Image file: ${part.file_id}]`} presetKey={k} />;
             }
             return null;
           }
@@ -130,15 +99,7 @@ const ReasoningItem = ({
   const combined = [summaryText, contentText].filter(Boolean).join("\n\n");
   const body = combined || (item.encrypted_content ? "[Encrypted reasoning]" : "[Reasoning]");
 
-  return (
-    <ThinkingContentPart
-      content={body}
-      label="Reasoning"
-      presetKey={`${messageIndex}-reasoning-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={0}
-    />
-  );
+  return <ThinkingContentPart content={body} label="Reasoning" presetKey={`${messageIndex}-reasoning-${presetKey}`} />;
 };
 
 const FunctionCallItem = ({
@@ -162,8 +123,6 @@ const FunctionCallItem = ({
       toolCallId={item.call_id}
       content={parsedArgs ?? {}}
       presetKey={`${messageIndex}-fn-call-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={0}
     />
   );
 };
@@ -190,8 +149,6 @@ const CustomToolCallItem = ({
       toolCallId={item.call_id}
       content={parsedInput ?? {}}
       presetKey={`${messageIndex}-custom-call-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={0}
     />
   );
 };
@@ -254,8 +211,6 @@ const WebSearchCallItem = ({
     toolCallId={item.id}
     content={{ action: item.action ?? null, status: item.status ?? null }}
     presetKey={`${messageIndex}-web-search-${presetKey}`}
-    messageIndex={messageIndex}
-    contentPartIndex={0}
   />
 );
 
@@ -274,8 +229,6 @@ const FileSearchCallItem = ({
       toolCallId={item.id}
       content={{ queries: item.queries ?? [], status: item.status ?? null }}
       presetKey={`${messageIndex}-file-search-call-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={0}
     />
     {item.results && item.results.length > 0 ? (
       <ToolResultContentPart
@@ -302,8 +255,6 @@ const ComputerCallItem = ({
     toolCallId={item.call_id}
     content={{ action: item.action, pending_safety_checks: item.pending_safety_checks ?? null }}
     presetKey={`${messageIndex}-computer-call-${presetKey}`}
-    messageIndex={messageIndex}
-    contentPartIndex={0}
   />
 );
 
@@ -366,8 +317,6 @@ const ImageGenerationCallItem = ({
       toolCallId={item.id}
       content={{ status: item.status ?? null, output_format: item.output_format ?? null }}
       presetKey={`${messageIndex}-image-gen-call-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={0}
     />
     {item.result ? (
       <ImageContentPart
@@ -396,8 +345,6 @@ const CodeInterpreterCallItem = ({
       toolCallId={item.id}
       content={{ code: item.code ?? "", container_id: item.container_id ?? null, status: item.status ?? null }}
       presetKey={`${messageIndex}-code-call-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={0}
     />
     {item.outputs && item.outputs.length > 0 ? (
       <ToolResultContentPart
@@ -424,8 +371,6 @@ const LocalShellCallItem = ({
     toolCallId={item.call_id}
     content={{ action: item.action, status: item.status ?? null }}
     presetKey={`${messageIndex}-shell-call-${presetKey}`}
-    messageIndex={messageIndex}
-    contentPartIndex={0}
   />
 );
 
@@ -473,8 +418,6 @@ const MCPCallItem = ({
         toolCallId={item.id}
         content={parsedArgs ?? {}}
         presetKey={`${messageIndex}-mcp-call-${presetKey}`}
-        messageIndex={messageIndex}
-        contentPartIndex={0}
       />
       {item.output != null || item.error ? (
         <ToolResultContentPart
@@ -504,8 +447,6 @@ const MCPListToolsItem = ({
       toolCallId={item.id}
       content={{ tools: item.tools ?? [] }}
       presetKey={`${messageIndex}-mcp-list-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={0}
     />
   );
 };
@@ -535,8 +476,6 @@ const MCPApprovalRequestItem = ({
       toolCallId={item.id}
       content={{ approval_request: parsedArgs ?? {} }}
       presetKey={`${messageIndex}-mcp-approval-req-${presetKey}`}
-      messageIndex={messageIndex}
-      contentPartIndex={0}
     />
   );
 };
@@ -646,8 +585,6 @@ const PureOpenAIResponsesContentParts = ({
         <TextContentPart
           content={`[Item reference: ${message.id}]`}
           presetKey={`${parentIndex}-itemref-${presetKey}`}
-          messageIndex={parentIndex}
-          contentPartIndex={0}
         />
       );
     default:

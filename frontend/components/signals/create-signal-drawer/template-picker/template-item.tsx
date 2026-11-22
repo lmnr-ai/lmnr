@@ -1,49 +1,29 @@
 "use client";
 
-import { useState } from "react";
-
 import { cn } from "@/lib/utils";
 
 export default function TemplateItem({
   icon: Icon,
   label,
-  extendedLabel,
-  description,
   onClick,
   dashed,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  extendedLabel: string;
-  description: string;
   onClick: () => void;
   dashed?: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
     <button
       type="button"
       onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 px-2 h-[72px] rounded-md border bg-surface-up-2 transition-colors text-center",
-        dashed && "border-dashed",
-        hovered && "bg-surface-up-4"
+        "flex h-[72px] flex-col items-center justify-center gap-1 rounded-md border bg-surface-up-2 px-2 text-center transition-colors hover:bg-surface-up-4",
+        dashed && "border-dashed"
       )}
     >
-      {hovered ? (
-        <>
-          <span className="text-[11px] font-medium text-foreground leading-tight">{extendedLabel}</span>
-          <span className="text-[10px] text-muted-foreground leading-tight">{description}</span>
-        </>
-      ) : (
-        <>
-          <Icon className="w-5 h-5 text-muted-foreground" />
-          <span className="text-[11px] font-medium text-muted-foreground leading-tight">{label}</span>
-        </>
-      )}
+      <Icon className="h-5 w-5 text-muted-foreground" />
+      <span className="text-[11px] leading-tight font-medium text-muted-foreground">{label}</span>
     </button>
   );
 }

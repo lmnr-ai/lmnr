@@ -29,6 +29,7 @@ pub trait StorageTrait {
     /// `false` only when the object is missing; other failures are errors.
     async fn exists(&self, bucket: &str, key: &str) -> Result<bool>;
     /// Succeeds when the object is already gone.
+    #[allow(dead_code)] // No caller yet; kept for cleanup paths.
     async fn delete(&self, bucket: &str, key: &str) -> Result<()>;
     /// Streams `chunks` into `key` and returns the stored size. An `Err` chunk
     /// aborts the upload, so a cut-off stream never leaves a truncated object.

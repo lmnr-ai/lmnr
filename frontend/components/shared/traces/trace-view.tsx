@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -13,6 +13,7 @@ import TraceViewStoreProvider, {
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
+import { navigateTracePanel } from "@/components/traces/trace-view/trace-panel-url";
 import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 
@@ -25,8 +26,6 @@ interface TraceViewProps {
 // Expects a store seeded with `trace`/`spans` so the server render already shows the tree.
 export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathName = usePathname();
 
   const { selectedSpan, setSelectedSpan, spanPanelOpen } = useTraceViewStore(
     (state) => ({
@@ -44,24 +43,16 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
-      if (span) {
-        const params = new URLSearchParams(searchParams);
-        params.set("spanId", span.spanId);
-        router.replace(`${pathName}?${params.toString()}`);
-      }
+      if (span) navigateTracePanel({ type: "selectSpan", spanId: span.spanId });
       setSelectedSpan(span);
     },
-    [pathName, router, searchParams, setSelectedSpan]
+    [setSelectedSpan]
   );
 
   const handleSpanPanelClose = useCallback(() => {
     setSelectedSpan(undefined);
-    if (searchParams.has("spanId")) {
-      const params = new URLSearchParams(searchParams);
-      params.delete("spanId");
-      router.replace(`${pathName}?${params.toString()}`);
-    }
-  }, [setSelectedSpan, searchParams, router, pathName]);
+    navigateTracePanel({ type: "closeSpan" });
+  }, [setSelectedSpan]);
 
   useEffect(() => {
     const spanId = searchParams.get("spanId");
@@ -99,6 +90,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
 export default function TraceView(props: TraceViewProps) {
   return (
     <TraceViewStoreProvider
+      urlState
       storeKey="shared-trace-view"
       initialTrace={props.trace}
       initialSpans={enrichSpansWithPending(props.spans)}

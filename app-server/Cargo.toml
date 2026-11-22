@@ -10,17 +10,17 @@ signals = ["dep:half", "dep:ndarray", "dep:ort", "dep:tokenizers"]
 [dependencies]
 actix-limitation = {version = "0.6.0", default-features = false, features = ["redis-rustls"]}
 actix-web = "4.14.1"
-actix-web-httpauth = "0.8.2"
+actix-web-httpauth = "0.8.3"
 anyhow = "1.0"
 arc-swap = "1.9"
 async-stream = "0.3.6"
 async-trait = "0.1"
-aws-config = "1.10.1"
-aws-sdk-bedrockruntime = {version = "1.139.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
-aws-sdk-ecr = {version = "1.126.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
-aws-sdk-s3 =  {version = "1.141.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
+aws-config = "1.13.0"
+aws-sdk-bedrockruntime = {version = "1.153.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
+aws-sdk-ecr = {version = "1.138.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
+aws-sdk-s3 =  {version = "1.157.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
 # Only for `HTTP_BEARER_AUTH_SCHEME_ID`, which the bedrockruntime crate does not re-export.
-aws-smithy-runtime-api = "1.15"
+aws-smithy-runtime-api = "1.19"
 backon = {version = "1.6.0", default-features = false, features = ["std", "tokio-sleep"]}
 base64 = "0.22.1"
 blake3 = "1.8"
@@ -29,7 +29,7 @@ chacha20poly1305 = "0.11"
 chrono = {version = "0.4.45", features = ["serde"]}
 clickhouse = {version = "0.15.1", features = ["rustls-tls", "uuid"]}
 dashmap = "6.1.0"
-deadpool = "0.12.2"
+deadpool = "0.13.1"
 dotenv = "0.15"
 # Ed25519 keys are libsodium-format (64-byte seed||pubkey), which `SecretKey::from_slice` accepts as-is.
 ed25519-compact = "2.4"
@@ -40,8 +40,8 @@ half = {version = "2.7.1", features = ["serde"], optional = true}
 hex = "0.4"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
-jsonwebtoken = {version = "11", default-features = false, features = ["use_pem", "rust_crypto"]}
-jwks_client_rs = "0.6"
+jsonwebtoken = {version = "11", default-features = false, features = ["use_pem", "aws_lc_rs"]}
+jwks_client_rs = {version = "0.6", default-features = false, features = ["rustls", "aws_lc_rs"]}
 lapin = "4.12"
 log = "0.4.34"
 moka = {version = "0.12", features = ["sync", "future"]}
@@ -51,6 +51,7 @@ opentelemetry = {version = "0.32.0", features = ["trace"]}
 opentelemetry_sdk = {version = "0.32", features = ["trace"]}
 ort = {version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-28"], optional = true}
 prost = "0.14"
+pulldown-cmark = { version = "0.13.0", default-features = false }
 # `serde` unlocks `Environment::from_client_option`, the only public way to
 # reach `max_frame_size` (the EnvironmentBuilder doesn't expose it). We pass 0 =
 # defer to the broker's `stream.frame_max`; without this the client's 1 MiB
@@ -67,11 +68,26 @@ rayon = "1.11.0"
 redis = {version = "1.6.0", features = ["tokio-comp", "tokio-rustls-comp"]}
 regex = "1.12.3"
 reqwest = {version = "0.13.4", features = ["json", "multipart", "stream"]}
-resend-rs = "0.34.0"
+resend-rs = {version = "0.34.0", default-features = false, features = ["rustls-tls"]}
 rmcp = {version = "3.3", features = ["server"]}
-rustls = {version = "0.23", features = ["ring"]}
+# aws-lc-rs is the only crypto backend: TLS deps must use their aws-lc/rustls variant,
+# never ring or native-tls (see docs/internal/app-server.md).
+rustls = "0.23"
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.49, opentelemetry = 0.32
-sentry = {version = "0.49.1", features = ["opentelemetry", "tracing"]}
+# Defaults minus `transport` (= reqwest + native-tls); `reqwest` + `rustls` keep the same transport over rustls.
+sentry = {version = "0.49.1", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "debug-images",
+    "logs",
+    "metrics",
+    "panic",
+    "release-health",
+    "reqwest",
+    "rustls",
+    "opentelemetry",
+    "tracing",
+]}
 schemars = {version = "1", features = ["uuid1"]}
 serde = "1.0"
 serde_json = {version = "1.0.149", features = ["preserve_order"]}
@@ -79,7 +95,7 @@ sha2 = "0.11.1"
 sha3 = "0.10.8"
 similar = "3.1.1"
 sqlparser = {version = "0.62", features = ["visitor"]}
-sqlx = {version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
+sqlx = {version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls-aws-lc-rs"]}
 thiserror = "2"
 # `unprefixed_malloc_on_supported_platforms` makes jemalloc also own C
 # malloc/free (Linux; no-op elsewhere), so C deps' allocations don't churn

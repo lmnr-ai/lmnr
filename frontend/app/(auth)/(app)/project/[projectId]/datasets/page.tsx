@@ -5,7 +5,7 @@ import Datasets from "@/components/datasets/datasets";
 import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
-  title: "Datasets",
+  title: "Legacy datasets",
 };
 
 export default async function LogsPage() {

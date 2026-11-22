@@ -1,22 +1,22 @@
 "use client";
 
-import { Info, Loader2 } from "lucide-react";
+import { Info } from "lucide-react";
 import { useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import templates from "@/components/signals/prompts";
 import { getDefaultSchemaFields, jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { track } from "@/lib/posthog";
+import { NEW_SIGNAL_SETTINGS, readSignalSettings, type SignalSettings } from "@/lib/signals/settings";
 import { cn, tryParseJson } from "@/lib/utils";
 
-import LlmProfileSection from "./llm-profile-section";
-import SamplingSection from "./sampling-section";
+import AdditionalSettingsSection from "./additional-settings-section";
+import SaveBar from "./save-bar";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
 import TriggersSection from "./triggers-section";
@@ -40,25 +40,36 @@ export default function SignalFormFields({
     formState: { errors, isValid, isDirty },
   } = useFormContext<ManageSignalForm>();
 
+  const applySettings = useCallback(
+    (settings: SignalSettings) => {
+      for (const [key, value] of Object.entries(settings) as [keyof SignalSettings, boolean][]) {
+        setValue(key, value, { shouldDirty: true });
+      }
+    },
+    [setValue]
+  );
+
   const applyTemplate = useCallback(
     (templateIndex: number) => {
       const template = templates[templateIndex];
       track("signals", "template_applied", { template: template.name });
       setValue("prompt", template.prompt, { shouldValidate: true });
+      applySettings(readSignalSettings(template));
       const parsedSchema = tryParseJson(template.structuredOutputSchema);
       if (parsedSchema) {
         const fields = jsonSchemaToSchemaFields(parsedSchema);
         setValue("schemaFields", fields, { shouldValidate: true });
       }
     },
-    [setValue]
+    [setValue, applySettings]
   );
 
   const clearToBlank = useCallback(() => {
     track("signals", "template_applied", { template: "Blank" });
     setValue("prompt", "", { shouldValidate: true });
+    applySettings(NEW_SIGNAL_SETTINGS);
     setValue("schemaFields", getDefaultSchemaFields(), { shouldValidate: true });
-  }, [setValue]);
+  }, [setValue, applySettings]);
 
   return (
     <div className={cn("grid gap-8 py-4 pb-16", className)}>
@@ -71,17 +82,11 @@ export default function SignalFormFields({
             return (
               <div
                 className={cn(
-                  "flex items-center justify-between gap-4 rounded-lg border p-4 transition-colors",
+                  "flex items-center justify-between gap-4 rounded-lg border px-5 py-4 transition-colors",
                   isActive ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40"
                 )}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={cn(
-                      "inline-flex size-2.5 shrink-0 rounded-full",
-                      isActive ? "bg-primary" : "bg-muted-foreground/40"
-                    )}
-                  />
                   <div className="flex flex-col gap-0.5 min-w-0">
                     <Label htmlFor="signal-enabled" className="text-sm font-medium cursor-pointer">
                       {isActive ? "Active" : "Inactive"}
@@ -118,7 +123,6 @@ export default function SignalFormFields({
         {errors.name && <p className="text-xs text-destructive-text">{errors.name.message}</p>}
       </div>
       {showTemplates && <TemplatePicker onApply={applyTemplate} onClear={clearToBlank} />}
-      <LlmProfileSection />
       <div className="grid gap-1.5">
         <TooltipProvider delayDuration={200}>
           <div className="flex items-center gap-1.5">
@@ -141,7 +145,7 @@ export default function SignalFormFields({
           control={control}
           render={({ field }) => (
             <Textarea
-              className="min-h-24 max-h-48 text-sm"
+              className="min-h-24 max-h-48 text-sm scrollbar-thin"
               id="prompt"
               placeholder="Analyze this trace for failures, errors, or things that went wrong..."
               rows={6}
@@ -154,16 +158,11 @@ export default function SignalFormFields({
       </div>
       <SchemaFieldsBuilder />
       <TriggersSection />
-      <SamplingSection />
+      <AdditionalSettingsSection />
       {/*  Temporarily hide test section */}
       {/*<TestSection />*/}
 
-      {variant === "panel" && !showTemplates && (
-        <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
-          <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
-          Save
-        </Button>
-      )}
+      {variant === "panel" && !showTemplates && <SaveBar isDirty={isDirty} isValid={isValid} isLoading={isLoading} />}
     </div>
   );
 }

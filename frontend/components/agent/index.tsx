@@ -10,6 +10,9 @@ import { useShallow } from "zustand/react/shallow";
 // swaps between the real agent and these no-ops. Only the panel open/collapse state is kept;
 // context registration and name reporting are no-ops.
 
+/** Features the agent writes (cluster reports) hide in this distribution. */
+export const LAMINAR_AGENT_AVAILABLE = false;
+
 type AgentViewMode = "collapsed" | "open";
 
 export type AgentContextKey = "trace" | "signal" | "evaluation" | "dataset" | "labelingQueue" | "session" | "dashboard";
@@ -38,6 +41,10 @@ export function RouteAgentContext() {
 }
 
 export function TraceAgentContext(_props: { traceId: string }) {
+  return null;
+}
+
+export function CreateEvalsButton(_props: { clusterName: string }) {
   return null;
 }
 

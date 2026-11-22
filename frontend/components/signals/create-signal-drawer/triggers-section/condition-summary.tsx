@@ -10,7 +10,8 @@ export default function ConditionSummary() {
   const { watch } = useFormContext<ManageSignalForm>();
   const conditions = watch(`triggers.${TRIGGER_INDEX}.conditions`) ?? [];
   const filters = watch(`triggers.${TRIGGER_INDEX}.filters`) ?? [];
-  const parts = buildConditionSummary(conditions, filters);
+  const sampleRate = watch("sampleRate");
+  const parts = buildConditionSummary(conditions, filters, sampleRate);
 
   if (!parts) return null;
 

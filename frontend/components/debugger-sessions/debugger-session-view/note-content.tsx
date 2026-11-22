@@ -3,7 +3,7 @@
 import { type ComponentProps, useMemo } from "react";
 
 import { Response } from "@/components/ai-elements/response";
-import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
+import { useSessionViewBaseStore } from "@/components/debugger-sessions/debugger-session-view/store/base";
 import { cn } from "@/lib/utils";
 
 import { noteMarkdownComponents, noteProseClassName, spanTagsToLinks } from "./note-markdown";

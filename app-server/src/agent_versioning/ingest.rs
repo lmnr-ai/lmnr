@@ -13,7 +13,6 @@ use crate::{
     ch::{agent_prompts::CHAgentPrompt, traces::TraceAggregation, traces_agg::CHTraceAgentVersion},
     db::{DB, agent_versioning::release_version_hash, spans::Span, trace::TraceType},
     env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
-    features::{Feature, is_feature_enabled},
     utils::{sanitize_string, truncate_chars},
 };
 
@@ -36,7 +35,7 @@ pub fn agent_prompt(
     system_prompt: &str,
     tool_text: &str,
 ) -> Option<AgentPrompt> {
-    if !is_feature_enabled(Feature::AgentVersioning)
+    if !super::is_enabled()
         || matches!(
             span.attributes.trace_type(),
             Some(TraceType::EVALUATION | TraceType::PLAYGROUND)

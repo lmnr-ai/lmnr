@@ -26,6 +26,10 @@ export class SimpleLRU<K, V> {
     }
   }
 
+  delete(key: K): void {
+    this.cache.delete(key);
+  }
+
   has(key: K): boolean {
     return this.cache.has(key);
   }

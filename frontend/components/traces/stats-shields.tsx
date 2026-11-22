@@ -186,6 +186,10 @@ interface StatsShieldsProps {
 }
 
 export function StatsShields({ stats, className, variant = "filled", labelPrefix, span }: StatsShieldsProps) {
+  // A non-LLM span rarely has usage of its own; show its tokens and cost only when it does.
+  const isLlmSpan = span?.spanType === SpanType.LLM || span?.spanType === SpanType.CACHED;
+  const showTokens = !span || isLlmSpan || !!stats.totalTokens;
+  const showCost = !span || isLlmSpan || !!stats.totalCost;
   const durationMs = durationMsBetween(stats.startTime, stats.endTime);
   const durationContent = (
     <TooltipProvider delayDuration={250}>
@@ -218,7 +222,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent side="bottom" className="flex flex-col gap-1 min-w-55 p-2">
-            {span && (span.spanType === SpanType.LLM || span?.spanType === SpanType.CACHED) ? (
+            {span && isLlmSpan ? (
               <InputTokenBreakdown span={span} />
             ) : (
               <TokensBreakdown stats={stats} labelPrefix={labelPrefix} />
@@ -258,8 +262,8 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
       )}
     >
       {durationContent}
-      {tokensContent}
-      {costContent}
+      {showTokens && tokensContent}
+      {showCost && costContent}
     </div>
   );
 }

@@ -42,14 +42,14 @@ pub enum Actor {
     },
     /// A public share-link viewer: gets the most restrictive policy.
     Shared,
-    /// A project API key (SDK, public `/v1` API, MCP). Keys carry no
+    /// A project API key (SDK, public `/v1` API, MCP with a key). Keys carry no
     /// permissions yet, so they mask in `dual` regardless of who minted
     /// them; per-key permissions are the extension point.
     ApiKey,
-    /// A CLI user token. The user's role is known but deliberately not
-    /// consulted: a CLI session may be driven by an AI agent rather than the
-    /// person, and the two are indistinguishable today, so the stricter
-    /// policy applies.
+    /// A CLI user token or an MCP OAuth token. The user's role is known but
+    /// deliberately not consulted: such a session may be driven by an AI agent
+    /// rather than the person, and the two are indistinguishable today, so the
+    /// stricter policy applies.
     Cli,
 }
 

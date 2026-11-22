@@ -62,7 +62,7 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
               urgent ? "bg-primary/10 hover:bg-primary/15" : "bg-surface-400 hover:overlay-hover"
             )}
           >
-            <span className={cn("flex-1", urgent ? "text-foreground" : "text-muted-foreground")}>Starter trial</span>
+            <span className={cn("flex-1", urgent ? "text-foreground" : "text-muted-foreground")}>Pro trial</span>
             <span className="font-medium text-primary-300">{daysLeftLabel(daysLeft)}</span>
             <ChevronRight className="size-3.5 text-primary-300 transition-transform group-hover:translate-x-0.5" />
           </button>

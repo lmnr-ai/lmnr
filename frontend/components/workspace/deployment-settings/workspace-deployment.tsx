@@ -208,13 +208,13 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
               <div className="space-y-1.5">
                 <p className="text-sm font-medium">
                   {!isPro
-                    ? "Upgrade to Pro to configure data residency"
+                    ? "Upgrade to Scale to configure data residency"
                     : "Add the Data Plane addon to configure data residency"}
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {!isPro
-                    ? "Data residency configuration is available on the Pro plan with the Data Plane addon."
-                    : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency."}
+                    ? "Data residency configuration is available on the Scale plan with the Data Plane addon."
+                    : "Your workspace is on the Scale plan, but the Data Plane addon is required to enable hybrid data residency."}
                 </p>
               </div>
               <Link passHref href={settingsHref("billing")}>

@@ -3,9 +3,9 @@
 import { type RefObject } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
+import { RealtimeToggle } from "@/components/traces/realtime-toggle";
 import TracesChart from "@/components/traces/traces-chart";
 import { RESOURCE } from "@/components/traces/traces-table/constants";
-import { TracesRealtimeToggle } from "@/components/traces/traces-table/realtime-toggle";
 import TracesColumnsMenu from "@/components/traces/traces-table/traces-columns-menu";
 import { type buildColumnDefs } from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -52,7 +52,7 @@ export function TracesTableControls({
         <ViewsToolbar projectId={projectId} resource={RESOURCE} />
         <DateRangeFilter />
         <RefreshButton onClick={onRefresh} variant="outline" />
-        <TracesRealtimeToggle />
+        <RealtimeToggle storageKey="traces-table:realtime" />
       </div>
       <div className="w-full px-px">
         <AdvancedSearch

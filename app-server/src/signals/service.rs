@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::cache::keys::SIGNAL_TRIGGERS_CACHE_KEY;
+use crate::cache::keys::{SIGNAL_NAME_CACHE_KEY, SIGNAL_TRIGGERS_CACHE_KEY};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::signal_triggers::{TriggerPatch, TriggerRow};
 use crate::db::signals::{CreateSignalError, SignalRow, SignalUpdate, SignalVersionRow};
@@ -87,9 +87,7 @@ pub enum CrudError {
     DuplicateName(String),
     #[error("Signal not found")]
     SignalNotFound,
-    #[error(
-        "Signals aren't included in the Free plan. Upgrade to Starter or Pro to create signals."
-    )]
+    #[error("Signals aren't included in the Free plan. Upgrade to Pro or Scale to create signals.")]
     FreePlan,
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
@@ -128,8 +126,9 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
 /// WHEN a signal is evaluated, answerable from a single span batch. A closed set
 /// rather than a `{column, operator, value}` list: these are the only shapes the
 /// evaluator implements, so anything else was stored and then never fired.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
+#[schemars(description = "When a signal is evaluated for a trace.")]
 pub enum Trigger {
     /// The trace's root span finished. Right for most traces.
     #[default]
@@ -230,7 +229,9 @@ impl Trigger {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
     Batch,
@@ -417,30 +418,46 @@ pub fn default_filters() -> Vec<Value> {
     vec![json!({ "column": "total_token_count", "operator": "gt", "value": "1000" })]
 }
 
-#[derive(Debug, Deserialize)]
+// `JsonSchema`: the MCP `create_signal` tool advertises this shape; doc comments are its field docs.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SignalInput {
+    /// Display name, unique within the project. Events carry it as `signal_name`.
+    #[schemars(length(min = 1, max = 255))]
     pub name: String,
+    /// Instruction for the LLM judge: what to look for in a trace and how to fill the payload.
     pub prompt: String,
+    /// JSON schema of the payload the judge extracts for each event, e.g. `{"type": "object",
+    /// "properties": {"reason": {"type": "string", "description": "..."}}, "required":
+    /// ["reason"]}`. Property types are string, number or boolean (optionally with `enum`),
+    /// and every property is listed in `required`.
     pub structured_output: Value,
-    /// Absent or `null` → no sampling (key is not stored).
+    /// Percent of matching traces to evaluate. Omit to evaluate every one.
     #[serde(default)]
+    #[schemars(range(min = 1, max = 95))]
     pub sample_rate: Option<i64>,
+    /// Create the signal paused, so it does not run until enabled. Defaults to false.
     #[serde(default)]
     pub disabled: Option<bool>,
-    /// Absent or `null` → `rootSpanFinished`.
+    /// When the signal is evaluated for a trace. Defaults to `rootSpanFinished`.
     #[serde(default)]
     pub trigger: Option<Trigger>,
-    /// Absent = the default filters; `[]` = run on every firing trace.
+    /// Conditions a trace must meet, ANDed, as `{"column", "operator", "value"}` objects:
+    /// `total_token_count` (eq, ne, gt, gte, lt, lte; number), `status` (eq, ne; "error" |
+    /// "success"), `span_names` and `tags` (includes, not_includes; list of names). Omit for
+    /// the default (more than 1000 tokens); `[]` runs on every trace.
     #[serde(default)]
     pub filters: Option<Vec<Value>>,
-    /// Absent or `null` → realtime.
+    /// `realtime` gives results in minutes, but each run is billed as 2 signal runs; `batch`
+    /// gives results within several hours. Defaults to `realtime`.
     #[serde(default)]
     pub mode: Option<Mode>,
-    /// Workspace LLM profile id + one of its models. Required together on
-    /// self-hosted deployments; rejected on Laminar Cloud.
+    /// Workspace LLM profile (`list_llm_profiles`) the judge runs on, set together with
+    /// `model`. Needed on self-hosted deployments; Laminar Cloud uses its own model and
+    /// rejects it.
     #[serde(default)]
     pub llm_profile_id: Option<Uuid>,
+    /// One of `llmProfileId`'s models to run the judge with.
     #[serde(default)]
     pub model: Option<String>,
 }
@@ -498,6 +515,15 @@ async fn invalidate_trigger_cache(cache: &Cache, project_id: Uuid) {
         .await
     {
         log::warn!("failed to invalidate signal trigger cache for {project_id}: {e}");
+    }
+}
+
+async fn invalidate_signal_name_cache(cache: &Cache, project_id: Uuid, signal_id: Uuid) {
+    if let Err(e) = cache
+        .remove(&format!("{SIGNAL_NAME_CACHE_KEY}:{project_id}:{signal_id}"))
+        .await
+    {
+        log::warn!("failed to invalidate signal name cache for {project_id}/{signal_id}: {e}");
     }
 }
 
@@ -567,31 +593,44 @@ pub async fn list_signal_versions(
     Ok(rows.into_iter().map(SignalVersionResponse::from).collect())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSignalInput {
+    /// New display name, unique within the project.
     #[serde(default)]
+    #[schemars(length(min = 1, max = 255))]
     pub name: Option<String>,
+    /// New instruction for the LLM judge. Adds a definition version.
     #[serde(default)]
     pub prompt: Option<String>,
+    /// New payload JSON schema, in the same shape `create_signal` takes. Adds a definition
+    /// version.
     #[serde(default)]
     pub structured_output: Option<Value>,
-    /// Absent = leave stored; `null` = clear sampling. Plain `Option` collapses both.
+    // Absent = leave stored; `null` = clear sampling. Plain `Option` collapses both. The MCP
+    // `update_signal` tool ignores `null` and clears through `clearSampleRate` instead.
+    /// Percent of matching traces to evaluate.
     #[serde(default, deserialize_with = "double_option")]
+    #[schemars(range(min = 1, max = 95))]
     pub sample_rate: Option<Option<i64>>,
+    /// `true` pauses the signal, `false` resumes it.
     #[serde(default)]
     pub disabled: Option<bool>,
-    /// Absent or `null` → leave stored.
+    /// When the signal is evaluated for a trace.
     #[serde(default)]
     pub trigger: Option<Trigger>,
-    /// Absent = leave stored; `[]` = run on every firing trace.
+    /// Replaces the trace conditions, in the shape `create_signal` takes; `[]` runs on every
+    /// trace.
     #[serde(default)]
     pub filters: Option<Vec<Value>>,
+    /// `realtime` (results in minutes, each run billed as 2 signal runs) or `batch` (results
+    /// within several hours).
     #[serde(default)]
     pub mode: Option<Mode>,
-    /// Absent = leave stored; set together to re-route the signal.
+    /// Workspace LLM profile to run the judge on, set together with `model` (self-hosted only).
     #[serde(default)]
     pub llm_profile_id: Option<Uuid>,
+    /// One of `llmProfileId`'s models to run the judge with.
     #[serde(default)]
     pub model: Option<String>,
 }
@@ -644,6 +683,7 @@ pub async fn update_signal(
     let llm_route =
         resolve_llm_route(pool, project_id, input.llm_profile_id, input.model, false).await?;
 
+    let renamed = name.is_some();
     let (updated, trigger_row) = signals::update_signal(
         pool,
         project_id,
@@ -662,6 +702,9 @@ pub async fn update_signal(
     .ok_or(CrudError::SignalNotFound)?;
 
     invalidate_trigger_cache(cache, project_id).await;
+    if renamed {
+        invalidate_signal_name_cache(cache, project_id, signal_id).await;
+    }
 
     let profile_name = llm_profile_name(pool, &updated).await?;
     Ok(SignalResponse::new(updated, trigger_row, profile_name))
@@ -680,6 +723,7 @@ pub async fn delete_signal(
         .ok_or(CrudError::SignalNotFound)?;
 
     invalidate_trigger_cache(cache, project_id).await;
+    invalidate_signal_name_cache(cache, project_id, signal_id).await;
     purge_signal_from_clickhouse(clickhouse, project_id, signal_id).await;
 
     // The row is gone; name lookup still works since profiles outlive signals.

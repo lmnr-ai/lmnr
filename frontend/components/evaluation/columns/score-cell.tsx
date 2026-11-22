@@ -117,11 +117,11 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
 
   return (
     <div className="flex items-center space-x-2">
-      <div title={String(comparison)} className="text-green-300">
+      <div title={String(comparison)} className="text-success-text">
         {isValidScore(comparison) ? formatScoreValue(comparison) : "-"}
       </div>
       <ArrowRight className="font-bold min-w-3" size={12} />
-      <div title={String(original)} className="text-blue-300">
+      <div title={String(original)} className="text-blue-text">
         {isValidScore(original) ? formatScoreValue(original) : "-"}
       </div>
       {showComparison && isValidScore(original) && isValidScore(comparison) && (

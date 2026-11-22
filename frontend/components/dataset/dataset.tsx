@@ -228,7 +228,13 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
   return (
     <>
-      <Header path={"datasets/" + dataset.name} />
+      <Header
+        path={[
+          { name: "datasets", href: `/project/${projectId}/eval-datasets` },
+          { name: "legacy", href: `/project/${projectId}/datasets` },
+          { name: dataset.name },
+        ]}
+      />
       <div
         className={cn("flex px-4 pb-4 flex-col gap-4 overflow-hidden flex-1", {
           "pointer-events-none opacity-60": isEditingDatapoint,

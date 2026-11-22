@@ -22,7 +22,7 @@ export default function CombinedLegend({
   className,
 }: CombinedLegendProps) {
   return (
-    <div className={cn("flex flex-col gap-1.5 min-w-0", className)} onMouseLeave={() => onHoverScore?.(null)}>
+    <div className={cn("flex flex-col gap-2 min-w-0", className)} onMouseLeave={() => onHoverScore?.(null)}>
       {scores.map((score) => {
         const visible = visibleScores.includes(score);
         const color = chartConfig[score]?.color ?? "hsl(var(--chart-1))";
@@ -31,16 +31,17 @@ export default function CombinedLegend({
         return (
           <Comp
             key={score}
+            title={score}
             onClick={interactive ? () => onToggle?.(score) : undefined}
-            onMouseEnter={visible ? () => onHoverScore?.(score) : undefined}
-            onMouseLeave={() => onHoverScore?.(null)}
+            // Only the container clears the hover: per-item leaves fire in the gaps between items and flash every line back.
+            onMouseEnter={() => onHoverScore?.(visible ? score : null)}
             className={cn(
-              "flex items-center gap-1.5 text-left text-xs truncate",
+              "flex items-center gap-2 text-left text-sm truncate",
               interactive && "cursor-pointer hover:opacity-80"
             )}
           >
             <span
-              className="size-2 rounded-sm shrink-0"
+              className="size-2.5 rounded-sm shrink-0"
               style={{
                 background: visible ? color : "transparent",
                 border: visible ? undefined : `1px solid ${color}`,

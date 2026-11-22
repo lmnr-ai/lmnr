@@ -14,7 +14,7 @@ use super::{Job, NS, VISIBILITY_LAG_NS};
 use crate::{
     cache::{CacheTrait, keys::AGENT_VERSIONING_LOCK_CACHE_KEY},
     ch::agent_prompts::{Scope, active_agents},
-    db::agent_versioning::{Agent, set_release_mode, upsert_agent},
+    db::agent_versioning::{Agent, get_defined_agent, set_release_mode},
     env::agent_versioning::{ACTIVE_WINDOW_SECONDS, INTERVAL_SECONDS, RELEASE_MIN_RUN},
 };
 
@@ -26,6 +26,7 @@ impl Job {
         loop {
             ticker.tick().await;
             let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(i64::MAX);
+            self.detect_agents(now).await;
             let since = now - ACTIVE_WINDOW_SECONDS.get() * NS;
             let agents = match active_agents(&self.clickhouse, since).await {
                 Ok(agents) => agents,
@@ -61,7 +62,11 @@ impl Job {
     }
 
     async fn version_agent(&self, project_id: Uuid, agent_hash: &str, now: i64) -> Result<()> {
-        let agent = upsert_agent(&self.db.pool, project_id, agent_hash).await?;
+        // Ingest only labels prompts with defined agents' hashes. Any other
+        // hash is from before detection, or its agent was deleted.
+        let Some(agent) = get_defined_agent(&self.db.pool, project_id, agent_hash).await? else {
+            return Ok(());
+        };
         if agent.release_mode
             || self
                 .switch_to_releases(&agent, project_id, agent_hash, now)

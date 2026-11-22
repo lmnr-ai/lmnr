@@ -6,7 +6,7 @@ import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
 import { handlerWithAudit } from "@/lib/audit";
 
 export const GET = handlerWithAudit<{ projectId: string }>(
-  { resource: "trace", action: "list", read: true },
+  { resource: "session", action: "list", read: true },
   async (req, ctx, audit) => {
     const params = await ctx.params;
     const projectId = params.projectId;
@@ -14,7 +14,6 @@ export const GET = handlerWithAudit<{ projectId: string }>(
     if (Number(req.nextUrl.searchParams.get("pageNumber") ?? 0) > 0) {
       audit.skip();
     }
-    audit.set({ metadata: { view: "sessions" } });
 
     const parseResult = parseUrlParams(req.nextUrl.searchParams, GetSessionsSchema.omit({ projectId: true }));
 

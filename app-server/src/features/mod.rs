@@ -33,8 +33,11 @@ pub enum Feature {
     /// features are fine-grained so gating can diverge later.
     InputExtraction,
     Reports,
-    /// Scheduled agent versioning (`src/agent_versioning`). Gated behind
-    /// `AGENT_VERSIONING_ENABLED`, default off.
+    /// Agent versioning (`src/agent_versioning`), with agents identified by
+    /// their detected definitions instead of the system prompt's first
+    /// sentence. Gated behind `AGENT_VERSIONING_ENABLED` (default off) and an
+    /// LLM backend: without one, ingest would wait for definitions nothing can
+    /// write and label no span.
     AgentVersioning,
     /// v2 static system-prompt extraction: per-agent prompt windows +
     /// line-level version detection replacing the skeleton-hash keying.
@@ -71,7 +74,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Storage => {
             std::env::var(env::secrets::AWS_ACCESS_KEY_ID).is_ok()
                 && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok()
-                && std::env::var(env::storage::S3_EXPORTS_BUCKET).is_ok()
         }
         Feature::FullBuild => ["FULL", "PRODUCTION"].contains(
             &std::env::var(env::connections::ENVIRONMENT)
@@ -101,7 +103,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
-        Feature::AgentVersioning => env::agent_versioning::ENABLED.get(),
+        Feature::AgentVersioning => env::agent_versioning::ENABLED.get() && has_llm_backend(),
         Feature::SystemPromptVersioning => env::static_sp::V2_ENABLED.get(),
         Feature::SignalsVersionedPrompts => {
             is_feature_enabled(Feature::SystemPromptVersioning)

@@ -1,5 +1,5 @@
 //! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent (its prompt's
-//! table index and `describe_tables` tool) and the MCP `query_laminar_sql` tool description
+//! table index and `describe_tables` tool) and the MCP `get_sql_schema` tool
 //! (`api::v1::mcp`).
 //! Lives here next to the validator allowlist (`validator::TableRegistry`) it must mirror — drift
 //! between this list, the validator, and frontend `sql/utils.ts` (`tableSchemas`/`enumValues`) breaks
@@ -31,7 +31,7 @@ pub struct EnumDef {
 
 /// Wire shape of `GET /v1/sql/schema` (and its `/v1/cli` twin). Serialized
 /// straight from the `TABLES` / `ENUMS` consts below, so the endpoint, the MCP
-/// tool description, and the agent prompt cannot disagree.
+/// `get_sql_schema` tool, and the agent prompt cannot disagree.
 #[derive(serde::Serialize)]
 pub struct SqlSchema {
     pub tables: &'static [Table],
@@ -231,8 +231,8 @@ const TABLES: &[Table] = &[
             ),
             col(
                 "signal_events",
-                "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))",
-                "Signal events that fired on this trace. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Filtering on this column reads every tuple element including payload, so narrow by time first. The event's time is the trace's own end_time; signal names live in the signals table, join on signal_id. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+                "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String, timestamp DateTime64(9, 'UTC'), updated_at DateTime64(9, 'UTC')))",
+                "Signal events that fired on this trace, read from signal_events when the query runs, so discarded events and those of deleted signals are excluded. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Reading this column scans the project's signal events created since the query's earliest start_time, so narrow by time first. e.timestamp is when the event fired, e.updated_at when it last changed; signal names live in the signals table, join on signal_id. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col(
                 "clusters",
@@ -308,6 +308,11 @@ const TABLES: &[Table] = &[
                 "task_id",
                 "String",
                 "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+            ),
+            col(
+                "task_version_hash",
+                "String",
+                "Content hash of the eval dataset task version the trial ran ('' if unknown); the task's name is metadata.dataset_task",
             ),
             col("group_id", "String", "Group id of the evaluation run"),
             col(
@@ -762,6 +767,30 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "table_views",
+        description: "Saved views of the UI's data tables, stored in Postgres and shared by the project. A view is its table's column layout plus filters, search and sort.",
+        columns: &[
+            col("id", "UUID", "Unique id of the view"),
+            col(
+                "resource",
+                "String",
+                "Table the view belongs to: traces, spans, sessions, evaluations, evaluation-v1.1 (an evaluation's datapoints), datasets, dataset (a dataset's datapoints), eval-datasets, eval-dataset (an eval dataset's tasks), queues, playgrounds, debugger-sessions, signal-runs, or signal-events:<signal id>",
+            ),
+            col("name", "String", "View name, unique per resource"),
+            col(
+                "config",
+                "String",
+                "View as a JSON object: columnOrder (column ids), columnVisibility ({id: bool}, every column), columnSizing ({id: px}), customColumns ([{name, sql, dataType}]), filters ([{column, operator, value}]), search, sortBy, sortDirection (asc/desc), and isDefault (true on the one view per resource teammates land on). Custom column ids are custom:<name>",
+            ),
+            col("created_at", "DateTime64(6)", "When the view was created"),
+            col(
+                "updated_at",
+                "DateTime64(6)",
+                "When the view was last saved",
+            ),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -804,7 +833,7 @@ pub fn schema_payload() -> SqlSchema {
 }
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
-/// Embedded verbatim in the MCP tool description.
+/// Returned verbatim by the MCP `get_sql_schema` tool.
 pub fn build_schema_prompt() -> String {
     let mut out = String::new();
     out.push_str("<tables>\n");
@@ -851,6 +880,7 @@ mod tests {
             "alerts",
             "alert_targets",
             "alert_filters",
+            "table_views",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),

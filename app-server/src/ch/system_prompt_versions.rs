@@ -12,15 +12,12 @@
 //! kind-neutral [`SpanVersion`] / [`VersionDef`] and this module maps them
 //! onto each table's row type.
 
-use std::collections::HashMap;
-
 use anyhow::Result;
 use clickhouse::{Row, RowOwned, RowWrite};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::ch::utils::chrono_to_nanoseconds;
-use crate::traces::prompt_hash::extract_system_message;
 use crate::traces::sp_versioning::VersionKind;
 use crate::utils::{sanitize_string, truncate_chars};
 
@@ -310,13 +307,6 @@ pub async fn insert_version_def(
     }
 }
 
-#[derive(Row, Deserialize, Debug)]
-struct SpanInputRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    span_id: Uuid,
-    input: String,
-}
-
 /// One trace that classified to a version: its newest span and when that
 /// span was classified (nanoseconds).
 #[derive(Row, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -407,48 +397,4 @@ pub async fn fetch_version_span_refs(
         .fetch_all::<VersionSpanRef>()
         .await?;
     Ok(rows)
-}
-
-/// Fetch the SYSTEM PROMPT text of the given spans, keyed by span id.
-///
-/// Reads the reconstructed message-array `input` through `spans_v1` (dedup'd
-/// spans store an empty raw `spans.input`; the view rebuilds it from the
-/// content dictionaries — same pattern as the debugger warmup). Spans whose
-/// input yields no extractable system message are absent from the result;
-/// callers must tolerate partial fetches (a span may also not have flushed
-/// to ClickHouse yet).
-pub async fn fetch_system_prompts(
-    clickhouse: &clickhouse::Client,
-    project_id: Uuid,
-    refs: &[(Uuid, Uuid)],
-) -> Result<HashMap<Uuid, String>> {
-    if refs.is_empty() {
-        return Ok(HashMap::new());
-    }
-    let trace_ids: Vec<Uuid> = refs.iter().map(|(t, _)| *t).collect();
-    let span_ids: Vec<Uuid> = refs.iter().map(|(_, s)| *s).collect();
-
-    let rows = clickhouse
-        .query(
-            "SELECT span_id, input
-             FROM spans_v1(project_id={project_id:UUID}, policy='{}')
-             WHERE trace_id IN {trace_ids:Array(UUID)}
-               AND span_id IN {span_ids:Array(UUID)}",
-        )
-        .param("project_id", project_id)
-        .param("trace_ids", trace_ids)
-        .param("span_ids", span_ids)
-        .fetch_all::<SpanInputRow>()
-        .await?;
-
-    let mut prompts = HashMap::with_capacity(rows.len());
-    for row in rows {
-        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&row.input) else {
-            continue;
-        };
-        if let Some((system_text, _)) = extract_system_message(&parsed) {
-            prompts.insert(row.span_id, system_text);
-        }
-    }
-    Ok(prompts)
 }

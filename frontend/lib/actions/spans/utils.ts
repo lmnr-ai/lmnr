@@ -17,6 +17,7 @@ import {
 import { tryParseJson } from "@/lib/utils.ts";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
+  anyOfColumns: new Set(["span_id", "trace_id"]),
   processors: new Map([
     ["span_id", createStringFilter],
     ["trace_id", createStringFilter],
@@ -53,7 +54,7 @@ const spansColumnFilterConfig: ColumnFilterConfig = {
   ]),
 };
 
-export const spansSelectColumns = [
+const spansSelectColumns = [
   "span_id as spanId",
   "trace_id as traceId",
   "parent_span_id as parentSpanId",

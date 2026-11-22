@@ -47,7 +47,7 @@ impl Job {
         };
         let mut run = Run::load(self, agent, scope, now).await?;
         let to_backfill = run.decide_pending().await?;
-        let labels = run.tag(&to_backfill).await?;
+        run.tag(&to_backfill).await?;
         run.mark_backfilled(&to_backfill).await?;
         save_progress(
             &self.db.pool,
@@ -57,10 +57,7 @@ impl Job {
             run.current_version_id(),
         )
         .await?;
-
-        let sample = labels.last().map(|(_, trace)| trace);
-        self.name_agent(agent, project_id, run.system_prompt, sample)
-            .await
+        Ok(())
     }
 }
 
@@ -115,8 +112,6 @@ struct Run<'a> {
     version_of: Vec<Option<usize>>,
     /// The version before the first release, while it still is the current one.
     before_releases: Option<usize>,
-    /// Of the first version minted, for naming the agent.
-    system_prompt: Option<String>,
 }
 
 impl<'a> Run<'a> {
@@ -157,7 +152,6 @@ impl<'a> Run<'a> {
             versions,
             version_of,
             before_releases,
-            system_prompt: None,
         })
     }
 
@@ -286,15 +280,11 @@ impl<'a> Run<'a> {
     /// Saves a new version with `core`, its text taken from `example`.
     async fn mint(&mut self, example: &TracePrompt, core: Vec<u64>) -> Result<usize> {
         let project_id = self.scope.project_id;
-        let (prompt, text) = self.job.version_text(project_id, example, &core).await?;
+        let text = self.job.version_text(project_id, example, &core).await?;
         let hash = version_hash(self.scope.agent_hash, &core);
         let lines: Vec<i64> = core.iter().map(|&l| l as i64).collect();
         let pool = &self.job.db.pool;
         let id = insert_version(pool, project_id, self.agent.id, &hash, &lines, &text).await?;
-        self.system_prompt = self
-            .system_prompt
-            .take()
-            .or(prompt.filter(|p| !p.is_empty()));
         Ok(self.versions.push(id, hash, core))
     }
 
@@ -314,7 +304,7 @@ impl<'a> Run<'a> {
     /// traces once it sees the decision, but may have missed traces of releases
     /// backfilled in the previous run, before its cache entry, and leaves
     /// releases before the horizon to this ([`super::ingest`]).
-    async fn tag(&self, to_backfill: &HashSet<usize>) -> Result<Vec<(Option<usize>, TracePrompt)>> {
+    async fn tag(&self, to_backfill: &HashSet<usize>) -> Result<()> {
         let ch = &self.job.clickhouse;
         let since = self.agent.ingested_until.unwrap_or(0);
         let after = self.agent.tagged_until.unwrap_or(0);
@@ -362,7 +352,7 @@ impl<'a> Run<'a> {
                 )
                 .await?;
         }
-        Ok(labels)
+        Ok(())
     }
 
     /// Marked only once tagged, so a run that fails before this leaves its

@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import Evaluation from "@/components/evaluation/evaluation";
 import { getEvaluationDatasets, getEvaluationScoreNames } from "@/lib/actions/evaluation";
 import { db } from "@/lib/db/drizzle";
-import { evaluations } from "@/lib/db/migrations/schema";
+import { datasetsV2, evaluations } from "@/lib/db/migrations/schema";
 import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 
 export const metadata: Metadata = {
@@ -20,6 +20,7 @@ export default async function EvaluationPage(props: { params: Promise<{ projectI
     columns: {
       groupId: true,
       name: true,
+      datasetV2Id: true,
     },
   });
 
@@ -27,13 +28,21 @@ export default async function EvaluationPage(props: { params: Promise<{ projectI
     return notFound();
   }
 
-  const [evaluationsByGroupId, scoreNames, linkedDatasets] = await Promise.all([
+  const datasetV2Id = evaluationInfo.datasetV2Id;
+  const [evaluationsByGroupId, scoreNames, linkedDatasets, evalDataset] = await Promise.all([
     db.query.evaluations.findMany({
       where: and(eq(evaluations.projectId, params.projectId), eq(evaluations.groupId, evaluationInfo.groupId)),
       orderBy: desc(evaluations.createdAt),
     }),
     getEvaluationScoreNames({ projectId: params.projectId, evaluationId: params.evaluationId }),
     getEvaluationDatasets({ projectId: params.projectId, evaluationId: params.evaluationId }),
+    // Linked only once it exists: a run can name a dataset that was never pushed.
+    datasetV2Id
+      ? db.query.datasetsV2.findFirst({
+          where: and(eq(datasetsV2.projectId, params.projectId), eq(datasetsV2.id, datasetV2Id)),
+          columns: { id: true },
+        })
+      : undefined,
   ]);
 
   return (
@@ -43,6 +52,7 @@ export default async function EvaluationPage(props: { params: Promise<{ projectI
       evaluationName={evaluationInfo.name}
       initialScoreNames={scoreNames}
       datasets={linkedDatasets}
+      evalDataset={evalDataset?.id ?? null}
     />
   );
 }

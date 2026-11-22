@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use clickhouse::Row;
 use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -9,7 +12,7 @@ use crate::{
         spans::{Span, SpanType},
         trace::TraceType,
     },
-    traces::spans::SpanUsage,
+    traces::{prompt_hash::extract_system_message, spans::SpanUsage},
     utils::sanitize_string,
 };
 
@@ -374,4 +377,153 @@ pub async fn query_debug_cache_spans_page(
         .await?;
 
     Ok(rows)
+}
+
+/// Dictionary lookup for one content hash, mirroring `spans_v0`: the
+/// group-scoped `unique_content_dict` first, the legacy project-scoped
+/// `deduped_content_dict` only when `unique_content` has no row. `if` rather
+/// than `coalesce`/`ifNull`, which evaluate every branch eagerly: both dicts
+/// are `COMPLEX_KEY_CACHE`, so a `deduped_content_dict` lookup for a hash that
+/// only `unique_content` has (the common case post-migration) is a cache miss
+/// that queries the legacy table. `dedup_group` is the query's `WITH` alias.
+pub(crate) fn content_lookup(hash_expr: &str) -> String {
+    format!(
+        "if(
+            isNull(dictGetOrNull('unique_content_dict', 'content', tuple(project_id, dedup_group, {hash_expr}))),
+            dictGetOrDefault('deduped_content_dict', 'content', tuple(project_id, {hash_expr}), 'null'),
+            dictGetOrDefault('unique_content_dict', 'content', tuple(project_id, dedup_group, {hash_expr}), 'null')
+        )"
+    )
+}
+
+#[derive(Row, Deserialize)]
+struct FirstInputRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    span_id: Uuid,
+    /// The input is stored as message hashes.
+    deduped: bool,
+    /// The first message when `deduped`, else the whole input.
+    first_input: String,
+}
+
+#[derive(Row, Deserialize)]
+struct SpanInputRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    span_id: Uuid,
+    input: String,
+}
+
+/// The system prompt text of the given spans, keyed by span id. Spans not
+/// stored yet, or whose input has no system message, are absent.
+///
+/// A dedup'd span resolves only its first message, where the system message
+/// sits: rebuilding the whole input through `spans_v1` costs one dict lookup
+/// per message, and a long session's hundreds of cold lookups exceed the
+/// dicts' `QUERY_WAIT_TIMEOUT_MILLISECONDS`. Reading raw `spans` returns what
+/// `spans_v1` does under the unrestricted policy. The few spans whose first
+/// message is not the system one are rebuilt whole.
+pub async fn fetch_system_prompts(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    refs: &[(Uuid, Uuid)],
+) -> Result<HashMap<Uuid, String>> {
+    if refs.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let trace_ids: Vec<Uuid> = refs.iter().map(|(t, _)| *t).collect();
+    let span_ids: Vec<Uuid> = refs.iter().map(|(_, s)| *s).collect();
+    let rows = clickhouse
+        .query(&format!(
+            "WITH if(session_id != '', session_id, toString(trace_id)) AS dedup_group
+             SELECT span_id,
+                    notEmpty(input_message_hashes) AS deduped,
+                    if(deduped, {}, input) AS first_input
+             FROM spans
+             WHERE project_id = {{project_id:UUID}}
+               AND trace_id IN {{trace_ids:Array(UUID)}}
+               AND span_id IN {{span_ids:Array(UUID)}}",
+            content_lookup("input_message_hashes[1]")
+        ))
+        .param("project_id", project_id)
+        .param("trace_ids", &trace_ids)
+        .param("span_ids", &span_ids)
+        .fetch_all::<FirstInputRow>()
+        .await?;
+
+    let mut prompts = HashMap::with_capacity(rows.len());
+    let mut rebuild = Vec::new();
+    for row in rows {
+        match first_input_system_prompt(&row.first_input, row.deduped) {
+            Some(text) => {
+                prompts.insert(row.span_id, text);
+            }
+            None if row.deduped => rebuild.push(row.span_id),
+            None => {}
+        }
+    }
+    if rebuild.is_empty() {
+        return Ok(prompts);
+    }
+    let rows = clickhouse
+        .query(
+            "SELECT span_id, input
+             FROM spans_v1(project_id={project_id:UUID}, policy='{}')
+             WHERE trace_id IN {trace_ids:Array(UUID)}
+               AND span_id IN {span_ids:Array(UUID)}",
+        )
+        .param("project_id", project_id)
+        .param("trace_ids", &trace_ids)
+        .param("span_ids", &rebuild)
+        .fetch_all::<SpanInputRow>()
+        .await?;
+    for row in rows {
+        if let Some(text) = input_system_prompt(&row.input) {
+            prompts.insert(row.span_id, text);
+        }
+    }
+    Ok(prompts)
+}
+
+/// A dedup'd first message is one array element, so it is read as a
+/// one-message input.
+fn first_input_system_prompt(first_input: &str, deduped: bool) -> Option<String> {
+    if !deduped {
+        return input_system_prompt(first_input);
+    }
+    let message = serde_json::from_str::<Value>(first_input).ok()?;
+    extract_system_message(&Value::Array(vec![message])).map(|(text, _)| text)
+}
+
+fn input_system_prompt(input: &str) -> Option<String> {
+    let input = serde_json::from_str::<Value>(input).ok()?;
+    extract_system_message(&input).map(|(text, _)| text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_deduped_system_message_is_read_from_the_first_message() {
+        let first = r#"{"role":"system","content":"You are a GTM assistant."}"#;
+        assert_eq!(
+            first_input_system_prompt(first, true).as_deref(),
+            Some("You are a GTM assistant.")
+        );
+    }
+
+    #[test]
+    fn a_deduped_first_message_from_the_user_needs_a_rebuild() {
+        let first = r#"{"role":"user","content":"hi"}"#;
+        assert_eq!(first_input_system_prompt(first, true), None);
+    }
+
+    #[test]
+    fn an_input_stored_whole_is_searched_for_its_system_message() {
+        let input = r#"{"messages":[{"role":"user","content":"hi"},{"role":"system","content":"Be brief."}]}"#;
+        assert_eq!(
+            first_input_system_prompt(input, false).as_deref(),
+            Some("Be brief.")
+        );
+    }
 }

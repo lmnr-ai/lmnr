@@ -83,7 +83,6 @@ function TranscriptRowInner({
             output={previews[row.span.spanId]}
             onSpanSelect={onSpanSelect}
             isSelected={selectedSpanId === row.span.spanId}
-            inGroup
           />
         </GroupChildWrapper>
       );

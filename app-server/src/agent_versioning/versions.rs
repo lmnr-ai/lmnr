@@ -7,7 +7,7 @@ use anyhow::Result;
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::{Job, naming::system_message, normalize::core_text};
+use super::{Job, normalize::core_text, prompts::system_message};
 use crate::{
     ch::{
         ClickhouseTrait,
@@ -27,7 +27,7 @@ impl Job {
         project_id: Uuid,
         example: &TracePrompt,
         core: &[u64],
-    ) -> Result<(Option<String>, VersionText)> {
+    ) -> Result<VersionText> {
         let doc = fetch_agent_doc(
             &self.clickhouse,
             project_id,
@@ -42,11 +42,10 @@ impl Job {
         let tool_text = serde_json::from_str::<Vec<Value>>(&tools)
             .map(|tools| tool_text::render(&tools))
             .unwrap_or_default();
-        let text = VersionText {
+        Ok(VersionText {
             system_prompt: core_text(&system_prompt, core),
             tool_definitions: core_text(&tool_text, core),
-        };
-        Ok((Some(system_prompt), text))
+        })
     }
 
     pub(super) async fn write_labels(

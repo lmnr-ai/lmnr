@@ -28,23 +28,9 @@ const GeminiPartRenderer = ({
   // Unrecognised variants fall through to null.
   if ("text" in part) {
     if (part.thought) {
-      return (
-        <ThinkingContentPart
-          content={part.text}
-          presetKey={presetKey}
-          messageIndex={messageIndex}
-          contentPartIndex={contentPartIndex}
-        />
-      );
+      return <ThinkingContentPart content={part.text} presetKey={presetKey} />;
     }
-    return (
-      <TextContentPart
-        content={part.text}
-        presetKey={presetKey}
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
-      />
-    );
+    return <TextContentPart content={part.text} presetKey={presetKey} />;
   }
 
   if ("inlineData" in part) {
@@ -65,8 +51,6 @@ const GeminiPartRenderer = ({
         toolName={part.functionCall.name}
         content={part.functionCall.args ?? {}}
         presetKey={presetKey}
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
       />
     );
   }
@@ -83,25 +67,11 @@ const GeminiPartRenderer = ({
   }
 
   if ("executableCode" in part) {
-    return (
-      <TextContentPart
-        content={part.executableCode.code}
-        presetKey={presetKey}
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
-      />
-    );
+    return <TextContentPart content={part.executableCode.code} presetKey={presetKey} />;
   }
 
   if ("codeExecutionResult" in part) {
-    return (
-      <TextContentPart
-        content={part.codeExecutionResult.output ?? ""}
-        presetKey={presetKey}
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
-      />
-    );
+    return <TextContentPart content={part.codeExecutionResult.output ?? ""} presetKey={presetKey} />;
   }
 
   return null;

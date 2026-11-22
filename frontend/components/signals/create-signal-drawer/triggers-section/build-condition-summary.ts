@@ -78,7 +78,11 @@ const describeFilter = (filter: Filter): SummaryPart[] | null => {
 };
 
 /** One-sentence recap. Null while a span-name trigger has no names yet. */
-export const buildConditionSummary = (conditions: Filter[], filters: Filter[]): SummaryPart[] | null => {
+export const buildConditionSummary = (
+  conditions: Filter[],
+  filters: Filter[],
+  sampleRate?: number | null
+): SummaryPart[] | null => {
   const kind = getTriggerKind(conditions);
   const parts: SummaryPart[] = [{ type: "text", text: "This signal will run " }];
 
@@ -108,6 +112,10 @@ export const buildConditionSummary = (conditions: Filter[], filters: Filter[]): 
       if (i > 0) parts.push({ type: "text", text: " and " });
       parts.push(...fp);
     });
+  }
+
+  if (sampleRate !== null && sampleRate !== undefined) {
+    parts.push({ type: "text", text: `, on ${sampleRate}% of all traces` });
   }
 
   parts.push({ type: "text", text: "." });

@@ -41,6 +41,13 @@ afterEach(() => {
   }
 });
 
+const TURN_OFF_STATEMENTS = [
+  "DROP DICTIONARY IF EXISTS signals_dict SYNC",
+  "DROP DICTIONARY IF EXISTS evaluations_dict SYNC",
+  "DROP DICTIONARY IF EXISTS datasets_dict SYNC",
+  "DROP DATABASE IF EXISTS pg SYNC",
+];
+
 function clickhouseMock() {
   const command = mock.fn(async (_request: { query: string }) => ({}));
   return { client: { command } as unknown as ClickHouseClient, command };
@@ -51,7 +58,10 @@ test("existing roles retain their password, settings, and CONNECT grant while re
   await ensurePostgresReadonlyRole();
   const statements = execute.mock.calls.map((call) => call.arguments[0]).filter((query) => typeof query === "string");
   assert.ok(statements.length > 0);
-  assert.ok(statements.every((query) => !/CREATE ROLE|ALTER ROLE|GRANT CONNECT/.test(query)));
+  assert.ok(statements.every((query) => !/CREATE ROLE|PASSWORD|statement_timeout|GRANT CONNECT/.test(query)));
+  assert.ok(
+    statements.some((query) => /BETWEEN 0 AND 23 THEN\s+ALTER ROLE "external_reader" CONNECTION LIMIT 24;/.test(query))
+  );
   assert.ok(statements.some((query) => query.includes("GRANT USAGE ON SCHEMA")));
   assert.ok(statements.some((query) => query.includes("GRANT SELECT (")));
   assert.ok(statements.some((query) => query.includes("CREATE POLICY clickhouse_ro_select")));
@@ -63,10 +73,25 @@ test("missing roles still receive login provisioning, settings, CONNECT, and app
   const statements = execute.mock.calls.map((call) => call.arguments[0]).filter((query) => typeof query === "string");
   assert.ok(statements.some((query) => query.includes('CREATE ROLE "external_reader" LOGIN')));
   assert.ok(statements.some((query) => query.includes('ALTER ROLE "external_reader" LOGIN PASSWORD')));
-  assert.ok(statements.some((query) => query.includes("CONNECTION LIMIT 10")));
+  assert.ok(statements.some((query) => query.includes("CONNECTION LIMIT 24")));
   assert.ok(statements.some((query) => query.includes("statement_timeout = '15s'")));
   assert.ok(statements.some((query) => query.includes('GRANT CONNECT ON DATABASE "laminar"')));
   assert.ok(statements.some((query) => query.includes("CREATE POLICY clickhouse_ro_select")));
+});
+
+test("failed role statements log the Postgres error, never the statement with the password", async () => {
+  mock.method(db, "execute", async (query: unknown) => {
+    if (typeof query === "string") {
+      throw new Error(`Failed query: ${query}`, { cause: new Error("permission denied to create role") });
+    }
+    return [];
+  });
+  await ensurePostgresReadonlyRole();
+  const logged = (console.warn as unknown as { mock: { calls: { arguments: unknown[] }[] } }).mock.calls
+    .map((call) => call.arguments.join(" "))
+    .join("\n");
+  assert.ok(logged.includes("permission denied to create role"));
+  assert.ok(!logged.includes("test-only-password"));
 });
 
 test("external role still configures the ClickHouse connection with the supplied credentials", async () => {
@@ -84,6 +109,19 @@ test("external role still configures the ClickHouse connection with the supplied
   assert.ok(statements[1].includes("'pgbouncer.internal:5432'"));
   assert.ok(statements[1].includes("'external_reader'"));
   assert.ok(statements[1].includes("'test-only-password'"));
+
+  // A dict over a `pg` table would make ClickHouse connect to Postgres at startup.
+  const dicts = statements.slice(2);
+  assert.equal(dicts.length, 3);
+  for (const dict of dicts) {
+    assert.match(dict, /CREATE OR REPLACE DICTIONARY \w+_dict/);
+    assert.ok(dict.includes("SOURCE(POSTGRESQL("));
+    assert.ok(dict.includes("HOST 'pgbouncer.internal'"));
+    assert.ok(dict.includes("SCHEMA 'laminar'"));
+    assert.ok(dict.includes("USER 'external_reader'"));
+    assert.ok(dict.includes("MAX_THREADS_FOR_UPDATES 2"));
+    assert.ok(!dict.includes("DB 'pg'"));
+  }
 });
 
 test("existing roles do not bypass rejection of privileged Postgres roles", async () => {
@@ -94,7 +132,7 @@ test("existing roles do not bypass rejection of privileged Postgres roles", asyn
 
   assert.deepEqual(
     command.mock.calls.map((call) => call.arguments[0].query),
-    ["DROP DATABASE IF EXISTS pg SYNC"]
+    TURN_OFF_STATEMENTS
   );
 });
 
@@ -107,7 +145,7 @@ test("existing roles do not permit the application's own Postgres login", async 
 
   assert.deepEqual(
     command.mock.calls.map((call) => call.arguments[0].query),
-    ["DROP DATABASE IF EXISTS pg SYNC"]
+    TURN_OFF_STATEMENTS
   );
 });
 
@@ -136,7 +174,7 @@ test("unset credentials still disable the ClickHouse connection", async () => {
   assert.equal(execute.mock.callCount(), 0);
   assert.deepEqual(
     command.mock.calls.map((call) => call.arguments[0].query),
-    ["DROP DATABASE IF EXISTS pg SYNC"]
+    TURN_OFF_STATEMENTS
   );
 });
 

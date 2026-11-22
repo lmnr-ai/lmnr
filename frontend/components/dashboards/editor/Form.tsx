@@ -1,7 +1,6 @@
 "use client";
 
 import { debounce } from "lodash";
-import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
@@ -11,37 +10,23 @@ import { type ColumnInfo, transformDataToColumns } from "@/components/chart-buil
 import ChartPreviewContent from "@/components/dashboards/editor/chart-preview-content";
 import ChartPreviewPane from "@/components/dashboards/editor/chart-preview-pane";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
+import EditorLayout from "@/components/dashboards/editor/editor-layout";
 import EditorSidebar from "@/components/dashboards/editor/editor-sidebar";
 import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
 import FreeformForm from "@/components/dashboards/editor/freeform-form";
-import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
 import {
-  getDefaultTimeRange,
+  buildQueryStructure,
   injectIdMetrics,
   needsTimeSeries,
   savedHorizontalBarAxes,
 } from "@/components/dashboards/editor/utils";
 import { toTimeParameters, useDashboardTimeRange } from "@/components/dashboards/time-range";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { type QueryStructure } from "@/lib/actions/sql/types.ts";
-
-// The SQL editor needs more room than the visual builder's fields.
-const SIDEBAR_WIDTH = { visual: 320, sql: 420 };
 
 export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const editorMode = useDashboardEditorStoreContext((state) => state.editorMode);
-  const sidebarWidth = editorMode === "sql" ? SIDEBAR_WIDTH.sql : SIDEBAR_WIDTH.visual;
 
-  // The grid outlives the mode switch (each form only renders its two grid items), so the
-  // column change transitions instead of remounting at the new width.
-  return (
-    <div
-      className="grid h-full gap-4 overflow-hidden transition-[grid-template-columns] duration-300 ease-out"
-      style={{ gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr)` }}
-    >
-      {editorMode === "sql" ? <FreeformForm /> : <VisualForm isLoadingChart={isLoadingChart} />}
-    </div>
-  );
+  return editorMode === "sql" ? <FreeformForm /> : <VisualForm isLoadingChart={isLoadingChart} />;
 };
 
 const VisualForm = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
@@ -106,6 +91,11 @@ const VisualForm = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
     const firstMetric = metrics[0];
     const metricValue = firstMetric.alias || (firstMetric.fn === "raw" ? "value" : firstMetric.column);
+
+    if (chartType === ChartType.Value) {
+      return { type: chartType, y: metricValue, displayMode: "none" as const };
+    }
+
     const dimensionValue = isTimeSeries ? "time" : dimensions?.[0] || columns[0]?.name || "x";
 
     return {
@@ -156,44 +146,12 @@ const VisualForm = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return;
     }
 
-    const { table, metrics, dimensions, filters, orderBy, limit } = getValues();
-
     setLoading(true);
     setError(null);
 
     try {
-      const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
       const isTable = chartType === ChartType.Table;
-      const allFilters = [...(filters || [])];
-
-      // Non-time-series charts (Table, HorizontalBar) don't use queryStructure.timeRange,
-      // so they'd otherwise pull every row ever. Append the dashboard's selected
-      // start_time/end_time as a WHERE filter on the table's time column so the
-      // result is scoped to the current date range. Line/Bar charts get this for
-      // free via timeRange → the backend generates the WHERE clause itself.
-      if (isHorizontalBar || isTable) {
-        const timeColumn = getTimeColumn(table);
-        allFilters.push(
-          { field: timeColumn, op: "gte" as const, stringValue: "{start_time:DateTime64}" },
-          { field: timeColumn, op: "lte" as const, stringValue: "{end_time:DateTime64}" }
-        );
-      }
-
-      const injectedMetrics = injectIdMetrics(metrics, dimensions, table, chartType);
-
-      const queryStructure: QueryStructure = {
-        table,
-        metrics: injectedMetrics,
-        dimensions: dimensions || [],
-        filters: allFilters,
-        orderBy: [],
-        ...(orderBy && orderBy.length > 0 && { orderBy }),
-        limit,
-      };
-
-      if (needsTimeSeries(chartType)) {
-        queryStructure.timeRange = getDefaultTimeRange(table);
-      }
+      const queryStructure = buildQueryStructure(getValues(), chartType);
 
       const sqlResponse = await fetch(`/api/projects/${projectId}/sql/from-json`, {
         method: "POST",
@@ -264,22 +222,17 @@ const VisualForm = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart]);
 
   return (
-    <>
-      <ScrollArea className="border rounded bg-secondary relative">
-        <EditorSidebar saveDisabled={!formState.isValid || !chartConfig}>
+    <EditorLayout
+      sidebar={
+        <EditorSidebar isLoading={isLoadingChart} saveDisabled={!formState.isValid || !chartConfig}>
           <QueryBuilderFields />
         </EditorSidebar>
-        {isLoadingChart && (
-          <div className="absolute inset-0 bg-background/40 z-20 backdrop-blur-xs flex items-center justify-center rounded">
-            <div className="flex flex-col items-center space-y-3 text-muted-foreground">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-          </div>
-        )}
-      </ScrollArea>
-      <ChartPreviewPane name={chart.name}>
-        <ChartPreviewContent config={chartConfigForRendering} hiddenColumns={hiddenColumns} />
-      </ChartPreviewPane>
-    </>
+      }
+      preview={
+        <ChartPreviewPane name={chart.name}>
+          <ChartPreviewContent config={chartConfigForRendering} hiddenColumns={hiddenColumns} />
+        </ChartPreviewPane>
+      }
+    />
   );
 };

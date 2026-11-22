@@ -386,13 +386,7 @@ impl SpRegexExtractionHandler {
                 .collect();
         }
         let refs: Vec<(Uuid, Uuid)> = refs.iter().map(|r| (r.trace_id, r.span_id)).collect();
-        match crate::ch::system_prompt_versions::fetch_system_prompts(
-            &self.clickhouse,
-            project_id,
-            &refs,
-        )
-        .await
-        {
+        match crate::ch::spans::fetch_system_prompts(&self.clickhouse, project_id, &refs).await {
             Ok(fetched) => fetched,
             Err(e) => {
                 log::warn!("[SP_REGEX_EXTRACTION] Raw prompt refetch failed: {e:?}");

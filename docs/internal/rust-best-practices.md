@@ -28,5 +28,6 @@ Cross-cutting rules for app-server changes. The frontend equivalents live in `do
 ## Types and errors
 
 - Return a named struct, not a tuple — especially when members share a type (`ModelProvider` in `llm/mod.rs`). A swapped tuple compiles.
+- **Never build a tuple whose members share a type, anywhere** — not as a return value, a struct field, or a `HashMap`/`HashSet`/`DashSet` key. `(String, String, String)` reads as nothing and swaps silently; declare a small local struct with named fields and derive `Hash`/`Eq` when it's a key (`Binding` in `mq/rabbitmq/connection.rs`). Pass it to helpers instead of three positional `&str`s, which have the same problem.
 - No inline closures standing in for helper functions; extract a named function with a verb name.
 - Transient failures (DB, cache, network) get retryable error variants; non-retryable ones are for genuine misconfiguration. On a worker path, the wrong choice turns a blip into a permanently failed run.

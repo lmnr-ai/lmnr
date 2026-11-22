@@ -179,6 +179,7 @@ fn build_request(signposted_text: &str, project_id: Uuid) -> ProviderRequest {
             ..Default::default()
         }),
         service_tier: None,
+        affinity_key: None,
         // Its own feature so it can be routed to a cheap model: this fires per
         // trace until a cohort's regex lands, so it is the recurring cost of
         // the pipeline.

@@ -8,6 +8,7 @@ export const defaultEvaluationsColumnOrder = [
   "__chart_visibility",
   "id",
   "name",
+  "dataset",
   "dataPointsCount",
   "metadata",
   "createdAt",

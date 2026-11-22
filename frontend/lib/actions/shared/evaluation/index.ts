@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { getEvaluationScoreNames } from "@/lib/actions/evaluation";
 import { buildEvalStatsQuery, type EvalFilter, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { fetchEvalTaskPage } from "@/lib/actions/evaluation/task-page";
@@ -10,6 +11,7 @@ import { executeQuery, SHARED_ACTOR } from "@/lib/actions/sql";
 import { DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations, sharedEvals } from "@/lib/db/migrations/schema";
+import { resolveEvalColumns } from "@/lib/evaluation/columns";
 import { taskMeanScores } from "@/lib/evaluation/task-groups";
 import {
   type Evaluation,
@@ -41,6 +43,30 @@ export async function getSharedEvaluation({ evaluationId }: { evaluationId: stri
   return { evaluation: evaluation as Evaluation, projectId: publicEval.projectId };
 }
 
+/** Column ids of a `columns` JSON param. Any SQL it carries is ignored: shared reads resolve SQL server-side. */
+export const parseColumnIds = (json: string | undefined): string[] => {
+  if (!json) return [];
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((c) => c?.id).filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
+};
+
+// Score names come from the evaluation, so no text from the request reaches the SQL.
+const resolveSharedColumns = async (
+  columnIds: string[],
+  projectId: string,
+  evaluationId: string
+): Promise<EvalQueryColumn[]> => {
+  const scoreNames = columnIds.some((id) => id.startsWith("score:"))
+    ? await getEvaluationScoreNames({ projectId, evaluationId }, { actor: SHARED_ACTOR })
+    : [];
+  return resolveEvalColumns(columnIds, scoreNames);
+};
+
 export async function getSharedEvaluationTrials({
   evaluationId,
   pageNumber,
@@ -49,9 +75,8 @@ export async function getSharedEvaluationTrials({
   search,
   searchIn,
   sortBy,
-  sortSql,
   sortDirection,
-  columns,
+  columnIds,
 }: {
   evaluationId: string;
   pageNumber: number;
@@ -60,9 +85,8 @@ export async function getSharedEvaluationTrials({
   search?: string | null;
   searchIn?: string[];
   sortBy?: string;
-  sortSql?: string;
   sortDirection?: "ASC" | "DESC";
-  columns: EvalQueryColumn[];
+  columnIds: string[];
 }): Promise<EvaluationResultsInfo | undefined> {
   const shared = await getSharedEvaluation({ evaluationId });
   if (!shared) {
@@ -71,6 +95,7 @@ export async function getSharedEvaluationTrials({
 
   const { evaluation, projectId } = shared;
 
+  const columns = await resolveSharedColumns(columnIds, projectId, evaluationId);
   if (columns.length === 0) {
     return { evaluation, results: [] };
   }
@@ -98,8 +123,7 @@ export async function getSharedEvaluationTrials({
     filters: allFilters,
     limit,
     offset,
-    sortBy,
-    sortSql,
+    sortBy: sortBy === "taskId" || columns.some((c) => c.id === sortBy) ? sortBy : undefined,
     sortDirection,
   });
 
@@ -111,13 +135,13 @@ export async function getSharedEvaluationStatistics({
   filters,
   search,
   searchIn,
-  columns,
+  columnIds,
 }: {
   evaluationId: string;
   filters: EvalFilter[];
   search?: string | null;
   searchIn?: string[];
-  columns?: EvalQueryColumn[];
+  columnIds: string[];
 }): Promise<
   | {
       evaluation: Evaluation;
@@ -133,6 +157,7 @@ export async function getSharedEvaluationStatistics({
 
   const { evaluation, projectId } = shared;
   const allFilters = compact(filters);
+  const columns = await resolveSharedColumns(columnIds, projectId, evaluationId);
 
   const searchTraceIds = await getSearchTraceIds(projectId, search, searchIn ?? [], evaluation.createdAt);
 

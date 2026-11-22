@@ -30,6 +30,13 @@ const AUTH_TABLES = [
   "scimProjectionGrants",
   "scimGroups",
   "scimGroupMembers",
+  "oauthClients",
+  "oauthResources",
+  "oauthClientResources",
+  "oauthRefreshTokens",
+  "oauthAccessTokens",
+  "oauthConsents",
+  "oauthClientAssertions",
 ];
 
 const source = readFileSync(SCHEMA_PATH, "utf8");

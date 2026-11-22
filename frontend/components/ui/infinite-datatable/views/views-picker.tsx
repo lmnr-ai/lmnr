@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, FilePlus2, Layers2, Loader2, Pencil, Save, Search, Trash2, Undo2 } from "lucide-react";
+import { ChevronDown, FilePlus2, Layers2, Loader2, Save, Search, Undo2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -23,12 +23,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { swrFetcher } from "@/lib/api/fetch-api";
+import { fetchApi, swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import { useLastViewStore } from "./last-view-store";
 import { type View } from "./types";
+import ViewItem from "./view-item";
 import ViewNameDialog from "./view-name-dialog";
 
 interface ViewsPickerProps {
@@ -81,6 +82,7 @@ export default function ViewsPicker({
 
   const showDefault = !q || DEFAULT_LABEL.toLowerCase().includes(q);
   const noMatches = q.length > 0 && filteredViews.length === 0 && !showDefault;
+  const teamDefault = views?.find((v) => v.config.isDefault) ?? null;
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -112,9 +114,30 @@ export default function ViewsPicker({
     setLastViewId(projectId, resource, null);
   }, [onSelect, setLastViewId, projectId, resource]);
 
-  const handleManage = useCallback((view: View, action: "delete" | "rename", e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
+  // `view: null` makes the built-in Default view the project default by clearing the flag on the current default.
+  const handleSetDefault = useCallback(
+    async (view: View | null) => {
+      const target = view ?? teamDefault;
+      if (!target) return;
+      const { error } = await fetchApi<View>(`/api/projects/${projectId}/views/${target.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isDefault: view !== null }),
+      });
+      if (error) {
+        toast({ variant: "destructive", title: error });
+        return;
+      }
+      await mutate(listKey);
+      toast({
+        title: `"${view?.name ?? DEFAULT_LABEL}" is now the project default view`,
+        description: "Teammates who haven't picked a view land on it.",
+      });
+    },
+    [projectId, listKey, mutate, toast, teamDefault]
+  );
+
+  const openDialog = useCallback((view: View, action: "delete" | "rename") => {
     setOpen(false);
     setPending({ view, action });
   }, []);
@@ -252,46 +275,26 @@ export default function ViewsPicker({
 
           <DropdownMenuLabel className={SECTION_LABEL_CLASS}>Views</DropdownMenuLabel>
           {showDefault && (
-            <DropdownMenuItem onSelect={handleReset} className="text-xs">
-              <span className="flex-1 truncate">{DEFAULT_LABEL}</span>
-              {currentViewId === null && <Check className="size-3.5 shrink-0" />}
-            </DropdownMenuItem>
+            <ViewItem
+              label={DEFAULT_LABEL}
+              active={currentViewId === null}
+              isDefault={!teamDefault && (views?.length ?? 0) > 0}
+              onPick={handleReset}
+              onSetDefault={teamDefault ? () => void handleSetDefault(null) : undefined}
+            />
           )}
-          {filteredViews.map((view) => {
-            const active = currentViewId === view.id;
-            return (
-              <DropdownMenuItem key={view.id} onSelect={() => handlePick(view)} className="group text-xs">
-                <span className="flex-1 truncate">{view.name}</span>
-                <span className="relative inline-flex h-5 w-11 shrink-0 items-center justify-end">
-                  {active && (
-                    <Check className="absolute inset-y-0 right-0 my-auto size-3.5 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0" />
-                  )}
-                  <button
-                    type="button"
-                    aria-label={`Rename ${view.name}`}
-                    onClick={(e) => handleManage(view, "rename", e)}
-                    className={cn(
-                      "absolute right-6 inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity",
-                      "group-hover:opacity-100 focus-visible:opacity-100"
-                    )}
-                  >
-                    <Pencil className="size-3.5 shrink-0" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${view.name}`}
-                    onClick={(e) => handleManage(view, "delete", e)}
-                    className={cn(
-                      "absolute right-0 inline-flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity",
-                      "group-hover:opacity-100 focus-visible:opacity-100"
-                    )}
-                  >
-                    <Trash2 className="size-3.5 shrink-0" />
-                  </button>
-                </span>
-              </DropdownMenuItem>
-            );
-          })}
+          {filteredViews.map((view) => (
+            <ViewItem
+              key={view.id}
+              label={view.name}
+              active={currentViewId === view.id}
+              isDefault={!!view.config.isDefault}
+              onPick={() => handlePick(view)}
+              onSetDefault={view.config.isDefault ? undefined : () => void handleSetDefault(view)}
+              onRename={() => openDialog(view, "rename")}
+              onDelete={() => openDialog(view, "delete")}
+            />
+          ))}
           {noMatches && <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matches.</div>}
         </DropdownMenuContent>
       </DropdownMenu>

@@ -247,6 +247,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         }
     }

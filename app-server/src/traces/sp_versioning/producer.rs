@@ -81,8 +81,9 @@ pub struct StaticPromptCandidate {
     pub span_id: Uuid,
     /// Naive signature (`lmnr.span.prompt_hash`), the legacy pipeline's key.
     pub prompt_hash: String,
-    /// First-sentence hash (`lmnr.span.agent_hash`) — the v2 agent identity.
-    pub agent_hash: String,
+    /// The v2 agent identity (`lmnr.span.agent_hash`); `None` for a span no
+    /// defined agent matches, which only the legacy pipeline versions.
+    pub agent_hash: Option<String>,
     /// Byte-identity hash of the prompt, computed once on the ingest producer.
     pub full_prompt_hash: String,
     pub system_prompt: String,
@@ -174,11 +175,15 @@ pub async fn resolve_and_publish(
 fn group_by_prompt(candidates: Vec<StaticPromptCandidate>) -> Vec<VersionCandidate> {
     let mut groups: IndexMap<(Uuid, String), VersionCandidate> = IndexMap::new();
     for candidate in candidates {
+        // Windows are partitioned by agent, so an unlabelled span has none.
+        let Some(agent_hash) = candidate.agent_hash else {
+            continue;
+        };
         let group = groups
             .entry((candidate.project_id, candidate.full_prompt_hash.clone()))
             .or_insert_with(|| VersionCandidate {
                 project_id: candidate.project_id,
-                agent_hash: candidate.agent_hash,
+                agent_hash,
                 has_history: false,
                 full_hash: candidate.full_prompt_hash,
                 text: candidate.system_prompt,
@@ -374,7 +379,7 @@ mod tests {
             trace_id: Uuid::nil(),
             span_id,
             prompt_hash: "skeleton".to_string(),
-            agent_hash: "agent01".to_string(),
+            agent_hash: Some("agent01".to_string()),
             full_prompt_hash: "full".to_string(),
             system_prompt: "prompt".to_string(),
         }

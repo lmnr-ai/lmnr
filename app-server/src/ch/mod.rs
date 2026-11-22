@@ -6,6 +6,7 @@ pub mod data_plane;
 pub mod datapoints;
 pub mod unique_content;
 pub mod evaluation_datapoints;
+pub mod evaluation_logs;
 pub mod labeling_queue_items;
 pub mod limits;
 pub mod logs;

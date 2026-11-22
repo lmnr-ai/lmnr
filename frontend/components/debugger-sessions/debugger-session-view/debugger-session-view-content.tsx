@@ -5,8 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
-import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
+import SessionSpanPanel from "@/components/debugger-sessions/debugger-session-view/span-panel";
+import { useSessionViewBaseStore } from "@/components/debugger-sessions/debugger-session-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type SessionBlock } from "@/lib/actions/debugger-sessions";
 import { useRealtime } from "@/lib/hooks/use-realtime";

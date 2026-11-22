@@ -4,6 +4,8 @@
 import * as Sentry from "@sentry/nextjs";
 
 export async function register() {
+  // Sentry must init before Laminar below: OTel's global context manager is first-registration-wins, Sentry needs its
+  // own for scope isolation, and Laminar reuses any working one instead of registering.
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./sentry.server.config.ts");
   }
@@ -285,11 +287,11 @@ export async function register() {
           const migrationsHome = join(process.cwd(), "lib/clickhouse/migrations");
 
           const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
-          const { ensureClickhousePostgresDatabase, ensureClickhouseReadonlyGrants, ensurePgEntityDicts } =
+          const { ensureClickhousePostgresDatabase, ensureClickhouseReadonlyGrants } =
             await import("@/lib/clickhouse/postgres-engine.ts");
 
-          // Ordered before migration 73 so a healthy boot has `pg` ready for the
-          // views over it; warn-only, so a broken one still starts.
+          // Ordered before migration 73 so a healthy boot has `pg` and the entity
+          // dicts ready for the views over them; warn-only, so a broken one still starts.
           await ensureClickhousePostgresDatabase(clickhouseClient);
 
           await migration(
@@ -305,7 +307,6 @@ export async function register() {
 
           await ensureContentDicts();
           await ensureClustersDict();
-          await ensurePgEntityDicts(clickhouseClient);
           await ensureClickhouseReadonlyGrants(clickhouseClient);
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);

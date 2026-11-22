@@ -1,4 +1,4 @@
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { type NextConfig } from "next";
 
 // Baked at BUILD time (not a runtime flip) — Next inlines basePath into the
@@ -125,7 +125,7 @@ const nextConfig: NextConfig = {
 if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN) {
   module.exports = withSentryConfig(nextConfig, {
     // For all available options, see:
-    // https://www.npmjs.com/package/@sentry/webpack-plugin#options
+    // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/build/
 
     org: process.env.SENTRY_ORG,
     project: process.env.FRONTEND_SENTRY_PROJECT,

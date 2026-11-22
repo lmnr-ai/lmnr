@@ -1,15 +1,16 @@
 import { get } from "lodash";
 import { CircleAlert } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useRef, useState } from "react";
+import React, { memo, useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
-import SpanContent from "@/components/traces/span-view/span-content";
-import SpanOverview from "@/components/traces/span-view/span-overview";
+import SpanIO from "@/components/traces/span-view/span-io";
 import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
+import SpanTurn from "@/components/traces/span-view/span-turn";
+import { type SpanViewTab, useSpanViewTab } from "@/components/traces/span-view/use-span-view-tab";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
@@ -18,8 +19,6 @@ import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { SpanViewSkeleton } from "./skeleton";
-
-export type SpanViewTab = "overview" | "span-input" | "span-output" | "attributes" | "events";
 
 interface SpanViewProps {
   spanId: string;
@@ -58,37 +57,30 @@ export const SpanViewTabs = ({
   initialTab?: SpanViewTab;
 }) => {
   const isLLM = span.spanType === SpanType.LLM;
-  const defaultTab = initialTab ?? (isLLM ? "overview" : "span-input");
+  const hasEvents = (span.events?.length ?? 0) > 0;
+  const [tab, setTab] = useSpanViewTab({ fallback: initialTab, hasEvents });
 
   return (
     <Tabs
-      key={initialTab}
       className="flex flex-col grow overflow-hidden gap-0"
-      defaultValue={defaultTab}
-      onValueChange={(value) => track("traces", "span_tab_selected", { tab: value })}
+      value={tab}
+      onValueChange={(value) => {
+        track("traces", "span_tab_selected", { tab: value });
+        setTab(value as SpanViewTab);
+      }}
       tabIndex={0}
     >
       <div className="px-2 pb-2 mt-2 border-b w-full">
         <TabsList size="sm">
-          {isLLM && <TabsTrigger value="overview">Overview</TabsTrigger>}
-          <TabsTrigger value="span-input">Span Input</TabsTrigger>
-          <TabsTrigger value="span-output">Span Output</TabsTrigger>
+          <TabsTrigger value="content">{isLLM ? "Messages" : "Input / Output"}</TabsTrigger>
           <TabsTrigger value="attributes">Attributes</TabsTrigger>
-          <TabsTrigger value="events">Events</TabsTrigger>
+          {hasEvents && <TabsTrigger value="events">Events</TabsTrigger>}
         </TabsList>
       </div>
       <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
       <div className="grow flex overflow-hidden">
-        {isLLM && (
-          <TabsContent value="overview" className="w-full h-full">
-            <SpanOverview span={span} />
-          </TabsContent>
-        )}
-        <TabsContent value="span-input" className="w-full h-full">
-          <SpanContent span={span} type="input" />
-        </TabsContent>
-        <TabsContent value="span-output" className="w-full h-full">
-          <SpanContent span={span} type="output" />
+        <TabsContent value="content" className="w-full h-full">
+          {isLLM ? <SpanTurn span={span} /> : <SpanIO span={span} />}
         </TabsContent>
         <TabsContent value="attributes" className="w-full h-full">
           <ContentRenderer
@@ -100,29 +92,24 @@ export const SpanViewTabs = ({
             customTheme={spanViewTheme}
           />
         </TabsContent>
-        <TabsContent value="events" className="w-full h-full">
-          <ContentRenderer
-            className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none contain-strict"
-            readOnly
-            value={JSON.stringify(span.events)}
-            defaultMode="yaml"
-            customTheme={spanViewTheme}
-          />
-        </TabsContent>
+        {hasEvents && (
+          <TabsContent value="events" className="w-full h-full">
+            <ContentRenderer
+              className="rounded-none border-0"
+              codeEditorClassName="rounded-none border-none contain-strict"
+              readOnly
+              value={JSON.stringify(span.events)}
+              defaultMode="yaml"
+              customTheme={spanViewTheme}
+            />
+          </TabsContent>
+        )}
       </div>
     </Tabs>
   );
 };
 
-export function SpanView({
-  spanId,
-  traceId,
-  initialSearchTerm,
-  initialTab,
-  onClose,
-  isAlwaysSelectSpan,
-}: SpanViewProps) {
+function PureSpanView({ spanId, traceId, initialSearchTerm, initialTab, onClose, isAlwaysSelectSpan }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
   const {
@@ -194,3 +181,5 @@ export function SpanView({
     );
   }
 }
+
+export const SpanView = memo(PureSpanView);

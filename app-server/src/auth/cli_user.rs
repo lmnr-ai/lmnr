@@ -117,7 +117,7 @@ impl JwksCache {
 
     /// Resolve a decoding key for `kid` from the (cached) JWKS. Errors map to
     /// `VerifyError` (missing/unknown kid → 401 at the call sites).
-    async fn decoding_key_for_kid(&self, kid: &str) -> Result<DecodingKey, VerifyError> {
+    pub(super) async fn decoding_key_for_kid(&self, kid: &str) -> Result<DecodingKey, VerifyError> {
         let key = self.client.get(kid).await?;
         match key {
             JsonWebKey::Okp(okp) => Ok(DecodingKey::from_ed_components(okp.x())?),
@@ -328,7 +328,7 @@ pub async fn is_user_member_of_project(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use ed25519_compact::{KeyPair, Seed};
     use jsonwebtoken::{EncodingKey, Header, encode};
@@ -338,7 +338,7 @@ mod tests {
 
     /// Build an `EncodingKey` + the OKP JWK JSON from a fresh Ed25519 keypair.
     /// Returns (EncodingKey, jwk_json) for the given kid.
-    fn make_key(kid: &str) -> (EncodingKey, serde_json::Value) {
+    pub(in crate::auth) fn make_key(kid: &str) -> (EncodingKey, serde_json::Value) {
         let mut seed = [0u8; 32];
         rand::rng().fill_bytes(&mut seed);
         let keypair = KeyPair::from_seed(Seed::new(seed));
@@ -379,7 +379,9 @@ mod tests {
     /// Spin up a mock JWKS HTTP server serving the given JWKs and return a
     /// `JwksCache` pointed at it. The server is returned too so the caller
     /// keeps it alive for the duration of the test.
-    async fn cache_serving(jwks: Vec<serde_json::Value>) -> (MockServer, JwksCache) {
+    pub(in crate::auth) async fn cache_serving(
+        jwks: Vec<serde_json::Value>,
+    ) -> (MockServer, JwksCache) {
         let server = MockServer::start().await;
         let body = serde_json::json!({ "keys": jwks });
         Mock::given(method("GET"))
@@ -392,7 +394,7 @@ mod tests {
         (server, cache)
     }
 
-    fn future_exp() -> usize {
+    pub(in crate::auth) fn future_exp() -> usize {
         (std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

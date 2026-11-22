@@ -262,7 +262,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
           )}
         </div>
 
-        <div className="border rounded-md">
+        <div className="rounded-md border bg-surface-up">
           <Table>
             <TableHeader>
               <TableRow>

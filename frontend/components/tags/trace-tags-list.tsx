@@ -13,19 +13,18 @@ import { type TagClass } from "@/lib/traces/types";
 
 import { Badge } from "../ui/badge";
 import TagsDropdown, { type Tag as TagType } from "./tags-dropdown";
+import { useTraceTagNames } from "./use-trace-tag-names";
 
 export function useTraceTags(traceId: string) {
   const { projectId } = useParams();
 
   const { data: tagClasses = [], mutate: mutateTagClasses } = useSWR<TagClass[]>(
     `/api/projects/${projectId}/tag-classes`,
-    swrFetcher
+    swrFetcher,
+    { revalidateOnFocus: false }
   );
 
-  const { data: rawTags = [], mutate: mutateTags } = useSWR<string[]>(
-    traceId ? `/api/projects/${projectId}/traces/${traceId}/tags` : null,
-    swrFetcher
-  );
+  const { data: rawTags = [], mutate: mutateTags } = useTraceTagNames(traceId);
 
   const tags: TagType[] = useMemo(
     () =>

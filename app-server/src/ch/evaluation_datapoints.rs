@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+    datasets_v2,
     evaluations::{DEFAULT_GROUP_NAME, EvaluationTrialResult},
     utils::json_value_to_string,
 };
@@ -43,6 +44,8 @@ pub struct CHEvaluationTrial {
     pub group_id: String,
     pub scores: String, // Stringified JSON object from score name to float value
     pub task_id: String,
+    /// The eval dataset task version the Trial ran; '' when unknown.
+    pub task_version_hash: String,
 }
 
 impl CHEvaluationTrial {
@@ -58,6 +61,10 @@ impl CHEvaluationTrial {
             .task_id
             .filter(|task_id| !task_id.is_empty())
             .unwrap_or_else(|| result.index.to_string());
+        let task_version_hash = result
+            .task_version_hash
+            .filter(|hash| datasets_v2::is_version_hash(hash))
+            .unwrap_or_default();
         CHEvaluationTrial {
             id: result.id,
             evaluation_id,
@@ -65,6 +72,7 @@ impl CHEvaluationTrial {
             trace_id: result.trace_id,
             index: result.index as u64,
             task_id,
+            task_version_hash,
             updated_at,
             created_at: created_at.unwrap_or(updated_at),
             data: json_value_to_string(&result.data),
@@ -208,5 +216,32 @@ mod tests {
             task_id_of(json!({"data": {}, "index": 3, "taskId": "case-a"})),
             "case-a"
         );
+    }
+
+    fn task_version_hash_of(point: serde_json::Value) -> String {
+        let result: EvaluationTrialResult = serde_json::from_value(point).unwrap();
+        CHEvaluationTrial::from_evaluation_trial_result(
+            result,
+            Uuid::nil(),
+            Uuid::nil(),
+            &DEFAULT_GROUP_NAME.to_string(),
+            None,
+        )
+        .task_version_hash
+    }
+
+    #[test]
+    fn task_version_hash_is_valid_or_empty() {
+        use serde_json::json;
+        let hash = "ab".repeat(32);
+        assert_eq!(
+            task_version_hash_of(json!({"data": {}, "taskVersionHash": hash})),
+            hash
+        );
+        assert_eq!(
+            task_version_hash_of(json!({"data": {}, "taskVersionHash": "AB"})),
+            ""
+        );
+        assert_eq!(task_version_hash_of(json!({"data": {}})), "");
     }
 }

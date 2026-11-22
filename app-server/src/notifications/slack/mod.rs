@@ -390,7 +390,22 @@ mod tests {
             severity_counts: [1, 0, 2],
             activity_buckets: vec![],
             example_events: vec![],
+            reopened: false,
+            report: None,
         }
+    }
+
+    #[test]
+    fn reopened_cluster_digest_header() {
+        let mut kind = new_cluster_kind("Bad args", 3);
+        if let NotificationKind::NewCluster { reopened, .. } = &mut kind {
+            *reopened = true;
+        }
+        let v = format_new_cluster_blocks(&[&kind]);
+        assert_eq!(
+            blocks_of(&v)[0]["text"]["text"],
+            "`Failure Detector`: New Events in a Resolved Cluster"
+        );
     }
 
     #[test]
@@ -541,7 +556,9 @@ mod tests {
         let bad = clusters.find("Bad &lt;args&gt; ¦ retries").unwrap();
         let new = clusters.find("Tool timeouts").unwrap();
         assert!(bad < new);
-        assert!(clusters.contains("8 events · 🔴 ▲ 100.0%"));
+        // cluster rows keep the bare glyphs; only the headline gets a dot
+        assert!(clusters.contains("8 events · ▲ 100.0%"));
+        assert!(!clusters.contains("🔴"));
         assert!(clusters.contains("30 events · `NEW`"));
         assert!(clusters.contains("?clusterId="));
         assert!(!clusters.contains("tiny"));
@@ -564,7 +581,7 @@ mod tests {
     }
 
     #[test]
-    fn report_colors_growth_red_and_decline_green() {
+    fn report_dots_the_signal_headline_only() {
         let v = format_report_blocks(
             "Weekly report",
             &report_with(vec![project(
@@ -573,9 +590,16 @@ mod tests {
             )]),
         );
         let sections = section_texts(blocks_of(&v));
+        // signal headline: decline is green, cluster row below keeps the bare glyph
         assert!(sections.iter().any(|s| s.contains("🟢 ▼ 60.0%")));
-        assert!(sections.iter().any(|s| s.contains("🟢 ▼ 80.0%")));
-        assert!(!sections.iter().any(|s| s.contains("🔴")));
+        assert!(sections.iter().any(|s| s.contains("4 events · ▼ 80.0%")));
+        assert_eq!(
+            sections
+                .iter()
+                .map(|s| s.matches('🟢').count() + s.matches('🔴').count())
+                .sum::<usize>(),
+            1
+        );
     }
 
     #[test]

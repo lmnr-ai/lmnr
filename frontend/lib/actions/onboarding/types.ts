@@ -18,7 +18,7 @@ export type SavedOnboardingStep = (typeof SAVED_ONBOARDING_STEPS)[number];
 // Saved by the wizard on entry; the commit saves "connect" itself.
 export const PROGRESS_STEPS = ["invite", "signals", "slack"] as const satisfies readonly SavedOnboardingStep[];
 
-export const DEFAULT_SELECTED_TEMPLATE_NAMES = ["Failure Detector"] as const;
+export const DEFAULT_SELECTED_TEMPLATE_NAMES = ["Issues"] as const;
 
 export const MAX_ONBOARDING_INVITES = 20;
 const MAX_ONBOARDING_TEMPLATES = 50;

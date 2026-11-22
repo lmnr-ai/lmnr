@@ -25,7 +25,7 @@ const PARAM_RE = /\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^{}]*?)\s*\}/g;
 
 /** The subset of the frontend's `ChartConfig` a raw-SQL chart sets. */
 export const RawChartConfigSchema = z.object({
-  type: z.enum(["line", "bar", "horizontalBar", "table"]),
+  type: z.enum(["line", "bar", "horizontalBar", "table", "value"]),
   x: z.string().nullish(),
   y: z.string().nullish(),
   breakdown: z.string().nullish(),
@@ -114,7 +114,14 @@ const checkChartQuery = async (
     };
   }
   const mappingError = checkMappings(config, new Set(Object.keys(first))) ?? checkBreakdown(config, rows);
-  return mappingError ? { error: mappingError } : { query };
+  return mappingError ? { error: mappingError } : { query, warning: checkSingleRow(config, rows) };
+};
+
+/** A value chart shows the first row only; more rows usually mean a GROUP BY it can't show. */
+export const checkSingleRow = (config: RawChartConfig, rows: Row[]): string | undefined => {
+  if (config.type === "value" && rows.length > 1) {
+    return `a value chart shows only the first row, but the query returned ${rows.length} rows over the last 24h; aggregate to one row (drop GROUP BY or add LIMIT 1)`;
+  }
 };
 
 /** The first page a dashboard fetches for a table chart. */
@@ -165,7 +172,7 @@ export const checkMappings = (config: RawChartConfig, columns: Set<string>): str
 
 /** Checked before the test run, so an empty 24h window can't let a chart through without axes. */
 export const checkAxes = (config: RawChartConfig): string | undefined => {
-  if (config.type !== "table" && (config.x == null || config.y == null)) {
+  if (config.type !== "table" && config.type !== "value" && (config.x == null || config.y == null)) {
     return "`config.x` and `config.y` are required for line, bar and horizontalBar charts";
   }
 };

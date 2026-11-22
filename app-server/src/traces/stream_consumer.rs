@@ -18,7 +18,6 @@ use crate::{
     cache::Cache,
     ch::cloud::CloudClickhouse,
     db::DB,
-    llm::LlmClient,
     mq::{
         MessageQueue,
         stream::{StreamBatchHandler, StreamPublisher},
@@ -36,7 +35,6 @@ pub struct StreamSpanHandler {
     pub ch: CloudClickhouse,
     pub pubsub: Arc<PubSub>,
     pub pii_redactor: Option<PiiRedactorClient>,
-    pub llm_client: Option<Arc<LlmClient>>,
     pub indexer_stream_publisher: Option<Arc<StreamPublisher>>,
     pub quickwit_indexing_enabled: bool,
     pub config: BatchingConfig,
@@ -80,7 +78,6 @@ impl StreamBatchHandler for StreamSpanHandler {
             self.pubsub.clone(),
             self.ch.clone(),
             self.pii_redactor.clone(),
-            self.llm_client.clone(),
             None,
             self.indexer_stream_publisher.clone(),
             self.quickwit_indexing_enabled,

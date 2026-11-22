@@ -162,16 +162,26 @@ impl WorkspaceTierName {
             // Free tier: spec keeps the free plan at its historical 1 GiB allowance.
             Self::Free => Some(1024i64.pow(3)),
             Self::Hobby => Some(3 * 1024i64.pow(3)),
-            Self::Pro => Some(10 * 1024i64.pow(3)),
+            Self::Pro => Some(100 * 1024i64.pow(3)),
             Self::Unlimited | Self::Other => None,
+        }
+    }
+
+    /// Signals usage (micro-USD) included in this tier every billing period. Must
+    /// stay in sync with `TIER_CONFIG.includedSignalCostMicroUsd`. Like
+    /// `included_bytes`, tailors the warning email at the allowance.
+    pub fn included_signal_cost_micro_usd(&self) -> Option<i64> {
+        match self {
+            Self::Pro => Some(50_000_000),
+            Self::Free | Self::Hobby | Self::Unlimited | Self::Other => None,
         }
     }
 
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Free => "Free",
-            Self::Hobby => "Hobby",
-            Self::Pro => "Pro",
+            Self::Hobby => "Pro",
+            Self::Pro => "Scale",
             Self::Unlimited => "Unlimited",
             Self::Other => "your",
         }
@@ -194,7 +204,7 @@ pub struct ProjectWithWorkspaceBillingInfo {
     /// Custom hard limit for signal cost (micro-USD), configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub signal_cost_hard_limit_micro_usd: Option<i64>,
-    /// Card-less Starter trial: capped like Free, since overage could never be billed.
+    /// Trial: never billed, so usage-warning emails don't mention overage charges.
     #[serde(default)]
     pub trialing: bool,
     /// Typed view of `projects.settings`. Unknown keys are tolerated;
@@ -237,23 +247,10 @@ pub struct ProjectInfo {
     pub name: String,
 }
 
-#[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub async fn get_signal_credit_remaining(
-    pool: &PgPool,
-    workspace_id: Uuid,
-) -> anyhow::Result<Option<i64>> {
-    let remaining = sqlx::query_scalar(
-        "SELECT signal_credit_remaining_micro_usd FROM workspaces WHERE id = $1",
-    )
-    .bind(workspace_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(remaining)
-}
-
 /// Consume a completed run's cost from its workspace's one-time credit.
-/// Returns true when credit remains after the deduction.
+/// Returns true when credit remains after the deduction. The credit is retired:
+/// no workspace holds a balance any more, so this always returns false until
+/// the private callers stop marking `signal_runs.credit_applied`.
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn apply_signal_credit(
     pool: &PgPool,

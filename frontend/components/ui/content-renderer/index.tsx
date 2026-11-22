@@ -4,7 +4,7 @@ import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { createCodeMirrorSearchSource } from "@/components/traces/span-view/searchable";
+import { createCodeMirrorSearchSource, searchHighlight } from "@/components/traces/span-view/searchable";
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
@@ -43,15 +43,14 @@ interface ContentRendererProps {
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
-  messageIndex?: number;
-  contentPartIndex?: number;
-  renderMessages?: (ctx: { value: string; presetKey: string }) => React.ReactNode;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
    * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
    * for keymap injections that need to win over `defaultKeymap` from `basicSetup`.
    */
   extraExtensions?: Extension[];
+  /** Leads the mode picker row, e.g. a section title. */
+  header?: React.ReactNode;
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -80,11 +79,9 @@ const PureContentRenderer = ({
   codeEditorClassName,
   renderBase64Images = true,
   defaultShowLineNumbers = false,
-  messageIndex = 0,
-  contentPartIndex = 0,
-  renderMessages,
   customTheme,
   extraExtensions,
+  header,
 }: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const editorId = useId();
@@ -177,20 +174,24 @@ const PureContentRenderer = ({
     if (readOnly) {
       extensions.push(EditorView.editable.of(false));
     }
+    if (searchRegistration) {
+      extensions.push(searchHighlight);
+    }
     if (extraExtensions && extraExtensions.length > 0) {
       extensions.push(...extraExtensions);
     }
     return extensions;
-  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap, extraExtensions]);
+  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap, extraExtensions, searchRegistration]);
 
   const handleCreateEditor = useCallback((view: EditorView) => {
     currentViewRef.current = view;
     setEditorMountKey((k) => k + 1);
   }, []);
 
-  const isCodeMode = mode !== "custom" && mode !== "messages";
+  const isCodeMode = mode !== "custom";
   const canPickMode = modes.length > 1;
 
+  // Re-registers on `renderedValue` too: a mode switch replaces the document, so its matches are counted again.
   useEffect(() => {
     if (!searchRegistration || !isCodeMode || !currentViewRef.current) return;
 
@@ -198,15 +199,13 @@ const PureContentRenderer = ({
       createCodeMirrorSearchSource({
         id: cmSourceIdRef.current,
         view: currentViewRef.current,
-        messageIndex,
-        contentPartIndex,
       })
     );
 
     return () => {
       searchRegistration.unregisterSource(cmSourceIdRef.current);
     };
-  }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, isCodeMode]);
+  }, [searchRegistration, editorMountKey, isCodeMode, renderedValue]);
 
   const actionButtons = (
     <>
@@ -273,11 +272,6 @@ const PureContentRenderer = ({
         </div>
       );
     }
-    if (mode === "messages") {
-      return (
-        <div className="flex-1 flex w-full min-h-0">{renderMessages?.({ value, presetKey: presetKey ?? "" })}</div>
-      );
-    }
     return (
       <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
         <CodeMirror
@@ -309,6 +303,7 @@ const PureContentRenderer = ({
         {canPickMode ? (
           <>
             <div className="flex justify-end items-center gap-1 pl-2 pr-1 w-full rounded-t bg-transparent">
+              {header}
               <TemplatePickerView mode={mode} onModeChange={handleModeChange} modes={modes} />
               {mode === "custom" && (
                 <TemplatePickerActions

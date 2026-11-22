@@ -1,7 +1,7 @@
 "use client";
 
 import { isEmpty, isNil } from "lodash";
-import { Bell, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import useSWR from "swr";
 
@@ -115,43 +115,18 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
   };
 
   const isLoadingEmpty = isLoadingAlerts && (isNil(alerts) || isEmpty(alerts));
-  const isEmptyState = !isLoadingAlerts && (isNil(alerts) || isEmpty(alerts));
 
   return (
     <div className="flex flex-col gap-4 pb-16">
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          icon="plus"
-          className="w-fit"
-          onClick={() => {
-            setEditTarget(null);
-            setSheetOpen(true);
-          }}
-        >
-          Alert
-        </Button>
-      </div>
-
       {isLoadingEmpty ? (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-28 w-full rounded-lg" />
           ))}
         </div>
-      ) : isEmptyState ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border py-12 text-center">
-          <div className="flex size-10 items-center justify-center rounded-full bg-surface-up-2">
-            <Bell className="size-5 text-muted-foreground" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">No alerts configured</p>
-            <p className="text-xs text-muted-foreground">Create one to start receiving notifications.</p>
-          </div>
-        </div>
       ) : (
         <TooltipProvider delayDuration={300}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid auto-rows-fr grid-cols-1 gap-3 md:grid-cols-2">
             {alerts?.map((alert) => {
               const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
               const isDisabled = alert.metadata?.disabled === true;
@@ -173,9 +148,9 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                     }
                   }}
                   className={cn(
-                    "group relative flex cursor-pointer flex-col gap-3 rounded-lg border border-border px-4.5 py-4",
+                    "group relative flex cursor-pointer flex-col gap-3 rounded-lg border border-border bg-surface-up px-4.5 py-4",
                     "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isDisabled ? "border-dashed bg-muted/20 hover:overlay-hover" : "hover:overlay-hover"
+                    isDisabled ? "border-dashed hover:overlay-hover" : "hover:overlay-hover"
                   )}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -252,6 +227,18 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
                 </div>
               );
             })}
+            {/* Last cell of the grid, so creating sits with the alerts it adds to; also the empty state. */}
+            <button
+              type="button"
+              onClick={() => {
+                setEditTarget(null);
+                setSheetOpen(true);
+              }}
+              className="flex min-h-28 flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed bg-emphasis-2 text-sm text-muted-foreground transition-colors hover:overlay-hover active:overlay-selected hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Plus className="size-4" />
+              New alert
+            </button>
           </div>
         </TooltipProvider>
       )}

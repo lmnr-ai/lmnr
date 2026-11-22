@@ -85,6 +85,8 @@ services:
       BACKEND_RT_URL: http://app-server:8002
       SHARED_SECRET_TOKEN: ${SHARED_SECRET_TOKEN}
       NEXTAUTH_URL: http://localhost:5667
+      # Public URL of the app-server MCP endpoint; enables OAuth sign-in for MCP clients.
+      MCP_RESOURCE_URL: http://localhost:${APP_SERVER_HOST_PORT:-8000}/v1/mcp
       NEXTAUTH_SECRET: some_secret
       NEXT_PUBLIC_URL: http://localhost:5667
       ENVIRONMENT: LITE # this disables some runtime dependencies
@@ -101,6 +103,7 @@ services:
       CLICKHOUSE_POSTGRES_USER: ${CLICKHOUSE_POSTGRES_USER:-}
       CLICKHOUSE_POSTGRES_PASSWORD: ${CLICKHOUSE_POSTGRES_PASSWORD:-}
       CLICKHOUSE_POSTGRES_SCHEMA: ${POSTGRES_SCHEMA:-public}
+      CLICKHOUSE_POSTGRES_CONNECTION_LIMIT: ${CLICKHOUSE_POSTGRES_CONNECTION_LIMIT:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUICKWIT_SEARCH_URL: http://quickwit:7280
@@ -153,6 +156,11 @@ services:
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans_v2
+      # MCP OAuth: the endpoint's public URL (the token audience), the frontend's public URL
+      # (the authorization server, matching its NEXTAUTH_URL) and its in-network URL (JWKS).
+      MCP_RESOURCE_URL: http://localhost:${APP_SERVER_HOST_PORT:-8000}/v1/mcp
+      NEXT_PUBLIC_URL: http://localhost:5667
+      NEXT_INTERNAL_URL: http://frontend:5667
 
 volumes:
   postgres-data:

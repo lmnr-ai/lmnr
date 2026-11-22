@@ -9,7 +9,7 @@ import { cn, formatTimestamp } from "@/lib/utils";
 
 import { type ChartConfig, ChartContainer } from "../../ui/chart";
 import { computeScoreRange, normalizeValue } from "./normalize";
-import { type ProgressionPoint } from "./shared";
+import { formatNumber, type ProgressionPoint } from "./shared";
 
 // Max px gap between points — caps spacing when few points (recharts has no native prop).
 const MAX_POINT_GAP_PX = 120;
@@ -166,10 +166,14 @@ export default function CombinedChart({
     <div ref={containerRef} className="h-full w-full">
       <ChartContainer
         config={chartConfig}
-        className={cn("aspect-auto h-full w-full", onPointClick && "cursor-pointer", className)}
+        className={cn(
+          "aspect-auto h-full w-full [&_.recharts-line-curve]:transition-[stroke-opacity,stroke-width] [&_.recharts-line-dots_circle]:transition-[fill-opacity] [&_.recharts-line-curve]:duration-150 [&_.recharts-line-dots_circle]:duration-150",
+          onPointClick && "cursor-pointer",
+          className
+        )}
       >
         <LineChart
-          margin={{ top: 4, right: 12, bottom: 4, left: 12 }}
+          margin={{ top: 8, right: 12, bottom: 4, left: 12 }}
           data={rows}
           accessibilityLayer
           onClick={
@@ -200,9 +204,9 @@ export default function CombinedChart({
             tickFormatter={tickFormatter}
             tickLine={false}
             axisLine={false}
-            tickMargin={6}
-            height={20}
-            tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
+            tickMargin={8}
+            height={28}
+            tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
           />
           {/* Padding keeps min/max dots (y = 0 / 1) from being clipped at the plot edges. */}
           <YAxis hide domain={[0, 1]} padding={{ top: 10, bottom: 10 }} />
@@ -302,11 +306,4 @@ function NormalizedTooltip({
       </div>
     </ElevatedSurface>
   );
-}
-
-function formatNumber(n: number): string {
-  if (Number.isInteger(n)) return String(n);
-  if (Math.abs(n) >= 1000) return n.toFixed(0);
-  if (Math.abs(n) >= 1) return n.toFixed(2);
-  return n.toFixed(3);
 }
