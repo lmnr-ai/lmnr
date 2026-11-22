@@ -6,7 +6,6 @@ use actix_web::{
     post, put,
     web::{self, Json},
 };
-use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -267,7 +266,7 @@ pub async fn handle_download_version(
     Ok(match stream {
         Ok(stream) => HttpResponse::Ok()
             .content_type("application/gzip")
-            .streaming(stream.map(Ok::<_, actix_web::Error>)),
+            .streaming(stream),
         Err(e) => upstream_error("archive download", e),
     })
 }

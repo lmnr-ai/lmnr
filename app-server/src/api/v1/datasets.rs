@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use actix_web::{HttpRequest, HttpResponse, delete, get, patch, post, web};
-use futures_util::StreamExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -375,5 +374,5 @@ pub async fn get_parquet(
         .insert_header(("Cache-Control", "no-cache"))
         .no_chunking(content_length);
 
-    Ok(response.streaming(get_response.map(|e| Ok::<_, anyhow::Error>(e))))
+    Ok(response.streaming(get_response))
 }

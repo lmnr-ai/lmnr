@@ -13,7 +13,7 @@ use mock::MockStorage;
 use s3::S3Storage;
 
 pub type StorageBytesStream =
-    Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send>>;
+    Pin<Box<dyn futures_util::stream::Stream<Item = Result<Bytes>> + Send>>;
 
 #[enum_dispatch]
 pub enum Storage {
@@ -24,6 +24,7 @@ pub enum Storage {
 #[async_trait]
 #[enum_dispatch(Storage)]
 pub trait StorageTrait {
+    /// Streams the object and reports failures that occur after headers arrive.
     async fn get_stream(&self, bucket: &str, key: &str) -> Result<StorageBytesStream>;
     async fn get_size(&self, bucket: &str, key: &str) -> Result<u64>;
     /// `false` only when the object is missing; other failures are errors.

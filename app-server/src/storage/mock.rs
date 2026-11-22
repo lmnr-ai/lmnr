@@ -11,7 +11,7 @@ pub struct MockStorage;
 impl super::StorageTrait for MockStorage {
     async fn get_stream(&self, _bucket: &str, _key: &str) -> Result<StorageBytesStream> {
         Ok(Box::pin(futures_util::stream::once(async move {
-            bytes::Bytes::new()
+            Ok(Bytes::new())
         })))
     }
 
