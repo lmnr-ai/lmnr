@@ -35,7 +35,12 @@ export default function AlertRow({
       role="button"
       tabIndex={0}
       onClick={onEdit}
-      onKeyDown={(e) => e.key === "Enter" && onEdit()}
+      onKeyDown={(e) => {
+        // Keys from the switch or the portaled menu bubble here through the React tree.
+        if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault();
+        onEdit();
+      }}
       className="flex min-h-14 cursor-pointer items-center gap-3 px-4 py-2.5 hover:overlay-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className={cn("flex min-w-0 flex-1 flex-col gap-0.5", off && "opacity-60")}>
