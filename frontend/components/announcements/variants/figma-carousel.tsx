@@ -1,13 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion, type Variants } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { useAnimationSlowdown } from "@/components/dev/use-animation-slowdown";
 import { cn } from "@/lib/utils";
 
 import SlideCard, { type CarouselSlide, DEFAULT_SLIDE_HEIGHT } from "../slide-card";
-import { useCarouselDials } from "../use-carousel-dials";
 
 interface FigmaCarouselProps {
   slides: CarouselSlide[];
@@ -19,26 +17,24 @@ interface FigmaCarouselProps {
 const backdropVariants: Variants = {
   initial: { opacity: 0, zIndex: 0 },
   stack: { opacity: 0, zIndex: 0 },
-  animate: { opacity: 1, zIndex: 0 },
-  exit: { opacity: 0, zIndex: 1 },
+  animate: { opacity: 1, zIndex: 0, pointerEvents: "auto" },
+  // The leaving card sits on top until its fade ends; let clicks reach the card beneath at once.
+  exit: { opacity: 0, zIndex: 1, pointerEvents: "none" },
 };
 
-const buildContentVariants = (exitRotate: number): Variants => ({
+const contentVariants: Variants = {
   initial: { opacity: 0, x: 24, rotate: 0 },
   // Revealed by a dismiss: fades in where it sits instead of sliding in.
   stack: { opacity: 0, x: 0, rotate: 0 },
   animate: { opacity: 1, x: 0, y: 0, rotate: 0 },
-  exit: { opacity: 0, x: -184, rotate: exitRotate },
-});
+  exit: { opacity: 0, x: -184, rotate: -10, transition: { duration: 0.35, ease: "easeOut" } },
+};
 
 const FigmaCarousel = ({ slides }: FigmaCarouselProps) => {
   const [index, setIndex] = useState(0);
   // Dismissing fades the next card in where it sits, like a stack; dots slide it in.
   const [enterFrom, setEnterFrom] = useState<"slide" | "stack">("slide");
-  const slowdown = useAnimationSlowdown();
-  const transition = { type: "spring" as const, visualDuration: 0.35 * slowdown, bounce: 0.15 };
-  const { exitRotate, backdropFade } = useCarouselDials();
-  const contentVariants = useMemo(() => buildContentVariants(exitRotate), [exitRotate]);
+  const transition = { type: "spring" as const, visualDuration: 0.35, bounce: 0.15 };
   const current = slides[Math.min(index, slides.length - 1)];
 
   if (!current) return null;
@@ -48,8 +44,8 @@ const FigmaCarousel = ({ slides }: FigmaCarouselProps) => {
       {/* Height transitions between the slides' fixed heights. Not clipped, so an exiting card
           visibly slides out; slides sit at the bottom so a taller one overflows upward mid-resize. */}
       <div
-        className="relative flex w-full flex-col justify-end transition-[height] ease-out"
-        style={{ height: current.height ?? DEFAULT_SLIDE_HEIGHT, transitionDuration: `${350 * slowdown}ms` }}
+        className="relative flex w-full flex-col justify-end transition-[height] duration-350 ease-out"
+        style={{ height: current.height ?? DEFAULT_SLIDE_HEIGHT }}
       >
         <AnimatePresence initial={false} mode="popLayout">
           <motion.div
@@ -58,7 +54,8 @@ const FigmaCarousel = ({ slides }: FigmaCarouselProps) => {
             initial={enterFrom === "stack" ? "stack" : "initial"}
             animate="animate"
             exit="exit"
-            transition={{ duration: backdropFade * slowdown, ease: "easeOut" }}
+            // Slower than the content so the backdrop lingers.
+            transition={{ duration: 0.95, ease: "easeOut" }}
             className="rounded-[8px] bg-surface-350"
           >
             <motion.div variants={contentVariants} transition={transition}>
@@ -90,9 +87,8 @@ const FigmaCarousel = ({ slides }: FigmaCarouselProps) => {
               className="group/dot flex h-[18px] items-center px-0.5"
             >
               <span
-                style={{ transitionDuration: `${300 * slowdown}ms` }}
                 className={cn(
-                  "h-[5px] rounded-full transition-[width,background-color] ease-out",
+                  "h-[5px] rounded-full transition-[width,background-color] duration-300 ease-out",
                   slide.id === current.id ? "w-5 bg-[#757780]" : "w-3 bg-[#3b3c40] group-hover/dot:bg-[#757780]"
                 )}
               />

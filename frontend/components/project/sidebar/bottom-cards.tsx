@@ -1,10 +1,8 @@
 "use client";
 
 import Announcements from "@/components/announcements";
-import { useAnnouncementDials } from "@/components/announcements/use-announcement-dials";
 import TrialCard from "@/components/project/sidebar/trial-card.tsx";
 import UsageCard from "@/components/project/sidebar/usage-card.tsx";
-import { useUsageDials } from "@/components/project/use-usage-dials";
 import { SidebarGroup, SidebarGroupContent, SidebarMenu, useSidebar } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type ProjectDetails } from "@/lib/actions/project";
@@ -26,13 +24,11 @@ export default function SidebarBottomCards({
 }: SidebarBottomCardsProps) {
   const featureFlags = useFeatureFlags();
   const { open, openMobile } = useSidebar();
-  const usageDials = useUsageDials(details);
-  const shownAnnouncements = useAnnouncementDials(announcements);
 
-  const showUsage = usageDials ? usageDials.show : featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier;
+  const showUsage = featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier;
   const showTrial = featureFlags[Feature.SUBSCRIPTION] && !!details.trialEndsAt;
   const showOpenSource = !!featureFlags[Feature.LAMINAR_CLOUD];
-  const showCarousel = showOpenSource || shownAnnouncements.length > 0;
+  const showCarousel = showOpenSource || announcements.length > 0;
 
   if (!showUsage && !showTrial && !showCarousel) return null;
 
@@ -41,10 +37,10 @@ export default function SidebarBottomCards({
       <SidebarGroupContent>
         <SidebarMenu className="gap-[6px]">
           {showTrial && <TrialCard workspaceId={details.workspaceId} trialEndsAt={details.trialEndsAt!} />}
-          {showUsage && <UsageCard usageDetails={usageDials?.details ?? details} />}
+          {showUsage && <UsageCard usageDetails={details} />}
           {showCarousel && (
             <Announcements
-              announcements={shownAnnouncements}
+              announcements={announcements}
               initialDismissedIds={dismissedAnnouncementIds}
               showOpenSource={showOpenSource}
             />

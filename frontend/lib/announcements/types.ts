@@ -18,9 +18,6 @@ export interface Announcement {
   expires_at: string;
 }
 
-export const MOCK_ANNOUNCEMENT_PREFIX = "mock-";
-export const isMockAnnouncement = (id: string) => id.startsWith(MOCK_ANNOUNCEMENT_PREFIX);
-
 export const isInternalAnnouncementLink = (link: string) => link.startsWith("/") && !link.startsWith("//");
 const isExternalAnnouncementLink = (link: string) => /^https:\/\//i.test(link);
 export const isSupportedAnnouncementLink = (link: string) =>

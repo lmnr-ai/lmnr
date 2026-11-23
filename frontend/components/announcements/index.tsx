@@ -6,9 +6,8 @@ import { useCallback, useMemo } from "react";
 import AnnouncementAction from "@/components/announcements/announcement-action";
 import { type CarouselSlide } from "@/components/announcements/slide-card";
 import { useOpenSourceSlide } from "@/components/announcements/use-open-source-slide";
-import { useAnimationSlowdown } from "@/components/dev/use-animation-slowdown";
 import { useSidebar } from "@/components/ui/sidebar";
-import { type Announcement, getVisibleAnnouncements, isMockAnnouncement } from "@/lib/announcements/types";
+import { type Announcement, getVisibleAnnouncements } from "@/lib/announcements/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { withBasePath } from "@/lib/utils";
 
@@ -22,7 +21,7 @@ interface AnnouncementsProps {
   showOpenSource: boolean;
 }
 
-const buildWrapperVariants = (slowdown: number): Variants => ({
+const wrapperVariants: Variants = {
   exit: (reason: "dismissed" | "hidden") =>
     reason === "dismissed"
       ? {
@@ -32,13 +31,13 @@ const buildWrapperVariants = (slowdown: number): Variants => ({
           // Clip only while collapsing; at rest the carousel dots hang below the li.
           overflow: "hidden",
           transition: {
-            height: { duration: 0.35 * slowdown, ease: "easeInOut" },
-            opacity: { duration: 0.2 * slowdown },
-            y: { type: "spring", visualDuration: 0.35 * slowdown, bounce: 0.15 },
+            height: { duration: 0.35, ease: "easeInOut" },
+            opacity: { duration: 0.2 },
+            y: { type: "spring", visualDuration: 0.35, bounce: 0.15 },
           },
         }
       : { height: 0, opacity: 0, overflow: "hidden", transition: { duration: 0 } },
-});
+};
 
 const Announcements = ({ announcements, initialDismissedIds, showOpenSource }: AnnouncementsProps) => {
   const { open, openMobile } = useSidebar();
@@ -54,8 +53,6 @@ const Announcements = ({ announcements, initialDismissedIds, showOpenSource }: A
     [announcements, initialDismissedIds, sessionDismissedIds]
   );
   const sidebarOpen = open || openMobile;
-  const slowdown = useAnimationSlowdown();
-  const wrapperVariants = useMemo(() => buildWrapperVariants(slowdown), [slowdown]);
 
   const openDetails = useCallback(
     (id: string) => setDetailsAnnouncement(announcements.find((announcement) => announcement.id === id) ?? null),
@@ -65,7 +62,6 @@ const Announcements = ({ announcements, initialDismissedIds, showOpenSource }: A
   const dismiss = useCallback(
     async (id: string) => {
       markDismissed(id);
-      if (isMockAnnouncement(id)) return;
 
       try {
         const response = await fetch(withBasePath(`/api/announcements/${encodeURIComponent(id)}/dismissal`), {
