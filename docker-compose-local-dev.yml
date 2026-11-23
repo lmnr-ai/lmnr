@@ -46,6 +46,13 @@ services:
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    healthcheck:
+      # Use the service address: the image's temporary init server only listens on loopback.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://clickhouse:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
     cap_add:
       - SYS_NICE
       - NET_ADMIN
@@ -83,7 +90,7 @@ services:
       postgres:
         condition: service_healthy
       clickhouse:
-        condition: service_started
+        condition: service_healthy
       quickwit:
         condition: service_healthy
 
