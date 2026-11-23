@@ -1,7 +1,7 @@
 "use client";
 
 import { Box } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 
 import ClusterDetail from "@/components/signal-clusters/cluster-detail";
@@ -16,6 +16,7 @@ import { useSignalClusters } from "@/components/signal-clusters/use-signal-clust
 import { browserLayoutStorage, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ElevatedSurface } from "@/components/ui/surface";
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters/types";
 import { type ClusterResolution } from "@/lib/actions/signal-clusters/types";
 
@@ -37,10 +38,6 @@ interface Props {
   onOpenTrace: (traceId: string) => void;
 }
 
-const emptySubscribe = () => () => {};
-const getClientSnapshot = () => true;
-const getServerSnapshot = () => false;
-
 /** A signal's L1 clusters. A report is always open; the first cluster when none is picked. */
 export default function SignalClusters({ projectId, signalId, header, tabs, onOpenTrace }: Props) {
   const [clusterId, selectCluster] = useClusterRoute();
@@ -50,7 +47,7 @@ export default function SignalClusters({ projectId, signalId, header, tabs, onOp
     storage: browserLayoutStorage,
   });
   // The saved split is only known in the browser; mounting the group there keeps it from jumping after hydration.
-  const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
+  const isClient = useIsHydrated();
   const { data, isLoading, markViewed, setResolved, setArchived } = useSignalClusters(projectId, signalId);
 
   const items = useMemo(() => data?.items ?? [], [data]);

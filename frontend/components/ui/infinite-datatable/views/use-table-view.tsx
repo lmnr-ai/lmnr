@@ -4,6 +4,7 @@ import { parseAsArrayOf, parseAsString, useQueryStates } from "nuqs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
@@ -110,7 +111,10 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
   const lastViewId = useLastViewStore((s) => s.ids[`${projectId}:${resource}`]);
   // One-shot — reactive `lastViewId` would re-arm the gate on mid-session clears. Only an
   // explicit pick of the built-in view rules out a saved view (last-picked or team default).
-  const [mayResolveViewAtMount] = useState<boolean>(() => lastViewId !== null);
+  const [lastViewPickedAtMount] = useState<boolean>(() => lastViewId !== null);
+  // The server has no localStorage, so it always gates; match that until hydration completes.
+  const isHydrated = useIsHydrated();
+  const mayResolveViewAtMount = !isHydrated || lastViewPickedAtMount;
 
   const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
   const { data: views, error: viewsError } = useSWR<View[]>(listKey, swrFetcher);

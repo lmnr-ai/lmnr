@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import Header from "@/components/shared/traces/header";
@@ -13,6 +13,7 @@ import Transcript from "@/components/traces/trace-view/transcript";
 import Tree from "@/components/traces/trace-view/tree";
 import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { cn } from "@/lib/utils";
 
 interface TracePanelProps {
@@ -24,15 +25,8 @@ interface TracePanelProps {
   isCompactTimeline?: boolean;
 }
 
-const useHydrated = () =>
-  useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-
 export default function TracePanel({ trace, spans, onClose, onSpanSelect, isCompactTimeline }: TracePanelProps) {
-  const hydrated = useHydrated();
+  const hydrated = useIsHydrated();
 
   const [tab] = useTraceViewTab();
   const {

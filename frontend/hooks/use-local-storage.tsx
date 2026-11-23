@@ -2,9 +2,7 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 
-const subscribeNone = () => () => {};
-const getTrue = () => true;
-const getFalse = () => false;
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 
 /**
  * A hook that syncs state with localStorage using useSyncExternalStore.
@@ -22,7 +20,7 @@ export function useLocalStorage<T>(
   // 1. Detect when hydration is complete.
   // This ensures the first client render matches the server render (returning false).
   // Then React will immediately re-render on the client with true.
-  const isHydrated = useSyncExternalStore(subscribeNone, getTrue, getFalse);
+  const isHydrated = useIsHydrated();
 
   // 2. Subscribe to storage changes (both from other tabs and this tab).
   const subscribe = useCallback(
