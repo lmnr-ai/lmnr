@@ -4,8 +4,10 @@ import { type ReactNode } from "react";
 
 import LaminarAgent, { RouteAgentContext } from "@/components/agent";
 import AnnouncementDetailsDialog from "@/components/announcements/details-dialog";
+import { renderAnnouncementBodies } from "@/components/announcements/render-bodies";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
+import DevDialRoot from "@/components/dev/dial-root";
 import LicenseBanner from "@/components/license/license-banner";
 import NotificationPanel from "@/components/notifications/notification-panel";
 import ProjectBottomBar from "@/components/project/bottom-bar";
@@ -18,12 +20,15 @@ import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
+import { buildMockAnnouncements } from "@/lib/announcements/mocks";
 import { getDismissedAnnouncementIds, getAnnouncements } from "@/lib/announcements/server";
+import { getVisibleAnnouncements } from "@/lib/announcements/types";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { getLicenseStatus } from "@/lib/license";
 
 const projectSidebarCookieName = "project-sidebar-state";
+const isDev = process.env.NODE_ENV !== "production";
 
 export default async function ProjectIdLayout(props: { children: ReactNode; params: Promise<{ projectId: string }> }) {
   const params = await props.params;
@@ -38,6 +43,12 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     announcementsEnabled ? getAnnouncements() : [],
     announcementsEnabled ? getDismissedAnnouncementIds(session.user.id) : [],
     getLicenseStatus(),
+  ]);
+
+  // Only bodies a user can still open are rendered; dev adds the dialkit fixtures.
+  const announcementBodies = await renderAnnouncementBodies([
+    ...getVisibleAnnouncements(announcements, new Set(dismissedAnnouncementIds)),
+    ...(isDev ? buildMockAnnouncements() : []),
   ]);
 
   const user = session.user;
@@ -60,7 +71,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
         <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
           {/* Outside the sidebar: the card that opens it unmounts on collapse. */}
-          {announcementsEnabled && <AnnouncementDetailsDialog />}
+          {(announcementsEnabled || isDev) && <AnnouncementDetailsDialog bodies={announcementBodies} />}
+          {isDev && <DevDialRoot />}
           <CreateSignalSheet />
           <div className="fixed inset-0 flex overflow-clip">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
@@ -77,7 +89,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                     <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
                       <NotificationPanel />
                       {license && <LicenseBanner license={license} />}
-                      {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                      <ProjectUsageBanner details={projectDetails} visible={showBanner} />
                       {children}
                       {isFeatureEnabled(Feature.AGENT) && <RouteAgentContext />}
                     </div>

@@ -3,11 +3,25 @@
 import { AlertCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+import { useUsageDials } from "@/components/project/use-usage-dials";
 import { useProjectContext } from "@/contexts/project-context";
 import { type ProjectDetails } from "@/lib/actions/project";
 
-export default function ProjectUsageBanner({ details: { gbUsedThisMonth, gbLimit } }: { details: ProjectDetails }) {
+const isNearLimit = ({ gbUsedThisMonth, gbLimit }: ProjectDetails) => gbLimit > 0 && gbUsedThisMonth >= 0.8 * gbLimit;
+
+interface ProjectUsageBannerProps {
+  details: ProjectDetails;
+  /** Server-side gate (subscription feature + free tier + near limit). */
+  visible: boolean;
+}
+
+export default function ProjectUsageBanner({ details, visible }: ProjectUsageBannerProps) {
   const { settingsHref } = useProjectContext();
+  const usageDials = useUsageDials(details);
+  const shown = usageDials ? usageDials.show && isNearLimit(usageDials.details) : visible;
+  if (!shown) return null;
+
+  const { gbUsedThisMonth, gbLimit } = usageDials?.details ?? details;
   const dataPercentage = gbLimit > 0 ? (gbUsedThisMonth / gbLimit) * 100 : 0;
 
   const messageContent =

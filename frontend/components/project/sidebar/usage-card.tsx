@@ -28,26 +28,28 @@ export default function UsageCard({ usageDetails }: UsageCardProps) {
 
   return (
     <SidebarMenuItem>
-      <div className="flex flex-col gap-3 rounded-lg bg-surface-400 p-2 text-xs">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1 text-muted-foreground">Data</span>
-            <span className="font-medium text-secondary-foreground">
-              <span className="font-semibold">{formatGB(gbUsedThisMonth)}</span> / {formatGB(gbLimit)}
+      <div className="flex flex-col gap-0.5 overflow-hidden rounded-[8px] bg-surface-400 text-xs">
+        <div className="flex flex-col gap-2 px-3 pt-[10px]">
+          <div className="flex items-start justify-between">
+            <span className="text-foreground">Data</span>
+            <span className="text-secondary-foreground">
+              {formatGB(gbUsedThisMonth)} / {formatGB(gbLimit)}
             </span>
           </div>
           <Progress
             value={storagePercentage}
-            className="mx-0.5 h-1 w-[calc(100%-4px)] border-0 bg-foreground/10"
+            className="h-1 border-0 bg-surface-500"
             indicatorClassName="bg-primary-400"
           />
         </div>
-        <Link href={settingsHref("billing")}>
-          <Button className="w-full">
-            <span>Upgrade</span>
-            <ArrowUpRight className="ml-1 size-3.5" />
-          </Button>
-        </Link>
+        <div className="p-2">
+          <Link href={settingsHref("billing")}>
+            <Button className="w-full">
+              <span>Upgrade</span>
+              <ArrowUpRight className="ml-1 size-3.5" />
+            </Button>
+          </Link>
+        </div>
       </div>
     </SidebarMenuItem>
   );
