@@ -66,6 +66,7 @@ pub struct UpdateLlmProfileParams {
     /// Credentials to replace. Keys you leave out, or pass back as the masks `get_llm_profile`
     /// returns, keep the stored secret.
     #[serde(default, deserialize_with = "echoed_secrets")]
+    #[schemars(extend("type" = "object"))]
     pub secrets: ProfileSecrets,
     /// Model ids the profile offers; replaces the whole list.
     #[serde(default)]
@@ -215,7 +216,9 @@ impl LaminarMcpServer {
         .await
     }
 
-    /// Get one LLM profile: its name, provider, config and models, with secrets masked.
+    /// Get one LLM profile: its name, provider, config and models, with secrets masked. Use it
+    /// to check a profile's models before pointing a signal at it, or to read the current
+    /// values before `update_llm_profile`.
     #[tool(
         name = "get_llm_profile",
         title = "Get LLM profile",

@@ -99,10 +99,12 @@ pub struct ProfileConfig {
     /// How Bedrock authenticates; every other provider uses `api_key`, the default.
     #[serde(default, deserialize_with = "crate::utils::null_as_default")]
     pub auth: ProfileAuth,
-    /// AWS region, e.g. `us-east-1`. Bedrock only, and required there.
+    /// AWS region of a Bedrock profile, e.g. `us-east-1`; a Bedrock profile without one is
+    /// rejected on save. Leave unset for other providers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
-    /// Azure resource name. Azure takes this or `baseUrl`.
+    /// Azure resource name (`<name>` in `https://<name>.services.ai.azure.com`). An Azure
+    /// profile takes exactly one of this and `baseUrl`; leave unset for other providers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resource_id: Option<String>,
     /// Endpoint URL: required for a custom gateway; Azure takes this or `resourceId`.
@@ -123,13 +125,15 @@ pub struct ProfileConfig {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[schemars(transform = crate::utils::describe_type_tags)]
 pub enum ProfileAuth {
     /// The key in `secrets.apiKey`.
     #[default]
     ApiKey,
     /// An AWS access key pair, with the secret half in `secrets.secretAccessKey`.
     AwsKeys {
-        /// AWS access key id.
+        /// Access key id of the IAM user or role, e.g. `AKIAIOSFODNN7EXAMPLE`, from the AWS
+        /// console (IAM > Security credentials).
         #[serde(rename = "accessKeyId")]
         access_key_id: String,
     },

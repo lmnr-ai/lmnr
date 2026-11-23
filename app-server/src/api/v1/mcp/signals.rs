@@ -128,7 +128,8 @@ impl LaminarMcpServer {
     }
 
     /// Get one signal: its name, prompt, payload schema, trigger, filters, mode, sample rate,
-    /// LLM profile and model.
+    /// LLM profile and model. Use it to read a signal's current definition before
+    /// `update_signal`, or to see what its `signal_events` payloads contain.
     #[tool(
         name = "get_signal",
         title = "Get signal",

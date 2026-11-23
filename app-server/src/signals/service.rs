@@ -128,7 +128,10 @@ pub fn error_response(e: CrudError) -> actix_web::HttpResponse {
 /// evaluator implements, so anything else was stored and then never fired.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
-#[schemars(description = "When a signal is evaluated for a trace.")]
+#[schemars(
+    description = "When a signal is evaluated for a trace.",
+    transform = crate::utils::describe_type_tags
+)]
 pub enum Trigger {
     /// The trace's root span finished. Right for most traces.
     #[default]
@@ -136,7 +139,10 @@ pub enum Trigger {
     /// A span with any of these names finished. For distributed traces where no
     /// single span is observably the root.
     #[serde(rename_all = "camelCase")]
-    SpanName { span_names: Vec<String> },
+    SpanName {
+        /// Exact span names, as in `spans.name`; the signal runs when any of them finishes.
+        span_names: Vec<String>,
+    },
 }
 
 impl Trigger {
@@ -431,6 +437,7 @@ pub struct SignalInput {
     /// "properties": {"reason": {"type": "string", "description": "..."}}, "required":
     /// ["reason"]}`. Property types are string, number or boolean (optionally with `enum`),
     /// and every property is listed in `required`.
+    #[schemars(extend("type" = "object"))]
     pub structured_output: Value,
     /// Percent of matching traces to evaluate. Omit to evaluate every one.
     #[serde(default)]
@@ -606,6 +613,7 @@ pub struct UpdateSignalInput {
     /// New payload JSON schema, in the same shape `create_signal` takes. Adds a definition
     /// version.
     #[serde(default)]
+    #[schemars(extend("type" = ["object", "null"]))]
     pub structured_output: Option<Value>,
     // Absent = leave stored; `null` = clear sampling. Plain `Option` collapses both. The MCP
     // `update_signal` tool ignores `null` and clears through `clearSampleRate` instead.
