@@ -1,4 +1,4 @@
-import posthog from "posthog-js";
+import posthog, { type CaptureResult } from "posthog-js";
 
 import { POSTHOG_HOST, POSTHOG_KEY } from "./constants";
 
@@ -35,6 +35,13 @@ export type Feature =
   | "notifications"
   | "advanced_search";
 
+// Benign browser warning, not an app error; any of our many ResizeObservers can trigger it.
+const dropResizeObserverLoopErrors = (event: CaptureResult | null) => {
+  const message = event?.properties.$exception_list?.[0]?.value;
+  const isResizeObserverLoop = event?.event === "$exception" && message?.startsWith("ResizeObserver loop");
+  return isResizeObserverLoop ? null : event;
+};
+
 export const init = (telemetryEnabled: boolean) => {
   if (!telemetryEnabled) return;
   // Idempotent so React StrictMode double-invocation can't re-init.
@@ -44,6 +51,7 @@ export const init = (telemetryEnabled: boolean) => {
     external_scripts_inject_target: "head",
     person_profiles: "identified_only",
     capture_pageview: "history_change",
+    before_send: dropResizeObserverLoopErrors,
     session_recording: {
       maskAllInputs: true,
       maskTextSelector: "*",
