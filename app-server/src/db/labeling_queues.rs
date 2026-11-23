@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 /// Check if a labeling queue exists and belongs to the given project.
@@ -15,4 +15,21 @@ pub async fn queue_exists(pool: &PgPool, queue_id: Uuid, project_id: Uuid) -> Re
     .await?;
 
     Ok(exists)
+}
+
+/// Serialize keyed creates for this queue until the caller's transaction ends.
+pub async fn lock_queue(
+    connection: &mut PgConnection,
+    queue_id: Uuid,
+    project_id: Uuid,
+) -> Result<bool> {
+    let found = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM labeling_queues WHERE id = $1 AND project_id = $2 FOR NO KEY UPDATE",
+    )
+    .bind(queue_id)
+    .bind(project_id)
+    .fetch_optional(connection)
+    .await?;
+
+    Ok(found.is_some())
 }
