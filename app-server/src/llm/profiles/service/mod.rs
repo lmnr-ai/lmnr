@@ -78,16 +78,20 @@ pub struct CreateLlmProfileInput {
     #[schemars(length(min = 1, max = 255))]
     pub name: String,
     /// The provider API the profile calls; it decides which `config` and `secrets` fields apply.
+    // `type` beside each `$ref`: claude.ai rejects tool parameters without one.
+    #[schemars(extend("type" = "string"))]
     pub provider: LlmProfileProvider,
     /// Connection settings: `region` and `auth` for Bedrock, `resourceId` or `baseUrl` (plus
     /// an optional `apiVersion`) for Azure, `baseUrl` (plus optional `headerNames`) for a custom
     /// gateway. Omit it for the other providers.
     #[serde(default, deserialize_with = "crate::utils::null_as_default")]
+    #[schemars(extend("type" = "object"))]
     pub config: ProfileConfig,
     /// Credentials, stored encrypted and only ever returned masked: `apiKey` for every
     /// provider except Bedrock, which takes `secretAccessKey` or `token` depending on
     /// `config.auth`.
     #[serde(default, deserialize_with = "crate::utils::null_as_default")]
+    #[schemars(extend("type" = "object"))]
     pub secrets: ProfileSecrets,
     /// Model ids the profile offers, as the provider names them. Signals pick one of them.
     #[schemars(length(min = 1, max = 64))]

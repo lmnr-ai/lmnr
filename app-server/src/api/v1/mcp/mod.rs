@@ -941,6 +941,27 @@ mod tests {
         assert!(query.parameters.is_empty());
     }
 
+    /// claude.ai rejects a tool whose parameter has no `type` (a bare `$ref` or untyped JSON);
+    /// an `anyOf` of typed branches passes.
+    #[test]
+    fn every_tool_parameter_has_a_type() {
+        for tool in LaminarMcpServer::all_tools().list_all() {
+            let properties = tool
+                .input_schema
+                .get("properties")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            for (name, schema) in properties {
+                assert!(
+                    schema.get("type").is_some() || schema.get("anyOf").is_some(),
+                    "{}.{name} has no type: {schema}",
+                    tool.name
+                );
+            }
+        }
+    }
+
     /// `deserialize_with` must not change what the fields advertise.
     #[test]
     fn null_tolerant_fields_keep_their_schema() {
