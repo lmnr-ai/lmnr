@@ -107,6 +107,16 @@ const TABLES: &[Table] = &[
                 "String",
                 "Span output as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
+            col(
+                "input_preview",
+                "String",
+                "Same as input, except that a large input of a non-LLM span is a truncated JSON preview; cheap to read across many spans — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "output_preview",
+                "String",
+                "Same as output, except that a large output of a non-LLM span is a truncated JSON preview; cheap to read across many spans — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
             col("request_model", "String", "LLM model requested"),
             col("response_model", "String", "LLM model in the response"),
             col("model", "String", "coalesce(request_model, response_model)"),
@@ -937,7 +947,7 @@ mod tests {
             .flat_map(|t| t.columns.iter())
             .filter(|c| c.description.contains("LARGE"))
             .collect();
-        assert_eq!(annotated.len(), 25, "payload column count changed");
+        assert_eq!(annotated.len(), 27, "payload column count changed");
         for c in annotated {
             assert!(
                 c.description.ends_with(NOTE),

@@ -43,7 +43,7 @@ export async function fetchSpanData(
             query: `
             SELECT
               span_id as spanId,
-              if(span_type = 'TOOL', input, output) as data,
+              if(span_type = 'TOOL', input_preview, output_preview) as data,
               name
             FROM spans
             WHERE trace_id = {traceId: UUID}

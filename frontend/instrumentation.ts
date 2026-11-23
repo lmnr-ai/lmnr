@@ -152,6 +152,16 @@ export async function register() {
           source: { table: "deduped_content" },
           layout: "cache",
         },
+        // Large non-LLM span input/output (migration 88), keyed by the span
+        // row's own ids. DIRECT: values average ~700 KB, so a cache would
+        // pin GBs per replica for payloads that are rarely read twice.
+        {
+          name: "spans_large_io_dict",
+          keyColumns: ["project_id UUID", "trace_id UUID", "span_id UUID", "is_output Bool"],
+          attrColumns: ["content String", "content_masks Array(Tuple(UInt32, UInt32, String))", "pii_checked Bool"],
+          source: { table: "spans_large_io" },
+          layout: "direct",
+        },
         // Trace scope for `spans_v1`'s `traceFilters` (migration 66): the
         // trace's `user_id` / `metadata`, `''` when unset. DIRECT so a fresh
         // trace is filterable as soon as `traces_static` has it; the view
