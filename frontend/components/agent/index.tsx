@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
+import { type SignalCluster } from "@/lib/actions/signal-clusters/types";
+
 // Stub barrel of the Laminar Agent — the agent UI is not part of the open-source distribution.
 // In `lmnr-private` this same path re-exports the real implementation from `./private`; shared
 // surfaces (project layout, headers, trace view, dataset/evaluation pages) import from
@@ -44,7 +46,7 @@ export function TraceAgentContext(_props: { traceId: string }) {
   return null;
 }
 
-export function CreateEvalsButton(_props: { clusterName: string }) {
+export function ClusterFixButton(_props: { cluster: SignalCluster }) {
   return null;
 }
 

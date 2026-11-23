@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { defaultEvaluationsColumnOrder, RESOURCE } from "./constants";
 import DatasetCell from "./dataset-cell";
 import GroupsList from "./groups-list";
+import NameCell from "./name-cell";
 import { useEvaluationsProgression } from "./use-evaluations-progression";
 
 const baseColumns: ColumnDef<Evaluation>[] = [
@@ -62,6 +63,7 @@ const baseColumns: ColumnDef<Evaluation>[] = [
     accessorKey: "name",
     header: "Name",
     size: 300,
+    cell: ({ row }) => <NameCell evaluation={row.original} />,
   },
   {
     id: "dataset",
