@@ -4,16 +4,16 @@
 //! distinct id is the user's email and the `workspace` group is the workspace
 //! name. A no-op unless `Feature::PostHog` is on.
 //!
-//! Events are batched in memory and posted to `/batch/`. Analytics is
-//! best-effort: a full buffer, a failed post or a pod shutdown drops events.
+//! Delivery (queueing, batching, retries) is the `posthog` SDK's. Events still
+//! queued when the process exits without `shutdown` are lost.
 
 pub mod usage;
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
-use chrono::Utc;
-use serde_json::{Map, Value, json};
-use tokio::sync::mpsc;
+use chrono::{DateTime, Utc};
+use posthog::{ClientOptionsBuilder, Event};
+use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use crate::{
@@ -27,11 +27,6 @@ use crate::{
     utils::limits::get_workspace_info_for_project_id,
 };
 
-const BATCH_SIZE: usize = 100;
-const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
-const POST_TIMEOUT: Duration = Duration::from_secs(10);
-/// Events waiting for a flush; more are dropped while PostHog is slow.
-const BUFFER_SIZE: usize = 10_000;
 const NAME_CACHE_TTL_SECONDS: u64 = 60 * 60;
 
 /// Who made the call. API keys count for the user who created them; a key
@@ -67,22 +62,35 @@ pub struct PostHog {
 }
 
 struct Inner {
-    tx: mpsc::Sender<Value>,
+    client: Arc<posthog::Client>,
     db: Arc<DB>,
     cache: Arc<Cache>,
 }
 
 impl PostHog {
-    /// Spawns the flush loop, so call it inside the runtime that should run it.
-    pub fn new(http_client: reqwest::Client, db: Arc<DB>, cache: Arc<Cache>) -> Self {
+    pub async fn new(db: Arc<DB>, cache: Arc<Cache>) -> Self {
         if !is_feature_enabled(Feature::PostHog) {
             return Self { inner: None };
         }
-        let (tx, rx) = mpsc::channel(BUFFER_SIZE);
-        let url = format!("{}/batch/", env::posthog::HOST.get().trim_end_matches('/'));
-        tokio::spawn(flush_loop(rx, http_client, url, env::posthog::KEY.get()));
+        let options = ClientOptionsBuilder::default()
+            .api_key(env::posthog::KEY.get())
+            .host(env::posthog::HOST.get())
+            // The request reaches PostHog from our servers, so its IP says nothing about the user.
+            .disable_geoip(true)
+            .build();
+        let options = match options {
+            Ok(options) => options,
+            Err(e) => {
+                log::error!("Invalid PostHog options; usage events are off: {e}");
+                return Self { inner: None };
+            }
+        };
         Self {
-            inner: Some(Inner { tx, db, cache }),
+            inner: Some(Inner {
+                client: Arc::new(posthog::client(options).await),
+                db,
+                cache,
+            }),
         }
     }
 
@@ -95,23 +103,32 @@ impl PostHog {
         let Some(inner) = &self.inner else {
             return;
         };
-        let (tx, db, cache) = (inner.tx.clone(), inner.db.clone(), inner.cache.clone());
-        let timestamp = Utc::now().to_rfc3339();
+        let (client, db, cache) = (inner.client.clone(), inner.db.clone(), inner.cache.clone());
+        let timestamp = Utc::now();
         tokio::spawn(async move {
-            let payload = resolve(db, cache, event, timestamp).await;
-            if tx.try_send(payload).is_err() {
-                log::debug!("PostHog buffer full; dropping a usage event");
-            }
+            client.capture(resolve(db, cache, event, timestamp).await);
         });
+    }
+
+    /// Sends what is still queued. Call once the HTTP server has stopped.
+    pub async fn shutdown(&self) {
+        if let Some(inner) = &self.inner {
+            inner.client.shutdown().await;
+        }
     }
 }
 
-async fn resolve(db: Arc<DB>, cache: Arc<Cache>, event: UsageEvent, timestamp: String) -> Value {
+async fn resolve(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    event: UsageEvent,
+    timestamp: DateTime<Utc>,
+) -> Event {
     let UsageEvent {
         name,
         actor,
         project_id,
-        mut properties,
+        properties,
     } = event;
 
     let (user_id, fallback_id) = match actor {
@@ -125,35 +142,34 @@ async fn resolve(db: Arc<DB>, cache: Arc<Cache>, event: UsageEvent, timestamp: S
         Some(user_id) => user_email(&db, &cache, user_id).await,
         None => None,
     };
-    let distinct_id = email.unwrap_or_else(|| {
-        properties.insert("$process_person_profile".to_string(), json!(false));
-        fallback_id
-    });
+    let mut ph_event = match email {
+        Some(email) => Event::new(name.to_string(), email),
+        None => {
+            let mut ph_event = Event::new(name.to_string(), fallback_id);
+            let _ = ph_event.insert_option("process_person_profile", false);
+            ph_event
+        }
+    };
+    let _ = ph_event.set_timestamp(timestamp);
+    for (key, value) in properties {
+        let _ = ph_event.insert_prop(key, value);
+    }
 
     if let Some(project_id) = project_id {
-        properties.insert("project_id".to_string(), json!(project_id));
+        let _ = ph_event.insert_prop("project_id", project_id);
         let workspace_id = get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id)
             .await
             .ok()
             .flatten()
             .map(|info| info.workspace_id);
         if let Some(workspace_id) = workspace_id {
-            properties.insert("workspace_id".to_string(), json!(workspace_id));
+            let _ = ph_event.insert_prop("workspace_id", workspace_id);
             if let Some(workspace) = workspace_name(&db, &cache, workspace_id).await {
-                properties.insert("$groups".to_string(), json!({ "workspace": workspace }));
+                ph_event.add_group("workspace", &workspace);
             }
         }
     }
-    properties.insert("$lib".to_string(), json!("laminar-app-server"));
-    // The request reaches PostHog from our servers, so its IP says nothing about the user.
-    properties.insert("$geoip_disable".to_string(), json!(true));
-
-    json!({
-        "event": name,
-        "distinct_id": distinct_id,
-        "timestamp": timestamp,
-        "properties": properties,
-    })
+    ph_event
 }
 
 async fn user_email(db: &DB, cache: &Cache, user_id: Uuid) -> Option<String> {
@@ -183,48 +199,4 @@ async fn workspace_name(db: &DB, cache: &Cache, workspace_id: Uuid) -> Option<St
         .insert_with_ttl(&key, name.clone(), NAME_CACHE_TTL_SECONDS)
         .await;
     Some(name)
-}
-
-async fn flush_loop(
-    mut rx: mpsc::Receiver<Value>,
-    http_client: reqwest::Client,
-    url: String,
-    api_key: String,
-) {
-    let mut batch = Vec::with_capacity(BATCH_SIZE);
-    let mut tick = tokio::time::interval(FLUSH_INTERVAL);
-    loop {
-        tokio::select! {
-            event = rx.recv() => match event {
-                Some(event) => {
-                    batch.push(event);
-                    if batch.len() >= BATCH_SIZE {
-                        send(&http_client, &url, &api_key, &mut batch).await;
-                    }
-                }
-                None => {
-                    send(&http_client, &url, &api_key, &mut batch).await;
-                    return;
-                }
-            },
-            _ = tick.tick() => send(&http_client, &url, &api_key, &mut batch).await,
-        }
-    }
-}
-
-async fn send(http_client: &reqwest::Client, url: &str, api_key: &str, batch: &mut Vec<Value>) {
-    if batch.is_empty() {
-        return;
-    }
-    let body = json!({ "api_key": api_key, "batch": std::mem::take(batch) });
-    let result = http_client
-        .post(url)
-        .timeout(POST_TIMEOUT)
-        .json(&body)
-        .send()
-        .await
-        .and_then(|res| res.error_for_status());
-    if let Err(e) = result {
-        log::warn!("Failed to send usage events to PostHog: {e}");
-    }
 }

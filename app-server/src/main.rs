@@ -1748,11 +1748,10 @@ fn main() -> anyhow::Result<()> {
                         mq_for_http.clone(),
                     ));
 
-                    let posthog = web::Data::new(posthog::PostHog::new(
-                        http_client_for_http.clone(),
-                        db_for_http.clone(),
-                        cache_for_http.clone(),
-                    ));
+                    let posthog = web::Data::new(
+                        posthog::PostHog::new(db_for_http.clone(), cache_for_http.clone()).await,
+                    );
+                    let posthog_for_shutdown = posthog.clone();
 
                     // Shared in-process JWKS cache for the CLI user-token surface.
                     // Built once outside the HttpServer closure so all workers share it.
@@ -2113,7 +2112,9 @@ fn main() -> anyhow::Result<()> {
                     .bind(("0.0.0.0", port))?
                     .shutdown_signal(shutdown_for_http.cancelled_owned())
                     .run()
-                    .await
+                    .await?;
+                    posthog_for_shutdown.shutdown().await;
+                    Ok(())
                 })
             })
             .unwrap();
