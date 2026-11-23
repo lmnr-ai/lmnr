@@ -89,7 +89,7 @@ const FigmaCarousel = ({ slides }: FigmaCarouselProps) => {
               <span
                 className={cn(
                   "h-[5px] rounded-full transition-[width,background-color] duration-300 ease-out",
-                  slide.id === current.id ? "w-5 bg-[#757780]" : "w-3 bg-[#3b3c40] group-hover/dot:bg-[#757780]"
+                  slide.id === current.id ? "w-5 bg-emphasis-7" : "w-3 bg-emphasis-4 group-hover/dot:bg-emphasis-7"
                 )}
               />
             </button>

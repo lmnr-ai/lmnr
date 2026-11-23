@@ -18,6 +18,9 @@ export interface Announcement {
   expires_at: string;
 }
 
+/** Built-in "Laminar is open-source" slide; not in Strapi, but dismissed through the same list. */
+export const OPEN_SOURCE_SLIDE_ID = "open-source";
+
 export const isInternalAnnouncementLink = (link: string) => link.startsWith("/") && !link.startsWith("//");
 const isExternalAnnouncementLink = (link: string) => /^https:\/\//i.test(link);
 export const isSupportedAnnouncementLink = (link: string) =>

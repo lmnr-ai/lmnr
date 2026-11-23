@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { dismissAnnouncement, isUnknownAnnouncement } from "@/lib/announcements/server";
+import { OPEN_SOURCE_SLIDE_ID } from "@/lib/announcements/types";
 import { handlerNoAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -28,7 +29,7 @@ export const PUT = handlerNoAudit(
       // A positively missing id is a successful no-op: the stale card stays hidden
       // in this UI session without storing junk in preferences. Strapi outages fail
       // open so a previously rendered real announcement can still be persisted.
-      if (await isUnknownAnnouncement(announcementId)) {
+      if (announcementId !== OPEN_SOURCE_SLIDE_ID && (await isUnknownAnnouncement(announcementId))) {
         return Response.json({ ok: true, persisted: false });
       }
 

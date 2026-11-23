@@ -16,7 +16,7 @@ export const DEFAULT_SLIDE_HEIGHT = 157;
 
 /** Shared look for the bottom-of-card button (GitHub stars, Learn more, CTA). */
 export const CARD_BUTTON_CLASS =
-  "flex h-[30px] w-full items-center justify-center gap-2 rounded-[4px] bg-surface-500 px-2 text-xs text-secondary-foreground no-underline transition-colors hover:overlay-hover hover:text-foreground";
+  "flex h-[30px] w-full items-center justify-center gap-2 rounded-[4px] bg-emphasis-2 px-2 text-xs text-secondary-foreground no-underline transition-colors hover:bg-emphasis-3 hover:text-foreground";
 
 export default function SlideCard({
   title,

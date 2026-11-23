@@ -98,7 +98,7 @@ const blogMdxComponents = (publicTraceIds: Set<string>): MdxComponents => ({
     }
     return (
       <a
-        className="text-white underline hover:text-primary-text"
+        className="text-foreground dark:text-white underline hover:text-primary-text"
         target="_blank"
         rel="noopener noreferrer"
         {...props}
@@ -129,9 +129,12 @@ const blogMdxComponents = (publicTraceIds: Set<string>): MdxComponents => ({
     );
   },
   code: (props) => (
-    <span className="text-sm bg-secondary-foreground/20 rounded text-white font-mono px-1.5 py-0.5" {...props} />
+    <span
+      className="text-sm bg-secondary-foreground/20 rounded text-foreground dark:text-white font-mono px-1.5 py-0.5"
+      {...props}
+    />
   ),
-  strong: (props) => <strong className="text-white/90 font-semibold" {...props} />,
+  strong: (props) => <strong className="text-foreground/90 dark:text-white/90 font-semibold" {...props} />,
   img: (props) => <BlogImage {...props} />,
   // Wide tables scroll inside this wrapper instead of squeezing on mobile.
   table: (props) => (

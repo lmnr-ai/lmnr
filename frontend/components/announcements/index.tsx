@@ -4,10 +4,10 @@ import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { useCallback, useMemo } from "react";
 
 import AnnouncementAction from "@/components/announcements/announcement-action";
+import { buildOpenSourceSlide } from "@/components/announcements/open-source-slide";
 import { type CarouselSlide } from "@/components/announcements/slide-card";
-import { useOpenSourceSlide } from "@/components/announcements/use-open-source-slide";
 import { useSidebar } from "@/components/ui/sidebar";
-import { type Announcement, getVisibleAnnouncements } from "@/lib/announcements/types";
+import { type Announcement, getVisibleAnnouncements, OPEN_SOURCE_SLIDE_ID } from "@/lib/announcements/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { withBasePath } from "@/lib/utils";
 
@@ -48,9 +48,13 @@ const Announcements = ({ announcements, initialDismissedIds, showOpenSource }: A
   const setDetailsAnnouncement = useAnnouncementsStore((state) => state.setDetailsAnnouncement);
   // Unioned during render rather than hydrated into the store, so a card the
   // server already knows is dismissed never flashes before being filtered out.
+  const dismissedIds = useMemo(
+    () => new Set([...initialDismissedIds, ...sessionDismissedIds]),
+    [initialDismissedIds, sessionDismissedIds]
+  );
   const visibleAnnouncements = useMemo(
-    () => getVisibleAnnouncements(announcements, new Set([...initialDismissedIds, ...sessionDismissedIds])),
-    [announcements, initialDismissedIds, sessionDismissedIds]
+    () => getVisibleAnnouncements(announcements, dismissedIds),
+    [announcements, dismissedIds]
   );
   const sidebarOpen = open || openMobile;
 
@@ -85,10 +89,11 @@ const Announcements = ({ announcements, initialDismissedIds, showOpenSource }: A
     [markDismissed, undoDismiss, toast]
   );
 
-  const openSourceSlide = useOpenSourceSlide(showOpenSource);
+  // Known on the server (user preferences), so the first render already has the final slides.
+  const showOpenSourceSlide = showOpenSource && !dismissedIds.has(OPEN_SOURCE_SLIDE_ID);
   const slides = useMemo<CarouselSlide[]>(
     () => [
-      ...(openSourceSlide ? [openSourceSlide] : []),
+      ...(showOpenSourceSlide ? [buildOpenSourceSlide(OPEN_SOURCE_SLIDE_ID, () => dismiss(OPEN_SOURCE_SLIDE_ID))] : []),
       ...visibleAnnouncements.map((announcement) => ({
         id: announcement.id,
         title: announcement.title,
@@ -97,7 +102,7 @@ const Announcements = ({ announcements, initialDismissedIds, showOpenSource }: A
         onDismiss: () => dismiss(announcement.id),
       })),
     ],
-    [openSourceSlide, visibleAnnouncements, openDetails, dismiss]
+    [showOpenSourceSlide, visibleAnnouncements, openDetails, dismiss]
   );
 
   // The details dialog is mounted by the project layout, outside this

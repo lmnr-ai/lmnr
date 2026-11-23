@@ -1107,6 +1107,9 @@
   color: white;
   font-weight: 500;
 }
+.light .blog-article th {
+  color: var(--color-foreground);
+}
 .blog-article td {
   color: var(--color-foreground-200);
 }
