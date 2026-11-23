@@ -94,10 +94,6 @@ impl PostHog {
         }
     }
 
-    pub fn is_enabled(&self) -> bool {
-        self.inner.is_some()
-    }
-
     /// Fire-and-forget: names are resolved off the request path.
     pub fn capture(&self, event: UsageEvent) {
         let Some(inner) = &self.inner else {

@@ -1,7 +1,6 @@
-//! Usage events: `api:request` / `cli:request` per `/v1` call, and
-//! `mcp:initialized` / `mcp:tool_called` from the MCP handler. Ingestion and
-//! per-item traffic are left out (`audit::middleware::is_per_item_traffic`),
-//! as are requests that never authenticated.
+//! Usage events: `sql:query` per `/v1/sql/query` or `/v1/cli/sql/query` call,
+//! and `mcp:initialized` / `mcp:tool_called` from the MCP handler. Requests
+//! that never authenticated are not counted.
 
 use actix_web::{
     Error, HttpMessage, HttpRequest,
@@ -17,74 +16,55 @@ use uuid::Uuid;
 
 use super::{PostHog, UsageActor, UsageEvent};
 use crate::{
-    audit::{
-        AuditSource,
-        middleware::{is_per_item_traffic, route},
-    },
-    auth::{
-        cli_user::{CliProjectAuth, CliUserAuth},
-        mcp_oauth::McpCaller,
-    },
+    auth::{cli_user::CliProjectAuth, mcp_oauth::McpCaller},
     db::project_api_keys::ProjectApiKey,
 };
 
-pub async fn usage_v1(
+/// Wraps the `/v1/sql` and `/v1/cli/sql` scopes. Only `query` is counted; the
+/// CLI scope also serves the static schema.
+pub async fn sql_query_usage(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
 ) -> Result<ServiceResponse<impl MessageBody>, Error> {
     let res = next.call(req).await?;
 
     let request = res.request();
+    if !request
+        .match_pattern()
+        .is_some_and(|pattern| pattern.ends_with("/sql/query"))
+    {
+        return Ok(res);
+    }
     let Some(posthog) = request.app_data::<web::Data<PostHog>>() else {
         return Ok(res);
     };
-    if !posthog.is_enabled() {
+    let Some((actor, project_id, source)) = sql_caller(request) else {
         return Ok(res);
-    }
-    let Some((path, source)) = route(request) else {
-        return Ok(res);
-    };
-    // MCP is counted per tool call, in its handler.
-    if path == "/mcp" || is_per_item_traffic(request.method(), &path) {
-        return Ok(res);
-    }
-    let Some((actor, project_id)) = actor(request) else {
-        return Ok(res);
-    };
-    let (name, source) = match source {
-        AuditSource::Cli => ("cli:request", "cli"),
-        _ => ("api:request", "api"),
     };
     let status = res.status();
     let mut properties = Map::new();
     properties.insert("source".to_string(), json!(source));
-    properties.insert("method".to_string(), json!(request.method().as_str()));
-    properties.insert("route".to_string(), json!(path));
     properties.insert("status".to_string(), json!(status.as_u16()));
     properties.insert("success".to_string(), json!(status.is_success()));
     insert_user_agent(&mut properties, request);
 
     posthog.capture(UsageEvent {
-        name,
+        name: "sql:query",
         actor,
-        project_id,
+        project_id: Some(project_id),
         properties,
     });
     Ok(res)
 }
 
-/// CLI discovery routes (`/projects`) carry the user but no project.
-fn actor(req: &HttpRequest) -> Option<(UsageActor, Option<Uuid>)> {
+fn sql_caller(req: &HttpRequest) -> Option<(UsageActor, Uuid, &'static str)> {
     let extensions = req.extensions();
     if let Some(key) = extensions.get::<ProjectApiKey>() {
-        return Some((UsageActor::api_key(key), Some(key.project_id)));
-    }
-    if let Some(auth) = extensions.get::<CliProjectAuth>() {
-        return Some((UsageActor::User(auth.user_id), Some(auth.project_id)));
+        return Some((UsageActor::api_key(key), key.project_id, "api"));
     }
     extensions
-        .get::<CliUserAuth>()
-        .map(|auth| (UsageActor::User(auth.user_id), None))
+        .get::<CliProjectAuth>()
+        .map(|auth| (UsageActor::User(auth.user_id), auth.project_id, "cli"))
 }
 
 fn insert_user_agent(properties: &mut Map<String, Value>, req: &HttpRequest) {

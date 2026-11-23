@@ -1828,7 +1828,6 @@ fn main() -> anyhow::Result<()> {
                                     ),
                             )
                             .wrap(actix_web::middleware::from_fn(audit::middleware::audit_v1))
-                            .wrap(actix_web::middleware::from_fn(posthog::usage::usage_v1))
                             .wrap(Logger::default().exclude("/health").exclude("/ready"))
                             .wrap(NormalizePath::trim())
                             .app_data(JsonConfig::default().limit(http_payload_limit))
@@ -1865,6 +1864,9 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::resolve_project)
                             .service(
                                 web::scope("/sql")
+                                    .wrap(actix_web::middleware::from_fn(
+                                        posthog::usage::sql_query_usage,
+                                    ))
                                     .service(api::v1::cli::sql::execute_sql_query)
                                     .service(api::v1::cli::sql::get_sql_schema),
                             )
@@ -1985,6 +1987,9 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/sql")
                                     .wrap(project_auth.clone())
+                                    .wrap(actix_web::middleware::from_fn(
+                                        posthog::usage::sql_query_usage,
+                                    ))
                                     .service(api::v1::sql::execute_sql_query),
                             );
                         // Must precede the catch-all `/v1` scope, which would capture `/v1/chat/*`.
