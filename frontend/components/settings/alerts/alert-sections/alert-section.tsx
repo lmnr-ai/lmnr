@@ -17,8 +17,8 @@ interface AlertSectionProps {
 export default function AlertSection({ type, alerts, onCreate, renderRow }: AlertSectionProps) {
   const [expanded, setExpanded] = useState(false);
   const meta = SECTION_META[type];
-  const hidden = expanded ? 0 : Math.max(0, alerts.length - COLLAPSED_ROWS);
-  const shown = hidden > 0 ? alerts.slice(0, COLLAPSED_ROWS) : alerts;
+  const overflow = Math.max(0, alerts.length - COLLAPSED_ROWS);
+  const shown = expanded ? alerts : alerts.slice(0, COLLAPSED_ROWS);
 
   return (
     <section className="flex flex-col gap-2">
@@ -51,13 +51,13 @@ export default function AlertSection({ type, alerts, onCreate, renderRow }: Aler
       ) : (
         <div className="divide-y rounded-md border bg-surface-up">
           {shown.map(renderRow)}
-          {hidden > 0 && (
+          {overflow > 0 && (
             <button
               type="button"
-              onClick={() => setExpanded(true)}
+              onClick={() => setExpanded((v) => !v)}
               className="w-full px-4 py-2 text-left text-xs text-muted-foreground hover:overlay-hover hover:text-foreground"
             >
-              Show {hidden} more
+              {expanded ? "Show less" : `Show ${overflow} more`}
             </button>
           )}
         </div>
