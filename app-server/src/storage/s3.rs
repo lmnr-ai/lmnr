@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use aws_sdk_s3::{
     Client,
@@ -97,11 +97,15 @@ impl super::StorageTrait for S3Storage {
             .send()
             .await?;
 
-        Ok(Box::pin(futures_util::stream::unfold(
+        Ok(Box::pin(futures_util::stream::try_unfold(
             response.body,
             |mut body| async move {
-                let chunk = body.next().await?.ok()?;
-                Some((chunk, body))
+                let chunk = body
+                    .next()
+                    .await
+                    .transpose()
+                    .context("S3 object body interrupted")?;
+                Ok(chunk.map(|chunk| (chunk, body)))
             },
         )))
     }
@@ -196,5 +200,67 @@ impl super::StorageTrait for S3Storage {
                 Err(e)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region, retry::RetryConfig};
+    use futures_util::StreamExt;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+        sync::oneshot,
+        time::timeout,
+    };
+
+    use super::*;
+    use crate::storage::StorageTrait;
+
+    #[tokio::test]
+    async fn interrupted_s3_body_is_reported_after_first_chunk() {
+        timeout(Duration::from_secs(10), async {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let endpoint = format!("http://{}", listener.local_addr().unwrap());
+            let (disconnect, wait_for_disconnect) = oneshot::channel();
+            let server = tokio::spawn(async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                while !request.ends_with(b"\r\n\r\n") {
+                    request.push(socket.read_u8().await.unwrap());
+                }
+                socket
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc")
+                    .await
+                    .unwrap();
+                wait_for_disconnect.await.unwrap();
+                socket.shutdown().await.unwrap();
+            });
+
+            let config = aws_sdk_s3::Config::builder()
+                .behavior_version(BehaviorVersion::latest())
+                .region(Region::new("us-east-1"))
+                .credentials_provider(Credentials::new("test", "test", None, None, "test"))
+                .endpoint_url(endpoint)
+                .force_path_style(true)
+                .retry_config(RetryConfig::disabled())
+                .build();
+            let s3 = S3Storage::new(Client::from_conf(config));
+
+            let mut body = s3.get_stream("test-bucket", "object").await.unwrap();
+            assert_eq!(
+                body.next().await.unwrap().unwrap(),
+                Bytes::from_static(b"abc")
+            );
+            disconnect.send(()).unwrap();
+            let error = body.next().await.unwrap().unwrap_err();
+            assert_eq!(error.to_string(), "S3 object body interrupted");
+            assert!(body.next().await.is_none());
+            server.await.unwrap();
+        })
+        .await
+        .unwrap();
     }
 }
