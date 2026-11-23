@@ -1,3 +1,5 @@
+import { Radio } from "lucide-react";
+
 import SeverityIcon from "@/components/traces/trace-view/signal-events-panel/severity-icon";
 import { type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { cn } from "@/lib/utils";
@@ -49,10 +51,16 @@ export default function AlertRow({
         </span>
         {(severities.length > 0 || signal) && (
           <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            {signal && (
+              <span className="flex min-w-0 items-center gap-1">
+                <Radio className="size-3.5 shrink-0" />
+                <span className="truncate">{signal}</span>
+              </span>
+            )}
+            {signal && severities.length > 0 && <span aria-hidden>·</span>}
             {severities.map((s) => (
               <SeverityIcon key={s} severity={s} iconClassName="size-3.5" />
             ))}
-            {signal && <span className="truncate">{signal}</span>}
           </span>
         )}
       </div>
