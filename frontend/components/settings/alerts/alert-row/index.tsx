@@ -49,20 +49,22 @@ export default function AlertRow({
         <span className="truncate text-sm" title={alert.name}>
           {alert.name}
         </span>
-        {(severities.length > 0 || signal) && (
-          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-            {signal && (
-              <span className="flex min-w-0 items-center gap-1">
-                <Radio className="size-3.5 shrink-0" />
-                <span className="truncate">{signal}</span>
-              </span>
-            )}
-            {signal && severities.length > 0 && <span aria-hidden>·</span>}
-            {severities.map((s) => (
-              <SeverityIcon key={s} severity={s} iconClassName="size-3.5" />
-            ))}
-          </span>
-        )}
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          {signal && (
+            <span className="flex min-w-0 items-center gap-1">
+              <Radio className="size-3.5 shrink-0" />
+              <span className="truncate">{signal}</span>
+            </span>
+          )}
+          {signal && severities.length > 0 && <span aria-hidden>·</span>}
+          {severities.map((s) => (
+            <SeverityIcon key={s} severity={s} iconClassName="size-3.5" />
+          ))}
+          {/* Keeps every row two lines on a signal's page, where the signal name is hidden. */}
+          {!signal && severities.length === 0 && (
+            <span>{alert.type === "NEW_CLUSTER" ? "Every new cluster" : "Any severity"}</span>
+          )}
+        </span>
       </div>
       <AlertTargets
         targets={targets}
