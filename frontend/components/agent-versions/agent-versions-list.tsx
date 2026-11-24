@@ -52,7 +52,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
           />
         )}
       </div>
-      {data && <VersioningSetup projectId={projectId} releaseMode={data.agent.releaseMode} />}
+      {data && <VersioningSetup projectId={projectId} agentId={agentId} releaseMode={data.agent.releaseMode} />}
       {data && (
         <AgentDefinition
           projectId={projectId}

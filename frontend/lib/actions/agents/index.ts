@@ -83,6 +83,13 @@ export interface AgentVersionTracesPoint {
   [versionId: string]: number | string;
 }
 
+/** The repo with an agent's latest release commit, from the GitHub integration (absent in OSS). */
+export type AgentGithubRepo =
+  | { status: "not_connected" }
+  | { status: "no_release" }
+  | { status: "not_found" }
+  | { status: "linked"; repo: string };
+
 export interface AgentVersionsResult {
   agent: {
     id: string;
