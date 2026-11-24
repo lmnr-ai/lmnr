@@ -165,7 +165,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, and `tsc --noEmit` run on s
 | `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
-| `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |
+| `docs/internal/analytics.md` | PostHog (frontend, and app-server SQL API / MCP usage events in `src/posthog/`), Loops sync, self-hosted telemetry heartbeat |
 | `docs/internal/labeling-queues.md` | Labeling queues (ClickHouse RMT items, dirty-state, push-to-dataset) |
 | `docs/internal/debugger.md` | Debugger replay cache, debugger session blocks/timeline |
 | `docs/internal/frontend-tables.md` | Data-table filters, advanced search, saved views, evaluations page, dashboards |

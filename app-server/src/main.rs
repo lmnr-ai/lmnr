@@ -156,6 +156,7 @@ mod next_api;
 mod notifications;
 mod opentelemetry_proto;
 mod pii_redactor;
+mod posthog;
 mod project_api_keys;
 mod pubsub;
 mod query_engine;
@@ -1747,6 +1748,11 @@ fn main() -> anyhow::Result<()> {
                         mq_for_http.clone(),
                     ));
 
+                    let posthog = web::Data::new(
+                        posthog::PostHog::new(db_for_http.clone(), cache_for_http.clone()).await,
+                    );
+                    let posthog_for_shutdown = posthog.clone();
+
                     // Shared in-process JWKS cache for the CLI user-token surface.
                     // Built once outside the HttpServer closure so all workers share it.
                     let jwks_cache = web::Data::new(Arc::new(auth::cli_user::JwksCache::from_env(
@@ -1836,6 +1842,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(name_generator.clone()))
                             .app_data(web::Data::new(storage_for_http.clone()))
                             .app_data(hosted_evals.clone())
+                            .app_data(posthog.clone())
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
@@ -1857,6 +1864,9 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::resolve_project)
                             .service(
                                 web::scope("/sql")
+                                    .wrap(actix_web::middleware::from_fn(
+                                        posthog::usage::sql_query_usage,
+                                    ))
                                     .service(api::v1::cli::sql::execute_sql_query)
                                     .service(api::v1::cli::sql::get_sql_schema),
                             )
@@ -1977,6 +1987,9 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/sql")
                                     .wrap(project_auth.clone())
+                                    .wrap(actix_web::middleware::from_fn(
+                                        posthog::usage::sql_query_usage,
+                                    ))
                                     .service(api::v1::sql::execute_sql_query),
                             );
                         // Must precede the catch-all `/v1` scope, which would capture `/v1/chat/*`.
@@ -2104,7 +2117,9 @@ fn main() -> anyhow::Result<()> {
                     .bind(("0.0.0.0", port))?
                     .shutdown_signal(shutdown_for_http.cancelled_owned())
                     .run()
-                    .await
+                    .await?;
+                    posthog_for_shutdown.shutdown().await;
+                    Ok(())
                 })
             })
             .unwrap();
