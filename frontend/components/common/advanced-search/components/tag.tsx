@@ -39,10 +39,9 @@ interface FilterTagProps {
   tag: FilterTagType;
   resource?: AdvancedSearchResource;
   isSelected?: boolean;
-  navigable?: boolean;
 }
 
-const FilterTag = ({ tag, resource = "traces", isSelected = false, navigable = false }: FilterTagProps) => {
+const FilterTag = ({ tag, resource = "traces", isSelected = false }: FilterTagProps) => {
   const filters = useAdvancedSearchContext((state) => state.filters);
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
 
@@ -96,10 +95,9 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, navigable = f
   );
 
   useEffect(() => {
-    if (!navigable) return;
     registerTagHandle(tag.id, { focusPosition });
     return () => registerTagHandle(tag.id, null);
-  }, [navigable, tag.id, focusPosition, registerTagHandle]);
+  }, [tag.id, focusPosition, registerTagHandle]);
 
   const filteredValueSuggestions = useMemo(() => {
     if ((dataType !== "string" && dataType !== "array") || !AUTOCOMPLETE_FIELDS[resource]?.includes(tag.field))

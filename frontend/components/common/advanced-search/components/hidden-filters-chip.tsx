@@ -5,8 +5,8 @@ import { memo, type RefObject, useMemo, useRef } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-import { type AdvancedSearchRefs, AdvancedSearchRefsProvider, useAdvancedSearchRefsContext } from "../store";
-import { type AdvancedSearchResource, type FilterTag as FilterTagType } from "../types";
+import { type AdvancedSearchRefs, AdvancedSearchRefsProvider } from "../store";
+import { type AdvancedSearchResource, type FilterTag as FilterTagType, type FilterTagRef } from "../types";
 import FilterTag from "./tag";
 
 interface HiddenFiltersChipProps {
@@ -16,12 +16,13 @@ interface HiddenFiltersChipProps {
 }
 
 const HiddenFiltersChip = ({ hiddenTags, selectedTagIds, resource }: HiddenFiltersChipProps) => {
-  const { tagHandlesRef } = useAdvancedSearchRefsContext();
   const contentRef = useRef<HTMLDivElement>(null);
-  // Edits return focus to the "main input"; inside the popover it must stay there or Radix closes it.
+  const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
+  // Edits return focus to the "main input" and arrow keys move between registered tags;
+  // both stay inside the popover, or focus escapes and Radix closes it.
   const popoverRefs = useMemo<AdvancedSearchRefs>(
     () => ({ mainInputRef: contentRef as unknown as RefObject<HTMLInputElement | null>, tagHandlesRef }),
-    [tagHandlesRef]
+    []
   );
 
   return (

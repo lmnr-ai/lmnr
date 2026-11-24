@@ -353,7 +353,7 @@ const FilterSearchInput = ({
         )}
         {visibleTags.map((tag) => (
           <div key={tag.id} ref={measureRef(tag.id)} className="shrink-0">
-            <FilterTag navigable tag={tag} resource={resource} isSelected={selectedTagIds.has(tag.id)} />
+            <FilterTag tag={tag} resource={resource} isSelected={selectedTagIds.has(tag.id)} />
           </div>
         ))}
 
