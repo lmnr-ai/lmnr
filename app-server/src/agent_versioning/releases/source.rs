@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     agent_versioning::{Job, internal_project_id},
-    db::agent_versioning::VersionText,
+    db::{agent_versioning::VersionText, github_integrations},
     instrumentation::spans::{self, InternalSpan, SpanType},
     llm::{
         LlmClient, LlmFeature, LlmRoute, ModelProvider, ProviderContent,
@@ -144,8 +144,9 @@ struct SubmitArgs {
 
 impl Job {
     /// The verdict on the change from release `base` (version text `before`)
-    /// to release `head` (`after`). `None` when it can't be checked: no
-    /// connected repo has both commits, or GitHub or the LLM failed.
+    /// to release `head` (`after`). `None` when it can't be checked: the
+    /// project has no connected repo, none has both commits, or GitHub or the
+    /// LLM failed.
     pub(super) async fn check_source(
         &self,
         project_id: Uuid,
@@ -158,6 +159,15 @@ impl Job {
         let prompt_diff = prompt_diff(before, after);
         if prompt_diff.is_empty() {
             return None;
+        }
+        // Spares the frontend call for most projects, and OSS, where the route doesn't exist.
+        match github_integrations::has_connected_repos(&self.db.pool, project_id).await {
+            Ok(true) => {}
+            Ok(false) => return None,
+            Err(e) => {
+                log::warn!("[AGENT VERSIONING] {project_id}: connected repos lookup failed: {e:?}");
+                return None;
+            }
         }
         let body = json!({ "base": base, "head": head });
         let changes = next_api::call::<Option<ReleaseChanges>>(

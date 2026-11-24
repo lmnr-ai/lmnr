@@ -12,6 +12,7 @@ pub mod debugger_session_blocks;
 pub mod debugger_sessions;
 pub mod evaluations;
 pub mod events;
+pub mod github_integrations;
 pub mod labeling_queues;
 pub mod llm_feature_routes;
 pub mod llm_profiles;
