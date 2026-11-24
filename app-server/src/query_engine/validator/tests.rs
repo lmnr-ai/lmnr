@@ -128,7 +128,7 @@ fn test_validate_basic_traces_select() {
         contains_ws(
             &result,
             &format!(
-                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS traces"
+                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('1970-01-01 00:00:00', 9, 'UTC')), 9) / 1000000000), 1), max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2099-12-31 00:00:00', 9, 'UTC')), 9) / 1000000000), 1)) AS traces"
             )
         ),
         "got: {result}"
@@ -241,8 +241,8 @@ fn test_validate_evaluation_datapoints_select() {
             &result,
             &format!(
                 "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}', eval_ids = [], \
-                 min_start_time = toDateTime64('1970-01-01 00:00:00', 9), \
-                 max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS evaluation_datapoints"
+                 min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('1970-01-01 00:00:00', 9, 'UTC')), 9) / 1000000000), 1), \
+                 max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2099-12-31 00:00:00', 9, 'UTC')), 9) / 1000000000), 1)) AS evaluation_datapoints"
             )
         ),
         "got: {result}"
@@ -474,11 +474,11 @@ fn test_eval_ids_and_bounds_derived_together() {
         "got: {n}"
     );
     assert!(
-        n.contains("min_start_time = toDateTime64('2026-09-08 00:00:00', 9) - INTERVAL 3 HOUR"),
+        n.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-09-08 00:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {n}"
     );
     assert!(
-        n.contains("max_start_time = toDateTime64('2026-09-10 00:00:00', 9) + INTERVAL 3 HOUR"),
+        n.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-09-10 00:00:00', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {n}"
     );
 }
@@ -794,7 +794,7 @@ fn test_join_with_allowed_tables() {
         contains_ws(
             &result,
             &format!(
-                "JOIN traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+                "JOIN traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('1970-01-01 00:00:00', 9, 'UTC')), 9) / 1000000000), 1), max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2099-12-31 00:00:00', 9, 'UTC')), 9) / 1000000000), 1)) AS t"
             )
         ),
         "got: {result}"
@@ -921,7 +921,7 @@ fn test_traces_time_range_query() {
         contains_ws(
             &result,
             &format!(
-                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2024-01-01', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1), max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2024-01-02', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)) AS traces"
             )
         ),
         "got: {result}"
@@ -944,7 +944,7 @@ fn test_traces_time_range_query_between() {
         contains_ws(
             &result,
             &format!(
-                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('2024-01-01', 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64('2024-01-02', 9) + INTERVAL 3 HOUR) AS traces"
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2024-01-01', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1), max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2024-01-02', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)) AS traces"
             )
         ),
         "got: {result}"
@@ -971,7 +971,7 @@ fn test_multiple_tables_in_join() {
         contains_ws(
             &result,
             &format!(
-                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('1970-01-01 00:00:00', 9, 'UTC')), 9) / 1000000000), 1), max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2099-12-31 00:00:00', 9, 'UTC')), 9) / 1000000000), 1)) AS t"
             )
         ),
         "got: {result}"
@@ -1092,7 +1092,7 @@ LEFT JOIN spans_pivot USING (user_id)
         contains_ws(
             &result,
             &format!(
-                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDateTime64(toDateTime('2025-08-06 00:00:00'), 9) - INTERVAL 3 HOUR, max_start_time = toDateTime64(toDateTime('2025-08-09 00:00:00'), 9) + INTERVAL 3 HOUR) AS traces"
+                "FROM traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{}}', min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64(toDateTime('2025-08-06 00:00:00'), 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1), max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64(toDateTime('2025-08-09 00:00:00'), 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)) AS traces"
             )
         ),
         "got: {result}"
@@ -1958,14 +1958,18 @@ fn traces_bounds(query: &str) -> String {
 
 fn assert_default_min(bounds: &str) {
     assert!(
-        bounds.contains("min_start_time = toDateTime64('1970-01-01 00:00:00', 9)"),
+        bounds.contains(
+            "min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('1970-01-01 00:00:00', 9, 'UTC')), 9) / 1000000000), 1)"
+        ),
         "expected default min, got: {bounds}"
     );
 }
 
 fn assert_default_max(bounds: &str) {
     assert!(
-        bounds.contains("max_start_time = toDateTime64('2099-12-31 00:00:00', 9)"),
+        bounds.contains(
+            "max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2099-12-31 00:00:00', 9, 'UTC')), 9) / 1000000000), 1)"
+        ),
         "expected default max, got: {bounds}"
     );
 }
@@ -1984,7 +1988,7 @@ fn test_bounds_relative_now_with_interval_placeholder() {
     );
     assert!(
         b.contains(
-            "min_start_time = toDateTime64(now() - INTERVAL {pastHours: UInt32} HOUR, 9) - INTERVAL 3 HOUR"
+            "min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64(now() - INTERVAL {pastHours: UInt32} HOUR, 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"
         ),
         "got: {b}"
     );
@@ -2005,11 +2009,11 @@ fn test_bounds_parameterized_time_bounds() {
          ORDER BY start_time DESC LIMIT {limit: UInt32} OFFSET {offset: UInt32}",
     );
     assert!(
-        b.contains("min_start_time = toDateTime64({startTime: String}, 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64({startTime: String}, 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert!(
-        b.contains("max_start_time = toDateTime64({endTime: String}, 9) + INTERVAL 3 HOUR"),
+        b.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64({endTime: String}, 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2019,7 +2023,7 @@ fn test_bounds_parameterized_value_lower_only() {
     // A single parameterized lower bound derives a min and leaves max default.
     let b = traces_bounds("SELECT id FROM traces WHERE start_time >= {startTime: String}");
     assert!(
-        b.contains("min_start_time = toDateTime64({startTime: String}, 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64({startTime: String}, 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert_default_max(&b);
@@ -2036,7 +2040,7 @@ fn test_bounds_no_filter_uses_broad_defaults() {
 fn test_bounds_bare_start_time_gt() {
     let b = traces_bounds("SELECT id FROM traces WHERE start_time > '2026-06-01 00:00:00'");
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01 00:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert_default_max(&b);
@@ -2046,7 +2050,7 @@ fn test_bounds_bare_start_time_gt() {
 fn test_bounds_bare_start_time_gte() {
     let b = traces_bounds("SELECT id FROM traces WHERE start_time >= '2026-06-01 00:00:00'");
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01 00:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2056,7 +2060,7 @@ fn test_bounds_bare_start_time_lt() {
     let b = traces_bounds("SELECT id FROM traces WHERE start_time < '2026-06-02 00:00:00'");
     assert_default_min(&b);
     assert!(
-        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        b.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-02 00:00:00', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2065,7 +2069,7 @@ fn test_bounds_bare_start_time_lt() {
 fn test_bounds_bare_start_time_lte() {
     let b = traces_bounds("SELECT id FROM traces WHERE start_time <= '2026-06-02 00:00:00'");
     assert!(
-        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        b.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-02 00:00:00', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2076,7 +2080,7 @@ fn test_bounds_end_time_upper_only() {
     let b = traces_bounds("SELECT id FROM traces WHERE end_time < '2026-06-02 00:00:00'");
     assert_default_min(&b);
     assert!(
-        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        b.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-02 00:00:00', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2096,7 +2100,7 @@ fn test_bounds_end_time_eq_upper_only() {
     let b = traces_bounds("SELECT id FROM traces WHERE end_time = '2026-06-02 00:00:00'");
     assert_default_min(&b);
     assert!(
-        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        b.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-02 00:00:00', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2107,11 +2111,11 @@ fn test_bounds_start_and_end_range() {
         "SELECT id FROM traces WHERE start_time >= '2026-06-01 00:00:00' AND end_time <= '2026-06-02 00:00:00'",
     );
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01 00:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert!(
-        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        b.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-02 00:00:00', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2122,11 +2126,11 @@ fn test_bounds_between_start_time() {
         "SELECT id FROM traces WHERE start_time BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 00:00:00'",
     );
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01 00:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert!(
-        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        b.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-02 00:00:00', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2138,7 +2142,7 @@ fn test_bounds_between_end_time_upper_only() {
     );
     assert_default_min(&b);
     assert!(
-        b.contains("max_start_time = toDateTime64('2026-06-02 00:00:00', 9) + INTERVAL 3 HOUR"),
+        b.contains("max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-02 00:00:00', 9, 'UTC') + INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2147,12 +2151,12 @@ fn test_bounds_between_end_time_upper_only() {
 fn test_bounds_todate_equality_widens_by_day() {
     let b = traces_bounds("SELECT id FROM traces WHERE toDate(start_time) = '2026-06-01'");
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert!(
         b.contains(
-            "max_start_time = (toDateTime64('2026-06-01', 9) + INTERVAL 1 DAY) + INTERVAL 3 HOUR"
+            "max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano((toDateTime64('2026-06-01', 9, 'UTC') + INTERVAL 1 DAY) + INTERVAL 3 HOUR), 9) / 1000000000), 1)"
         ),
         "got: {b}"
     );
@@ -2164,12 +2168,12 @@ fn test_bounds_tostartofhour_equality_widens_by_hour() {
         "SELECT id FROM traces WHERE toStartOfHour(start_time) = '2026-06-01 13:00:00'",
     );
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01 13:00:00', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01 13:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert!(
         b.contains(
-            "max_start_time = (toDateTime64('2026-06-01 13:00:00', 9) + INTERVAL 1 HOUR) + INTERVAL 3 HOUR"
+            "max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano((toDateTime64('2026-06-01 13:00:00', 9, 'UTC') + INTERVAL 1 HOUR) + INTERVAL 3 HOUR), 9) / 1000000000), 1)"
         ),
         "got: {b}"
     );
@@ -2180,7 +2184,7 @@ fn test_bounds_tomonday_equality_widens_by_week() {
     let b = traces_bounds("SELECT id FROM traces WHERE toMonday(start_time) = '2026-06-01'");
     assert!(
         b.contains(
-            "max_start_time = (toDateTime64('2026-06-01', 9) + INTERVAL 7 DAY) + INTERVAL 3 HOUR"
+            "max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano((toDateTime64('2026-06-01', 9, 'UTC') + INTERVAL 7 DAY) + INTERVAL 3 HOUR), 9) / 1000000000), 1)"
         ),
         "got: {b}"
     );
@@ -2192,7 +2196,7 @@ fn test_bounds_tostartofmonth_gte_lower_no_widen() {
     // so the lower is the value as-is (minus pad).
     let b = traces_bounds("SELECT id FROM traces WHERE toStartOfMonth(start_time) >= '2026-06-01'");
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert_default_max(&b);
@@ -2203,7 +2207,7 @@ fn test_bounds_column_on_right_flips_operator() {
     let b = traces_bounds("SELECT id FROM traces WHERE '2026-06-01 00:00:00' < start_time");
     // '...' < start_time  ⇔  start_time > '...'  ⇒ lower bound.
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01 00:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
     assert_default_max(&b);
@@ -2241,7 +2245,9 @@ fn test_bounds_and_multiple_lowers_takes_tightest() {
         "SELECT id FROM traces WHERE start_time > '2026-06-01 00:00:00' AND start_time > '2026-06-03 00:00:00'",
     );
     assert!(
-        b.contains("min_start_time = greatest("),
+        b.contains(
+            "min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(greatest("
+        ),
         "expected greatest() for AND lower, got: {b}"
     );
 }
@@ -2259,7 +2265,7 @@ fn test_bounds_value_referencing_column_skipped() {
 fn test_bounds_from_alias_qualified_filter() {
     let b = traces_bounds("SELECT t.id FROM traces t WHERE t.start_time >= '2026-06-01 00:00:00'");
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01 00:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2281,7 +2287,7 @@ fn test_bounds_in_subquery_from_traces() {
     let query = "SELECT * FROM (SELECT id, start_time FROM traces WHERE start_time >= '2026-06-01 00:00:00') sub";
     let b = traces_bounds(query);
     assert!(
-        b.contains("min_start_time = toDateTime64('2026-06-01 00:00:00', 9) - INTERVAL 3 HOUR"),
+        b.contains("min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2026-06-01 00:00:00', 9, 'UTC') - INTERVAL 3 HOUR), 9) / 1000000000), 1)"),
         "got: {b}"
     );
 }
@@ -2440,7 +2446,7 @@ fn test_policy_reaches_every_spans_and_traces_reference() {
         contains_ws(
             &result,
             &format!(
-                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{\"maskPii\":true}}', min_start_time = toDateTime64('1970-01-01 00:00:00', 9), max_start_time = toDateTime64('2099-12-31 00:00:00', 9)) AS t"
+                "traces_v1(project_id = '{SAMPLE_PROJECT_ID}', policy = '{{\"maskPii\":true}}', min_start_time = toDecimalString(FLOOR(toDecimal128(toUnixTimestamp64Nano(toDateTime64('1970-01-01 00:00:00', 9, 'UTC')), 9) / 1000000000), 1), max_start_time = toDecimalString(CEIL(toDecimal128(toUnixTimestamp64Nano(toDateTime64('2099-12-31 00:00:00', 9, 'UTC')), 9) / 1000000000), 1)) AS t"
             )
         ),
         "got: {result}"
