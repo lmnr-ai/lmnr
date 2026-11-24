@@ -61,9 +61,7 @@ export default function AlertRow({
             <SeverityIcon key={s} severity={s} iconClassName="size-3.5" />
           ))}
           {/* Keeps every row two lines on a signal's page, where the signal name is hidden. */}
-          {!signal && severities.length === 0 && (
-            <span>{alert.type === "NEW_CLUSTER" ? "Every new cluster" : "Any severity"}</span>
-          )}
+          {!signal && severities.length === 0 && <span>Every new cluster</span>}
         </span>
       </div>
       <AlertTargets
