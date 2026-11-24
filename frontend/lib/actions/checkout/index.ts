@@ -87,12 +87,17 @@ export const getUpcomingInvoice = async (workspaceId: string): Promise<UpcomingI
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const workspace = await db
-    .select({ subscriptionId: workspaces.subscriptionId })
+    .select({ subscriptionId: workspaces.subscriptionId, trialEndsAt: workspaces.trialEndsAt })
     .from(workspaces)
     .where(eq(workspaces.id, workspaceId))
     .limit(1);
 
   if (!workspace[0]?.subscriptionId) {
+    return null;
+  }
+
+  // Stripe rejects invoice previews on trialing subscriptions (404), so don't send the request.
+  if (workspace[0].trialEndsAt) {
     return null;
   }
 
