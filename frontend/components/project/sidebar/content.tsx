@@ -4,10 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
 
-import Announcements from "@/components/announcements";
-import OpenSourceCard from "@/components/project/sidebar/open-source-card.tsx";
-import TrialCard from "@/components/project/sidebar/trial-card.tsx";
-import UsageCard from "@/components/project/sidebar/usage-card.tsx";
+import SidebarBottomCards from "@/components/project/sidebar/bottom-cards";
 import { getSidebarMenus } from "@/components/project/utils.ts";
 import SidebarSignals from "@/components/signal-clusters/sidebar-signals";
 import {
@@ -18,7 +15,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSectionLabel,
-  useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type ProjectDetails } from "@/lib/actions/project";
@@ -49,61 +45,50 @@ const ProjectSidebarContent = ({ announcements, details, dismissedAnnouncementId
         .filter((group) => group.items.length > 0),
     [details.id, featureFlags]
   );
-  const { open, openMobile } = useSidebar();
-  const showUsage = featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier;
-  const showTrial = featureFlags[Feature.SUBSCRIPTION] && !!details.trialEndsAt;
 
   return (
-    <SidebarContent>
-      {groups.map((group, i) => (
-        <SidebarGroup key={group.label ?? i} className={cn(i > 0 && "pt-2")}>
-          {group.label && <SidebarSectionLabel>{group.label}</SidebarSectionLabel>}
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              {group.items.map((option) =>
-                option.name === "Signals" ? (
-                  <SidebarSignals key={option.name} href={option.href} icon={option.icon} />
-                ) : (
-                  <SidebarMenuItem className="h-[30px]" key={option.name}>
-                    <SidebarMenuButton
-                      asChild
-                      className="h-[30px]"
-                      isActive={[option.href, ...(option.alsoActiveOn ?? [])].some((h) => pathname.startsWith(h))}
-                      tooltip={option.name}
-                    >
-                      <Link href={option.href}>
-                        <option.icon />
-                        <span className="flex items-start gap-0.5">
-                          {option.name}
-                          {option.badge && (
-                            <span className="text-[9px] font-medium leading-3 text-primary">{option.badge}</span>
-                          )}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      ))}
-
-      {(showUsage || showTrial || featureFlags[Feature.LAMINAR_CLOUD]) && (
-        <SidebarGroup className={cn("mt-auto px-2 pt-1 pb-1 md:pb-7", !(open || openMobile) && "hidden")}>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-2">
-              {showTrial && <TrialCard workspaceId={details.workspaceId} trialEndsAt={details.trialEndsAt!} />}
-              {featureFlags[Feature.LAMINAR_CLOUD] && <OpenSourceCard />}
-              {announcements.length > 0 && (
-                <Announcements announcements={announcements} initialDismissedIds={dismissedAnnouncementIds} />
-              )}
-              {showUsage && <UsageCard usageDetails={details} />}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      )}
-    </SidebarContent>
+    <>
+      <SidebarContent className="scroll-fade-y minimal-scrollbar">
+        {groups.map((group, i) => (
+          <SidebarGroup key={group.label ?? i} className={cn(i > 0 && "pt-2")}>
+            {group.label && <SidebarSectionLabel>{group.label}</SidebarSectionLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-0.5">
+                {group.items.map((option) =>
+                  option.name === "Signals" ? (
+                    <SidebarSignals key={option.name} href={option.href} icon={option.icon} />
+                  ) : (
+                    <SidebarMenuItem className="h-[30px]" key={option.name}>
+                      <SidebarMenuButton
+                        asChild
+                        className="h-[30px]"
+                        isActive={[option.href, ...(option.alsoActiveOn ?? [])].some((h) => pathname.startsWith(h))}
+                        tooltip={option.name}
+                      >
+                        <Link href={option.href}>
+                          <option.icon />
+                          <span className="flex items-start gap-0.5">
+                            {option.name}
+                            {option.badge && (
+                              <span className="text-[9px] font-medium leading-3 text-primary">{option.badge}</span>
+                            )}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarBottomCards
+        announcements={announcements}
+        details={details}
+        dismissedAnnouncementIds={dismissedAnnouncementIds}
+      />
+    </>
   );
 };
 

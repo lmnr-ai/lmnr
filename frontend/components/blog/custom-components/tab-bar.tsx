@@ -20,7 +20,9 @@ export default function TabBar({ items, active, onSelect }: TabBarProps) {
           onClick={() => onSelect(i)}
           className={cn(
             "shrink-0 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
-            i === active ? "border-primary text-white" : "border-transparent text-secondary-foreground hover:text-white"
+            i === active
+              ? "border-primary text-foreground dark:text-white"
+              : "border-transparent text-secondary-foreground hover:text-foreground dark:hover:text-white"
           )}
         >
           {item.label}

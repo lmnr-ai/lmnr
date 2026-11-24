@@ -44,7 +44,12 @@ export default function YouTubeEmbed({ url }: { url: string }) {
 
   if (!videoId) {
     return (
-      <a href={url} className="text-white underline hover:text-primary-text" target="_blank" rel="noopener noreferrer">
+      <a
+        href={url}
+        className="text-foreground dark:text-white underline hover:text-primary-text"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         {url}
       </a>
     );
