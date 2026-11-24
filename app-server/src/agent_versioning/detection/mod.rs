@@ -14,7 +14,7 @@ use anyhow::Result;
 use uuid::Uuid;
 
 use self::agent::{Change, DetectionAgent, KnownAgent, LatestPrompt, UnlabelledPrompt};
-use super::{Job, NS, definition, identity::definitions_cache_key};
+use super::{Job, NS, definition, identity::definitions_cache_key, internal_project_id};
 use crate::{
     cache::{CacheTrait, keys::AGENT_DETECTION_LOCK_CACHE_KEY},
     ch::{
@@ -26,11 +26,8 @@ use crate::{
     db::agent_versioning::{
         DefinedAgent, extend_agent_definition, get_defined_agents, insert_defined_agent,
     },
-    env::{
-        agent_versioning::{
-            ACTIVE_WINDOW_SECONDS, DETECTION_MIN_MATCHES, DETECTION_SAMPLES, INTERVAL_SECONDS,
-        },
-        connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
+    env::agent_versioning::{
+        ACTIVE_WINDOW_SECONDS, DETECTION_MIN_MATCHES, DETECTION_SAMPLES, INTERVAL_SECONDS,
     },
     llm::LlmClient,
 };
@@ -163,13 +160,6 @@ impl Job {
         }
         Ok(())
     }
-}
-
-/// The project the detection LLM calls are traced into.
-fn internal_project_id() -> Option<Uuid> {
-    std::env::var(CHECKPOINTS_INTERNAL_PROJECT_ID)
-        .ok()
-        .and_then(|value| Uuid::parse_str(&value).ok())
 }
 
 /// The sampled spans' prompts; spans no longer stored are skipped.

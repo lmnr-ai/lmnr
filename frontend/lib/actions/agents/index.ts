@@ -48,6 +48,18 @@ export const GetAgentVersionsSchema = z.object({
   agentId: z.guid(),
 });
 
+const AgentVersionSourceSchema = z.object({
+  status: z.enum(["verified", "unverified"]),
+  summary: z.string(),
+  /** Oldest first. */
+  changes: z.array(
+    z.object({ title: z.string(), url: z.string().startsWith("https://"), number: z.number().nullable() })
+  ),
+});
+
+/** Where a release-mode version's change came from, as judged against the GitHub code changes. */
+export type AgentVersionSource = z.infer<typeof AgentVersionSourceSchema>;
+
 export interface AgentVersionItem {
   id: string;
   versionHash: string;
@@ -60,6 +72,8 @@ export interface AgentVersionItem {
   models: string[];
   /** SDK releases (git SHAs) grouped into this version, newest first; empty for inferred versions. */
   releases: string[];
+  /** `null` when it wasn't checked: inferred versions, or no connected repo has the release. */
+  source: AgentVersionSource | null;
   createdAt: string;
 }
 
@@ -109,6 +123,7 @@ export async function getAgentVersions(
       versionNumber: agentVersions.versionNumber,
       systemPrompt: agentVersions.systemPrompt,
       toolDefinitions: agentVersions.toolDefinitions,
+      source: agentVersions.source,
       createdAt: agentVersions.createdAt,
     })
     .from(agentVersions)
@@ -128,6 +143,7 @@ export async function getAgentVersions(
     agent,
     versions: versions.map((version) => ({
       ...version,
+      source: AgentVersionSourceSchema.safeParse(version.source).data ?? null,
       models: models.get(version.id) ?? [],
       releases: releases.get(version.id) ?? [],
     })),

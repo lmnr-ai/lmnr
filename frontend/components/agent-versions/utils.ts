@@ -61,3 +61,10 @@ export function changeSummary(version: AgentVersionItem, previous?: AgentVersion
   const [first, ...rest] = joinWithAnd(phrases);
   return [typeof first === "string" ? first.charAt(0).toUpperCase() + first.slice(1) : first, ...rest];
 }
+
+/** The verified source's summary, else the {@link changeSummary}. */
+export function versionTitle(version: AgentVersionItem, previous?: AgentVersionItem): SummarySegment[] {
+  const { source } = version;
+  if (source?.status === "verified" && source.summary) return [source.summary];
+  return changeSummary(version, previous);
+}

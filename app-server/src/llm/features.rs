@@ -29,6 +29,8 @@ pub enum LlmFeature {
     AgentAutoname,
     ClusteringNaming,
     AgentDetection,
+    /// Judges a release's prompt change against the code changes behind it.
+    AgentVersionSource,
     Reports,
     /// Upstream of the hosted signals gateway (`/v1/chat/completions`). Resolved
     /// with global rows only; must land on a Chat Completions client.
@@ -53,6 +55,7 @@ impl LlmFeature {
             LlmFeature::AgentAutoname => "agent_autoname",
             LlmFeature::ClusteringNaming => "clustering_naming",
             LlmFeature::AgentDetection => "agent_detection",
+            LlmFeature::AgentVersionSource => "agent_version_source",
             LlmFeature::Reports => "reports",
             LlmFeature::SignalsGateway => "signals_gateway",
         }
@@ -73,6 +76,7 @@ impl LlmFeature {
             | LlmFeature::StaticPromptExtraction
             | LlmFeature::AgentChat
             | LlmFeature::AgentDetection
+            | LlmFeature::AgentVersionSource
             | LlmFeature::Reports
             | LlmFeature::SignalsGateway => ModelSize::Medium,
         }
@@ -123,7 +127,7 @@ impl Default for LlmRoute {
 mod tests {
     use super::*;
 
-    const ALL: [LlmFeature; 14] = [
+    const ALL: [LlmFeature; 15] = [
         LlmFeature::Default,
         LlmFeature::Signals,
         LlmFeature::SignalsPromptSummarization,
@@ -136,6 +140,7 @@ mod tests {
         LlmFeature::AgentAutoname,
         LlmFeature::ClusteringNaming,
         LlmFeature::AgentDetection,
+        LlmFeature::AgentVersionSource,
         LlmFeature::Reports,
         LlmFeature::SignalsGateway,
     ];
