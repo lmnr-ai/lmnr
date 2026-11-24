@@ -31,6 +31,13 @@
 - Mapping: `email` → Email, `id` → `userId`, `name` split on first whitespace → `firstName`/`lastName` (no whitespace → empty `lastName`; blank name → both omitted), `createdAt` → ISO string (Better Auth `user.createdAt`, falls back to `new Date()`).
 - The request carries a 5s `AbortSignal.timeout` (the hook `await`s it on the sign-up path, so a slow Loops API must not stall account creation) and the whole call is try/caught — audience sync failures log via `console.warn` and never break sign-up.
 
+## Sign-up Slack Notifications (cloud-only)
+
+- `frontend/lib/signup-notifications/index.ts` (`notifySignupInSlack`) posts company sign-ups to an internal Slack channel through a Slack **incoming webhook**, from the same `databaseHooks.user.create.after` hook as Loops (run in parallel, both never throw, 5s timeout). This is Laminar's own team channel, unrelated to the customer Slack integration in `lib/actions/slack/`.
+- Gated by `Feature.SIGNUP_SLACK_NOTIFICATIONS` = `LAMINAR_CLOUD === "true"` AND `SIGNUP_SLACK_WEBHOOK_URL` set.
+- The "company email" filter is `orgDomainFromEmail` (`lib/email-domain.ts`), shared with onboarding's workspace-name inference: consumer providers, `.edu`/`.ac.*` and malformed addresses are skipped. To silence another provider, add its org label to `CONSUMER_EMAIL_PROVIDERS` there; that also stops onboarding from suggesting it as a workspace name.
+- The hook fires on account creation only, which happens on Laminar's side (Better Auth writes `public.users`), so a Supabase Database Webhook / trigger is not needed and would put the filter outside the repo.
+
 ## Self-hosted Telemetry (usage heartbeat)
 
 - `frontend/lib/telemetry/` emits a `self_hosted_heartbeat` PostHog event for Helm/self-hosted deployments. Gated by `Feature.TELEMETRY` (`lib/features/features.ts`): on by default — only off when `LAMINAR_TELEMETRY_DISABLED === "true"` (operator opt-out) OR `LAMINAR_CLOUD === "true"` (cloud has first-party analytics). Deliberately does NOT gate on `ENVIRONMENT`, so the many self-hosted installs that don't set `ENVIRONMENT=FULL`/`PRODUCTION` are still observed; the `environment` property on every event lets dev/staging be filtered downstream instead of dropped at the source. Distinct from `Feature.POSTHOG` (that's cloud product analytics keyed on email) — telemetry keys on an opaque per-deployment UUID and never carries customer content. It is not anonymous: `email_domains` (below) says which companies run an instance.
