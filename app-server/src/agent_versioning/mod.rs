@@ -17,9 +17,12 @@
 
 use std::sync::Arc;
 
+use uuid::Uuid;
+
 use crate::{
     cache::Cache,
     db::DB,
+    env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID,
     features::{Feature, is_feature_enabled},
     llm::{LlmClient, llm_client_available},
 };
@@ -56,4 +59,12 @@ pub struct Job {
     pub cache: Arc<Cache>,
     pub clickhouse: clickhouse::Client,
     pub llm_client: Option<Arc<LlmClient>>,
+    pub http_client: reqwest::Client,
+}
+
+/// The project the job's own LLM calls are traced into.
+fn internal_project_id() -> Option<Uuid> {
+    std::env::var(CHECKPOINTS_INTERNAL_PROJECT_ID)
+        .ok()
+        .and_then(|value| Uuid::parse_str(&value).ok())
 }

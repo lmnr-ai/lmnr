@@ -65,13 +65,14 @@ export default function AgentDefinition({ projectId, agentId, definition, onChan
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-emphasis-1 transition-colors"
+          // 38px plus the card's 1px borders makes the closed card 40px.
+          className="group flex h-[38px] w-full items-center gap-2 rounded-md px-3 text-left hover:bg-emphasis-1 transition-colors"
         >
           <span className="text-sm font-medium">Definition</span>
           <Tooltip>
             <TooltipTrigger asChild>
               {/* Clicking the icon shouldn't toggle the card. */}
-              <span className="text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+              <span className="flex items-center text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                 <Info size={12} />
               </span>
             </TooltipTrigger>
@@ -84,7 +85,7 @@ export default function AgentDefinition({ projectId, agentId, definition, onChan
           <CardExpandIndicator expanded={open} className="ml-auto" />
         </button>
       </CollapsibleTrigger>
-      <CollapsibleContent>
+      <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
         <div className="flex flex-col gap-3 border-t px-3 py-3">
           <p className="text-xs text-muted-foreground">
             A span belongs to this agent when any of these rules matches the system prompt (truncated to first{" "}

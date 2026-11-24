@@ -1,10 +1,13 @@
 //! The release path, for agents whose prompts carry the SDK's release. Each
 //! release is decided once, oldest first: it keeps the version of the nearest
-//! decided release unless a core line changed ([`compare`]). Every trace carrying a
-//! decided release is tagged with its version, by the job and, once the
-//! decision is cached, at ingest ([`super::ingest::tag_releases`]).
+//! decided release unless a core line changed ([`compare`]). A change from a
+//! decided release is checked against the code between their commits
+//! ([`source`]): sampling noise keeps the baseline's version. Every trace
+//! carrying a decided release is tagged with its version, by the job and, once
+//! the decision is cached, at ingest ([`super::ingest::tag_releases`]).
 
 mod compare;
+mod source;
 
 use std::collections::{HashMap, HashSet};
 
@@ -12,7 +15,10 @@ use anyhow::Result;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use self::compare::{Decision, Params, PromptLines};
+use self::{
+    compare::{Decision, Params, PromptLines},
+    source::{Source, Verdict},
+};
 use super::{
     Job, NS, VISIBILITY_LAG_NS,
     ingest::{RELEASE_CACHE_TTL_SECONDS, release_cache_key},
@@ -22,8 +28,8 @@ use crate::{
     cache::CacheTrait,
     ch::agent_prompts::{Scope, TracePrompt},
     db::agent_versioning::{
-        Agent, Release, get_releases, get_versions, insert_version, save_progress, set_backfilled,
-        set_release_version, upsert_releases,
+        Agent, Release, VersionText, get_releases, get_version_text, get_versions, insert_version,
+        save_progress, set_backfilled, set_release_version, set_version_source, upsert_releases,
     },
     env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN},
 };
@@ -94,6 +100,14 @@ impl Versions {
         self.cores.push(core);
         self.cores.len() - 1
     }
+}
+
+/// What a release is compared against.
+struct Baseline {
+    lines: PromptLines,
+    version: usize,
+    /// `''` for the prompts before the first release.
+    release: String,
 }
 
 /// One run of the release path over an agent.
@@ -204,14 +218,53 @@ impl<'a> Run<'a> {
 
         let decision = compare::decide(
             &lines,
-            baseline.as_ref().map(|(lines, _)| lines),
+            baseline.as_ref().map(|b| &b.lines),
             &self.versions.cores,
         );
+        let pool = &self.job.db.pool;
+        let baseline_version = baseline.as_ref().map(|b| b.version).unwrap_or_default();
         Ok(Some(match decision {
-            Decision::Same => baseline.map(|(_, version)| version).unwrap_or_default(),
-            Decision::Existing(version) => version,
-            Decision::New(core) => self.mint(example, core).await?,
+            Decision::Same => baseline_version,
+            Decision::Existing(version) => {
+                let text = get_version_text(pool, self.versions.ids[version]).await?;
+                match self.check_source(i, baseline.as_ref(), &text).await? {
+                    Some(Verdict::Noise) => baseline_version,
+                    _ => version,
+                }
+            }
+            Decision::New(core) => {
+                let project_id = self.scope.project_id;
+                let text = self.job.version_text(project_id, example, &core).await?;
+                match self.check_source(i, baseline.as_ref(), &text).await? {
+                    Some(Verdict::Noise) => baseline_version,
+                    verdict => {
+                        let source = verdict.and_then(Verdict::source);
+                        self.mint(text, core, source).await?
+                    }
+                }
+            }
         }))
+    }
+
+    /// The verdict on release `i` (version text `text`) changing from its
+    /// baseline, when the baseline is a release too.
+    async fn check_source(
+        &self,
+        i: usize,
+        baseline: Option<&Baseline>,
+        text: &VersionText,
+    ) -> Result<Option<Verdict>> {
+        let Some(baseline) = baseline.filter(|b| !b.release.is_empty()) else {
+            return Ok(None);
+        };
+        let before_id = self.versions.ids[baseline.version];
+        let before = get_version_text(&self.job.db.pool, before_id).await?;
+        let project_id = self.scope.project_id;
+        let head = &self.releases[i].release;
+        Ok(self
+            .job
+            .check_source(project_id, &baseline.release, head, &before, text)
+            .await)
     }
 
     fn sample_size(&self, i: usize) -> Option<u64> {
@@ -233,7 +286,7 @@ impl<'a> Run<'a> {
     /// release. A release decided after a newer one (too few traces, or seen
     /// earlier later on) is still compared against samples rather than bare
     /// cores.
-    async fn baseline(&self, i: usize) -> Result<Option<(PromptLines, usize)>> {
+    async fn baseline(&self, i: usize) -> Result<Option<Baseline>> {
         let neighbour = (0..i)
             .rev()
             .chain(i + 1..self.releases.len())
@@ -251,7 +304,11 @@ impl<'a> Run<'a> {
             (None, None) => return Ok(None),
         };
         let lines = self.prompt_lines(release, before, limit, version).await?;
-        Ok(Some((lines, version)))
+        Ok(Some(Baseline {
+            lines,
+            version,
+            release: release.to_string(),
+        }))
     }
 
     /// Up to `limit` sampled prompts of `release` starting before `before`,
@@ -277,14 +334,21 @@ impl<'a> Run<'a> {
         })
     }
 
-    /// Saves a new version with `core`, its text taken from `example`.
-    async fn mint(&mut self, example: &TracePrompt, core: Vec<u64>) -> Result<usize> {
+    /// Saves a new version with `core`.
+    async fn mint(
+        &mut self,
+        text: VersionText,
+        core: Vec<u64>,
+        source: Option<Source>,
+    ) -> Result<usize> {
         let project_id = self.scope.project_id;
-        let text = self.job.version_text(project_id, example, &core).await?;
         let hash = version_hash(self.scope.agent_hash, &core);
         let lines: Vec<i64> = core.iter().map(|&l| l as i64).collect();
         let pool = &self.job.db.pool;
         let id = insert_version(pool, project_id, self.agent.id, &hash, &lines, &text).await?;
+        if let Some(source) = source {
+            set_version_source(pool, id, &source).await?;
+        }
         Ok(self.versions.push(id, hash, core))
     }
 

@@ -6,8 +6,9 @@ import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 import ChangeSummary from "./change-summary";
-import { changeSummary, versionColor } from "./utils";
+import { versionColor, versionTitle } from "./utils";
 import VersionDetails from "./version-details";
+import VersionSource from "./version-source";
 
 interface VersionCardProps {
   agentId: string;
@@ -50,7 +51,7 @@ export default function VersionCard({
         </span>
         {!isLast && <div className="w-px flex-1 bg-border" />}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-2 pb-6">
+      <div className="flex min-w-0 flex-1 flex-col pb-6">
         <CollapsibleTrigger asChild>
           <div
             role="button"
@@ -58,20 +59,24 @@ export default function VersionCard({
             className="group flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-emphasis-1 active:bg-emphasis-2 transition-colors"
           >
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <ChangeSummary segments={changeSummary(version, previous)} className={cn(!open && "truncate")} />
+              <ChangeSummary segments={versionTitle(version, previous)} className={cn(!open && "truncate")} />
               <span className="text-xs text-muted-foreground">{formatRelativeTime(version.createdAt)}</span>
             </div>
             <CardExpandIndicator expanded={open} />
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
-          <VersionDetails
-            version={version}
-            previous={previous}
-            promptChanged={promptChanged}
-            toolsChanged={toolsChanged}
-          />
+          {/* Spacing lives inside the animated content so it opens with it rather than jumping. */}
+          <div className="pt-2">
+            <VersionDetails
+              version={version}
+              previous={previous}
+              promptChanged={promptChanged}
+              toolsChanged={toolsChanged}
+            />
+          </div>
         </CollapsibleContent>
+        {version.source && <VersionSource source={version.source} />}
       </div>
     </Collapsible>
   );

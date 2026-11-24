@@ -170,10 +170,34 @@ pub async fn get_versions(pool: &PgPool, agent_id: Uuid) -> Result<Vec<Version>>
 
 /// A version's system prompt and tool text (`tool_text::render`), each cut down
 /// to its core lines.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, FromRow)]
 pub struct VersionText {
     pub system_prompt: String,
     pub tool_definitions: String,
+}
+
+pub async fn get_version_text(pool: &PgPool, version_id: Uuid) -> Result<VersionText> {
+    let text = sqlx::query_as::<_, VersionText>(
+        "SELECT system_prompt, tool_definitions FROM agent_versions WHERE id = $1",
+    )
+    .bind(version_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(text)
+}
+
+/// Where the version's change came from (`agent_versions.source`).
+pub async fn set_version_source<T: Serialize + Sync>(
+    pool: &PgPool,
+    version_id: Uuid,
+    source: &T,
+) -> Result<()> {
+    sqlx::query("UPDATE agent_versions SET source = $2 WHERE id = $1")
+        .bind(version_id)
+        .bind(Json(source))
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 /// Insert the agent's next version, or return the existing one with this hash.

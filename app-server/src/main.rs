@@ -796,6 +796,7 @@ fn main() -> anyhow::Result<()> {
                 cache: cache.clone(),
                 clickhouse: clickhouse.clone(),
                 llm_client: llm_provider_client.clone(),
+                http_client: http_client.clone(),
             };
             runtime_handle.spawn(job.run());
         }
