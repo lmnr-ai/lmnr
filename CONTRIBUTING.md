@@ -23,14 +23,14 @@ We do this to avoid legal issues and disputes, and to stay compliant with releva
 
 Don't get overwhelmed by the number of docker-compose files. Here's a quick overview:
 
-- `docker-compose.yml` is the simplest one that spins up frontend, app-server, clickhouse, and postgres. Good for quickstarts.
+- `docker-compose.yml` is the simplest one that spins up frontend, app-server, clickhouse, postgres, and quickwit. Good for quickstarts.
 - `docker-compose-full.yml` is the one you want to use for running the full stack locally. This is the best 
 for self-hosting.
 - `docker-compose-local-dev-full.yml` full file for local development. To be used when you make changes
-  to the backend. It will only run the dependency services (postgres, clickhouse, rabbitmq).
+  to the backend. It will only run the dependency services (postgres, clickhouse, rabbitmq, quickwit).
   You will need to run `cargo r`, `pnpm run dev`, `python main.py`, and `python server.py` manually.
 - `docker-compose-local-dev.yml` is the one you want to use for local development. It will only
-  run postgres, clickhouse, and app-server. Good for frontend changes.
+  run postgres, clickhouse, quickwit, and app-server. Good for frontend changes.
 - `docker-compose-local-build.yml` will build the services from the source and run them in production mode. This is good for self-hosting with your own changes,
 or for testing the changes after developing on your own and before opening a PR.
 
@@ -38,6 +38,7 @@ or for testing the changes after developing on your own and before opening a PR.
 |---------|-------------------|------------------------|------------------------------|----------------------------|------------------------------|
 | postgres | ✅ | ✅ | ✅ | ✅ | ✅ |
 | clickhouse | ✅ | ✅ | ✅ | ✅ | ✅ |
+| quickwit | ✅ | ✅ | ✅ | ✅ | ✅ |
 | rabbitmq | ❌ | ✅ | ✅ | ❌ | ✅ |
 | app-server | ℹ️ | ✅ | 💻 | ℹ️ | 🔧 | 
 | frontend | ℹ️ | ✅ | 💻 | 💻 | 🔧 |
@@ -47,6 +48,8 @@ or for testing the changes after developing on your own and before opening a PR.
 - ℹ️ - service present, but is a lightweight version.
 - 💻 – service needs to be run manually (see below).
 - ❌ – service not present.
+
+> **Quickwit is optional.** It powers full-text span search/indexing. Set `QUICKWIT_ENABLED=false` on app-server to disable it; if Quickwit is unreachable at startup, app-server still boots with search/indexing disabled.
 
 
 ## Running Laminar locally for development
