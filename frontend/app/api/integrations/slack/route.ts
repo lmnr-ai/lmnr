@@ -1,49 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod/v4";
 
-import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { connectSlackIntegration, redeemBrokeredSlackToken } from "@/lib/actions/slack";
-import { getServerSession } from "@/lib/auth-session";
-import { isUserMemberOfWorkspace } from "@/lib/authorization";
-import { BASE_PATH } from "@/lib/utils";
-
-// NEXT_PUBLIC_URL is the operator's bare origin; the sub-path prefix is owned by
-// BASE_PATH (NEXT_PUBLIC_BASE_PATH, baked at build). NextResponse.redirect is NOT
-// auto-prefixed by Next, so absolute targets must be origin + BASE_PATH + path.
-// Stripping to .origin first avoids double-stamping if the env URL already carries
-// the sub-path. Same pattern as the invite link in lib/actions/workspace/invite.ts.
-function prefixedBase(): string {
-  return `${new URL(process.env.NEXT_PUBLIC_URL!).origin}${BASE_PATH}`;
-}
-
-function parseState(state: string): { workspaceId: string; returnPath?: string } {
-  const colonIdx = state.indexOf(":");
-  if (colonIdx === -1) {
-    return { workspaceId: state };
-  }
-  return {
-    workspaceId: state.substring(0, colonIdx),
-    returnPath: state.substring(colonIdx + 1),
-  };
-}
-
-function isRelativePath(path: string): boolean {
-  return path.startsWith("/") && !path.startsWith("//");
-}
-
-async function buildRedirectUrl(workspaceId: string, returnPath?: string, error = false): Promise<string> {
-  const base = prefixedBase();
-  const status = error ? "slack=error" : "slack=success";
-
-  if (returnPath && isRelativePath(returnPath)) {
-    const separator = returnPath.includes("?") ? "&" : "?";
-    return `${base}${returnPath}${separator}${status}`;
-  }
-
-  // No returnPath: resolve the workspace's project to land on its integrations settings.
-  const settingsPath = await getWorkspaceSettingsPath(workspaceId, "integrations");
-  const separator = settingsPath.includes("?") ? "&" : "?";
-  return `${base}${settingsPath}${separator}${status}`;
-}
+import {
+  authorizeSlackCallbackWorkspace,
+  buildRedirectUrl,
+  parseState,
+  prefixedBase,
+} from "@/lib/actions/slack/callback";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -63,18 +27,15 @@ export async function GET(request: NextRequest) {
     const returnPath = searchParams.get("returnPath") ?? undefined;
     const claim = searchParams.get("claim");
     const slackStatus = searchParams.get("slack");
-    if (slackStatus === "error" || !brokeredWorkspaceId || !claim) {
+    if (slackStatus === "error" || !brokeredWorkspaceId || !claim || !z.guid().safeParse(brokeredWorkspaceId).success) {
       return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
-    // workspaceId rides in the URL (the broker echoes only claim + team), so bind
-    // the claim to the authenticated caller's membership here: this callback is a
-    // public OAuth redirect target, and without the check a user who completed
-    // their own broker flow could rewrite workspaceId to any UUID and store their
-    // bot token into a workspace they don't belong to.
-    const session = await getServerSession();
-    if (!session || !(await isUserMemberOfWorkspace(brokeredWorkspaceId, session.user.id))) {
+
+    const auth = await authorizeSlackCallbackWorkspace(brokeredWorkspaceId);
+    if (!auth.authorized) {
       return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
+
     try {
       await redeemBrokeredSlackToken({ claim, workspaceId: brokeredWorkspaceId });
       return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath));
@@ -94,6 +55,11 @@ export async function GET(request: NextRequest) {
   }
 
   const { workspaceId, returnPath } = parseState(stateParam);
+
+  const auth = await authorizeSlackCallbackWorkspace(workspaceId);
+  if (!auth.authorized) {
+    return NextResponse.redirect(await buildRedirectUrl(workspaceId, returnPath, true));
+  }
 
   try {
     await connectSlackIntegration({ code, workspaceId });
