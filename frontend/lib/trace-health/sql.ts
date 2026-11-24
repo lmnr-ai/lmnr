@@ -2,12 +2,9 @@ import { type TraceHealthCheckId } from "./checks";
 
 export const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
-// Short real payloads exist (a tool returning `"ok"` or `0`), so match the empty values exactly.
-// The length check first lets ClickHouse skip comparing every long payload. `""` is spelled with
-// char(34): the verification query is pasted into a double-quoted shell argument, and the query
-// engine strips backslash escapes.
-const isEmptyPayload = (col: "input" | "output") =>
-  `length(${col}) <= 4 AND ${col} IN ('', 'null', '[]', '{}', repeat(char(34), 2))`;
+// Only a payload that was never recorded counts: ingestion stores it (and a JSON `null`) as ''.
+// `[]`, `{}` and `""` are values the code actually returned, so they pass.
+const isEmptyPayload = (col: "input" | "output") => `empty(${col})`;
 
 // A failed call is expected to lack payloads and usage, so the span checks only count successful calls.
 export const NOT_ERROR = "status != 'error'";
