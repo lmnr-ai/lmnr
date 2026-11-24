@@ -3,6 +3,7 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::{FromRow, PgPool, types::Json};
 use uuid::Uuid;
 
@@ -186,21 +187,10 @@ pub async fn get_version_text(pool: &PgPool, version_id: Uuid) -> Result<Version
     Ok(text)
 }
 
-/// Where the version's change came from (`agent_versions.source`).
-pub async fn set_version_source<T: Serialize + Sync>(
-    pool: &PgPool,
-    version_id: Uuid,
-    source: &T,
-) -> Result<()> {
-    sqlx::query("UPDATE agent_versions SET source = $2 WHERE id = $1")
-        .bind(version_id)
-        .bind(Json(source))
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
 /// Insert the agent's next version, or return the existing one with this hash.
+/// `source` (`agent_versions.source`, where the change came from) is written
+/// with the row, so a version can't be saved without it; an existing version
+/// keeps its own.
 pub async fn insert_version(
     pool: &PgPool,
     project_id: Uuid,
@@ -208,12 +198,13 @@ pub async fn insert_version(
     version_hash: &str,
     core_lines: &[i64],
     text: &VersionText,
+    source: Option<&Value>,
 ) -> Result<Uuid> {
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO agent_versions
             (project_id, agent_id, version_number, version_hash, core_lines,
-             system_prompt, tool_definitions)
-         SELECT $1, $2, COALESCE(MAX(version_number), 0) + 1, $3, $4, $5, $6
+             system_prompt, tool_definitions, source)
+         SELECT $1, $2, COALESCE(MAX(version_number), 0) + 1, $3, $4, $5, $6, $7
          FROM agent_versions WHERE agent_id = $2
          ON CONFLICT (project_id, version_hash) DO UPDATE SET version_hash = EXCLUDED.version_hash
          RETURNING id",
@@ -224,6 +215,7 @@ pub async fn insert_version(
     .bind(core_lines)
     .bind(sanitize_string(&text.system_prompt))
     .bind(sanitize_string(&text.tool_definitions))
+    .bind(source.map(Json))
     .fetch_one(pool)
     .await?;
     Ok(id)

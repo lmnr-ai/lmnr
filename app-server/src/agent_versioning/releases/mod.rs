@@ -29,7 +29,7 @@ use crate::{
     ch::agent_prompts::{Scope, TracePrompt},
     db::agent_versioning::{
         Agent, Release, VersionText, get_releases, get_version_text, get_versions, insert_version,
-        save_progress, set_backfilled, set_release_version, set_version_source, upsert_releases,
+        save_progress, set_backfilled, set_release_version, upsert_releases,
     },
     env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN},
 };
@@ -108,6 +108,8 @@ struct Baseline {
     version: usize,
     /// `''` for the prompts before the first release.
     release: String,
+    /// A newer release, when no earlier one is decided yet.
+    is_newer: bool,
 }
 
 /// One run of the release path over an agent.
@@ -246,8 +248,9 @@ impl<'a> Run<'a> {
         }))
     }
 
-    /// The verdict on release `i` (version text `text`) changing from its
-    /// baseline, when the baseline is a release too.
+    /// The verdict on release `i` (version text `text`) differing from its
+    /// baseline, when the baseline is a release too. The two are checked in
+    /// commit order, so the prompt diff runs the same way as the code changes.
     async fn check_source(
         &self,
         i: usize,
@@ -257,14 +260,28 @@ impl<'a> Run<'a> {
         let Some(baseline) = baseline.filter(|b| !b.release.is_empty()) else {
             return Ok(None);
         };
-        let before_id = self.versions.ids[baseline.version];
-        let before = get_version_text(&self.job.db.pool, before_id).await?;
+        let baseline_id = self.versions.ids[baseline.version];
+        let baseline_text = get_version_text(&self.job.db.pool, baseline_id).await?;
         let project_id = self.scope.project_id;
-        let head = &self.releases[i].release;
-        Ok(self
+        let release = &self.releases[i].release;
+        if !baseline.is_newer {
+            return Ok(self
+                .job
+                .check_source(project_id, &baseline.release, release, &baseline_text, text)
+                .await);
+        }
+        let verdict = self
             .job
-            .check_source(project_id, &baseline.release, head, &before, text)
-            .await)
+            .check_source(project_id, release, &baseline.release, text, &baseline_text)
+            .await;
+        // The summary titles the newer release's change, not this version's.
+        Ok(verdict.map(|verdict| match verdict {
+            Verdict::Real(source) => Verdict::Real(Source {
+                summary: String::new(),
+                ..source
+            }),
+            Verdict::Noise => Verdict::Noise,
+        }))
     }
 
     fn sample_size(&self, i: usize) -> Option<u64> {
@@ -291,6 +308,7 @@ impl<'a> Run<'a> {
             .rev()
             .chain(i + 1..self.releases.len())
             .find_map(|j| Some((j, self.version_of[j]?)));
+        let is_newer = neighbour.is_some_and(|(j, _)| j > i);
         let (release, before, limit, version) = match (neighbour, self.before_releases) {
             (Some((j, version)), _) => {
                 let release = self.releases[j].release.as_str();
@@ -308,6 +326,7 @@ impl<'a> Run<'a> {
             lines,
             version,
             release: release.to_string(),
+            is_newer,
         }))
     }
 
@@ -344,11 +363,17 @@ impl<'a> Run<'a> {
         let project_id = self.scope.project_id;
         let hash = version_hash(self.scope.agent_hash, &core);
         let lines: Vec<i64> = core.iter().map(|&l| l as i64).collect();
-        let pool = &self.job.db.pool;
-        let id = insert_version(pool, project_id, self.agent.id, &hash, &lines, &text).await?;
-        if let Some(source) = source {
-            set_version_source(pool, id, &source).await?;
-        }
+        let source = source.map(serde_json::to_value).transpose()?;
+        let id = insert_version(
+            &self.job.db.pool,
+            project_id,
+            self.agent.id,
+            &hash,
+            &lines,
+            &text,
+            source.as_ref(),
+        )
+        .await?;
         Ok(self.versions.push(id, hash, core))
     }
 

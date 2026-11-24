@@ -122,7 +122,8 @@ impl Job {
             };
             let hash = version_hash(agent_hash, core);
             let lines: Vec<i64> = core.iter().map(|&l| l as i64).collect();
-            ids.push(insert_version(pool, project_id, agent.id, &hash, &lines, &text).await?);
+            let id = insert_version(pool, project_id, agent.id, &hash, &lines, &text, None).await?;
+            ids.push(id);
             hashes.push(hash);
         }
 
