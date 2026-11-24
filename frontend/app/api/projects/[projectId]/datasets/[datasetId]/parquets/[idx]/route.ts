@@ -1,14 +1,15 @@
-import { type NextRequest } from "next/server";
-
 import { streamParquet } from "@/lib/actions/dataset";
+import { apiHandler } from "@/lib/api/api-handler";
+import { ApiError } from "@/lib/api/errors";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ projectId: string; datasetId: string; idx: string }> }
-) {
+export const GET = apiHandler<{ projectId: string; datasetId: string; idx: string }>(async (_req, { params }) => {
   const { projectId, datasetId, idx } = await params;
+  const index = Number(idx);
+  if (!idx || /\D/.test(idx) || !Number.isSafeInteger(index)) {
+    throw new ApiError("Invalid Parquet file index", 400);
+  }
 
-  const { stream, fileName, contentLength } = await streamParquet(projectId, datasetId, parseInt(idx));
+  const { stream, fileName, contentLength } = await streamParquet(projectId, datasetId, index);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/octet-stream",
@@ -22,4 +23,4 @@ export async function GET(
   }
 
   return new Response(stream, { headers });
-}
+});
