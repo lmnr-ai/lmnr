@@ -984,8 +984,8 @@ fn build_traces_static_rows(
 
 /// Strict order: unique_content -> spans_large_io -> spans -> stamp. `spans`
 /// is plain MergeTree, so a retry after a successful spans insert + failed
-/// content insert would duplicate every span row; a `spans` row with an
-/// `offloaded_io` bit also needs its `spans_large_io` row to exist first.
+/// content insert would duplicate every span row; an offloaded `spans` row
+/// also needs its `spans_large_io` row to exist first.
 /// Stamping runs LAST because the two key axes are backed by different tables:
 /// `s2:` by `unique_content`, `tn:` by `spans.*_new_message_indices` — a `tn:`
 /// key stamped before a permanently-dropped spans insert made later spans ship empty

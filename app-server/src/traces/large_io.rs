@@ -1,6 +1,7 @@
 //! Large non-LLM span payloads (LAM-2580). A stored `input` / `output` above
 //! [`LargeIoLimits::threshold_bytes`] moves to a `spans_large_io` row and the
-//! `spans` row keeps a bounded, valid-JSON preview plus an `offloaded_io` bit.
+//! `spans` row keeps a bounded, valid-JSON preview and sets `input_offloaded` /
+//! `output_offloaded`.
 //! `spans_v0` / `spans_v1` restore the full value as `input` / `output` and
 //! expose the stored one as `input_preview` / `output_preview`, which
 //! whole-trace readers select so they never pull multi-MiB payloads.
@@ -21,9 +22,6 @@ use crate::{
     pii_redactor::SpanVerdict,
     utils::sanitize_string,
 };
-
-pub const OFFLOADED_INPUT: u8 = 1;
-pub const OFFLOADED_OUTPUT: u8 = 1 << 1;
 
 /// Floor for [`LargeIoLimits::preview_bytes`]; the last-resort preview (one
 /// truncated JSON string) always fits in it.
@@ -87,19 +85,19 @@ pub fn offload(
 
     let mut rows = Vec::new();
     for is_output in [false, true] {
-        let (text, masks, raw, bit) = if is_output {
+        let (text, masks, raw, offloaded) = if is_output {
             (
                 &mut ch_span.output,
                 &mut ch_span.output_masks,
                 span.output.as_ref(),
-                OFFLOADED_OUTPUT,
+                &mut ch_span.output_offloaded,
             )
         } else {
             (
                 &mut ch_span.input,
                 &mut ch_span.input_masks,
                 span.input.as_ref(),
-                OFFLOADED_INPUT,
+                &mut ch_span.input_offloaded,
             )
         };
         if text.len() <= limits.threshold_bytes {
@@ -133,7 +131,7 @@ pub fn offload(
             content_masks: std::mem::take(masks),
             pii_checked,
         });
-        ch_span.offloaded_io |= bit;
+        *offloaded = true;
     }
     rows
 }
@@ -330,7 +328,7 @@ mod tests {
         assert!(!rows[0].is_output);
         assert_eq!(rows[0].content, stored);
         assert_eq!(rows[0].trace_id, s.trace_id);
-        assert_eq!(row.offloaded_io, OFFLOADED_INPUT);
+        assert!(row.input_offloaded && !row.output_offloaded);
         assert!(row.input.len() <= LIMITS.preview_bytes);
         assert!(
             parse(&row.input)["doc"]
@@ -355,7 +353,7 @@ mod tests {
             let mut row = ch(&s);
             let rows = offload(&mut row, &s, &SpanVerdict::Off, LIMITS);
             assert_eq!(rows.len(), 2);
-            assert_eq!(row.offloaded_io, OFFLOADED_INPUT | OFFLOADED_OUTPUT);
+            assert!(row.input_offloaded && row.output_offloaded);
         }
     }
 
@@ -373,7 +371,7 @@ mod tests {
             let before = row.input.clone();
             assert!(offload(&mut row, &s, &SpanVerdict::Off, LIMITS).is_empty());
             assert_eq!(row.input, before);
-            assert_eq!(row.offloaded_io, 0);
+            assert!(!row.input_offloaded && !row.output_offloaded);
         }
     }
 
@@ -420,7 +418,7 @@ mod tests {
             output: None,
         };
         assert!(offload(&mut row, &s, &verdict, LIMITS).is_empty());
-        assert_eq!(row.offloaded_io, 0);
+        assert!(!row.input_offloaded && !row.output_offloaded);
     }
 
     #[test]
@@ -432,6 +430,6 @@ mod tests {
         let s = span(SpanType::Default, json!("y".repeat(500)), json!("ok"));
         let mut row = ch(&s);
         assert!(offload(&mut row, &s, &SpanVerdict::Off, limits).is_empty());
-        assert_eq!(row.offloaded_io, 0);
+        assert!(!row.input_offloaded && !row.output_offloaded);
     }
 }

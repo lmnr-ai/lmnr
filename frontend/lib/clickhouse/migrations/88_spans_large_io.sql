@@ -3,10 +3,10 @@
 -- A whole-value `input` / `output` of a DEFAULT, TOOL, EXECUTOR, EVALUATOR or
 -- EVALUATION span above `LARGE_PAYLOAD_THRESHOLD_BYTES` (app-server, default
 -- 100 KiB) is stored here, one row per (span, direction). The `spans` row keeps
--- a bounded JSON preview in `input` / `output` and sets a bit in
--- `offloaded_io` (bit 0 = input, bit 1 = output). These rows are 0.3% of
--- default-span payloads but ~70% of their bytes, so leaving them inline made
--- every granule that held one decompress it for its 8191 neighbours.
+-- a bounded JSON preview in `input` / `output` and sets `input_offloaded` /
+-- `output_offloaded`. These rows are 0.3% of default-span payloads but ~70%
+-- of their bytes, so leaving them inline made every granule that held one
+-- decompress it for its 8191 neighbours.
 --
 -- Rows are at least the threshold, and adaptive granularity sizes a granule
 -- from the insert block's average row size, so `index_granularity_bytes` at
@@ -29,13 +29,14 @@ PARTITION BY toStartOfWeek(start_time)
 ORDER BY (project_id, trace_id, span_id, is_output)
 SETTINGS index_granularity = 8192, index_granularity_bytes = 102400;
 
-ALTER TABLE spans ADD COLUMN IF NOT EXISTS offloaded_io UInt8 DEFAULT 0;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS input_offloaded Bool DEFAULT false;
+ALTER TABLE spans ADD COLUMN IF NOT EXISTS output_offloaded Bool DEFAULT false;
 
 -- Both views restore the full value through `spans_large_io_dict`
 -- (COMPLEX_KEY_DIRECT, created by `ensureContentDicts` in
 -- frontend/instrumentation.ts): no cache, so multi-MiB values are never held
--- in memory between queries, and the `multiIf` short-circuits, so rows without
--- the bit, and queries that don't select the column, issue no lookups. A
+-- in memory between queries, and the `multiIf` short-circuits, so rows not
+-- offloaded, and queries that don't select the column, issue no lookups. A
 -- missing row falls back to the preview (the masked branch fails closed).
 --
 -- `input_preview` / `output_preview` are the stored values: the preview for an
@@ -91,7 +92,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
                 ),
                 ','
             ) || ']',
-            bitTest(offloaded_io, 0),
+            input_offloaded,
             dictGetOrDefault('spans_large_io_dict', 'content', tuple(project_id, trace_id, span_id, false), spans.input),
             spans.input
         ) AS input,
@@ -108,7 +109,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
                 ),
                 ','
             ) || ']',
-            bitTest(offloaded_io, 1),
+            output_offloaded,
             dictGetOrDefault('spans_large_io_dict', 'content', tuple(project_id, trace_id, span_id, true), spans.output),
             spans.output
         ) AS output,
@@ -229,7 +230,7 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                     ),
                     ','
                 ) || ']',
-                bitTest(offloaded_io, 0),
+                input_offloaded,
                 arrayMap(
                     t -> if(
                         tupleElement(t, 3),
@@ -258,7 +259,7 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                     ),
                     ','
                 ) || ']',
-                bitTest(offloaded_io, 0),
+                input_offloaded,
                 dictGetOrDefault('spans_large_io_dict', 'content', tuple(project_id, trace_id, span_id, false), spans.input),
                 spans.input
             )
@@ -286,7 +287,7 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                     ),
                     ','
                 ) || ']',
-                bitTest(offloaded_io, 1),
+                output_offloaded,
                 arrayMap(
                     t -> if(
                         tupleElement(t, 3),
@@ -315,7 +316,7 @@ CREATE VIEW IF NOT EXISTS spans_v1 SQL SECURITY INVOKER AS
                     ),
                     ','
                 ) || ']',
-                bitTest(offloaded_io, 1),
+                output_offloaded,
                 dictGetOrDefault('spans_large_io_dict', 'content', tuple(project_id, trace_id, span_id, true), spans.output),
                 spans.output
             )

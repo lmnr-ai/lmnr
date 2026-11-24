@@ -184,10 +184,12 @@ pub struct CHSpan {
     /// at their raw JSON size. Set by `traces/processor.rs::charge_span_sizes`.
     #[serde(default)]
     pub original_size_bytes: u64,
-    /// Bit 0 = `input`, bit 1 = `output`: the field holds a preview and the
-    /// full value is a `spans_large_io` row (`traces::large_io`).
+    /// `input` / `output` holds a preview and the full value is a
+    /// `spans_large_io` row (`traces::large_io`).
     #[serde(default)]
-    pub offloaded_io: u8,
+    pub input_offloaded: bool,
+    #[serde(default)]
+    pub output_offloaded: bool,
 }
 
 impl CHSpan {
@@ -269,7 +271,8 @@ impl CHSpan {
             output_masks: Vec::new(),
             pii_checked: false,
             original_size_bytes: 0,
-            offloaded_io: 0,
+            input_offloaded: false,
+            output_offloaded: false,
         }
     }
 }

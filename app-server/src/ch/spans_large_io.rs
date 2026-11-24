@@ -8,8 +8,9 @@ use super::{
 };
 
 /// One `spans_large_io` row: the full `input` (`is_output = false`) or
-/// `output` of a span whose `spans` row holds only a preview and the matching
-/// `offloaded_io` bit. See `traces::large_io`. Inserted by field name.
+/// `output` of a span whose `spans` row holds only a preview and has
+/// `input_offloaded` / `output_offloaded` set. See `traces::large_io`.
+/// Inserted by field name.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
 pub struct CHSpanLargeIo {
     #[serde(with = "clickhouse::serde::uuid")]

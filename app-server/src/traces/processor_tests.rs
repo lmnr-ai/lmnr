@@ -46,7 +46,6 @@ use crate::{
             span_group_id,
             tools::build_tool_dedup,
         },
-        large_io::{OFFLOADED_INPUT, OFFLOADED_OUTPUT},
         processor::process_span_messages,
         provider::convert_span_to_provider_format,
         span_attributes::{SPAN_METADATA_ONLY, SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
@@ -1156,7 +1155,8 @@ async fn large_non_llm_payloads_move_to_spans_large_io() {
     }
 
     let s1 = f.span_row(id(S1));
-    assert_eq!(s1["offloaded_io"], OFFLOADED_INPUT);
+    assert_eq!(s1["input_offloaded"], true);
+    assert_eq!(s1["output_offloaded"], false);
     let preview = s1["input"].as_str().unwrap();
     assert!(preview.len() <= 16_384, "{}", preview.len());
     let preview: Value = serde_json::from_str(preview).unwrap();
@@ -1165,11 +1165,13 @@ async fn large_non_llm_payloads_move_to_spans_large_io() {
     assert!(s1["size_bytes"].as_u64().unwrap() > 300_000);
 
     let s2 = f.span_row(id(S2));
-    assert_eq!(s2["offloaded_io"], OFFLOADED_OUTPUT);
+    assert_eq!(s2["input_offloaded"], false);
+    assert_eq!(s2["output_offloaded"], true);
     assert_eq!(s2["input"], json!({ "path": "a.txt" }).to_string());
 
     let s3 = f.span_row(id(S3));
-    assert_eq!(s3["offloaded_io"], 0);
+    assert_eq!(s3["input_offloaded"], false);
+    assert_eq!(s3["output_offloaded"], false);
     assert_eq!(s3["input"], stored);
 
     let data_plane = WorkspaceDeployment {
@@ -1188,7 +1190,7 @@ async fn large_non_llm_payloads_move_to_spans_large_io() {
     let f = h.flush_with(messages, Some(&data_plane)).await;
     assert!(f.rows("spans_large_io").is_empty());
     let s1 = f.span_row(id(S1));
-    assert_eq!(s1["offloaded_io"], 0);
+    assert_eq!(s1["input_offloaded"], false);
     assert_eq!(s1["input"], stored);
 }
 
