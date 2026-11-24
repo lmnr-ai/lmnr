@@ -6,6 +6,14 @@ import { cn } from "@/lib/utils";
 import { Button, type ButtonProps } from "./button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./dropdown-menu";
 
+export const resolveDownloadFilename = (
+  contentDisposition: string | null | undefined,
+  filenameFallback: string
+): string => {
+  const filenameMatch = contentDisposition?.match(/filename="?([^";]+)"?/);
+  return filenameMatch?.[1]?.trim() || filenameFallback;
+};
+
 export const downloadFile = async (uri: string, filenameFallback: string, fileFormat?: string) => {
   try {
     const response = await fetch(uri);
@@ -15,8 +23,7 @@ export const downloadFile = async (uri: string, filenameFallback: string, fileFo
     }
 
     const contentDisposition = response.headers.get("Content-Disposition");
-    const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-    const filename = filenameMatch?.[1] || filenameFallback;
+    const filename = resolveDownloadFilename(contentDisposition, filenameFallback);
 
     const blob = await response.blob();
 
@@ -31,7 +38,7 @@ export const downloadFile = async (uri: string, filenameFallback: string, fileFo
     // Cleanup
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
-  } catch (error) {
+  } catch (_error) {
     toast({
       title: `Error downloading ${fileFormat || "file"}`,
       variant: "destructive",
@@ -92,19 +99,25 @@ function DownloadButtonMultipleFormats({
         align="end"
         className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-surface-300 text-foreground-100 shadow-md"
       >
-        {supportedFormats.map((format) => (
-          <DropdownMenuItem
-            key={format}
-            className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 outline-hidden"
-            onClick={async () => {
-              setIsDownloading(true);
-              await downloadFile(uri + `/${format}`, format, filenameFallback + `.${format}`);
-              setIsDownloading(false);
-            }}
-          >
-            Download as {format.toUpperCase()}
-          </DropdownMenuItem>
-        ))}
+        {supportedFormats.map((format) => {
+          const formatFallback = filenameFallback.endsWith(`.${format}`)
+            ? filenameFallback
+            : `${filenameFallback}.${format}`;
+
+          return (
+            <DropdownMenuItem
+              key={format}
+              className="flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 outline-hidden"
+              onClick={async () => {
+                setIsDownloading(true);
+                await downloadFile(uri + `/${format}`, formatFallback, format);
+                setIsDownloading(false);
+              }}
+            >
+              Download as {format.toUpperCase()}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
