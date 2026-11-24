@@ -4,7 +4,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { Eye, EyeOff } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 import useSWR from "swr";
 
@@ -22,6 +22,7 @@ import { useTableView } from "@/components/ui/infinite-datatable/model/table-con
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { Switch } from "@/components/ui/switch";
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
@@ -130,10 +131,6 @@ function buildScoreColumns(
   });
 }
 
-const emptySubscribe = () => () => {};
-const getClientSnapshot = () => true;
-const getServerSnapshot = () => false;
-
 const EMPTY_HIDDEN_IDS: string[] = [];
 
 export default function Evaluations() {
@@ -221,7 +218,7 @@ function EvaluationsContent() {
     storage: browserLayoutStorage,
   });
 
-  const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
+  const isClient = useIsHydrated();
 
   const {
     progression,

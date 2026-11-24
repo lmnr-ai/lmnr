@@ -1,11 +1,12 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 
 import Header from "@/components/ui/header";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { track } from "@/lib/posthog";
 
 import BottomControls from "./bottom-controls";
@@ -17,10 +18,6 @@ import { useQueueStore } from "./queue-store";
 import TargetPanel from "./target-panel";
 import Toolbar from "./toolbar";
 
-const emptySubscribe = () => () => {};
-const getClientSnapshot = () => true;
-const getServerSnapshot = () => false;
-
 /**
  * Top-level layout for a single labeling queue. Pure consumer of the store —
  * data fetching is orchestrated by `QueueDataLoader` and side effects live on
@@ -31,7 +28,7 @@ export default function QueueContent() {
   const itemsLen = useQueueStore((s) => s.idsList.length);
   const isInitialLoaded = useQueueStore((s) => s.isInitialLoaded);
 
-  const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
+  const isClient = useIsHydrated();
 
   if (!isInitialLoaded || !isClient) {
     return <LoadingState name={queue.name} />;

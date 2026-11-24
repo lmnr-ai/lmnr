@@ -2,18 +2,17 @@
 
 import { differenceInCalendarDays } from "date-fns";
 import { ChevronRight } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 
 import TrialPopoverContent from "@/components/project/sidebar/trial-popover-content.tsx";
 import { useTrialIntro } from "@/components/project/sidebar/use-trial-intro.ts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { SidebarMenuItem } from "@/components/ui/sidebar.tsx";
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
-
-const subscribeNone = () => () => {};
 
 const daysLeftLabel = (daysLeft: number) => {
   if (daysLeft <= 0) return "Ends today";
@@ -35,11 +34,7 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
   const { intro, dismissIntro } = useTrialIntro(workspaceId);
   const [open, setOpen] = useState(intro);
   // Calendar days need the viewer's timezone, which the server render doesn't have.
-  const hydrated = useSyncExternalStore(
-    subscribeNone,
-    () => true,
-    () => false
-  );
+  const hydrated = useIsHydrated();
   if (!hydrated) return null;
 
   const endsAt = new Date(trialEndsAt);

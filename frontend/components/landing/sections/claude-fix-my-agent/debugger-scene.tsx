@@ -1,7 +1,9 @@
 "use client";
 
 import { useInView, useReducedMotion } from "framer-motion";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 
 import { DEBUGGER_PROMPT, DEBUGGER_SEQUENCE } from "./debugger-sequence";
 import DebuggerTerminalMock from "./debugger-terminal-mock";
@@ -9,9 +11,6 @@ import { frameAtElapsed, timelineDuration } from "./debugger-timeline";
 import type { TransferProgress } from "./debugger-types";
 
 const TIMELINE_DURATION = timelineDuration(DEBUGGER_PROMPT, DEBUGGER_SEQUENCE);
-const emptySubscribe = () => () => undefined;
-const getClientSnapshot = () => true;
-const getServerSnapshot = () => false;
 
 interface Props {
   onTransferProgressChange?: (progress: TransferProgress | undefined) => void;
@@ -23,7 +22,7 @@ const DebuggerScene = ({ onTransferProgressChange }: Props) => {
   const isInView = useInView(sceneRef, { once: true, amount: 0.3 });
   const reduceMotion = useReducedMotion();
   const [elapsedMs, setElapsedMs] = useState(0);
-  const isMounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
+  const isMounted = useIsHydrated();
 
   useEffect(() => {
     if (!isInView || reduceMotion) return;
