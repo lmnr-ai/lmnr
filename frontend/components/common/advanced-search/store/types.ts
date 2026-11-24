@@ -1,7 +1,8 @@
 import type { Filter } from "@/lib/actions/common/filters";
 import type { Operator } from "@/lib/actions/common/operators";
 
-import type { AutocompleteCache, ColumnFilter, FilterTag, FilterTagFocusState } from "../types";
+import type { AdvancedSearchValue, AutocompleteCache, ColumnFilter, FilterTag, TagFocus } from "../types";
+import type { Suggestion } from "../utils";
 
 export interface RecentSearch {
   filters: Filter[];
@@ -14,33 +15,23 @@ export interface RecentsSlice {
   addRecentSearch: (filters: Filter[], search: string) => void;
 }
 
-export interface UndoSnapshot {
-  tags: FilterTag[];
-  inputValue: string;
-}
-
+// Committed values, not tags, so undo can't restore a half-built tag.
 export interface UndoRedoSlice {
-  undoStack: UndoSnapshot[];
-  redoStack: UndoSnapshot[];
-  pushUndoSnapshot: () => void;
+  undoStack: AdvancedSearchValue[];
+  redoStack: AdvancedSearchValue[];
+  pushUndo: (value: AdvancedSearchValue) => void;
   undo: () => void;
   redo: () => void;
-  canUndo: () => boolean;
-  canRedo: () => boolean;
 }
 
 export interface SliceContext {
   storageKey?: string;
-  getLastCommittedSnapshot: () => UndoSnapshot;
-  setLastCommittedSnapshot: (snapshot: UndoSnapshot) => void;
-  getLastSubmitted: () => { filters: Filter[]; search: string };
-  setLastSubmitted: (value: { filters: Filter[]; search: string }) => void;
+  // Last value sent to or received from the consumer, normalized.
+  getCommitted: () => AdvancedSearchValue;
+  setCommitted: (value: AdvancedSearchValue) => void;
   initialTags: FilterTag[];
   initialSearch: string;
-  // Stable ref to the consumer-provided onChange. Called whenever the editor
-  // commits a change. Never null at runtime; defaults to a no-op so the search
-  // is functional even without an onChange (read-only / probing flows).
-  getOnChange: () => (value: { filters: Filter[]; search: string }) => void;
+  getOnChange: () => (value: AdvancedSearchValue) => void;
 }
 
 export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
@@ -51,8 +42,7 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   activeIndex: number;
   activeRecentIndex: number;
   selectedTagIds: Set<string>;
-  openSelectId: string | null;
-  tagFocusStates: Map<string, FilterTagFocusState>;
+  focus: TagFocus | null;
   filters: ColumnFilter[];
   resource?: string;
   // When false the bar builds filters only: no full-text suggestion is offered
@@ -60,16 +50,14 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   allowFreeTextSearch: boolean;
   uuidFilterColumn?: string;
 
-  getActiveTagId: () => string | null;
   setAutocompleteData: (data: AutocompleteCache) => void;
   setInputValue: (value: string) => void;
   setIsOpen: (isOpen: boolean) => void;
   setActiveIndex: (index: number) => void;
   setActiveRecentIndex: (index: number) => void;
-  setOpenSelectId: (id: string | null) => void;
-  setTags: (tags: FilterTag[]) => void;
   addTag: (field: string) => void;
-  addCompleteTag: (field: string, operator: Operator, value: string) => FilterTag | undefined;
+  addCompleteTag: (field: string, value: string) => void;
+  applySuggestion: (suggestion: Suggestion) => void;
   removeTag: (tagId: string) => void;
   updateTagField: (tagId: string, field: string) => void;
   updateTagOperator: (tagId: string, operator: Operator) => void;
@@ -77,14 +65,14 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   selectAllTags: () => void;
   clearSelection: () => void;
   removeSelectedTags: () => void;
-  setTagFocusState: (tagId: string, state: FilterTagFocusState) => void;
-  getTagFocusState: (tagId: string) => FilterTagFocusState;
+  setFocus: (focus: TagFocus) => void;
+  // No-op if another tag took focus first (its mousedown runs before this tag's blur).
+  clearFocus: (tagId: string) => void;
   submit: () => void;
   clearAll: () => void;
   // External reflow: parent's controlled `value` changed (view switch / discard
   // / undo from a sibling). Bypasses commit so we don't echo the change back.
-  reflowFromValue: (value: { filters: Filter[]; search: string }) => void;
-  pushUndoSnapshot: () => void;
+  reflowFromValue: (value: AdvancedSearchValue) => void;
   applyRecentSearch: (recentSearch: RecentSearch) => void;
 }
 

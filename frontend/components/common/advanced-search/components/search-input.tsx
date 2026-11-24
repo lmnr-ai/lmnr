@@ -1,20 +1,29 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback, useRef } from "react";
+import React, {
+  type ChangeEvent,
+  type FocusEvent,
+  type KeyboardEvent,
+  memo,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import {
-  getSuggestionAtIndex,
-  getSuggestionsCount,
-} from "@/components/common/advanced-search/components/suggestions.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import {
+  useAdvancedSearchContext,
+  useAdvancedSearchNavigation,
+  useAdvancedSearchRefsContext,
+  useSuggestions,
+} from "../store";
 import { type AdvancedSearchResource } from "../types";
+import { useTagOverflow } from "../use-tag-overflow";
+import HiddenFiltersChip from "./hidden-filters-chip";
 import FilterSuggestions from "./suggestions";
 import FilterTag from "./tag";
 
@@ -39,21 +48,16 @@ const FilterSearchInput = ({
   const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
   const activeRecentIndex = useAdvancedSearchContext((state) => state.activeRecentIndex);
   const selectedTagIds = useAdvancedSearchContext((state) => state.selectedTagIds);
-  const openSelectId = useAdvancedSearchContext((state) => state.openSelectId);
-  const filters = useAdvancedSearchContext((state) => state.filters);
-  const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
-  const activeTagId = useAdvancedSearchContext((state) => state.getActiveTagId());
+  const hasFocusedTag = useAdvancedSearchContext((state) => state.focus !== null);
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
   const allowFreeTextSearch = useAdvancedSearchContext((state) => state.allowFreeTextSearch);
-  const uuidFilterColumn = useAdvancedSearchContext((state) => state.uuidFilterColumn);
 
   const {
     setInputValue,
     setIsOpen,
     setActiveIndex,
     setActiveRecentIndex,
-    addTag,
-    addCompleteTag,
+    applySuggestion,
     removeTag,
     selectAllTags,
     clearSelection,
@@ -68,8 +72,7 @@ const FilterSearchInput = ({
     setIsOpen: state.setIsOpen,
     setActiveIndex: state.setActiveIndex,
     setActiveRecentIndex: state.setActiveRecentIndex,
-    addTag: state.addTag,
-    addCompleteTag: state.addCompleteTag,
+    applySuggestion: state.applySuggestion,
     removeTag: state.removeTag,
     selectAllTags: state.selectAllTags,
     clearSelection: state.clearSelection,
@@ -81,9 +84,14 @@ const FilterSearchInput = ({
     redo: state.redo,
   }));
 
+  const suggestions = useSuggestions();
   const { mainInputRef } = useAdvancedSearchRefsContext();
-  const { navigateToTag, registerTagHandle } = useAdvancedSearchNavigation();
+  const { navigateToTag } = useAdvancedSearchNavigation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const { hiddenCount, measureRef } = useTagOverflow(tags, rowRef);
+  const hiddenTags = useMemo(() => tags.slice(0, hiddenCount), [tags, hiddenCount]);
+  const visibleTags = useMemo(() => tags.slice(hiddenCount), [tags, hiddenCount]);
 
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
@@ -107,11 +115,10 @@ const FilterSearchInput = ({
   );
 
   const handleInputBlur = useCallback(() => {
-    if (activeTagId) return;
-    if (openSelectId) return;
+    if (hasFocusedTag) return;
     setIsOpen(false);
     submit();
-  }, [activeTagId, openSelectId, setIsOpen, submit]);
+  }, [hasFocusedTag, setIsOpen, submit]);
 
   const handleRecentSelect = useCallback(
     (index: number) => {
@@ -125,7 +132,7 @@ const FilterSearchInput = ({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
-      const count = getSuggestionsCount(filters, inputValue, autocompleteData, uuidFilterColumn, allowFreeTextSearch);
+      const count = suggestions.length;
       const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
 
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
@@ -235,30 +242,9 @@ const FilterSearchInput = ({
       // Enter
       if (e.key === "Enter") {
         e.preventDefault();
-        if (isOpen && count > 0 && activeIndex >= 0) {
-          const suggestion = getSuggestionAtIndex(
-            filters,
-            inputValue,
-            activeIndex,
-            autocompleteData,
-            uuidFilterColumn,
-            allowFreeTextSearch
-          );
-          if (suggestion) {
-            if (suggestion.type === "field") {
-              addTag(suggestion.filter.key);
-            } else if (suggestion.type === "value") {
-              const columnFilter = filters.find((f) => f.key === suggestion.field);
-              const defaultOperator = columnFilter
-                ? (dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq)
-                : Operator.Eq;
-              addCompleteTag(suggestion.field, defaultOperator, suggestion.value);
-            } else {
-              setInputValue(suggestion.value);
-              setIsOpen(false);
-              submit();
-            }
-          }
+        const suggestion = isOpen ? suggestions[activeIndex] : undefined;
+        if (suggestion) {
+          applySuggestion(suggestion);
         } else {
           setIsOpen(false);
           submit();
@@ -296,17 +282,14 @@ const FilterSearchInput = ({
     },
     [
       mainInputRef,
-      filters,
+      suggestions,
       inputValue,
       tags,
       selectedTagIds.size,
       isOpen,
       activeIndex,
       activeRecentIndex,
-      autocompleteData,
-      allowFreeTextSearch,
       recentSearches,
-      uuidFilterColumn,
       setInputValue,
       setIsOpen,
       setActiveIndex,
@@ -315,8 +298,7 @@ const FilterSearchInput = ({
       clearSelection,
       removeSelectedTags,
       removeTag,
-      addTag,
-      addCompleteTag,
+      applySuggestion,
       undo,
       redo,
       submit,
@@ -362,15 +344,17 @@ const FilterSearchInput = ({
           <Search className="text-secondary-foreground size-3.5 mt-0.25 shrink-0" />
         </span>
       )}
-      <div className={cn("flex items-center gap-1 flex-wrap flex-1", !allowFreeTextSearch && "pl-1")}>
-        {tags.map((tag) => (
-          <FilterTag
-            key={tag.id}
-            ref={(handle) => registerTagHandle(tag.id, handle)}
-            tag={tag}
-            resource={resource}
-            isSelected={selectedTagIds.has(tag.id)}
-          />
+      <div
+        ref={rowRef}
+        className={cn("flex items-center gap-1 flex-nowrap flex-1 min-w-0", !allowFreeTextSearch && "pl-1")}
+      >
+        {hiddenCount > 0 && (
+          <HiddenFiltersChip hiddenTags={hiddenTags} selectedTagIds={selectedTagIds} resource={resource} />
+        )}
+        {visibleTags.map((tag) => (
+          <div key={tag.id} ref={measureRef(tag.id)} className="shrink-0">
+            <FilterTag navigable tag={tag} resource={resource} isSelected={selectedTagIds.has(tag.id)} />
+          </div>
         ))}
 
         <input

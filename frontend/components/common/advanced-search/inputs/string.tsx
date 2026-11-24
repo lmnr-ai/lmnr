@@ -1,12 +1,12 @@
 "use client";
 
-import { type Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { type Ref } from "react";
 
 import NativeCombobox from "@/components/common/advanced-search/components/native-combobox.tsx";
 import { cn } from "@/lib/utils";
 
-import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import { type FocusableRef, type FocusMode } from "../types";
+import { useValueInput } from "./use-value-input";
 
 interface StringValueInputProps {
   tagId: string;
@@ -18,62 +18,27 @@ interface StringValueInputProps {
 
 const inputClassName = cn(
   "h-6 px-2 py-0 text-xs bg-transparent outline-none text-primary-text",
-  "placeholder:text-primary-text/50 max-w-60"
+  "placeholder:text-primary-text/50 max-w-40 text-ellipsis"
 );
 
 const StringValueInput = ({ tagId, suggestions, focused, mode, ref }: StringValueInputProps) => {
-  const tags = useAdvancedSearchContext((state) => state.tags);
-
-  const { updateTagValue, submit } = useAdvancedSearchContext((state) => ({
-    updateTagValue: state.updateTagValue,
-    submit: state.submit,
-  }));
-
-  const { mainInputRef } = useAdvancedSearchRefsContext();
-  const { navigateWithinTag } = useAdvancedSearchNavigation();
-
-  const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
-
-  const comboboxRef = useRef<FocusableRef>(null);
-
-  useImperativeHandle(ref, () => ({
-    focus: () => comboboxRef.current?.focus(),
-  }));
-
-  const handleChange = useCallback(
-    (value: string) => {
-      updateTagValue(tagId, value);
-    },
-    [tagId, updateTagValue]
-  );
-
-  const handleComplete = useCallback(() => {
-    submit();
-    mainInputRef.current?.focus();
-  }, [submit, mainInputRef]);
-
-  const handleBlur = useCallback(() => {
-    if (mode === "edit") {
-      queueMicrotask(() => {
-        submit();
-      });
-    }
-  }, [submit, mode]);
-
+  const { tag, setValue, complete, commitOnBlur, navigateLeft, navigateRight } = useValueInput(tagId, mode);
   if (!tag) return null;
+  const value = Array.isArray(tag.value) ? tag.value.join(", ") : tag.value;
 
   return (
     <NativeCombobox
-      ref={comboboxRef}
-      value={Array.isArray(tag.value) ? tag.value.join(", ") : tag.value}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      onComplete={handleComplete}
+      ref={ref}
+      value={value}
+      onChange={setValue}
+      onBlur={commitOnBlur}
+      onComplete={complete}
       suggestions={suggestions}
       open={mode === "edit" && focused}
-      onNavigateLeft={() => navigateWithinTag(tagId, "left")}
-      onNavigateRight={() => navigateWithinTag(tagId, "right")}
+      onNavigateLeft={navigateLeft}
+      onNavigateRight={navigateRight}
       placeholder="..."
+      title={value}
       inputClassName={inputClassName}
     />
   );

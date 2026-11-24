@@ -1,94 +1,15 @@
 "use client";
 
 import { Search } from "lucide-react";
-import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { memo, useCallback, useEffect, useRef } from "react";
 
-import { dataTypeOperationsMap, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import { type RecentSearch, useAdvancedSearchContext, useAdvancedSearchRefsContext } from "../store";
+import { type RecentSearch, useAdvancedSearchContext, useSuggestions } from "../store";
 import { type ColumnFilter, createTagFromFilter } from "../types";
-import { buildValueSuggestions, displayFilterValue, hasUuidSuggestion } from "../utils";
-
-interface FieldSuggestion {
-  type: "field";
-  filter: ColumnFilter;
-}
-
-interface ValueSuggestion {
-  type: "value";
-  field: string;
-  value: string;
-  label?: string;
-}
-
-interface RawSearchSuggestion {
-  type: "raw_search";
-  value: string;
-}
-
-export type Suggestion = FieldSuggestion | ValueSuggestion | RawSearchSuggestion;
-
-const buildSuggestions = (
-  inputValue: string,
-  filters: ColumnFilter[],
-  autocompleteData: Map<string, string[]>,
-  uuidFilterColumn?: string,
-  allowFreeTextSearch = true
-): Suggestion[] => {
-  const input = inputValue.trim().toLowerCase();
-
-  if (!input) {
-    return filters.map((filter) => ({ type: "field" as const, filter }));
-  }
-
-  // A pasted UUID is an id, not prose — offer the exact-match filter first.
-  const uuidSuggestions: Suggestion[] = hasUuidSuggestion(input, filters, uuidFilterColumn)
-    ? [{ type: "value" as const, field: uuidFilterColumn as string, value: inputValue.trim() }]
-    : [];
-
-  const matchingFields = filters.filter(
-    (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
-  );
-
-  const fieldSuggestions: Suggestion[] = matchingFields.map((filter) => ({
-    type: "field" as const,
-    filter,
-  }));
-
-  const valueSuggestions: Suggestion[] = buildValueSuggestions(input, filters, autocompleteData).map(
-    ({ field, value, label }) => ({ type: "value" as const, field, value, label })
-  );
-
-  return [
-    ...uuidSuggestions,
-    ...fieldSuggestions,
-    ...valueSuggestions,
-    ...(allowFreeTextSearch ? [{ type: "raw_search" as const, value: inputValue.trim() }] : []),
-  ];
-};
-
-export const getSuggestionsCount = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  autocompleteData: Map<string, string[]>,
-  uuidFilterColumn?: string,
-  allowFreeTextSearch = true
-): number => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch).length;
-
-export const getSuggestionAtIndex = (
-  filters: ColumnFilter[],
-  inputValue: string,
-  index: number,
-  autocompleteData: Map<string, string[]>,
-  uuidFilterColumn?: string,
-  allowFreeTextSearch = true
-): Suggestion | null => {
-  const suggestions = buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch);
-  return suggestions[index] ?? null;
-};
+import { displayFilterValue, type Suggestion } from "../utils";
 
 const RecentSearchChip = ({
   recentSearch,
@@ -149,35 +70,19 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
   const activeRecentIndex = useAdvancedSearchContext((state) => state.activeRecentIndex);
   const filters = useAdvancedSearchContext((state) => state.filters);
-  const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
-  const tags = useAdvancedSearchContext((state) => state.tags);
+  const hasTags = useAdvancedSearchContext((state) => state.tags.length > 0);
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
-  const allowFreeTextSearch = useAdvancedSearchContext((state) => state.allowFreeTextSearch);
-  const uuidFilterColumn = useAdvancedSearchContext((state) => state.uuidFilterColumn);
-
-  const { addTag, addCompleteTag, setInputValue, setIsOpen, submit, applyRecentSearch } = useAdvancedSearchContext(
-    (state) => ({
-      addTag: state.addTag,
-      addCompleteTag: state.addCompleteTag,
-      setInputValue: state.setInputValue,
-      setIsOpen: state.setIsOpen,
-      submit: state.submit,
-      applyRecentSearch: state.applyRecentSearch,
-    })
-  );
-
-  const { mainInputRef } = useAdvancedSearchRefsContext();
+  const { applySuggestion, applyRecentSearch } = useAdvancedSearchContext((state) => ({
+    applySuggestion: state.applySuggestion,
+    applyRecentSearch: state.applyRecentSearch,
+  }));
+  const suggestions = useSuggestions();
 
   const suggestionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const recentChipRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const recentContainerRef = useRef<HTMLDivElement>(null);
 
-  const suggestions = useMemo(
-    () => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch),
-    [inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch]
-  );
-
-  const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
+  const showRecent = !inputValue.trim() && !hasTags && recentSearches.length > 0;
 
   useEffect(() => {
     const activeElement = suggestionRefs.current.get(activeIndex);
@@ -203,34 +108,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
     }
   }, [activeRecentIndex]);
 
-  const handleValueSelect = useCallback(
-    (field: string, value: string) => {
-      const columnFilter = filters.find((f) => f.key === field);
-      if (!columnFilter) return;
-
-      const defaultOperator = dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq;
-      addCompleteTag(field, defaultOperator, value);
-
-      mainInputRef.current?.focus();
-    },
-    [filters, addCompleteTag, mainInputRef]
-  );
-
-  const handleRawSearchSelect = useCallback(
-    (value: string) => {
-      setInputValue(value);
-      setIsOpen(false);
-      submit();
-    },
-    [setInputValue, setIsOpen, submit]
-  );
-
-  const handleRecentSearchSelect = useCallback(
-    (recentSearch: RecentSearch) => {
-      applyRecentSearch(recentSearch);
-    },
-    [applyRecentSearch]
-  );
+  const handleSelect = useCallback((suggestion: Suggestion) => applySuggestion(suggestion), [applySuggestion]);
 
   if (!isOpen || (suggestions.length === 0 && !showRecent)) return null;
 
@@ -258,7 +136,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                 recentSearch={rs}
                 columnFilters={filters}
                 isActive={activeRecentIndex === idx}
-                onSelect={() => handleRecentSearchSelect(rs)}
+                onSelect={() => applyRecentSearch(rs)}
               />
             ))}
           </div>
@@ -289,7 +167,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                         e.preventDefault();
                         e.stopPropagation();
                       }}
-                      onClick={() => addTag(suggestion.filter.key)}
+                      onClick={() => handleSelect(suggestion)}
                     >
                       {suggestion.filter.name}
                     </div>
@@ -314,7 +192,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                         e.preventDefault();
                         e.stopPropagation();
                       }}
-                      onClick={() => handleValueSelect(suggestion.field, suggestion.value)}
+                      onClick={() => handleSelect(suggestion)}
                     >
                       <span className="text-muted-foreground">{displayName}:</span>{" "}
                       <span className="font-medium">{suggestion.label ?? suggestion.value}</span>
@@ -336,7 +214,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    onClick={() => handleRawSearchSelect(suggestion.value)}
+                    onClick={() => handleSelect(suggestion)}
                   >
                     <Search className="w-3 h-3" />
                     <span className="text-muted-foreground">Full text search:</span>
