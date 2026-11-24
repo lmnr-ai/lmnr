@@ -83,6 +83,16 @@ const tableSchemas: Record<string, TableSchema> = {
       { name: "duration", type: "Float64", description: "Duration in seconds (end_time - start_time)" },
       { name: "input", type: "String", description: "Input data for the span as a stringified JSON" },
       { name: "output", type: "String", description: "Output data from the span as a stringified JSON" },
+      {
+        name: "input_preview",
+        type: "String",
+        description: "Same as input, except that a large input of a non-LLM span is a truncated JSON preview",
+      },
+      {
+        name: "output_preview",
+        type: "String",
+        description: "Same as output, except that a large output of a non-LLM span is a truncated JSON preview",
+      },
       { name: "request_model", type: "String", description: "LLM model specified in the request" },
       { name: "response_model", type: "String", description: "LLM model returned in the response" },
       {

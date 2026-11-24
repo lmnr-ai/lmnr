@@ -15,6 +15,7 @@ use crate::{
         ClickhouseTrait,
         agent_prompts::{CHAgentPrompt, insert_agent_prompts},
         spans::CHSpan,
+        spans_large_io::CHSpanLargeIo,
         traces::TraceAggregation,
         traces_agg::{CHTraceAgg, PATCH_START_TIME_OFFSET_NS},
         traces_static::CHTraceStatic,
@@ -41,6 +42,7 @@ use crate::{
             messages::{MessageBatch, MessageDedup},
             tools::{ToolDedup, resolve_tool_dedup},
         },
+        large_io::{self, LargeIoLimits},
         metadata::TraceMetadataPatch,
         provider::convert_span_to_provider_format,
         realtime::{
@@ -313,13 +315,19 @@ pub async fn process_span_messages(
     )
     .await;
     let original_sizes = charge_span_sizes(&mut batch, &recordable_indices, &dedup);
-    let ch_spans = build_ch_spans(
+    let mut ch_spans = build_ch_spans(
         &batch,
         &recordable_indices,
         &dedup,
         &pii_outcome,
         &original_sizes,
     );
+    // Data planes have no `spans_large_io` table or dictionary to read it back.
+    let large_io_rows = if config.is_none() {
+        offload_large_io(&mut ch_spans, &batch, &recordable_indices, &pii_outcome)
+    } else {
+        Vec::new()
+    };
 
     let recordable_refs: Vec<&Span> = recordable_indices
         .iter()
@@ -350,6 +358,7 @@ pub async fn process_span_messages(
         &ch,
         config,
         &dedup.shared_content,
+        &large_io_rows,
         &ch_spans,
         &seen_marks,
         &cache,
@@ -811,6 +820,30 @@ fn build_ch_span(
     ch_span
 }
 
+/// Moves oversized non-LLM `input` / `output` out of the `spans` rows, leaving
+/// previews (`traces::large_io`). After billing, so `size_bytes` is unchanged.
+fn offload_large_io(
+    ch_spans: &mut [CHSpan],
+    batch: &SpanBatch,
+    recordable_indices: &[usize],
+    pii_outcome: &PiiOutcome,
+) -> Vec<CHSpanLargeIo> {
+    let limits = LargeIoLimits::from_env();
+    ch_spans
+        .iter_mut()
+        .zip(recordable_indices)
+        .enumerate()
+        .flat_map(|(dedup_idx, (ch_span, &span_idx))| {
+            large_io::offload(
+                ch_span,
+                &batch.spans[span_idx],
+                pii_outcome.verdict(dedup_idx),
+                limits,
+            )
+        })
+        .collect()
+}
+
 /// Storage marks for content presence, trace-new marks for the search "first
 /// occurrence per trace" semantic; stamped ONLY after both inserts (see
 /// `write_span_tables`). Rows whose redaction failed get no storage mark, so
@@ -949,18 +982,20 @@ fn build_traces_static_rows(
     rows
 }
 
-/// Strict order: unique_content -> spans -> stamp. `spans` is plain MergeTree,
-/// so a retry after a successful spans insert + failed content insert would
-/// duplicate every span row. Stamping runs LAST because the two key axes are
-/// backed by different tables: `s2:` by `unique_content`, `tn:` by
-/// `spans.*_new_message_indices` — a `tn:` key stamped before a
-/// permanently-dropped spans insert made later spans ship empty
+/// Strict order: unique_content -> spans_large_io -> spans -> stamp. `spans`
+/// is plain MergeTree, so a retry after a successful spans insert + failed
+/// content insert would duplicate every span row; an offloaded `spans` row
+/// also needs its `spans_large_io` row to exist first.
+/// Stamping runs LAST because the two key axes are backed by different tables:
+/// `s2:` by `unique_content`, `tn:` by `spans.*_new_message_indices` — a `tn:`
+/// key stamped before a permanently-dropped spans insert made later spans ship empty
 /// `*_new_message_indices`, so no span recorded the first occurrence. See
 /// `docs/internal/dedup-search.md` "Ingest order".
 async fn write_span_tables(
     ch: &impl ClickhouseTrait,
     config: Option<&WorkspaceDeployment>,
     shared_content: &SharedContentBatch,
+    large_io_rows: &[CHSpanLargeIo],
     ch_spans: &[CHSpan],
     seen_marks: &SeenMarks,
     cache: &Cache,
@@ -975,6 +1010,20 @@ async fn write_span_tables(
         );
         return Err(HandlerError::transient(anyhow::anyhow!(
             "Failed to insert unique_content to Clickhouse: {:?}",
+            e
+        )));
+    }
+
+    if !large_io_rows.is_empty()
+        && let Err(e) = ch.insert_batch(large_io_rows, config).await
+    {
+        log::error!(
+            "Failed to insert {} spans_large_io rows to ClickHouse: {:?}",
+            large_io_rows.len(),
+            e
+        );
+        return Err(HandlerError::transient(anyhow::anyhow!(
+            "Failed to insert spans_large_io to Clickhouse: {:?}",
             e
         )));
     }

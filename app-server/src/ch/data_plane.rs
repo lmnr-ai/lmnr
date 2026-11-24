@@ -16,6 +16,7 @@ use crate::db::workspaces::WorkspaceDeployment;
 use super::notification_deliveries::CHNotificationDelivery;
 use super::notifications::CHNotification;
 use super::spans::CHSpan;
+use super::spans_large_io::CHSpanLargeIo;
 use super::traces_agg::CHTraceAgg;
 use super::traces_static::CHTraceStatic;
 use super::unique_content::CHUniqueContent;
@@ -32,6 +33,8 @@ pub enum DataPlaneBatch {
     NotificationDeliveries(Vec<CHNotificationDelivery>),
     Notifications(Vec<CHNotification>),
     UniqueContent(Vec<CHUniqueContent>),
+    /// Never sent today: offloading is skipped for data-plane workspaces.
+    SpansLargeIo(Vec<CHSpanLargeIo>),
 }
 
 /// Data plane ClickHouse client that sends data to a remote data plane server.

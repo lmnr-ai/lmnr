@@ -129,6 +129,7 @@ async function deleteProjectDataFromClickHouse(
   // dropped table throws and aborts the purge after Postgres has already committed.
   const tables = [
     "default.spans",
+    "default.spans_large_io",
     "default.traces_replacing",
     "default.traces_agg",
     "default.traces_static",

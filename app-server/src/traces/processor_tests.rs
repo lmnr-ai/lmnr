@@ -30,7 +30,7 @@ use crate::{
         events::{Event, EventSource},
         projects::{PiiMode, ProjectSettings, ProjectWithWorkspaceBillingInfo, WorkspaceTierName},
         spans::{Span, SpanType},
-        workspaces::WorkspaceDeployment,
+        workspaces::{DeploymentMode, WorkspaceDeployment},
     },
     mq::{
         MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiver, MessageQueueReceiverTrait,
@@ -201,6 +201,14 @@ impl Harness {
     }
 
     async fn flush(&mut self, messages: Vec<RabbitMqSpanMessage>) -> Flush {
+        self.flush_with(messages, None).await
+    }
+
+    async fn flush_with(
+        &mut self,
+        messages: Vec<RabbitMqSpanMessage>,
+        config: Option<&WorkspaceDeployment>,
+    ) -> Flush {
         process_span_messages(
             messages,
             self.db.clone(),
@@ -210,7 +218,7 @@ impl Harness {
             self.pubsub.clone(),
             self.ch.clone(),
             None,
-            None,
+            config,
             None,
             true,
         )
@@ -1061,6 +1069,129 @@ async fn pipeline_end_to_end() {
         .unwrap();
     let s3_input = doc3["input"].as_str().unwrap();
     assert!(s3_input.contains("Now run them") && !s3_input.contains("You are helpful"));
+}
+
+/// LAM-2580: oversized non-LLM payloads leave a preview in `spans` and land
+/// whole in `spans_large_io`, inserted first. LLM spans and small fields stay
+/// inline, billing still counts the full payload, and data-plane workspaces
+/// (no `spans_large_io` there) keep everything inline.
+#[tokio::test]
+async fn large_non_llm_payloads_move_to_spans_large_io() {
+    let mut h = Harness::new().await;
+    h.seed_project(id(P_OFF), PiiMode::Off).await;
+
+    let big = json!({ "doc": "x".repeat(300_000) });
+    let spans = || {
+        vec![
+            build(SpanSpec {
+                project: P_OFF,
+                trace: T1,
+                id: S1,
+                parent: None,
+                name: "retrieve",
+                span_type: SpanType::Default,
+                attrs: json!({ "lmnr.span.type": "DEFAULT" }),
+                input: Some(big.clone()),
+                output: Some(json!("ok")),
+                start: 10,
+                end: 20,
+                events: vec![],
+            }),
+            build(SpanSpec {
+                project: P_OFF,
+                trace: T1,
+                id: S2,
+                parent: Some(S1),
+                name: "read_file",
+                span_type: SpanType::Tool,
+                attrs: json!({ "lmnr.span.type": "TOOL" }),
+                input: Some(json!({ "path": "a.txt" })),
+                output: Some(big.clone()),
+                start: 11,
+                end: 12,
+                events: vec![],
+            }),
+            // A non-array LLM input isn't dedup'd, so it is inline and large.
+            build(SpanSpec {
+                project: P_OFF,
+                trace: T1,
+                id: S3,
+                parent: Some(S1),
+                name: "openai.completion",
+                span_type: SpanType::LLM,
+                attrs: llm_attrs(json!({})),
+                input: Some(big.clone()),
+                output: Some(json!("done")),
+                start: 13,
+                end: 14,
+                events: vec![],
+            }),
+        ]
+    };
+
+    let mut messages = Vec::new();
+    for span in spans() {
+        messages.push(h.produce(span).await);
+    }
+    let f = h.flush(messages).await;
+
+    assert!(
+        f.first_insert_of("spans_large_io") < f.first_insert_of("spans"),
+        "spans_large_io must land before spans: {:?}",
+        f.inserts.iter().map(|(t, _)| t).collect::<Vec<_>>()
+    );
+    let stored = big.to_string();
+    let rows = f.rows("spans_large_io");
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    for (sid, is_output) in [(S1, false), (S2, true)] {
+        let row = rows
+            .iter()
+            .find(|r| uuid_of(&r["span_id"]) == id(sid))
+            .unwrap();
+        assert_eq!(row["is_output"], is_output);
+        assert_eq!(uuid_of(&row["trace_id"]), id(T1));
+        assert_eq!(row["start_time"], f.span_row(id(sid))["start_time"]);
+        assert_eq!(row["content"], stored);
+    }
+
+    let s1 = f.span_row(id(S1));
+    assert_eq!(s1["input_offloaded"], true);
+    assert_eq!(s1["output_offloaded"], false);
+    let preview = s1["input"].as_str().unwrap();
+    assert!(preview.len() <= 16_384, "{}", preview.len());
+    let preview: Value = serde_json::from_str(preview).unwrap();
+    assert!(preview["doc"].as_str().unwrap().contains("chars]"));
+    assert_eq!(s1["output"], "\"ok\"");
+    assert!(s1["size_bytes"].as_u64().unwrap() > 300_000);
+
+    let s2 = f.span_row(id(S2));
+    assert_eq!(s2["input_offloaded"], false);
+    assert_eq!(s2["output_offloaded"], true);
+    assert_eq!(s2["input"], json!({ "path": "a.txt" }).to_string());
+
+    let s3 = f.span_row(id(S3));
+    assert_eq!(s3["input_offloaded"], false);
+    assert_eq!(s3["output_offloaded"], false);
+    assert_eq!(s3["input"], stored);
+
+    let data_plane = WorkspaceDeployment {
+        workspace_id: id(0xA0),
+        mode: DeploymentMode::HYBRID,
+        private_key: None,
+        private_key_nonce: None,
+        public_key: None,
+        data_plane_url: None,
+        data_plane_url_nonce: None,
+    };
+    let mut messages = Vec::new();
+    for span in spans() {
+        messages.push(h.produce(span).await);
+    }
+    let f = h.flush_with(messages, Some(&data_plane)).await;
+    assert!(f.rows("spans_large_io").is_empty());
+    let s1 = f.span_row(id(S1));
+    assert_eq!(s1["input_offloaded"], false);
+    assert_eq!(s1["input"], stored);
 }
 
 fn nanos(secs: i64) -> Value {

@@ -61,7 +61,8 @@ export async function getTraceSpanOutline(
 ): Promise<TraceSpanOutlineEntry[]> {
   const { projectId, traceId } = GetTraceSpanOutlineSchema.parse(input);
 
-  // argMin over any(): all sample columns come from the same (earliest) row.
+  // argMin over any(): all sample columns come from the same (earliest) row. The
+  // `*_preview` columns skip restoring large non-LLM payloads that get truncated here anyway.
   const rows = await executeQuery<{
     name: string;
     spanType: string;
@@ -80,8 +81,8 @@ export async function getTraceSpanOutline(
         count() AS occurrences,
         argMin(path, start_time) AS path,
         argMin(model, start_time) AS model,
-        argMin(input, start_time) AS input,
-        argMin(output, start_time) AS output,
+        argMin(input_preview, start_time) AS input,
+        argMin(output_preview, start_time) AS output,
         argMin(attributes, start_time) AS attributes
       FROM spans
       WHERE trace_id = {traceId: UUID}

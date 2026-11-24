@@ -500,6 +500,8 @@ impl TableRegistry {
             "duration",
             "input",
             "output",
+            "input_preview",
+            "output_preview",
             "request_model",
             "response_model",
             "model",

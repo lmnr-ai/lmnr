@@ -153,7 +153,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, and `tsc --noEmit` run on s
 | `docs/internal/rust-best-practices.md` | Any app-server change — reuse, layering, db/cache scoping, named types, error retryability |
 | `docs/internal/database.md` | Postgres migrations, `POSTGRES_SCHEMA`, name-sort collation |
 | `docs/internal/sql-query-engine.md` | `query_engine/` validator (a security boundary), SQL editor schema/autocomplete, `/v1/sql/query` guards, rate limiting |
-| `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
+| `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, `spans_large_io` (large non-LLM payloads, `*_preview` columns), spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
 | `docs/internal/dedup-search.md` | `unique_content` group-scoped dedup (`traces/dedup/`), `spans_v0` reconstruction, Quickwit indexing/search |
 | `docs/internal/ingestion.md` | OTLP `/v1/traces`, GenAI semconv parsing, trace metadata patches, input/output extraction, system-prompt extraction, system-prompt / user-template versioning, agent versioning (`agent_versioning/`), 413s |
 | `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling, frontend `@sentry/nextjs` config and its OTel coexistence with Laminar |
