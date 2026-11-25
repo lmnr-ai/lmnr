@@ -32,11 +32,9 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
 
   const setup = useSetupSteps(projectId, agentId, data?.agent.releaseMode ?? false);
 
-  // `undefined` until the user toggles a version, so the latest one starts open.
-  const [openId, setOpenId] = useState<string | null>();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const versions = data?.versions ?? [];
-  const expandedId = openId === undefined ? versions[0]?.id : openId;
 
   return (
     <SettingsSection>
@@ -88,7 +86,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
                 isLatest={i === 0}
                 isLast={i === versions.length - 1}
                 open={version.id === expandedId}
-                onOpenChange={(open) => setOpenId(open ? version.id : null)}
+                onOpenChange={(open) => setExpandedId(open ? version.id : null)}
               />
             ))}
           </div>
