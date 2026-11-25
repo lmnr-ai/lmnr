@@ -63,6 +63,24 @@ const AISDK_OPERATION_PREFIXES: &[&str] = &[
     "streamObject",
 ];
 
+/// `ai.operationId` of the AI SDK (< v7) spans that wrap each `.doGenerate` /
+/// `.doStream` LLM span.
+const AISDK_WRAPPER_OPERATION_IDS: &[&str] = &[
+    "ai.generateText",
+    "ai.streamText",
+    "ai.generateObject",
+    "ai.streamObject",
+];
+
+/// Prompt and response attributes that AI SDK wrapper spans repeat from their LLM child.
+const AISDK_WRAPPER_CONTENT_ATTRIBUTES: &[&str] = &[
+    "ai.prompt",
+    "ai.response.text",
+    "ai.response.reasoning",
+    "ai.response.toolCalls",
+    "ai.response.object",
+];
+
 const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";
 const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
 /// If this attribute is set to true, the parent span will be overridden with
@@ -1002,36 +1020,41 @@ impl Span {
                     .cloned());
         }
 
-        // Vercel AI SDK wraps "raw" LLM spans in an additional `ai.generateText` span.
-        // Which is not really an LLM span, but it has the prompt in its attributes.
-        // Set the input to the prompt and the output to the response.
-        if let Some(serde_json::Value::String(s)) = self.attributes.raw_attributes.get("ai.prompt")
-        {
-            let ai_prompt =
-                serde_json::from_str::<Value>(s).unwrap_or(serde_json::Value::String(s.clone()));
-            if let Some(messages_value) = ai_prompt.get("messages") {
-                let mut messages =
-                    input_chat_messages_from_json(&messages_value).unwrap_or_default();
-                let system = ai_prompt
-                    .get("system")
-                    .and_then(|v| v.as_str())
-                    .map(|v| v.to_string());
-                if let Some(system) = system {
-                    messages.insert(
-                        0,
-                        ChatMessage {
-                            role: "system".to_string(),
-                            content: ChatMessageContent::Text(system),
-                            tool_call_id: None,
-                        },
-                    );
+        // Vercel AI SDK (< v7) wraps every "raw" LLM span (`.doGenerate` / `.doStream`) in an
+        // additional `ai.generateText` / `ai.streamText` / ... span, which repeats the child's
+        // prompt and response. Drop that copy rather than storing the conversation twice.
+        if self.is_ai_sdk_wrapper_span() {
+            if !self.is_llm_span() {
+                for key in AISDK_WRAPPER_CONTENT_ATTRIBUTES {
+                    self.attributes.raw_attributes.remove(*key);
                 }
-                self.input = Some(serde_json::to_value(messages).unwrap());
+            } else if let Some(Value::String(s)) = self.attributes.raw_attributes.get("ai.prompt") {
+                let ai_prompt = serde_json::from_str::<Value>(s)
+                    .unwrap_or(serde_json::Value::String(s.clone()));
+                if let Some(messages_value) = ai_prompt.get("messages") {
+                    let mut messages =
+                        input_chat_messages_from_json(&messages_value).unwrap_or_default();
+                    let system = ai_prompt
+                        .get("system")
+                        .and_then(|v| v.as_str())
+                        .map(|v| v.to_string());
+                    if let Some(system) = system {
+                        messages.insert(
+                            0,
+                            ChatMessage {
+                                role: "system".to_string(),
+                                content: ChatMessageContent::Text(system),
+                                tool_call_id: None,
+                            },
+                        );
+                    }
+                    self.input = Some(serde_json::to_value(messages).unwrap());
+                }
+                self.output = self
+                    .output
+                    .take()
+                    .or(try_parse_ai_sdk_output(&mut self.attributes.raw_attributes));
             }
-            self.output = self
-                .output
-                .take()
-                .or(try_parse_ai_sdk_output(&mut self.attributes.raw_attributes));
             // Rename AI SDK spans to what's set by telemetry.functionId
             if let Some(Value::String(s)) = self.attributes.raw_attributes.get("operation.name") {
                 if s.starts_with(&format!("{} ", self.name)) {
@@ -1201,6 +1224,19 @@ impl Span {
                     .attributes
                     .raw_attributes
                     .contains_key("ai.toolCall.id"))
+    }
+
+    /// AI SDK operation span above the LLM call. `ai.prompt` is only ever set on these;
+    /// the Laminar SDK replaces it with a `"_"` placeholder (AI SDK v7 integration, and
+    /// v5/v6 wrappers once their content is stripped) so older app-servers still rename.
+    fn is_ai_sdk_wrapper_span(&self) -> bool {
+        self.attributes.raw_attributes.contains_key("ai.prompt")
+            || self
+                .attributes
+                .raw_attributes
+                .get("ai.operationId")
+                .and_then(|v| v.as_str())
+                .is_some_and(|id| AISDK_WRAPPER_OPERATION_IDS.contains(&id))
     }
 
     pub fn is_llm_span(&self) -> bool {
@@ -2787,65 +2823,21 @@ mod tests {
         parent_span.parse_and_enrich_attributes();
         child_span.parse_and_enrich_attributes();
 
-        // Verify parent span parsing (ai.generateText)
-        assert!(parent_span.input.is_some());
-        assert!(parent_span.output.is_some());
-
-        let parent_input = parent_span.input.as_ref().unwrap();
-        let parent_input_messages: Vec<ChatMessage> =
-            serde_json::from_value(parent_input.clone()).unwrap();
-        assert_eq!(parent_input_messages.len(), 2);
-
-        // First message: system
-        assert_eq!(parent_input_messages[0].role, "system");
-        match &parent_input_messages[0].content {
-            ChatMessageContent::Text(text) => {
-                assert_eq!(text, "You are a helpful assistant.");
-            }
-            _ => panic!("Expected text content for system message"),
+        // The wrapper span repeats the doGenerate child's prompt and response, so its
+        // content is dropped rather than parsed into input/output.
+        assert!(parent_span.input.is_none());
+        assert!(parent_span.output.is_none());
+        for key in AISDK_WRAPPER_CONTENT_ATTRIBUTES {
+            assert!(!parent_span.attributes.raw_attributes.contains_key(*key));
         }
-
-        // Second message: user
-        assert_eq!(parent_input_messages[1].role, "user");
-        match &parent_input_messages[1].content {
-            ChatMessageContent::ContentPartList(parts) => {
-                assert_eq!(parts.len(), 1);
-                match &parts[0] {
-                    ChatMessageContentPart::Text(text) => {
-                        assert_eq!(text.text, "What is the weather in SF?");
-                    }
-                    _ => panic!("Expected text content part"),
-                }
-            }
-            _ => panic!("Expected content part list for user message"),
-        }
-
-        // Verify parent span output (tool call)
-        let parent_output = parent_span.output.as_ref().unwrap();
-        let parent_output_messages: Vec<ChatMessage> =
-            serde_json::from_value(parent_output.clone()).unwrap();
-        assert_eq!(parent_output_messages.len(), 1);
-
-        assert_eq!(parent_output_messages[0].role, "assistant");
-        match &parent_output_messages[0].content {
-            ChatMessageContent::ContentPartList(parts) => {
-                assert_eq!(parts.len(), 1);
-                match &parts[0] {
-                    ChatMessageContentPart::ToolCall(tool_call) => {
-                        assert_eq!(tool_call.name, "get_weather");
-                        assert_eq!(
-                            tool_call.id,
-                            Some("call_akUJWoAUcWDcvNJzcZx3MzPg".to_string())
-                        );
-                        assert!(tool_call.arguments.is_some());
-                        let args = tool_call.arguments.as_ref().unwrap();
-                        assert_eq!(args.get("location").unwrap(), &json!("San Francisco, CA"));
-                    }
-                    _ => panic!("Expected tool call"),
-                }
-            }
-            _ => panic!("Expected content part list for parent output"),
-        }
+        assert_eq!(
+            parent_span
+                .attributes
+                .raw_attributes
+                .get("ai.response.finishReason"),
+            Some(&json!("tool-calls"))
+        );
+        assert_eq!(parent_span.name, "ai.generateText");
 
         // Verify child span parsing (ai.generateText.doGenerate)
         assert!(child_span.input.is_some());
@@ -3410,31 +3402,8 @@ mod tests {
         parent_span.parse_and_enrich_attributes();
         child_span.parse_and_enrich_attributes();
 
-        // Verify parent span parsing (ai.generateText)
-        assert!(parent_span.input.is_some());
-        assert!(parent_span.output.is_some());
-
-        let parent_input = parent_span.input.as_ref().unwrap();
-        let parent_input_messages: Vec<ChatMessage> =
-            serde_json::from_value(parent_input.clone()).unwrap();
-
-        // First message: system
-        assert_eq!(parent_input_messages[0].role, "system");
-        match &parent_input_messages[0].content {
-            ChatMessageContent::Text(text) => {
-                assert_eq!(text, "You are a helpful assistant.");
-            }
-            _ => panic!("Expected text content for system message"),
-        }
-
-        // Second message: user
-        assert_eq!(parent_input_messages[1].role, "user");
-        match &parent_input_messages[1].content {
-            ChatMessageContent::Text(text) => {
-                assert_eq!(text, "What is the weather and time in SF?");
-            }
-            _ => panic!("Expected text content for user message"),
-        }
+        assert!(parent_span.input.is_none());
+        assert!(parent_span.output.is_none());
 
         assert!(child_span.input.is_some());
         assert!(child_span.output.is_some());
@@ -4982,6 +4951,119 @@ mod tests {
             attributes,
             ..make_llm_span(HashMap::new())
         }
+    }
+
+    fn ai_sdk_wrapper_content_attributes() -> HashMap<String, Value> {
+        HashMap::from([
+            (
+                "ai.prompt".to_string(),
+                json!(
+                    json!({"system": "sys", "messages": [{"role": "user", "content": "hi"}]})
+                        .to_string()
+                ),
+            ),
+            ("ai.response.text".to_string(), json!("hello")),
+            ("ai.response.reasoning".to_string(), json!("thinking")),
+            ("ai.response.toolCalls".to_string(), json!("[]")),
+            ("ai.response.finishReason".to_string(), json!("stop")),
+        ])
+    }
+
+    #[test]
+    fn test_ai_sdk_wrapper_span_drops_content_and_keeps_function_id_rename() {
+        // `ai.prompt` as AI SDK v5/v6 send it, the `"_"` placeholder the Laminar SDK
+        // leaves after stripping, and no `ai.prompt` at all (stripped by the exporter).
+        let prompts = [
+            ai_sdk_wrapper_content_attributes().remove("ai.prompt"),
+            Some(json!("_")),
+            None,
+        ];
+        for prompt in prompts {
+            let mut attributes = ai_sdk_wrapper_content_attributes();
+            attributes.remove("ai.prompt");
+            if let Some(prompt) = prompt {
+                attributes.insert("ai.prompt".to_string(), prompt);
+            }
+            attributes.extend([
+                ("ai.operationId".to_string(), json!("ai.streamText")),
+                (
+                    "operation.name".to_string(),
+                    json!("ai.streamText session.llm"),
+                ),
+                ("ai.telemetry.functionId".to_string(), json!("session.llm")),
+                ("ai.usage.inputTokens".to_string(), json!(10)),
+                (
+                    "lmnr.span.path".to_string(),
+                    json!(["turn", "ai.streamText"]),
+                ),
+            ]);
+            let mut span = make_default_span("ai.streamText", attributes);
+            span.parse_and_enrich_attributes();
+
+            assert_eq!(span.span_type, SpanType::Default);
+            assert!(span.input.is_none());
+            assert!(span.output.is_none());
+            for key in AISDK_WRAPPER_CONTENT_ATTRIBUTES {
+                assert!(!span.attributes.raw_attributes.contains_key(*key));
+            }
+            assert_eq!(
+                span.attributes
+                    .raw_attributes
+                    .get("ai.response.finishReason"),
+                Some(&json!("stop"))
+            );
+            assert_eq!(span.name, "session.llm");
+            assert_eq!(
+                span.attributes.raw_attributes.get("lmnr.span.path"),
+                Some(&json!(["turn", "session.llm"]))
+            );
+        }
+    }
+
+    #[test]
+    fn test_ai_sdk_do_stream_llm_span_is_not_treated_as_wrapper() {
+        let mut attributes = ai_sdk_wrapper_content_attributes();
+        attributes.remove("ai.prompt");
+        attributes.extend([
+            (
+                "ai.operationId".to_string(),
+                json!("ai.streamText.doStream"),
+            ),
+            (
+                "operation.name".to_string(),
+                json!("ai.streamText.doStream session.llm"),
+            ),
+            ("gen_ai.system".to_string(), json!("anthropic")),
+            (
+                "ai.prompt.messages".to_string(),
+                json!(json!([{"role": "user", "content": "hi"}]).to_string()),
+            ),
+        ]);
+        let mut span = make_default_span("ai.streamText.doStream", attributes);
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.span_type, SpanType::LLM);
+        assert_eq!(span.name, "ai.streamText.doStream");
+        let input: Vec<ChatMessage> = serde_json::from_value(span.input.unwrap()).unwrap();
+        assert_eq!(input.len(), 1);
+        assert_eq!(input[0].role, "user");
+        let output: Vec<ChatMessage> = serde_json::from_value(span.output.unwrap()).unwrap();
+        assert_eq!(output[0].role, "assistant");
+    }
+
+    #[test]
+    fn test_ai_sdk_prompt_on_llm_span_is_still_parsed() {
+        let mut attributes = ai_sdk_wrapper_content_attributes();
+        attributes.insert("ai.operationId".to_string(), json!("ai.generateText"));
+        attributes.insert("gen_ai.system".to_string(), json!("openai"));
+        let mut span = make_default_span("ai.generateText", attributes);
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.span_type, SpanType::LLM);
+        let input: Vec<ChatMessage> = serde_json::from_value(span.input.unwrap()).unwrap();
+        assert_eq!(input.len(), 2);
+        assert_eq!(input[0].role, "system");
+        assert!(span.output.is_some());
     }
 
     #[test]
