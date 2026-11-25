@@ -4,7 +4,7 @@
 //! caller's project. Creates go through a per-project cap.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     time::{Duration, Instant},
 };
 
@@ -19,6 +19,7 @@ use super::{
         CreateFailure, ImageState, Resources, SandboxHandle, SandboxImage, SandboxProvider,
         SandboxProviderTrait, SandboxRole, SandboxSpec, SandboxState, SandboxStatus,
     },
+    rystic,
 };
 use crate::{
     cache::{
@@ -112,6 +113,7 @@ pub async fn create_trial(
     project_id: &Uuid,
     request: &ImageRequest,
 ) -> Result<String, CreateError> {
+    let rystic = rystic::issue(cache, project_id).await;
     let spec = SandboxSpec {
         project_id: *project_id,
         role: SandboxRole::Trial,
@@ -119,10 +121,20 @@ pub async fn create_trial(
             digest: request.image.clone(),
             resources: request.resources(),
         },
-        env: HashMap::new(),
+        env: rystic
+            .as_ref()
+            .map(|access| access.env.clone())
+            .unwrap_or_default(),
         ttl_minutes: env::hosted_evals::MAX_RUN_MINUTES.get(),
     };
-    Ok(create(provider, cache, spec).await?.id)
+    let result = create(provider, cache, spec).await;
+    if let Some(access) = rystic {
+        match &result {
+            Ok(sandbox) => rystic::bind(cache, project_id, &sandbox.id, &access.token_hash).await,
+            Err(_) => rystic::revoke_token(cache, &access.token_hash).await,
+        }
+    }
+    Ok(result?.id)
 }
 
 /// Creates a sandbox for the project unless it already holds
@@ -271,6 +283,7 @@ pub async fn delete(
 ) -> Result<()> {
     provider.delete(sandbox_id).await?;
     let _ = cache.remove(&cache_key(project_id, sandbox_id)).await;
+    rystic::revoke_sandbox(cache, project_id, sandbox_id).await;
     Ok(())
 }
 

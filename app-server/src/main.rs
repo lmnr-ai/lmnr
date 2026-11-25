@@ -1979,6 +1979,13 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/sql")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
+                            )
+                            // Trial-token auth (`hosted_evals::rystic`), so outside the
+                            // project-key `/v1` scope below.
+                            .service(
+                                web::scope("/v1/hosted-evals/rystic")
+                                    .service(api::v1::rystic::twin_release)
+                                    .service(api::v1::rystic::lease),
                             );
                         // Must precede the catch-all `/v1` scope, which would capture `/v1/chat/*`.
                         #[cfg(feature = "signals")]

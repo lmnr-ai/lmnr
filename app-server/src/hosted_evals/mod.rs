@@ -7,6 +7,7 @@
 pub mod images;
 pub mod provider;
 pub mod registry;
+pub mod rystic;
 pub mod sandboxes;
 
 use std::collections::HashMap;

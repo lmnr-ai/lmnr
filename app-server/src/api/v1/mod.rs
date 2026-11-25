@@ -13,6 +13,7 @@ pub mod metrics;
 pub mod payload;
 pub mod projects;
 pub mod rollouts;
+pub mod rystic;
 pub mod signals;
 pub mod spans;
 pub mod sql;
