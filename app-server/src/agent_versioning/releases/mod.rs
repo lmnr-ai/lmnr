@@ -259,11 +259,11 @@ impl<'a> Run<'a> {
         };
         let before_id = self.versions.ids[baseline.version];
         let before = get_version_text(&self.job.db.pool, before_id).await?;
-        let project_id = self.scope.project_id;
+        let (project_id, agent_id) = (self.scope.project_id, self.agent.id);
         let head = &self.releases[i].release;
         Ok(self
             .job
-            .check_source(project_id, &baseline.release, head, &before, text)
+            .check_source(project_id, agent_id, &baseline.release, head, &before, text)
             .await)
     }
 

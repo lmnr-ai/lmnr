@@ -14,6 +14,7 @@ import RenameAgentDialog from "./rename-agent-dialog";
 import { agentDisplayName } from "./utils";
 import VersionCard from "./version-card";
 import VersionTraces from "./version-traces";
+import SetupPill, { useSetupSteps } from "./versioning-setup";
 
 interface AgentVersionsListProps {
   projectId: string;
@@ -29,26 +30,29 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
     { fallbackData: initialVersions }
   );
 
-  // `undefined` until the user toggles a version, so the latest one starts open.
-  const [openId, setOpenId] = useState<string | null>();
+  const setup = useSetupSteps(projectId, agentId, data?.agent.releaseMode ?? false);
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const versions = data?.versions ?? [];
-  const expandedId = openId === undefined ? versions[0]?.id : openId;
 
   return (
     <SettingsSection>
       <div className="flex items-center justify-start gap-3">
         <SettingsSectionHeader title={data ? agentDisplayName(data.agent.name) : "Agent versions"} />
         {data && (
-          <RenameAgentDialog
-            projectId={projectId}
-            agentId={agentId}
-            currentName={agentDisplayName(data.agent.name)}
-            onRenamed={() => {
-              mutate();
-              onRenamed();
-            }}
-          />
+          <>
+            <RenameAgentDialog
+              projectId={projectId}
+              agentId={agentId}
+              currentName={agentDisplayName(data.agent.name)}
+              onRenamed={() => {
+                mutate();
+                onRenamed();
+              }}
+            />
+            <SetupPill setup={setup} />
+          </>
         )}
       </div>
       {data && (
@@ -82,7 +86,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
                 isLatest={i === 0}
                 isLast={i === versions.length - 1}
                 open={version.id === expandedId}
-                onOpenChange={(open) => setOpenId(open ? version.id : null)}
+                onOpenChange={(open) => setExpandedId(open ? version.id : null)}
               />
             ))}
           </div>

@@ -145,10 +145,11 @@ struct SubmitArgs {
 impl Job {
     /// The verdict on the change from release `base` (version text `before`)
     /// to release `head` (`after`). `None` when it can't be checked: no
-    /// connected repo has both commits, or GitHub or the LLM failed.
+    /// reachable repo has both commits, or GitHub or the LLM failed.
     pub(super) async fn check_source(
         &self,
         project_id: Uuid,
+        agent_id: Uuid,
         base: &str,
         head: &str,
         before: &VersionText,
@@ -159,7 +160,7 @@ impl Job {
         if prompt_diff.is_empty() {
             return None;
         }
-        let body = json!({ "base": base, "head": head });
+        let body = json!({ "agentId": agent_id, "base": base, "head": head });
         let changes = next_api::call::<Option<ReleaseChanges>>(
             &self.http_client,
             Method::POST,

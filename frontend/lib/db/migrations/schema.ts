@@ -639,6 +639,8 @@ export const agents = pgTable(
     currentVersionId: uuid("current_version_id"),
     releaseMode: boolean("release_mode").default(false).notNull(),
     definition: jsonb(),
+    githubRepoId: bigint("github_repo_id", { mode: "number" }),
+    githubRepoFullName: text("github_repo_full_name"),
   },
   (table) => [
     foreignKey({

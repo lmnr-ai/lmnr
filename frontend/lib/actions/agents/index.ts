@@ -79,9 +79,16 @@ export interface AgentVersionItem {
 
 export interface AgentVersionTracesPoint {
   timestamp: string;
-  /** Trace count per version id. */
+  /** Trace count per version id, plus `UNVERSIONED_KEY` from `./types`. */
   [versionId: string]: number | string;
 }
+
+/** The repo with an agent's latest release commit, from the GitHub integration (absent in OSS). */
+export type AgentGithubRepo =
+  | { status: "not_connected" }
+  | { status: "no_release" }
+  | { status: "not_found" }
+  | { status: "linked"; repo: string };
 
 export interface AgentVersionsResult {
   agent: {
@@ -91,6 +98,8 @@ export interface AgentVersionsResult {
     createdAt: string;
     /** `null` for agents identified by the system prompt's first sentence. */
     definition: AgentDefinition | null;
+    /** Versioned by SDK releases; set once most recent traces carry `LMNR_RELEASE`. */
+    releaseMode: boolean;
   };
   versions: AgentVersionItem[];
 }
@@ -107,6 +116,7 @@ export async function getAgentVersions(
       agentHash: agents.agentHash,
       createdAt: agents.createdAt,
       definition: agents.definition,
+      releaseMode: agents.releaseMode,
     })
     .from(agents)
     .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
