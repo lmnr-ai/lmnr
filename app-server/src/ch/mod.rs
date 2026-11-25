@@ -16,6 +16,7 @@ pub mod notifications;
 pub mod private;
 pub mod service;
 pub mod signal_events;
+pub mod span_metrics;
 pub mod spans;
 pub mod spans_large_io;
 pub mod system_prompt_versions;

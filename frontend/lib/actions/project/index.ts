@@ -130,6 +130,7 @@ async function deleteProjectDataFromClickHouse(
   const tables = [
     "default.spans",
     "default.spans_large_io",
+    "default.span_metrics_1m",
     "default.traces_replacing",
     "default.traces_agg",
     "default.traces_static",

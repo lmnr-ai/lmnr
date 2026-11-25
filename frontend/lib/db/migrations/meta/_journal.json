@@ -967,6 +967,13 @@
       "when": 1795544446727,
       "tag": "0137_agent_github_repo",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1795628213600,
+      "tag": "0138_metric_alerts",
+      "breakpoints": true
     }
   ]
 }
