@@ -14,7 +14,7 @@ import RenameAgentDialog from "./rename-agent-dialog";
 import { agentDisplayName } from "./utils";
 import VersionCard from "./version-card";
 import VersionTraces from "./version-traces";
-import VersioningSetup from "./versioning-setup";
+import SetupPill, { useSetupSteps } from "./versioning-setup";
 
 interface AgentVersionsListProps {
   projectId: string;
@@ -30,6 +30,8 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
     { fallbackData: initialVersions }
   );
 
+  const setup = useSetupSteps(projectId, agentId, data?.agent.releaseMode ?? false);
+
   // `undefined` until the user toggles a version, so the latest one starts open.
   const [openId, setOpenId] = useState<string | null>();
 
@@ -41,18 +43,20 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
       <div className="flex items-center justify-start gap-3">
         <SettingsSectionHeader title={data ? agentDisplayName(data.agent.name) : "Agent versions"} />
         {data && (
-          <RenameAgentDialog
-            projectId={projectId}
-            agentId={agentId}
-            currentName={agentDisplayName(data.agent.name)}
-            onRenamed={() => {
-              mutate();
-              onRenamed();
-            }}
-          />
+          <>
+            <RenameAgentDialog
+              projectId={projectId}
+              agentId={agentId}
+              currentName={agentDisplayName(data.agent.name)}
+              onRenamed={() => {
+                mutate();
+                onRenamed();
+              }}
+            />
+            <SetupPill setup={setup} />
+          </>
         )}
       </div>
-      {data && <VersioningSetup projectId={projectId} agentId={agentId} releaseMode={data.agent.releaseMode} />}
       {data && (
         <AgentDefinition
           projectId={projectId}

@@ -1,101 +1,49 @@
 "use client";
 
-import { Check, SquareArrowOutUpRight } from "lucide-react";
-import { useState } from "react";
+import { Check } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { CardExpandIndicator } from "@/components/ui/card-expand-indicator";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useLocalStorage } from "@/hooks/use-local-storage";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-import GithubStep from "./github-step";
 import SetupStep from "./setup-step";
-import { useAgentGithubRepo } from "./use-agent-github-repo";
+import { type SetupSteps } from "./use-setup-steps";
 
-// TODO: point to the release tracking guide once it is published.
-const RELEASES_DOCS_URL = "https://laminar.sh/docs/agent-versions/introduction#attach-a-release";
+export { useSetupSteps } from "./use-setup-steps";
 
-interface VersioningSetupProps {
-  projectId: string;
-  agentId: string;
-  releaseMode: boolean;
-}
-
-/** Collapsed once complete; while incomplete, a user's collapse is remembered per project. */
-export default function VersioningSetup({ projectId, agentId, releaseMode }: VersioningSetupProps) {
-  const [collapsed, setCollapsed] = useLocalStorage(`agent-versions:setup-collapsed:${projectId}`, false);
-  const [completeOpen, setCompleteOpen] = useState(false);
-  const github = useAgentGithubRepo(projectId, agentId);
-
-  const githubLinked = github?.status === "linked";
-  const steps = [true, releaseMode, ...(github ? [githubLinked] : [])];
-  const done = steps.filter(Boolean).length;
-  const complete = done === steps.length;
-  const summary = !releaseMode
-    ? "Release tracking not set up"
-    : github && !githubLinked
-      ? "GitHub not linked"
-      : "Versioned by git releases";
-
-  const open = complete ? completeOpen : !collapsed;
-  const onOpenChange = (next: boolean) => (complete ? setCompleteOpen(next) : setCollapsed(!next));
+/** The setup progress in the agent's header, a dot per step; the steps open in a popover. */
+export default function SetupPill({ setup }: { setup: SetupSteps }) {
+  const { steps, done, complete } = setup;
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange} className="rounded-md border">
-      <CollapsibleTrigger asChild>
-        <div
-          role="button"
-          tabIndex={0}
-          className="group flex cursor-pointer h-11 items-center gap-3 rounded-md px-4 hover:bg-emphasis-1 transition-colors"
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Setup, ${done} of ${steps.length} steps done`}
+          className="flex h-6 items-center gap-1.5 rounded-full border px-2 text-xs text-muted-foreground transition-colors hover:bg-emphasis-1"
         >
-          <span className="text-sm font-medium">Versioning setup</span>
-          <Badge
-            variant="outline"
-            className={cn(
-              "h-5 gap-1 px-1.5 font-normal",
-              complete ? "border-success/40 text-success" : "text-muted-foreground"
-            )}
-          >
-            {complete && <Check className="size-3" />}
-            {done}/{steps.length}
-          </Badge>
-          <span className="flex-1 text-xs text-muted-foreground">{summary}</span>
-          <CardExpandIndicator expanded={open} />
-        </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="flex flex-col gap-3 px-4 pb-4 pt-1">
-          <SetupStep
-            done
-            title="Automatic versioning"
-            description="New versions are detected from changes to the system prompt and tools in your traces."
-          />
-          <SetupStep
-            done={releaseMode}
-            title="Release tracking"
-            description={
-              releaseMode ? (
-                "Versions are grouped by the git release set on your traces."
-              ) : (
-                <>
-                  Set <code className="font-mono">LMNR_RELEASE</code> to the git commit SHA in your deployment to pin
-                  each trace to the release that shipped it. Recommended for the most accurate version detection.{" "}
-                  <a
-                    href={RELEASES_DOCS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary-text hover:underline"
-                  >
-                    Setup guide
-                    <SquareArrowOutUpRight className="size-3" />
-                  </a>
-                </>
-              )
-            }
-          />
-          {github && <GithubStep github={github} />}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+          Setup
+          {complete ? (
+            <Check className="size-3 text-success" />
+          ) : (
+            <span className="flex items-center gap-1">
+              {steps.map((step) => (
+                <span
+                  key={step.title}
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    step.done ? "bg-success" : "border border-muted-foreground/60"
+                  )}
+                />
+              ))}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="flex w-96 flex-col gap-3 p-3">
+        {steps.map((step) => (
+          <SetupStep key={step.title} done={step.done} title={step.title} description={step.description} />
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }

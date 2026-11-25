@@ -68,7 +68,7 @@ export default function AgentDefinition({ projectId, agentId, definition, onChan
           // 38px plus the card's 1px borders makes the closed card 40px.
           className="group flex h-[38px] w-full items-center gap-2 rounded-md px-3 text-left hover:bg-emphasis-1 transition-colors"
         >
-          <span className="text-sm font-medium">Definition</span>
+          <span className="text-sm font-medium">Agent definition</span>
           <Tooltip>
             <TooltipTrigger asChild>
               {/* Clicking the icon shouldn't toggle the card. */}
