@@ -54,6 +54,17 @@ interface NewClusterPayload {
   reopened?: boolean;
 }
 
+/** Mirrors `MetricAlertNotification` in app-server/src/notifications/mod.rs. */
+interface MetricAlertPayload {
+  alert_name: string;
+  level: "ok" | "warning" | "critical";
+  group: string | null;
+  headline: string;
+  summary: string;
+  traces_path: string;
+  alert_path: string;
+}
+
 interface BaseNotification {
   title: string;
   summary: string;
@@ -95,7 +106,35 @@ export interface ReportNotification extends BaseNotification {
   signals: ReportSignal[];
 }
 
-export type FormattedNotification = NewEventNotification | NewClusterNotification | ReportNotification;
+export interface MetricAlertNotification extends BaseNotification {
+  kind: "metric";
+  severity: number;
+  description: string;
+  tracesLink: string;
+  alertLink: string;
+}
+
+export type FormattedNotification =
+  | NewEventNotification
+  | NewClusterNotification
+  | ReportNotification
+  | MetricAlertNotification;
+
+const METRIC_ALERT_SEVERITY = { ok: 0, warning: 1, critical: 2 } as const;
+
+/** Reports and clusters have no severity and count as info. */
+export const severityOf = (formatted: FormattedNotification): number =>
+  formatted.kind === "alert" || formatted.kind === "metric" ? formatted.severity : 0;
+
+const formatMetricAlertPayload = (alert: MetricAlertPayload): MetricAlertNotification => ({
+  kind: "metric",
+  title: alert.group ? `${alert.alert_name} (${alert.group})` : alert.alert_name,
+  summary: alert.headline,
+  severity: METRIC_ALERT_SEVERITY[alert.level] ?? 0,
+  description: alert.summary,
+  tracesLink: alert.traces_path,
+  alertLink: alert.alert_path,
+});
 
 const formatNewClusterPayload = (cluster: NewClusterPayload): NewClusterNotification => {
   const details: [string, string][] = [
@@ -120,12 +159,17 @@ const formatNewClusterPayload = (cluster: NewClusterPayload): NewClusterNotifica
 
 const formatAlertNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
-    const payload: { EventIdentification?: EventIdentificationPayload; NewCluster?: NewClusterPayload } = JSON.parse(
-      notification.payload
-    );
+    const payload: {
+      EventIdentification?: EventIdentificationPayload;
+      NewCluster?: NewClusterPayload;
+      MetricAlert?: MetricAlertPayload;
+    } = JSON.parse(notification.payload);
 
     if (payload.NewCluster) {
       return formatNewClusterPayload(payload.NewCluster);
+    }
+    if (payload.MetricAlert) {
+      return formatMetricAlertPayload(payload.MetricAlert);
     }
 
     const event = payload.EventIdentification;

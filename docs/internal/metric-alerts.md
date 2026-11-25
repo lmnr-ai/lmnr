@@ -58,6 +58,18 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 - **Ingestion backlog.** Producers stamp `accepted_at_ms` on the first message of each span batch and write an "accepted" watermark to Redis; consumers write a "stored up to" watermark after the ClickHouse insert (`ingestion.rs`). When stored trails accepted by more than `METRIC_ALERTS_INGESTION_LAG_SECONDS` (60), checks that could only fire because data is missing are skipped: no-data checks, every `below` rule, and any reading lower than the current level. Data Plane workspaces are not covered.
 - State is saved before a transition is handed on, so a crash between the two loses one message instead of sending it twice.
 
+## Notifications
+
+- A transition with `notify = true` becomes one `NotificationKind::MetricAlert` on the notification queue. `message::build` (pure) writes every word of it once: headline, sentence, detail rows and both link paths. Slack, email and the panel only lay those out, so a wording change is one edit in `metric_alerts/message.rs`.
+- **Slack: one thread per incident per channel.** The first message in a channel is posted top-level and its `ts` is stored in `metric_alert_incidents.slack_threads` under the channel id; everything later replies under it. Escalated and reopened replies are also shown in the channel (`reply_broadcast`); de-escalated, resolved and reminders stay in the thread. If the thread's first message was deleted, the next message starts a new thread and replaces the stored `ts`.
+- **The stored `ts` is written after the post and a failed write is logged, not retried:** a retry would post the message twice. The cost is that the next message starts a second thread.
+- **Email and the panel get opened, escalated, resolved and reopened** (`MetricAlertNotification::is_major`). Reminders and de-escalations are Slack-only.
+- Metric alerts take no send lock. The engine already sends one message per transition, and a lock would swallow a resolve that follows an open.
+- The Free plan check in `handle_slack` runs before any kind-specific code, so it covers metric alerts.
+- "Open traces" covers the window of the first breaching check up to the check that sent the message, with the rule's filters, sorted by cost. The traces page has no model filter, so the link of a split rule is not narrowed to its model.
+- "Top model" is named only when it is free: an unsplit `above` rule on a number read from `span_metrics_1m`, whose rows are per model already.
+- `SLACK_API_URL` points Slack calls at another base URL. Use it with a local stand-in server to test delivery without a workspace.
+
 ## Preview
 
 `POST /api/v1/projects/{project_id}/metric-alerts/preview` with `{ rule, alertId?, hours? }` replays the rule over up to 7 days (`preview::replay`) and returns the points, the incidents with their transitions, `checkIntervalMinutes`, `firesAfterMinutes` and `firedCount`. An invalid rule returns 400 with the validation message, which is the same `Rule::validate` the scheduler uses.

@@ -14,8 +14,7 @@ pub const METRIC_ALERT_TYPE: &str = "METRIC";
 pub struct MetricAlertRow {
     pub id: Uuid,
     pub project_id: Uuid,
-    // Read when a notification is delivered, which the next change adds.
-    #[allow(dead_code)]
+    pub project_name: String,
     pub workspace_id: Uuid,
     pub name: String,
     pub metadata: Value,
@@ -25,7 +24,7 @@ pub struct MetricAlertRow {
 /// other access is scoped to one project.
 pub async fn get_all_metric_alerts(pool: &PgPool) -> anyhow::Result<Vec<MetricAlertRow>> {
     let rows = sqlx::query_as::<_, MetricAlertRow>(
-        "SELECT a.id, a.project_id, p.workspace_id, a.name, a.metadata
+        "SELECT a.id, a.project_id, p.name AS project_name, p.workspace_id, a.name, a.metadata
          FROM alerts a
          JOIN projects p ON p.id = a.project_id
          WHERE a.type = $1
@@ -171,8 +170,6 @@ pub async fn get_incidents_by_ids(
     Ok(rows)
 }
 
-// Read when a notification is delivered, which the next change adds.
-#[allow(dead_code)]
 pub async fn get_incident(
     pool: &PgPool,
     project_id: &Uuid,
@@ -283,8 +280,7 @@ pub async fn resolve_open_incidents(
 }
 
 /// Records the Slack message that opened the incident's thread in a channel.
-/// The first writer wins, so a retried delivery cannot start a second thread.
-#[allow(dead_code)]
+/// The first writer wins, so a retried delivery cannot move the thread.
 pub async fn set_slack_thread(
     pool: &PgPool,
     project_id: &Uuid,
@@ -295,6 +291,30 @@ pub async fn set_slack_thread(
     sqlx::query(
         "UPDATE metric_alert_incidents
          SET slack_threads = jsonb_build_object($3::text, $4::text) || slack_threads
+         WHERE id = $1 AND project_id = $2",
+    )
+    .bind(incident_id)
+    .bind(project_id)
+    .bind(channel_id)
+    .bind(message_ts)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+/// Points the incident's thread in a channel at a new message, for when the
+/// one that opened it is gone.
+pub async fn replace_slack_thread(
+    pool: &PgPool,
+    project_id: &Uuid,
+    incident_id: &Uuid,
+    channel_id: &str,
+    message_ts: &str,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "UPDATE metric_alert_incidents
+         SET slack_threads = slack_threads || jsonb_build_object($3::text, $4::text)
          WHERE id = $1 AND project_id = $2",
     )
     .bind(incident_id)

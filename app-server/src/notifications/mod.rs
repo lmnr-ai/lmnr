@@ -13,6 +13,7 @@ use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
 use crate::env::notifications::ALERT_SEND_LOCK_TTL_SECONDS;
+use crate::metric_alerts::engine::{Level, TransitionKind};
 use crate::mq::utils::mq_max_payload;
 use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::worker::{HandlerError, MessageHandler};
@@ -88,6 +89,7 @@ impl std::fmt::Display for NotificationDefinitionType {
 pub enum AlertType {
     SignalEvent,
     NewCluster,
+    Metric,
 }
 
 impl AlertType {
@@ -95,6 +97,7 @@ impl AlertType {
         match self {
             Self::SignalEvent => "SIGNAL_EVENT",
             Self::NewCluster => "NEW_CLUSTER",
+            Self::Metric => "METRIC",
         }
     }
 }
@@ -106,6 +109,7 @@ impl std::str::FromStr for AlertType {
         match s {
             "SIGNAL_EVENT" => Ok(Self::SignalEvent),
             "NEW_CLUSTER" => Ok(Self::NewCluster),
+            "METRIC" => Ok(Self::Metric),
             other => Err(format!("unknown alert type: {other}")),
         }
     }
@@ -129,6 +133,69 @@ pub struct ClusterExampleEvent {
     pub trace_id: Uuid,
     /// Pre-formatted display timestamp (e.g. "Jul 05, 2026 14:02 UTC").
     pub timestamp: String,
+}
+
+/// One labelled number of a metric alert message, e.g. "Value" / "$2.41".
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct MetricAlertDetail {
+    pub label: String,
+    pub value: String,
+}
+
+/// One message of a metric alert incident. The scheduler writes the words, so
+/// Slack, email and the in-app panel say the same thing.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct MetricAlertNotification {
+    pub project_id: Uuid,
+    pub project_name: String,
+    pub alert_id: Uuid,
+    pub alert_name: String,
+    pub incident_id: Uuid,
+    pub transition: TransitionKind,
+    /// The level after the transition.
+    pub level: Level,
+    /// The model, for rules split by model.
+    pub group: Option<String>,
+    /// What happened in a few words, e.g. "Escalated to Critical".
+    pub headline: String,
+    pub summary: String,
+    pub details: Vec<MetricAlertDetail>,
+    /// Links as paths inside the app. Each channel adds its own base URL.
+    pub traces_path: String,
+    pub alert_path: String,
+    /// Pre-formatted end of the window the check measured.
+    pub checked_at: String,
+}
+
+impl MetricAlertNotification {
+    /// The level on the 0 (info) to 2 (critical) scale the other alerts use.
+    pub fn severity(&self) -> u8 {
+        match self.level {
+            Level::Ok => 0,
+            Level::Warning => 1,
+            Level::Critical => 2,
+        }
+    }
+
+    /// Email and the in-app panel only get the changes worth an interruption.
+    /// Reminders and steps down stay in the Slack thread.
+    pub fn is_major(&self) -> bool {
+        matches!(
+            self.transition,
+            TransitionKind::Opened
+                | TransitionKind::Escalated
+                | TransitionKind::Resolved
+                | TransitionKind::Reopened
+        )
+    }
+
+    /// The rule name, with the model for split rules.
+    pub fn subject(&self) -> String {
+        match &self.group {
+            Some(group) => format!("{} ({})", self.alert_name, group),
+            None => self.alert_name.clone(),
+        }
+    }
 }
 
 /// Core notification data produced by various subsystems.
@@ -238,6 +305,30 @@ pub enum NotificationKind {
         signal_name: String,
         trace_id: Uuid,
     },
+    MetricAlert(MetricAlertNotification),
+}
+
+impl NotificationKind {
+    /// The project a notification belongs to, nil for workspace-level ones.
+    pub fn project_id(&self) -> Uuid {
+        match self {
+            NotificationKind::EventIdentification { project_id, .. } => *project_id,
+            NotificationKind::NewCluster { project_id, .. } => *project_id,
+            NotificationKind::SignalsReport { project_id, .. } => *project_id,
+            NotificationKind::SignalEmptyTrace { project_id, .. } => *project_id,
+            NotificationKind::MetricAlert(alert) => alert.project_id,
+            NotificationKind::UsageWarning { .. } => Uuid::nil(),
+            NotificationKind::UsageHardLimit { .. } => Uuid::nil(),
+        }
+    }
+
+    /// Whether the notification is listed in the in-app panel.
+    fn shows_in_app(&self) -> bool {
+        match self {
+            NotificationKind::MetricAlert(alert) => alert.is_major(),
+            _ => true,
+        }
+    }
 }
 
 // ── NotificationMessage (producers → notifications queue) ──
@@ -317,7 +408,8 @@ const USAGE_WARNING_SEND_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
 ///   suppressing one another.
 /// - Signal-event alerts key on `definition_id` (the alert) to throttle a noisy
 ///   signal to one notification per alert per TTL. New-cluster alerts are
-///   already rare and digested, so they are not throttled.
+///   already rare and digested, so they are not throttled. Metric alerts are
+///   paced by their own incidents, and dropping one would lose a transition.
 fn send_lock(message: &NotificationMessage) -> Option<(String, u64)> {
     match message.definition_type {
         NotificationDefinitionType::UsageWarning => Some((
@@ -415,14 +507,10 @@ impl MessageHandler for NotificationHandler {
             let notification_id = Uuid::new_v4();
             notification_ids.push(notification_id);
 
-            let project_id = match kind {
-                NotificationKind::EventIdentification { project_id, .. } => *project_id,
-                NotificationKind::NewCluster { project_id, .. } => *project_id,
-                NotificationKind::SignalsReport { project_id, .. } => *project_id,
-                NotificationKind::SignalEmptyTrace { project_id, .. } => *project_id,
-                NotificationKind::UsageWarning { .. } => Uuid::nil(),
-                NotificationKind::UsageHardLimit { .. } => Uuid::nil(),
-            };
+            // The id still goes out with the delivery, so its record can be told apart.
+            if !kind.shows_in_app() {
+                continue;
+            }
 
             let payload = serde_json::to_string(kind).map_err(|e| {
                 HandlerError::permanent(anyhow::anyhow!(
@@ -433,7 +521,7 @@ impl MessageHandler for NotificationHandler {
 
             ch_notifications.push(CHNotification {
                 notification_id,
-                project_id,
+                project_id: kind.project_id(),
                 workspace_id: message.workspace_id,
                 definition_type: message.definition_type.to_string(),
                 definition_id: message.definition_id,
@@ -675,6 +763,72 @@ mod tests {
             reopened: false,
             report: None,
         }
+    }
+
+    fn metric_alert(transition: TransitionKind, level: Level) -> MetricAlertNotification {
+        MetricAlertNotification {
+            project_id: Uuid::from_u128(3),
+            project_name: "prod".to_string(),
+            alert_id: Uuid::from_u128(1),
+            alert_name: "Cost spike".to_string(),
+            incident_id: Uuid::from_u128(7),
+            transition,
+            level,
+            group: None,
+            headline: "Warning".to_string(),
+            summary: "Total cost over the last hour is $2.41.".to_string(),
+            details: vec![MetricAlertDetail {
+                label: "Value".to_string(),
+                value: "$2.41".to_string(),
+            }],
+            traces_path: "/project/p/traces".to_string(),
+            alert_path: "/project/p/settings/alerts/a".to_string(),
+            checked_at: "Nov 25, 2026 at 7:35 PM UTC".to_string(),
+        }
+    }
+
+    #[test]
+    fn metric_alerts_are_never_dropped_by_a_send_lock() {
+        let opened = metric_alert(TransitionKind::Opened, Level::Warning);
+        let message = message(
+            NotificationDefinitionType::Alert,
+            vec![NotificationKind::MetricAlert(opened)],
+        );
+        assert!(send_lock(&message).is_none());
+    }
+
+    #[test]
+    fn the_panel_gets_turning_points_only() {
+        let shown = |transition, level| {
+            NotificationKind::MetricAlert(metric_alert(transition, level)).shows_in_app()
+        };
+        assert!(shown(TransitionKind::Opened, Level::Warning));
+        assert!(shown(TransitionKind::Escalated, Level::Critical));
+        assert!(shown(TransitionKind::Resolved, Level::Ok));
+        assert!(shown(TransitionKind::Reopened, Level::Warning));
+        assert!(!shown(TransitionKind::Reminder, Level::Warning));
+        assert!(!shown(TransitionKind::Deescalated, Level::Warning));
+        assert!(event().shows_in_app());
+    }
+
+    #[test]
+    fn metric_alert_payload_is_stable_json() {
+        let kind = NotificationKind::MetricAlert(metric_alert(
+            TransitionKind::Escalated,
+            Level::Critical,
+        ));
+        let payload = serde_json::to_value(&kind).unwrap();
+
+        // The notification panel reads these names.
+        assert_eq!(payload["MetricAlert"]["transition"], "escalated");
+        assert_eq!(payload["MetricAlert"]["level"], "critical");
+        assert_eq!(payload["MetricAlert"]["alert_name"], "Cost spike");
+        assert_eq!(payload["MetricAlert"]["details"][0]["label"], "Value");
+        let parsed: NotificationKind = serde_json::from_value(payload).unwrap();
+        assert!(matches!(
+            parsed,
+            NotificationKind::MetricAlert(alert) if alert.severity() == 2
+        ));
     }
 
     #[test]
