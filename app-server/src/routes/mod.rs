@@ -1,5 +1,6 @@
 pub mod error;
 pub mod llm_profiles;
+pub mod metric_alerts;
 pub mod probes;
 pub mod realtime;
 pub mod rollouts;

@@ -35,6 +35,7 @@ pub mod database;
 pub mod debugger;
 pub mod hosted_evals;
 pub mod llm;
+pub mod metric_alerts;
 pub mod mock;
 pub mod mq;
 pub mod notifications;

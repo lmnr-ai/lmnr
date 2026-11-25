@@ -1,6 +1,3 @@
-// Nothing reads the rollup until the metric alert scheduler lands.
-#![allow(dead_code)]
-
 use anyhow::Result;
 use clickhouse::Row;
 use serde::Deserialize;

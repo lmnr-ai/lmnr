@@ -12,6 +12,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use chrono::Utc;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -31,6 +32,7 @@ use crate::{
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, spans::Span, workspaces::DeploymentMode},
+    metric_alerts::ingestion,
     mq::{MessageQueue, MessageQueueTrait, stream::StreamPublisher, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
@@ -229,6 +231,10 @@ pub async fn publish_span_messages(
         }
     }
 
+    let accepted_at_ms = Utc::now().timestamp_millis();
+    if let Some(first) = messages.first_mut() {
+        first.accepted_at_ms = Some(accepted_at_ms);
+    }
     let mq_message = serde_json::to_vec(&messages).unwrap();
 
     if mq_message.len() >= mq_max_payload() {
@@ -285,6 +291,7 @@ pub async fn publish_span_messages(
                     )
                     .await?;
             }
+            ingestion::record_accepted(&cache, accepted_at_ms).await;
         }
         DeploymentMode::HYBRID => {
             queue
@@ -365,6 +372,7 @@ pub async fn push_spans_to_queue(
                                 output_dedup: None,
                                 tool_dedup: None,
                                 agent_prompt: None,
+                                accepted_at_ms: None,
                             })
                         } else {
                             None

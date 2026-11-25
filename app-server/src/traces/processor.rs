@@ -26,6 +26,7 @@ use crate::{
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
+    metric_alerts::ingestion,
     mq::{MessageQueue, stream::StreamPublisher},
     pii_redactor::{
         PiiOutcome, PiiRedactorClient, ProjectModes, SpanVerdict, redact_spans_in_place,
@@ -259,6 +260,7 @@ pub async fn process_span_messages(
     indexer_stream_publisher: Option<Arc<StreamPublisher>>,
     quickwit_indexing_enabled: bool,
 ) -> Result<(), HandlerError> {
+    let accepted_at_ms = messages.iter().filter_map(|m| m.accepted_at_ms).max();
     let messages = enrich_attributes(messages);
     let (metadata_only, mut messages): (Vec<RabbitMqSpanMessage>, Vec<RabbitMqSpanMessage>) =
         messages
@@ -365,6 +367,11 @@ pub async fn process_span_messages(
     );
     let ((), span_result) = tokio::join!(trace_branch, span_branch);
     span_result?;
+
+    // Data planes store their own spans and are not part of this backlog.
+    if let (None, Some(accepted_at_ms)) = (config, accepted_at_ms) {
+        ingestion::record_stored(&cache, accepted_at_ms).await;
+    }
 
     if let Err(e) = insert_agent_prompts(&clickhouse, &agent_prompts).await {
         log::error!(

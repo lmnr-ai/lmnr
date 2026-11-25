@@ -290,3 +290,12 @@ pub const TRACE_SESSION_HINT_CACHE_KEY: &str = "trace_session";
 pub const DEBUGGER_CACHE_KEY: &str = "debugger_replay_cache";
 pub const DEBUGGER_CACHE_READY_KEY: &str = "debugger_replay_ready";
 pub const DEBUGGER_CACHE_LOCK_KEY: &str = "debugger_replay_lock";
+pub const METRIC_ALERTS_SCHEDULER_LOCK_CACHE_KEY: &str = "metric_alerts_scheduler_lock";
+/// Last window end the scheduler evaluated, in unix minutes.
+pub const METRIC_ALERTS_LAST_MINUTE_CACHE_KEY: &str = "metric_alerts_last_minute";
+/// When any producer last accepted spans, in unix milliseconds.
+pub const SPANS_ACCEPTED_AT_CACHE_KEY: &str = "spans_accepted_at";
+/// The intake time of the newest spans a consumer has stored.
+pub const SPANS_STORED_UP_TO_CACHE_KEY: &str = "spans_stored_up_to";
+/// A project's p99 trace cost, per `trace_p99` rule.
+pub const METRIC_ALERT_TRACE_COST_P99_CACHE_KEY: &str = "metric_alert_trace_cost_p99";

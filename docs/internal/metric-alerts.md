@@ -28,3 +28,36 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 - **`metric_alert_states`** (Postgres) holds one row per `(alert_id, group_key)`: current level, the streak being counted, the last processed observation time and the current incident. `group_key` is `''` for rules that are not split. `rule_fingerprint` identifies the rule version the state belongs to.
 - **`metric_alert_incidents`** (Postgres) holds one row per incident: level, peak, open/escalate/reopen/resolve times, last notification time and `slack_threads` (channel id to the `ts` of the message that opened the thread).
 - drizzle-kit drops `DESC` from a `.desc()` index column when it writes the migration SQL but keeps it in the snapshot. Declare index columns ascending so the SQL and the snapshot agree.
+
+## Evaluation (`app-server/src/metric_alerts/`)
+
+- **`engine::evaluate(rule, &mut state, observation) -> Option<Transition>` is pure** and is the only place that decides levels, incidents and reminders. The scheduler and the preview both call it, so a rule previews exactly as it will run. Keep IO out of it; add a row to the table test in `engine_tests.rs` for every behaviour change.
+- **Checks in a row.** The level moves only after `checksInARow` consecutive checks ask to move it in the same direction, and only as far as all of them agree. A check that agrees with the current level resets the count. A skipped check (no data with `skip`, too few traces, ingestion behind) leaves the state untouched and does not break a streak.
+- **A window slides.** A 5-minute sum checked every minute still contains a 2-minute burst five checks later. "Checks in a row" absorbs a burst only when the window total stays under the line; a short burst that lifts the whole window over it fires. Longer windows and `minChange` are the tools for that.
+- **Thresholds.** A breach is strict (`value > warning`), a resolve is inclusive (`value <= resolve`). While an incident is open only the resolve threshold returns it to OK; a value between resolve and warning holds Warning, or steps Critical down to Warning.
+- **No data.** `onNoData` unset means `zero` for sums, counts and single-trace cost (a sum over nothing is zero, so "traffic stopped" fires and a cost incident resolves when traffic stops) and `skip` for metrics that need a minimum number of traces. An explicit value always wins.
+- **Relative conditions** (`change`, `trace_p99`) compare `value / baseline * 100`. A missing or zero baseline skips the check. A difference under `minChange` reads as OK. `trace_p99` thresholds are a percent of the project's p99 trace cost over 7 days, cached for 24 h per rule in Redis.
+- **Budget.** Critical when month-to-date spend reaches the amount, Warning when the projection (spend so far + last 7 days' daily average × days left) reaches it. The month is the UTC calendar month.
+- **Mute and snooze do not stop evaluation.** State and incidents keep updating with `notify = false`, so an incident can resolve in silence. When a snooze ends on an incident nobody heard about, the next check sends a reminder as its first message. A resolve for an incident nobody heard about stays silent.
+- **Reminders back off:** 30 min, 30 min, 1 h, 2 h, … capped at 24 h, restarting when the incident escalates or reopens. They are only sent on a check that was evaluated.
+- **Edits reset state.** `Rule::fingerprint()` hashes the fields that change evaluation (not snooze or mute). On a mismatch the states are deleted and open incidents are closed without a message.
+
+## Data
+
+- Unfiltered cost and token sums, and the numerators of per-trace metrics, come from `span_metrics_1m`. Everything else comes from trace rows: `traces_agg` when the rule has no filters, `traces_v0` with the rule's filters otherwise. `series::reads_spans` / `reads_traces` decide.
+- A trace is counted in the minute its last stored span ended. Traces are found by start time, looking back 60 minutes before the window (24 h for single-trace cost), so a trace longer than that is missed. A trace still running is counted again in a later window as more spans arrive.
+- Filters go through `filters::build_where`, a whitelist of columns and operators with bound values. Never interpolate a filter value.
+- Split by model works only for span sums and per-trace metrics without filters. Each check looks at the window's top 20 models, plus any model with an open incident or a running streak.
+- `query::fetch_series` reads once per project per tick and serves every due rule of that project.
+
+## Scheduler
+
+- Every consumer replica ticks each minute; the one that takes the Redis lock does the work. `upsert_state` only writes when `last_processed_at` is older than the check, and `store::save` rolls the incident back when that guard fails, so two replicas that both evaluate a check still record one transition.
+- A rule is checked on a grid: `cadence::is_due(alert_id, interval, minute)` spreads rules over the interval by alert id. The interval comes from the window (`cadence::check_interval_minutes`), never from the user. The preview uses the same grid when it is given the alert id.
+- A check looks at the window ending `METRIC_ALERTS_SETTLE_MINUTES` (2) minutes ago. A late tick catches up on at most 10 missed minutes.
+- **Ingestion backlog.** Producers stamp `accepted_at_ms` on the first message of each span batch and write an "accepted" watermark to Redis; consumers write a "stored up to" watermark after the ClickHouse insert (`ingestion.rs`). When stored trails accepted by more than `METRIC_ALERTS_INGESTION_LAG_SECONDS` (60), checks that could only fire because data is missing are skipped: no-data checks, every `below` rule, and any reading lower than the current level. Data Plane workspaces are not covered.
+- State is saved before a transition is handed on, so a crash between the two loses one message instead of sending it twice.
+
+## Preview
+
+`POST /api/v1/projects/{project_id}/metric-alerts/preview` with `{ rule, alertId?, hours? }` replays the rule over up to 7 days (`preview::replay`) and returns the points, the incidents with their transitions, `checkIntervalMinutes`, `firesAfterMinutes` and `firedCount`. An invalid rule returns 400 with the validation message, which is the same `Rule::validate` the scheduler uses.

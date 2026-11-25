@@ -110,6 +110,7 @@ pub async fn create_spans(
             output_dedup: None,
             tool_dedup: None,
             agent_prompt: None,
+            accepted_at_ms: None,
         });
     }
 

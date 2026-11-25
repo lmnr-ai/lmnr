@@ -51,6 +51,11 @@ pub struct RabbitMqSpanMessage {
     /// The span's agent prompt as line hashes, for agent versioning.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_prompt: Option<AgentPrompt>,
+    /// When the producer accepted this batch, in unix milliseconds. Set on
+    /// the first message of a batch only. Consumers report it once the batch
+    /// is stored, which is how metric alerts notice an ingestion backlog.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accepted_at_ms: Option<i64>,
 }
 
 // /v1/traces

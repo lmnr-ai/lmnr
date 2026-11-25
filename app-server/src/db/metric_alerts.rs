@@ -1,6 +1,4 @@
 //! Typed access to `metric_alert_states` and `metric_alert_incidents`.
-// Nothing reads these until the metric alert scheduler lands.
-#![allow(dead_code)]
 
 use std::collections::HashMap;
 
@@ -16,6 +14,8 @@ pub const METRIC_ALERT_TYPE: &str = "METRIC";
 pub struct MetricAlertRow {
     pub id: Uuid,
     pub project_id: Uuid,
+    // Read when a notification is delivered, which the next change adds.
+    #[allow(dead_code)]
     pub workspace_id: Uuid,
     pub name: String,
     pub metadata: Value,
@@ -36,26 +36,6 @@ pub async fn get_all_metric_alerts(pool: &PgPool) -> anyhow::Result<Vec<MetricAl
     .await?;
 
     Ok(rows)
-}
-
-pub async fn get_metric_alert(
-    pool: &PgPool,
-    project_id: &Uuid,
-    alert_id: &Uuid,
-) -> anyhow::Result<Option<MetricAlertRow>> {
-    let row = sqlx::query_as::<_, MetricAlertRow>(
-        "SELECT a.id, a.project_id, p.workspace_id, a.name, a.metadata
-         FROM alerts a
-         JOIN projects p ON p.id = a.project_id
-         WHERE a.id = $1 AND a.project_id = $2 AND a.type = $3",
-    )
-    .bind(alert_id)
-    .bind(project_id)
-    .bind(METRIC_ALERT_TYPE)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row)
 }
 
 /// Evaluation state of one rule for one group. `group_key` is empty for rules
@@ -191,6 +171,8 @@ pub async fn get_incidents_by_ids(
     Ok(rows)
 }
 
+// Read when a notification is delivered, which the next change adds.
+#[allow(dead_code)]
 pub async fn get_incident(
     pool: &PgPool,
     project_id: &Uuid,
@@ -250,6 +232,7 @@ pub struct IncidentUpdate<'a> {
     pub escalated_at: Option<DateTime<Utc>>,
     pub reopened_at: Option<DateTime<Utc>>,
     pub resolved_at: Option<DateTime<Utc>>,
+    pub last_notified_at: Option<DateTime<Utc>>,
 }
 
 pub async fn update_incident(
@@ -261,7 +244,7 @@ pub async fn update_incident(
     sqlx::query(
         "UPDATE metric_alert_incidents
          SET level = $3, peak_level = $4, peak_value = $5,
-             escalated_at = $6, reopened_at = $7, resolved_at = $8
+             escalated_at = $6, reopened_at = $7, resolved_at = $8, last_notified_at = $9
          WHERE id = $1 AND project_id = $2",
     )
     .bind(incident_id)
@@ -272,6 +255,7 @@ pub async fn update_incident(
     .bind(update.escalated_at)
     .bind(update.reopened_at)
     .bind(update.resolved_at)
+    .bind(update.last_notified_at)
     .execute(conn)
     .await?;
 
@@ -298,27 +282,9 @@ pub async fn resolve_open_incidents(
     Ok(())
 }
 
-pub async fn set_last_notified_at(
-    pool: &PgPool,
-    project_id: &Uuid,
-    incident_id: &Uuid,
-    notified_at: DateTime<Utc>,
-) -> anyhow::Result<()> {
-    sqlx::query(
-        "UPDATE metric_alert_incidents SET last_notified_at = $3
-         WHERE id = $1 AND project_id = $2",
-    )
-    .bind(incident_id)
-    .bind(project_id)
-    .bind(notified_at)
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
 /// Records the Slack message that opened the incident's thread in a channel.
 /// The first writer wins, so a retried delivery cannot start a second thread.
+#[allow(dead_code)]
 pub async fn set_slack_thread(
     pool: &PgPool,
     project_id: &Uuid,

@@ -197,6 +197,7 @@ impl Harness {
             output_dedup,
             tool_dedup,
             agent_prompt: None,
+            accepted_at_ms: None,
         }
     }
 
@@ -659,6 +660,7 @@ async fn pipeline_end_to_end() {
                 output_dedup: None,
                 tool_dedup: None,
                 agent_prompt: None,
+                accepted_at_ms: None,
             });
         } else {
             messages.push(h.produce(span).await);
