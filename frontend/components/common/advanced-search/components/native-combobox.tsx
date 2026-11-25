@@ -14,9 +14,8 @@ import {
 import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils.ts";
 
-interface FocusableRef {
-  focus: () => void;
-}
+import { type FocusableRef } from "../types";
+import { isCaretAtEnd, isCaretAtStart, scrollOptionIntoView } from "../utils";
 
 interface NativeComboboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "onKeyDown"> {
   value: string;
@@ -24,8 +23,6 @@ interface NativeComboboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>
   onComplete?: () => void;
   suggestions: string[];
   inputClassName?: string;
-  dropdownClassName?: string;
-  optionClassName?: string;
   open?: boolean;
   onNavigateLeft?: () => void;
   onNavigateRight?: () => void;
@@ -41,8 +38,6 @@ const NativeCombobox = ({
   placeholder = "...",
   className,
   inputClassName,
-  dropdownClassName,
-  optionClassName,
   open = false,
   onNavigateLeft,
   onNavigateRight,
@@ -81,23 +76,7 @@ const NativeCombobox = ({
   }
 
   useEffect(() => {
-    if (open && highlightedIndex >= 0 && highlightedIndex < optionRefs.current.length) {
-      const highlightedElement = optionRefs.current[highlightedIndex];
-      const viewport = dropdownRef.current;
-
-      if (highlightedElement && viewport) {
-        const optionTop = highlightedElement.offsetTop;
-        const optionBottom = optionTop + highlightedElement.offsetHeight;
-        const viewportTop = viewport.scrollTop;
-        const viewportBottom = viewportTop + viewport.clientHeight;
-
-        if (optionTop < viewportTop) {
-          viewport.scrollTop = optionTop;
-        } else if (optionBottom > viewportBottom) {
-          viewport.scrollTop = optionBottom - viewport.clientHeight;
-        }
-      }
-    }
+    if (open && highlightedIndex >= 0) scrollOptionIntoView(dropdownRef.current, optionRefs.current[highlightedIndex]);
   }, [open, highlightedIndex]);
 
   const handleSelectSuggestion = useCallback(
@@ -139,19 +118,10 @@ const NativeCombobox = ({
         return;
       }
 
-      const input = e.target as HTMLInputElement;
-      if (e.key === "ArrowLeft") {
-        if (input.selectionStart === null || input.selectionStart === 0) {
-          onNavigateLeft?.();
-          return;
-        }
-      }
-
-      if (e.key === "ArrowRight") {
-        if (input.selectionStart === null || input.selectionStart === input.value.length) {
-          onNavigateRight?.();
-          return;
-        }
+      if (e.key === "ArrowLeft" && isCaretAtStart(e.currentTarget)) {
+        onNavigateLeft?.();
+      } else if (e.key === "ArrowRight" && isCaretAtEnd(e.currentTarget)) {
+        onNavigateRight?.();
       }
     },
     [open, suggestions, highlightedIndex, onComplete, handleSelectSuggestion, onNavigateLeft, onNavigateRight]
@@ -177,8 +147,7 @@ const NativeCombobox = ({
           className={cn(
             "absolute top-full left-0 mt-1 z-50 w-48 max-h-48 p-1",
             "bg-surface-300 border shadow-md rounded-md overflow-y-auto no-scrollbar text-secondary-foreground",
-            "animate-in fade-in-0 zoom-in-95",
-            dropdownClassName
+            "animate-in fade-in-0 zoom-in-95"
           )}
           onMouseDown={(e) => e.preventDefault()}
         >
@@ -195,8 +164,7 @@ const NativeCombobox = ({
               className={cn(
                 "relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-xs outline-none select-none",
                 "hover:overlay-hover hover:text-foreground-50",
-                index === highlightedIndex && "bg-surface-500 text-foreground-50",
-                optionClassName
+                index === highlightedIndex && "bg-surface-500 text-foreground-50"
               )}
             >
               <span className="truncate">{suggestion}</span>

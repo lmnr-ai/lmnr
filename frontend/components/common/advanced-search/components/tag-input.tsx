@@ -16,9 +16,10 @@ import {
 import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils.ts";
 
-export interface FocusableRef {
-  focus: () => void;
-}
+import { type FocusableRef } from "../types";
+import { isCaretAtEnd, isCaretAtStart, scrollOptionIntoView } from "../utils";
+
+export type { FocusableRef } from "../types";
 
 interface TagInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "onKeyDown" | "value"> {
   values: string[];
@@ -101,21 +102,8 @@ const TagInput = ({
   }
 
   useEffect(() => {
-    if (!showDropdown || highlightedIndex < 0) return;
-
-    const highlightedElement = optionRefs.current[highlightedIndex];
-    const viewport = dropdownRef.current;
-    if (!highlightedElement || !viewport) return;
-
-    const optionTop = highlightedElement.offsetTop;
-    const optionBottom = optionTop + highlightedElement.offsetHeight;
-    const viewportTop = viewport.scrollTop;
-    const viewportBottom = viewportTop + viewport.clientHeight;
-
-    if (optionTop < viewportTop) {
-      viewport.scrollTop = optionTop;
-    } else if (optionBottom > viewportBottom) {
-      viewport.scrollTop = optionBottom - viewport.clientHeight;
+    if (showDropdown && highlightedIndex >= 0) {
+      scrollOptionIntoView(dropdownRef.current, optionRefs.current[highlightedIndex]);
     }
   }, [showDropdown, highlightedIndex]);
 
@@ -205,8 +193,7 @@ const TagInput = ({
         return;
       }
 
-      const input = e.target as HTMLInputElement;
-      if (e.key === "ArrowLeft" && (input.selectionStart === null || input.selectionStart === 0)) {
+      if (e.key === "ArrowLeft" && isCaretAtStart(e.currentTarget)) {
         if (values.length > 0) {
           const lastIndex = values.length - 1;
           setFocusedTagIndex(lastIndex);
@@ -217,7 +204,7 @@ const TagInput = ({
         return;
       }
 
-      if (e.key === "ArrowRight" && (input.selectionStart === null || input.selectionStart === input.value.length)) {
+      if (e.key === "ArrowRight" && isCaretAtEnd(e.currentTarget)) {
         onNavigateRight?.();
       }
     },

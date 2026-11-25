@@ -1,18 +1,22 @@
 "use client";
 
-import { type Ref, useCallback } from "react";
+import { type MouseEvent, type Ref, useCallback } from "react";
 
 import { EMPTINESS_OPTIONS, Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import { useAdvancedSearchContext } from "../store";
+import { useAdvancedSearchContext, useTag, useTagFocus } from "../store";
 import { type ColumnFilter, type FocusableRef, type FocusMode } from "../types";
 import ArrayValueInput from "./array";
-import BooleanValueInput from "./boolean";
 import EnumValueInput from "./enum";
 import JsonValueInput from "./json";
 import NumberValueInput from "./number";
 import StringValueInput from "./string";
+
+const BOOLEAN_OPTIONS = [
+  { value: "true", label: "true" },
+  { value: "false", label: "false" },
+];
 
 interface ValueInputProps {
   tagId: string;
@@ -24,22 +28,32 @@ interface ValueInputProps {
 }
 
 const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: ValueInputProps) => {
-  const getTagFocusState = useAdvancedSearchContext((state) => state.getTagFocusState);
-  const setTagFocusState = useAdvancedSearchContext((state) => state.setTagFocusState);
-  const operator = useAdvancedSearchContext((state) => state.tags.find((t) => t.id === tagId)?.operator);
+  const focus = useTagFocus(tagId);
+  const setFocus = useAdvancedSearchContext((state) => state.setFocus);
+  const operator = useTag(tagId)?.operator;
 
-  const focusState = getTagFocusState(tagId);
   const dataType = columnFilter.dataType;
 
-  const handleMouseDown = useCallback(() => {
-    setTagFocusState(tagId, { type: "value", mode: "edit" });
-    if (ref && typeof ref !== "function" && ref.current) {
-      ref.current.focus();
-    }
-  }, [tagId, setTagFocusState, ref]);
+  const handleMouseDown = useCallback(
+    (e: MouseEvent) => {
+      // Native focus keeps the caret where clicked; programmatic focus jumps it to the end.
+      if (e.target instanceof HTMLInputElement) return;
+      setFocus({ tagId, position: "value", mode: "edit" });
+      if (ref && typeof ref !== "function" && ref.current) {
+        ref.current.focus();
+      }
+    },
+    [tagId, setFocus, ref]
+  );
+
+  const isEditing = focus?.position === "value" && focus.mode === "edit";
+  const handleFocus = useCallback(() => {
+    if (!isEditing) setFocus({ tagId, position: "value", mode: "edit" });
+  }, [isEditing, tagId, setFocus]);
+
   const wrapperClassName = cn(
     "font-medium h-5.5 flex items-center justify-center",
-    focusState.type === "value" && "bg-primary/30"
+    focus?.position === "value" && "bg-primary/30"
   );
 
   const renderInput = () => {
@@ -51,7 +65,7 @@ const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: Va
         return <EnumValueInput ref={ref} tagId={tagId} options={columnFilter.options} />;
 
       case "boolean":
-        return <BooleanValueInput ref={ref} tagId={tagId} focused={focused} mode={mode} />;
+        return <EnumValueInput ref={ref} tagId={tagId} options={BOOLEAN_OPTIONS} />;
 
       case "number":
         return <NumberValueInput ref={ref} tagId={tagId} mode={mode} />;
@@ -68,7 +82,12 @@ const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: Va
   };
 
   return (
-    <div className={wrapperClassName} onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
+    <div
+      className={wrapperClassName}
+      onMouseDown={handleMouseDown}
+      onFocus={handleFocus}
+      onClick={(e) => e.stopPropagation()}
+    >
       {renderInput()}
     </div>
   );

@@ -25,6 +25,20 @@ export const getPreviousField = (current: TagFocusPosition, skip: TagFocusPositi
   return index >= 0 ? FIELD_ORDER[index] : null;
 };
 
+// null selection: inputs without a caret (type=number).
+export const isCaretAtStart = (input: HTMLInputElement) => input.selectionStart === null || input.selectionStart === 0;
+export const isCaretAtEnd = (input: HTMLInputElement) =>
+  input.selectionStart === null || input.selectionStart === input.value.length;
+
+// Scrolls only the list; scrollIntoView can scroll the page too.
+export const scrollOptionIntoView = (viewport: HTMLElement | null, option: HTMLElement | null | undefined) => {
+  if (!viewport || !option) return;
+  const top = option.offsetTop;
+  const bottom = top + option.offsetHeight;
+  if (top < viewport.scrollTop) viewport.scrollTop = top;
+  else if (bottom > viewport.scrollTop + viewport.clientHeight) viewport.scrollTop = bottom - viewport.clientHeight;
+};
+
 export interface ValueSuggestion {
   field: string;
   value: string;
@@ -68,4 +82,48 @@ export const buildValueSuggestions = (
   });
 
   return valueSuggestions;
+};
+
+export type Suggestion =
+  | { type: "field"; filter: ColumnFilter }
+  | ({ type: "value" } & ValueSuggestion)
+  | { type: "raw_search"; value: string };
+
+export const buildSuggestions = (
+  inputValue: string,
+  filters: ColumnFilter[],
+  autocompleteData: Map<string, string[]>,
+  uuidFilterColumn?: string,
+  allowFreeTextSearch = true
+): Suggestion[] => {
+  const input = inputValue.trim().toLowerCase();
+
+  if (!input) {
+    return filters.map((filter) => ({ type: "field" as const, filter }));
+  }
+
+  // A pasted UUID is an id, not prose — offer the exact-match filter first.
+  const uuidSuggestions: Suggestion[] = hasUuidSuggestion(input, filters, uuidFilterColumn)
+    ? [{ type: "value" as const, field: uuidFilterColumn as string, value: inputValue.trim() }]
+    : [];
+
+  const matchingFields = filters.filter(
+    (f) => f.name.toLowerCase().includes(input) || f.key.toLowerCase().includes(input)
+  );
+
+  const fieldSuggestions: Suggestion[] = matchingFields.map((filter) => ({
+    type: "field" as const,
+    filter,
+  }));
+
+  const valueSuggestions: Suggestion[] = buildValueSuggestions(input, filters, autocompleteData).map(
+    ({ field, value, label }) => ({ type: "value" as const, field, value, label })
+  );
+
+  return [
+    ...uuidSuggestions,
+    ...fieldSuggestions,
+    ...valueSuggestions,
+    ...(allowFreeTextSearch ? [{ type: "raw_search" as const, value: inputValue.trim() }] : []),
+  ];
 };

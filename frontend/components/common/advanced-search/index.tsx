@@ -5,17 +5,13 @@ import { memo, useEffect } from "react";
 import useSWR from "swr";
 
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { type Filter } from "@/lib/actions/common/filters";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
 import FilterSearchInput from "./components/search-input";
 import { AdvancedSearchStoreProvider, useAdvancedSearchContext } from "./store";
-import { type AdvancedSearchResource, type ColumnFilter } from "./types";
+import { type AdvancedSearchResource, type AdvancedSearchValue, type ColumnFilter } from "./types";
 
-export interface AdvancedSearchValue {
-  filters: Filter[];
-  search: string;
-}
+export type { AdvancedSearchValue } from "./types";
 
 interface AdvancedSearchInnerProps {
   resource?: AdvancedSearchResource;

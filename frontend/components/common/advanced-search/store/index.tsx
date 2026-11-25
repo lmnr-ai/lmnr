@@ -13,6 +13,7 @@ import {
 } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
+import { useShallow } from "zustand/react/shallow";
 
 import { dataTypeOperationsMap, toFilterDataType } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
@@ -20,61 +21,47 @@ import { Operator, valueForOperator } from "@/lib/actions/common/operators";
 import { track } from "@/lib/posthog";
 
 import {
+  type AdvancedSearchValue,
   type ColumnFilter,
-  createFilterFromTag,
   createTagFromFilter,
   type FilterTag,
-  type FilterTagFocusState,
   type FilterTagRef,
   getOperationsForField,
+  type TagFocus,
+  normalizeValue,
   type TagFocusPosition,
+  valueFromTags,
 } from "../types";
-import { getNextField, getPreviousField, hasUuidSuggestion } from "../utils";
+import { buildSuggestions, getNextField, getPreviousField, hasUuidSuggestion, type Suggestion } from "../utils";
 import { createRecentsSlice, type RecentsSlice } from "./recents-slice";
 import type { AdvancedSearchStore, SliceContext, StoreGet, StoreSet } from "./types";
-import { createUndoRedoSlice, type UndoRedoSlice, type UndoSnapshot } from "./undo-redo-slice";
+import { createUndoRedoSlice, type UndoRedoSlice } from "./undo-redo-slice";
 
 export type { RecentSearch } from "./recents-slice";
 export type { AdvancedSearchStore } from "./types";
 
-// Stable wrapper around `tags + inputValue → onChange`. Pulls fresh values
-// from the store and routes them to the consumer-provided onChange via the
-// SliceContext getter (so the callback ref can change without re-creating the
-// store).
+const defaultOperator = (columnFilter: ColumnFilter): Operator =>
+  dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq;
+
 function buildCommit(get: StoreGet, context: SliceContext, resource?: string) {
   return () => {
     const { tags, inputValue, allowFreeTextSearch } = get();
-    // Drop tags with no value — they're mid-edit and shouldn't ship.
-    const completeTags = tags.filter((t) => (Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""));
-    const filterObjects = completeTags.map(createFilterFromTag);
-    // In filters-only mode the typed text is just a search buffer for picking a
-    // field/value — committing it would ship a full-text query the consumer
-    // has no way to evaluate.
-    const searchValue = allowFreeTextSearch ? inputValue.trim() : "";
+    // Filters-only mode: the typed text is a picker buffer, never a full-text query.
+    const next = valueFromTags(tags, allowFreeTextSearch ? inputValue : "");
+    const last = context.getCommitted();
+    if (isEqual(last, next)) return;
 
-    // No-op if nothing changed since last commit.
-    const last = context.getLastSubmitted();
-    if (isEqual(last.filters, filterObjects) && last.search === searchValue) {
-      return;
-    }
-    get().pushUndoSnapshot();
-
-    if (filterObjects.length > 0 || searchValue.length > 0) {
+    get().pushUndo(last);
+    if (next.filters.length > 0 || next.search.length > 0) {
       track("advanced_search", "submitted", {
         resource: resource ?? "unknown",
-        filterCount: filterObjects.length,
-        hasSearch: searchValue.length > 0,
+        filterCount: next.filters.length,
+        hasSearch: next.search.length > 0,
       });
     }
-
-    context.setLastSubmitted({ filters: filterObjects, search: searchValue });
-    context.setLastCommittedSnapshot({
-      tags: tags.map((t) => ({ ...t, value: Array.isArray(t.value) ? [...t.value] : t.value })),
-      inputValue,
-    });
-
-    get().addRecentSearch(filterObjects, searchValue);
-    context.getOnChange()({ filters: filterObjects, search: searchValue });
+    context.setCommitted(next);
+    get().addRecentSearch(next.filters, next.search);
+    context.getOnChange()(next);
   };
 }
 
@@ -99,20 +86,11 @@ function createCoreSlice(
     activeIndex: -1,
     activeRecentIndex: -1,
     selectedTagIds: new Set<string>(),
-    openSelectId: null,
-    tagFocusStates: new Map<string, FilterTagFocusState>(),
+    focus: null,
 
     filters,
     resource,
     uuidFilterColumn,
-
-    getActiveTagId: () => {
-      const { tagFocusStates } = get();
-      for (const [tagId, focusState] of tagFocusStates) {
-        if (focusState.type !== "idle") return tagId;
-      }
-      return null;
-    },
 
     setAutocompleteData: (data) => set({ autocompleteData: data }),
     setInputValue: (value) => set({ inputValue: value, activeIndex: -1, activeRecentIndex: -1 }),
@@ -132,41 +110,30 @@ function createCoreSlice(
     },
     setActiveIndex: (activeIndex) => set({ activeIndex, activeRecentIndex: -1 }),
     setActiveRecentIndex: (activeRecentIndex) => set({ activeRecentIndex, activeIndex: -1 }),
-    setOpenSelectId: (openSelectId) => set({ openSelectId }),
-
-    setTags: (tags) => set({ tags }),
 
     addTag: (field) => {
       const columnFilter = get().filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
-      const operations = dataTypeOperationsMap[columnFilter.dataType];
-      const defaultOperator = operations?.[0]?.key ?? Operator.Eq;
-      const defaultValue = columnFilter.dataType === "array" ? [] : "";
-
       const newTag: FilterTag = {
         id: `tag-${uniqueId()}`,
         field,
         dataType: toFilterDataType(columnFilter.dataType),
-        operator: defaultOperator,
-        value: defaultValue,
+        operator: defaultOperator(columnFilter),
+        value: columnFilter.dataType === "array" ? [] : "",
       };
 
-      set((state) => {
-        const newFocusStates = new Map(state.tagFocusStates);
-        newFocusStates.set(newTag.id, { type: "value", mode: "edit" });
-        return {
-          tags: [...state.tags, newTag],
-          inputValue: "",
-          isOpen: false,
-          activeIndex: -1,
-          activeRecentIndex: -1,
-          tagFocusStates: newFocusStates,
-        };
-      });
+      set((state) => ({
+        tags: [...state.tags, newTag],
+        inputValue: "",
+        isOpen: false,
+        activeIndex: -1,
+        activeRecentIndex: -1,
+        focus: { tagId: newTag.id, position: "value", mode: "edit" },
+      }));
     },
 
-    addCompleteTag: (field, operator, value) => {
+    addCompleteTag: (field, value) => {
       const columnFilter = get().filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
@@ -175,7 +142,7 @@ function createCoreSlice(
         id: `tag-${uniqueId()}`,
         field,
         dataType: toFilterDataType(columnFilter.dataType),
-        operator,
+        operator: defaultOperator(columnFilter),
         value: tagValue,
       };
 
@@ -189,7 +156,17 @@ function createCoreSlice(
 
       // Defer so the state set above flushes before commit reads it.
       queueMicrotask(commit);
-      return newTag;
+    },
+
+    applySuggestion: (suggestion) => {
+      if (suggestion.type === "field") {
+        get().addTag(suggestion.filter.key);
+      } else if (suggestion.type === "value") {
+        get().addCompleteTag(suggestion.field, suggestion.value);
+      } else {
+        set({ inputValue: suggestion.value });
+        get().submit();
+      }
     },
 
     removeTag: (tagId) => {
@@ -197,9 +174,11 @@ function createCoreSlice(
         const newTags = state.tags.filter((t) => t.id !== tagId);
         const newSelectedTagIds = new Set(state.selectedTagIds);
         newSelectedTagIds.delete(tagId);
-        const newFocusStates = new Map(state.tagFocusStates);
-        newFocusStates.delete(tagId);
-        return { tags: newTags, selectedTagIds: newSelectedTagIds, tagFocusStates: newFocusStates };
+        return {
+          tags: newTags,
+          selectedTagIds: newSelectedTagIds,
+          focus: state.focus?.tagId === tagId ? null : state.focus,
+        };
       });
       queueMicrotask(commit);
     },
@@ -236,26 +215,19 @@ function createCoreSlice(
     clearSelection: () => set({ selectedTagIds: new Set<string>() }),
 
     removeSelectedTags: () => {
-      set((state) => {
-        const newFocusStates = new Map(state.tagFocusStates);
-        state.selectedTagIds.forEach((id) => newFocusStates.delete(id));
-        return {
-          tags: state.tags.filter((t) => !state.selectedTagIds.has(t.id)),
-          selectedTagIds: new Set<string>(),
-          tagFocusStates: newFocusStates,
-        };
-      });
+      set((state) => ({
+        tags: state.tags.filter((t) => !state.selectedTagIds.has(t.id)),
+        selectedTagIds: new Set<string>(),
+        focus: state.focus && state.selectedTagIds.has(state.focus.tagId) ? null : state.focus,
+      }));
       queueMicrotask(commit);
     },
 
-    setTagFocusState: (tagId, focusState) =>
-      set((state) => {
-        const newFocusStates = new Map(state.tagFocusStates);
-        newFocusStates.set(tagId, focusState);
-        return { tagFocusStates: newFocusStates };
-      }),
+    setFocus: (focus) => set({ focus }),
 
-    getTagFocusState: (tagId) => get().tagFocusStates.get(tagId) || { type: "idle" },
+    clearFocus: (tagId) => {
+      if (get().focus?.tagId === tagId) set({ focus: null });
+    },
 
     submit: () => {
       const { allowFreeTextSearch } = get();
@@ -270,41 +242,28 @@ function createCoreSlice(
     },
 
     clearAll: () => {
-      get().pushUndoSnapshot();
       set({
         tags: [],
         inputValue: "",
         selectedTagIds: new Set<string>(),
         isOpen: false,
-        tagFocusStates: new Map<string, FilterTagFocusState>(),
+        focus: null,
       });
-      context.setLastSubmitted({ filters: [], search: "" });
-      context.setLastCommittedSnapshot({ tags: [], inputValue: "" });
-      context.getOnChange()({ filters: [], search: "" });
+      commit();
     },
 
-    reflowFromValue: ({ filters, search }) => {
-      const last = context.getLastSubmitted();
-      if (last.search === search && isEqual(last.filters, filters)) {
-        return;
-      }
-      // External-driven state change (view switch, discard, undo from outside).
-      // Replace the editor state and update the "last committed" snapshot so
-      // the next user edit isn't perceived as a no-op against the new value.
-      const newTags = filters.map(createTagFromFilter);
-      set((state) => ({
-        tags: newTags,
-        inputValue: search,
-        // Preserve transient UI bits but drop selection/focus that referenced removed tags.
+    // External change (view switch, discard): no onChange echo.
+    reflowFromValue: (value) => {
+      const next = normalizeValue(value);
+      if (isEqual(context.getCommitted(), next)) return;
+      set({
+        tags: value.filters.map(createTagFromFilter),
+        inputValue: value.search,
         selectedTagIds: new Set<string>(),
-        tagFocusStates: new Map<string, FilterTagFocusState>(),
-        activeIndex: state.activeIndex >= 0 ? -1 : state.activeIndex,
-      }));
-      context.setLastSubmitted({ filters, search });
-      context.setLastCommittedSnapshot({
-        tags: newTags.map((t) => ({ ...t, value: Array.isArray(t.value) ? [...t.value] : t.value })),
-        inputValue: search,
+        focus: null,
+        activeIndex: -1,
       });
+      context.setCommitted(next);
     },
 
     applyRecentSearch: (recentSearch) => {
@@ -325,35 +284,23 @@ const createAdvancedSearchStore = (
   filters: ColumnFilter[],
   initialTags: FilterTag[],
   initialSearch: string,
-  getOnChange: () => (value: { filters: Filter[]; search: string }) => void,
+  getOnChange: () => (value: AdvancedSearchValue) => void,
   allowFreeTextSearch: boolean,
   suggestions?: Map<string, string[]>,
   storageKey?: string,
   resource?: string,
   uuidFilterColumn?: string
 ) => {
-  let lastSubmitted = {
-    filters: initialTags.map(createFilterFromTag),
-    search: initialSearch.trim(),
-  };
-
-  let lastCommittedSnapshot: UndoSnapshot = {
-    tags: initialTags.map((t) => ({ ...t, value: Array.isArray(t.value) ? [...t.value] : t.value })),
-    inputValue: initialSearch,
-  };
+  let committed = valueFromTags(initialTags, allowFreeTextSearch ? initialSearch : "");
 
   const context: SliceContext = {
     storageKey,
     initialTags,
     initialSearch,
     getOnChange,
-    getLastCommittedSnapshot: () => lastCommittedSnapshot,
-    setLastCommittedSnapshot: (snapshot) => {
-      lastCommittedSnapshot = snapshot;
-    },
-    getLastSubmitted: () => lastSubmitted,
-    setLastSubmitted: (value) => {
-      lastSubmitted = value;
+    getCommitted: () => committed,
+    setCommitted: (value) => {
+      committed = value;
     },
   };
 
@@ -381,20 +328,42 @@ const createAdvancedSearchStore = (
 
 const AdvancedSearchStoreContext = createContext<StoreApi<AdvancedSearchStore> | undefined>(undefined);
 
+// Shallow-compared so object selectors don't re-render on unrelated store changes.
 export const useAdvancedSearchContext = <T,>(selector: (store: AdvancedSearchStore) => T): T => {
   const store = useContext(AdvancedSearchStoreContext);
   if (!store) {
     throw new Error("useAdvancedSearchContext must be used within AdvancedSearchStoreProvider");
   }
-  return useStore(store, selector);
+  return useStore(store, useShallow(selector));
 };
 
-interface AdvancedSearchRefs {
+export const useTag = (tagId: string): FilterTag | undefined =>
+  useAdvancedSearchContext((state) => state.tags.find((t) => t.id === tagId));
+
+export const useSuggestions = (): Suggestion[] => {
+  const { inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch } = useAdvancedSearchContext(
+    (state) => ({
+      inputValue: state.inputValue,
+      filters: state.filters,
+      autocompleteData: state.autocompleteData,
+      uuidFilterColumn: state.uuidFilterColumn,
+      allowFreeTextSearch: state.allowFreeTextSearch,
+    })
+  );
+  return useMemo(
+    () => buildSuggestions(inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch),
+    [inputValue, filters, autocompleteData, uuidFilterColumn, allowFreeTextSearch]
+  );
+};
+
+export interface AdvancedSearchRefs {
   mainInputRef: RefObject<HTMLInputElement | null>;
   tagHandlesRef: RefObject<Map<string, FilterTagRef>>;
 }
 
 const AdvancedSearchRefsContext = createContext<AdvancedSearchRefs | undefined>(undefined);
+
+export const AdvancedSearchRefsProvider = AdvancedSearchRefsContext.Provider;
 
 export const useAdvancedSearchRefsContext = () => {
   const ctx = useContext(AdvancedSearchRefsContext);
@@ -408,7 +377,7 @@ interface AdvancedSearchStoreProviderProps {
   filters: ColumnFilter[];
   initialFilters: Filter[];
   initialSearch: string;
-  onChange: (value: { filters: Filter[]; search: string }) => void;
+  onChange: (value: AdvancedSearchValue) => void;
   allowFreeTextSearch?: boolean;
   suggestions?: Map<string, string[]>;
   storageKey?: string;
@@ -469,11 +438,13 @@ export const AdvancedSearchStoreProvider = ({
   );
 };
 
+export const useTagFocus = (tagId: string): TagFocus | null =>
+  useAdvancedSearchContext((state) => (state.focus?.tagId === tagId ? state.focus : null));
+
+// Reads state at call time instead of subscribing.
 export const useAdvancedSearchNavigation = () => {
+  const store = useContext(AdvancedSearchStoreContext);
   const { tagHandlesRef, mainInputRef } = useAdvancedSearchRefsContext();
-  const tags = useAdvancedSearchContext((state) => state.tags);
-  const filters = useAdvancedSearchContext((state) => state.filters);
-  const tagFocusStates = useAdvancedSearchContext((state) => state.tagFocusStates);
 
   return useMemo(
     () => ({
@@ -482,33 +453,26 @@ export const useAdvancedSearchNavigation = () => {
       },
 
       navigateWithinTag: (tagId: string, direction: "left" | "right") => {
-        const focusState = tagFocusStates.get(tagId);
-        if (!focusState || focusState.type === "idle") return;
+        const { focus, tags, filters } = store!.getState();
+        if (focus?.tagId !== tagId) return;
 
-        const currentType = focusState.type;
         const tag = tags.find((t) => t.id === tagId);
         const skip: TagFocusPosition[] =
           tag && getOperationsForField(filters, tag.field, tag.dataType).length <= 1 ? ["operator"] : [];
         const targetField =
-          direction === "left" ? getPreviousField(currentType, skip) : getNextField(currentType, skip);
+          direction === "left" ? getPreviousField(focus.position, skip) : getNextField(focus.position, skip);
 
         if (targetField) {
           tagHandlesRef.current.get(tagId)?.focusPosition(targetField);
+          return;
+        }
+        const index = tags.findIndex((t) => t.id === tagId);
+        if (direction === "left") {
+          if (index > 0) tagHandlesRef.current.get(tags[index - 1].id)?.focusPosition("remove");
+        } else if (index < tags.length - 1) {
+          tagHandlesRef.current.get(tags[index + 1].id)?.focusPosition("field");
         } else {
-          const currentIndex = tags.findIndex((t) => t.id === tagId);
-          if (direction === "left") {
-            if (currentIndex > 0) {
-              const previousTag = tags[currentIndex - 1];
-              tagHandlesRef.current.get(previousTag.id)?.focusPosition("remove");
-            }
-          } else {
-            if (currentIndex >= 0 && currentIndex < tags.length - 1) {
-              const nextTag = tags[currentIndex + 1];
-              tagHandlesRef.current.get(nextTag.id)?.focusPosition("field");
-            } else if (currentIndex === tags.length - 1) {
-              mainInputRef.current?.focus();
-            }
-          }
+          mainInputRef.current?.focus();
         }
       },
 
@@ -520,6 +484,6 @@ export const useAdvancedSearchNavigation = () => {
         }
       },
     }),
-    [tags, filters, tagFocusStates, tagHandlesRef, mainInputRef]
+    [store, tagHandlesRef, mainInputRef]
   );
 };
