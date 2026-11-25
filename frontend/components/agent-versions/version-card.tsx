@@ -6,11 +6,13 @@ import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 import ChangeSummary from "./change-summary";
+import DeleteVersionButton from "./delete-version-button";
 import { versionColor, versionTitle } from "./utils";
 import VersionDetails from "./version-details";
 import VersionSource from "./version-source";
 
 interface VersionCardProps {
+  projectId: string;
   agentId: string;
   version: AgentVersionItem;
   previous?: AgentVersionItem;
@@ -18,9 +20,12 @@ interface VersionCardProps {
   isLast: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Unset for an agent's only version. */
+  onDeleted?: () => void;
 }
 
 export default function VersionCard({
+  projectId,
   agentId,
   version,
   previous,
@@ -28,6 +33,7 @@ export default function VersionCard({
   isLast,
   open,
   onOpenChange,
+  onDeleted,
 }: VersionCardProps) {
   const promptChanged = previous ? version.systemPrompt !== previous.systemPrompt : false;
   const toolsChanged = previous ? version.toolDefinitions !== previous.toolDefinitions : false;
@@ -74,6 +80,17 @@ export default function VersionCard({
               promptChanged={promptChanged}
               toolsChanged={toolsChanged}
             />
+            {onDeleted && (
+              <div className="px-2 pt-4">
+                <DeleteVersionButton
+                  projectId={projectId}
+                  agentId={agentId}
+                  versionId={version.id}
+                  versionNumber={version.versionNumber}
+                  onDeleted={onDeleted}
+                />
+              </div>
+            )}
           </div>
         </CollapsibleContent>
         {version.source && <VersionSource source={version.source} />}

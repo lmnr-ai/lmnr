@@ -665,6 +665,7 @@ export const agentVersions = pgTable(
     toolDefinitions: text("tool_definitions").default("").notNull(),
     source: jsonb(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     foreignKey({

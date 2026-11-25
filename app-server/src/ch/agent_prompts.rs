@@ -384,8 +384,10 @@ impl Scope<'_> {
         Ok(share)
     }
 
-    /// Up to `limit` of the release's traces, newest first; with an empty
-    /// `release`, traces without one starting before `before`.
+    /// Up to `limit` of the release's traces starting before `before`, spread
+    /// over all of them by trace id hash: the newest few are often one user's
+    /// burst, sharing its optional tools. With an empty `release`, the newest
+    /// traces without one, the prompts just before the first release.
     pub async fn release_samples(
         &self,
         clickhouse: &clickhouse::Client,
@@ -393,12 +395,28 @@ impl Scope<'_> {
         before: i64,
         limit: u64,
     ) -> Result<Vec<TracePrompt>> {
-        let sql = trace_prompts_query(
-            true,
-            "release = {release:String}
-             AND start_time < fromUnixTimestamp64Nano({before:Int64})",
-            "ORDER BY time DESC LIMIT {limit:UInt64}",
-        );
+        let in_release = "release = {release:String}
+             AND start_time < fromUnixTimestamp64Nano({before:Int64})";
+        // Traces are picked first, so only theirs have `line_hashes` read.
+        let sql = match release {
+            "" => trace_prompts_query(true, in_release, "ORDER BY time DESC LIMIT {limit:UInt64}"),
+            _ => trace_prompts_query(
+                true,
+                &format!(
+                    "{in_release}
+                     AND trace_id IN (
+                         SELECT trace_id FROM agent_prompts
+                         WHERE project_id = {{project_id:UUID}}
+                           AND agent_hash = {{agent_hash:String}}
+                           AND ingested_at <= fromUnixTimestamp64Nano({{ingested_until:Int64}})
+                           AND {in_release}
+                         GROUP BY trace_id
+                         ORDER BY cityHash64(trace_id)
+                         LIMIT {{limit:UInt64}})"
+                ),
+                "",
+            ),
+        };
         let rows = self
             .query(clickhouse, &sql)
             .param("release", release)

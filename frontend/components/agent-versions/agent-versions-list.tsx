@@ -2,7 +2,7 @@
 
 import { isEmpty, times } from "lodash";
 import { useState } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,11 +19,17 @@ import SetupPill, { useSetupSteps } from "./versioning-setup";
 interface AgentVersionsListProps {
   projectId: string;
   agentId: string;
-  onRenamed: () => void;
+  /** The agents list shows names and version counts. */
+  onAgentChanged: () => void;
   initialVersions?: AgentVersionsResult;
 }
 
-export default function AgentVersionsList({ projectId, agentId, onRenamed, initialVersions }: AgentVersionsListProps) {
+export default function AgentVersionsList({
+  projectId,
+  agentId,
+  onAgentChanged,
+  initialVersions,
+}: AgentVersionsListProps) {
   const { data, isLoading, mutate } = useSWR<AgentVersionsResult>(
     `/api/projects/${projectId}/agents/${agentId}/versions`,
     swrFetcher,
@@ -31,10 +37,21 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
   );
 
   const setup = useSetupSteps(projectId, agentId, data?.agent.releaseMode ?? false);
+  const { mutate: mutateKeys } = useSWRConfig();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const versions = data?.versions ?? [];
+
+  // A deleted version's traces move to another one in the chart too.
+  const onVersionDeleted = () => {
+    setExpandedId(null);
+    mutate();
+    onAgentChanged();
+    mutateKeys(
+      (key) => typeof key === "string" && key.startsWith(`/api/projects/${projectId}/agents/${agentId}/traces-stats`)
+    );
+  };
 
   return (
     <SettingsSection>
@@ -48,7 +65,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
               currentName={agentDisplayName(data.agent.name)}
               onRenamed={() => {
                 mutate();
-                onRenamed();
+                onAgentChanged();
               }}
             />
             <SetupPill setup={setup} />
@@ -80,6 +97,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
             {versions.map((version, i) => (
               <VersionCard
                 key={version.id}
+                projectId={projectId}
                 agentId={agentId}
                 version={version}
                 previous={versions[i + 1]}
@@ -87,6 +105,7 @@ export default function AgentVersionsList({ projectId, agentId, onRenamed, initi
                 isLast={i === versions.length - 1}
                 open={version.id === expandedId}
                 onOpenChange={(open) => setExpandedId(open ? version.id : null)}
+                onDeleted={versions.length > 1 ? onVersionDeleted : undefined}
               />
             ))}
           </div>
