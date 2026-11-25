@@ -143,7 +143,10 @@ pub async fn issue(cache: &Cache, project_id: &Uuid) -> Option<TrialAccess> {
     Some(TrialAccess { token_hash, env })
 }
 
-/// Records which trial holds the token, so deleting the trial revokes it.
+/// Records which trial holds the token, so deleting the trial revokes it. A
+/// token that can't be bound is revoked at once: deleting the trial couldn't
+/// find it, so it would outlive the trial. The trial then runs without
+/// simulators.
 pub async fn bind(cache: &Cache, project_id: &Uuid, sandbox_id: &str, token_hash: &str) {
     if let Err(e) = cache
         .insert_with_ttl(
@@ -153,12 +156,15 @@ pub async fn bind(cache: &Cache, project_id: &Uuid, sandbox_id: &str, token_hash
         )
         .await
     {
-        log::warn!("Failed to bind a Rystic token to sandbox {sandbox_id}: {e:?}");
+        log::warn!("Failed to bind a Rystic token to sandbox {sandbox_id}, revoking it: {e:?}");
+        revoke_token(cache, token_hash).await;
     }
 }
 
 pub async fn revoke_token(cache: &Cache, token_hash: &str) {
-    let _ = cache.remove(&token_key(token_hash)).await;
+    if let Err(e) = cache.remove(&token_key(token_hash)).await {
+        log::error!("Failed to revoke a Rystic trial token: {e:?}");
+    }
     let _ = cache.remove(&registrations_key(token_hash)).await;
 }
 
@@ -166,9 +172,15 @@ pub async fn revoke_token(cache: &Cache, token_hash: &str) {
 /// the lease it holds (about 2 h) but can't renew it.
 pub async fn revoke_sandbox(cache: &Cache, project_id: &Uuid, sandbox_id: &str) {
     let key = sandbox_key(project_id, sandbox_id);
-    if let Ok(Some(token_hash)) = cache.get::<String>(&key).await {
-        revoke_token(cache, &token_hash).await;
-        let _ = cache.remove(&key).await;
+    match cache.get::<String>(&key).await {
+        Ok(Some(token_hash)) => {
+            revoke_token(cache, &token_hash).await;
+            let _ = cache.remove(&key).await;
+        }
+        Ok(None) => {}
+        Err(e) => {
+            log::error!("Failed to look up the Rystic token of sandbox {sandbox_id}: {e:?}")
+        }
     }
 }
 
