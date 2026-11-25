@@ -465,6 +465,108 @@ export const githubIntegrations = pgTable(
   ]
 );
 
+export const linearIntegrations = pgTable(
+  "linear_integrations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    organizationId: text("organization_id").notNull(),
+    organizationName: text("organization_name").notNull(),
+    organizationUrlKey: text("organization_url_key").notNull(),
+    accessToken: text("access_token").notNull(),
+    accessTokenNonce: text("access_token_nonce").notNull(),
+    refreshToken: text("refresh_token"),
+    refreshTokenNonce: text("refresh_token_nonce"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+    scope: text().notNull(),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "linear_integrations_workspace_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "linear_integrations_created_by_fkey",
+    }).onDelete("set null"),
+    unique("linear_integrations_workspace_id_key").on(table.workspaceId),
+  ]
+);
+
+export const projectLinearSettings = pgTable(
+  "project_linear_settings",
+  {
+    projectId: uuid("project_id").primaryKey().notNull(),
+    teamId: text("team_id").notNull(),
+    teamName: text("team_name").notNull(),
+    updatedBy: uuid("updated_by"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "project_linear_settings_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [users.id],
+      name: "project_linear_settings_updated_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+export const signalClusterLinearIssues = pgTable(
+  "signal_cluster_linear_issues",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    organizationId: text("organization_id").notNull(),
+    linearIssueId: text("linear_issue_id").notNull(),
+    previousLinearIssueId: text("previous_linear_issue_id"),
+    origin: text().notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: "string" }),
+    commentId: text("comment_id"),
+    evaluationAttachmentId: text("evaluation_attachment_id"),
+    evaluationUrl: text("evaluation_url"),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    supersededAt: timestamp("superseded_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    uniqueIndex("signal_cluster_linear_issues_current_idx")
+      .using("btree", table.projectId.asc().nullsLast().op("uuid_ops"), table.clusterId.asc().nullsLast().op("uuid_ops"))
+      .where(sql`(superseded_at IS NULL)`),
+    index("signal_cluster_linear_issues_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_linear_issues_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_linear_issues_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_linear_issues_created_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
 // One per project: what the Laminar Agent's sandbox is set up with.
 export const projectEnvironments = pgTable(
   "project_environments",
