@@ -25,6 +25,9 @@ use utils::{extract_text_from_json_value, preprocess_json_strings};
 pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
 pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
 pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
+pub const SPANS_INDEXER_RETRY_QUEUE: &str = "spans_indexer_retry_queue";
+pub const SPANS_INDEXER_RETRY_EXCHANGE: &str = "spans_indexer_retry_exchange";
+pub const SPANS_INDEXER_RETRY_ROUTING_KEY: &str = "spans_indexer_retry_routing_key";
 pub const EVENTS_INDEX_ID: &str = "events";
 pub const SIGNAL_EVENTS_INDEX_ID: &str = "signal_events";
 

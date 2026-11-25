@@ -29,6 +29,9 @@ pub mod utils;
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";
 pub const OBSERVATIONS_EXCHANGE: &str = "observations_exchange";
 pub const OBSERVATIONS_ROUTING_KEY: &str = "observations_routing_key";
+pub const OBSERVATIONS_RETRY_QUEUE: &str = "observations_retry_queue";
+pub const OBSERVATIONS_RETRY_EXCHANGE: &str = "observations_retry_exchange";
+pub const OBSERVATIONS_RETRY_ROUTING_KEY: &str = "observations_retry_routing_key";
 
 pub const SPANS_DATA_PLANE_QUEUE: &str = "spans_data_plane_queue";
 pub const SPANS_DATA_PLANE_EXCHANGE: &str = "spans_data_plane_exchange";

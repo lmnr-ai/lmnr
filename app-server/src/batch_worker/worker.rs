@@ -12,7 +12,17 @@ use crate::mq::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use crate::utils::retry;
-use crate::worker::{HandlerError, QueueConfig};
+use crate::worker::{self, HandlerError, QueueConfig, RetryConfig, TransientOutcome};
+
+/// A delivery the handler has taken but not yet settled.
+struct HeldDelivery {
+    acker: MessageQueueAcker,
+    /// The original wire bytes, kept only when the queue has a `RetryConfig`:
+    /// a park republishes exactly what arrived, never a re-serialized message.
+    data: Option<Vec<u8>>,
+    attempt: u32,
+    priority: Option<u8>,
+}
 
 /// A queue worker that maintains internal state across messages.
 ///
@@ -34,7 +44,7 @@ pub struct BatchQueueWorker<H: BatchMessageHandler> {
     queue: Arc<MessageQueue>,
     config: QueueConfig,
     state: H::State,
-    ackers: HashMap<u64, MessageQueueAcker>,
+    held: HashMap<u64, HeldDelivery>,
     shutdown: CancellationToken,
 }
 
@@ -54,7 +64,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
             queue,
             config,
             state: initial_state,
-            ackers: HashMap::new(),
+            held: HashMap::new(),
             shutdown,
         }
     }
@@ -85,9 +95,9 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
 
     /// Inner processing loop - connects to the queue and processes messages indefinitely.
     async fn process_inner(&mut self) -> anyhow::Result<()> {
-        // Reset state and ackers on each connection - unacked messages will be redelivered
+        // Reset state and held deliveries per connection - unacked messages are redelivered
         self.state = self.handler.initial_state();
-        self.ackers.clear();
+        self.held.clear();
 
         let mut receiver: MessageQueueReceiver = tokio::select! {
             _ = self.shutdown.cancelled() => return Ok(()),
@@ -128,6 +138,8 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                             // Extract delivery metadata
                             let acker = delivery.acker();
                             let delivery_tag = delivery.delivery_tag();
+                            let attempt = delivery.retry_attempt();
+                            let priority = delivery.priority();
                             let data = delivery.data(); // consumes delivery
 
                             // Deserialize message
@@ -139,8 +151,16 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                                 }
                             };
 
-                            // Store acker for later acknowledgment
-                            self.ackers.insert(delivery_tag, acker);
+                            // Hold for later acknowledgment
+                            self.held.insert(
+                                delivery_tag,
+                                HeldDelivery {
+                                    acker,
+                                    data: self.config.retry.is_some().then_some(data),
+                                    attempt,
+                                    priority,
+                                },
+                            );
 
                             // Wrap message with delivery metadata and handle
                             let message_delivery = MessageDelivery::new(message, delivery_tag);
@@ -246,15 +266,91 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
 
         // Requeue transient failures
         if !result.to_requeue.is_empty() {
-            log::warn!(
-                "Worker {} ({:?}) requeuing {} deliveries (transient failure)",
-                self.id,
-                self.worker_type,
-                result.to_requeue.len()
-            );
-            self.reject_deliveries(&result.to_requeue, true).await?;
+            match self.config.retry {
+                Some(retry) => self.park_deliveries(&result.to_requeue, retry).await?,
+                None => {
+                    log::warn!(
+                        "Worker {} ({:?}) requeuing {} deliveries (transient failure)",
+                        self.id,
+                        self.worker_type,
+                        result.to_requeue.len()
+                    );
+                    self.reject_deliveries(&result.to_requeue, true).await?;
+                }
+            }
         }
 
+        Ok(())
+    }
+
+    /// Park each transiently-failed delivery in the retry queue (`worker::park`).
+    /// Decided per delivery: one batch can mix first deliveries with ones that
+    /// have already been around the retry queue several times.
+    async fn park_deliveries(
+        &mut self,
+        deliveries: &[MessageDelivery<H::Message>],
+        retry: RetryConfig,
+    ) -> anyhow::Result<()> {
+        let held: Vec<_> = deliveries
+            .iter()
+            .filter_map(|delivery| {
+                self.held
+                    .remove(&delivery.delivery_tag)
+                    .map(|held| (delivery, held))
+            })
+            .collect();
+
+        let queue = &self.queue;
+        let outcomes = futures_util::future::join_all(held.iter().map(|(_, held)| async move {
+            match &held.data {
+                Some(data) => worker::park(queue, &retry, data, held.attempt, held.priority).await,
+                None => TransientOutcome::RequeueNow,
+            }
+        }))
+        .await;
+
+        let (mut parked, mut requeued, mut dropped) = (0, 0, 0);
+        let mut settlements = Vec::with_capacity(held.len());
+        for ((delivery, held), outcome) in held.into_iter().zip(outcomes) {
+            match outcome {
+                TransientOutcome::Parked => parked += 1,
+                TransientOutcome::RequeueNow => requeued += 1,
+                TransientOutcome::Drop => {
+                    dropped += 1;
+                    self.handler.on_retries_exhausted(&delivery.message).await;
+                }
+            }
+            settlements.push(async move {
+                match outcome {
+                    TransientOutcome::Parked => held.acker.ack().await,
+                    TransientOutcome::RequeueNow => held.acker.reject(true).await,
+                    TransientOutcome::Drop => held.acker.reject(false).await,
+                }
+            });
+        }
+
+        if dropped > 0 {
+            log::error!(
+                "Worker {} ({:?}) dropping {} deliveries from '{}' after {} delayed retries",
+                self.id,
+                self.worker_type,
+                dropped,
+                self.config.queue_name,
+                retry.max_attempts,
+            );
+        }
+        log::warn!(
+            "Worker {} ({:?}) transient failure on '{}': {} deliveries parked for {}ms, {} requeued immediately, {} dropped",
+            self.id,
+            self.worker_type,
+            self.config.queue_name,
+            parked,
+            retry.delay_ms,
+            requeued,
+            dropped,
+        );
+
+        futures_util::future::try_join_all(settlements).await?;
         Ok(())
     }
 
@@ -266,9 +362,9 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         let ack_futures: Vec<_> = deliveries
             .iter()
             .filter_map(|delivery| {
-                self.ackers
+                self.held
                     .remove(&delivery.delivery_tag)
-                    .map(|acker| async move { acker.ack().await })
+                    .map(|held| async move { held.acker.ack().await })
             })
             .collect();
 
@@ -285,9 +381,9 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         let reject_futures: Vec<_> = deliveries
             .iter()
             .filter_map(|delivery| {
-                self.ackers
+                self.held
                     .remove(&delivery.delivery_tag)
-                    .map(|acker| async move { acker.reject(requeue).await })
+                    .map(|held| async move { held.acker.reject(requeue).await })
             })
             .collect();
 
@@ -300,14 +396,18 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
 mod tests {
     use super::*;
     use crate::mq::MessageQueueAcker;
+    use crate::mq::recording::{RecordedRetry, RecordingQueue, Settlement, SettlementLog};
     use crate::mq::tokio_mpsc::TokioMpscQueue;
     use async_trait::async_trait;
     use serde::{Deserialize, Serialize};
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
     const TEST_EXCHANGE: &str = "test_exchange";
     const TEST_ROUTING_KEY: &str = "test_routing_key";
     const TEST_QUEUE: &str = "test_queue";
+    const TEST_RETRY_EXCHANGE: &str = "test_retry_exchange";
+    const TEST_RETRY_ROUTING_KEY: &str = "test_retry_routing_key";
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestMessage {
@@ -318,11 +418,15 @@ mod tests {
     /// Mock handler that can be configured to return different results
     struct MockHandler {
         batch_size: usize,
+        exhausted: AtomicUsize,
     }
 
     impl MockHandler {
         fn new(batch_size: usize) -> Self {
-            Self { batch_size }
+            Self {
+                batch_size,
+                exhausted: AtomicUsize::new(0),
+            }
         }
     }
 
@@ -362,6 +466,10 @@ mod tests {
                 HandlerResult::ack(deliveries)
             }
         }
+
+        async fn on_retries_exhausted(&self, _message: &Self::Message) {
+            self.exhausted.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     fn create_test_queue() -> Arc<MessageQueue> {
@@ -383,6 +491,217 @@ mod tests {
         )
     }
 
+    fn held(acker: MessageQueueAcker) -> HeldDelivery {
+        HeldDelivery {
+            acker,
+            data: None,
+            attempt: 0,
+            priority: None,
+        }
+    }
+
+    fn retry_config(max_attempts: u32) -> RetryConfig {
+        RetryConfig {
+            exchange: TEST_RETRY_EXCHANGE,
+            routing_key: TEST_RETRY_ROUTING_KEY,
+            delay_ms: 300_000,
+            max_attempts,
+        }
+    }
+
+    fn create_retrying_worker(
+        queue: MessageQueue,
+        retry: Option<RetryConfig>,
+    ) -> BatchQueueWorker<MockHandler> {
+        let config = QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY);
+        BatchQueueWorker::new(
+            BatchWorkerType::Spans,
+            MockHandler::new(10),
+            Arc::new(queue),
+            match retry {
+                Some(retry) => config.with_retry(retry),
+                None => config,
+            },
+            CancellationToken::new(),
+        )
+    }
+
+    fn test_message(tag: u64) -> TestMessage {
+        TestMessage {
+            id: format!("msg-{tag}"),
+            value: tag as i32,
+        }
+    }
+
+    /// Holds a delivery the way the receive loop would, and returns what the
+    /// handler hands back for it.
+    fn hold(
+        worker: &mut BatchQueueWorker<MockHandler>,
+        log: &SettlementLog,
+        tag: u64,
+        attempt: u32,
+        priority: Option<u8>,
+    ) -> MessageDelivery<TestMessage> {
+        let message = test_message(tag);
+        worker.held.insert(
+            tag,
+            HeldDelivery {
+                acker: log.acker(tag),
+                data: Some(serde_json::to_vec(&message).unwrap()),
+                attempt,
+                priority,
+            },
+        );
+        MessageDelivery::new(message, tag)
+    }
+
+    fn recorded_retries(worker: &BatchQueueWorker<MockHandler>) -> Vec<RecordedRetry> {
+        match worker.queue.as_ref() {
+            MessageQueue::Recording(queue) => {
+                let mut retries = queue.retries();
+                retries.sort_by_key(|retry| retry.message.clone());
+                retries
+            }
+            _ => unreachable!("only recording queues record retries"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_transient_flush_parks_every_delivery_and_acks_it() {
+        let log = SettlementLog::default();
+        let mut worker =
+            create_retrying_worker(RecordingQueue::default().into(), Some(retry_config(12)));
+        let deliveries = vec![
+            hold(&mut worker, &log, 1, 0, None),
+            hold(&mut worker, &log, 2, 5, Some(7)),
+        ];
+
+        worker
+            .handle_result(HandlerResult::requeue(deliveries))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            log.settlements(),
+            vec![(1, Settlement::Ack), (2, Settlement::Ack)]
+        );
+        assert_eq!(
+            recorded_retries(&worker),
+            vec![
+                RecordedRetry {
+                    message: serde_json::to_vec(&test_message(1)).unwrap(),
+                    exchange: TEST_RETRY_EXCHANGE.to_string(),
+                    routing_key: TEST_RETRY_ROUTING_KEY.to_string(),
+                    ttl_ms: 300_000,
+                    attempt: 1,
+                    priority: None,
+                },
+                RecordedRetry {
+                    message: serde_json::to_vec(&test_message(2)).unwrap(),
+                    exchange: TEST_RETRY_EXCHANGE.to_string(),
+                    routing_key: TEST_RETRY_ROUTING_KEY.to_string(),
+                    ttl_ms: 300_000,
+                    attempt: 6,
+                    priority: Some(7),
+                },
+            ]
+        );
+        assert!(worker.held.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_queue_without_a_retry_config_requeues_immediately() {
+        let log = SettlementLog::default();
+        let mut worker = create_retrying_worker(RecordingQueue::default().into(), None);
+        let deliveries = vec![
+            hold(&mut worker, &log, 1, 0, None),
+            hold(&mut worker, &log, 2, 0, None),
+        ];
+
+        worker
+            .handle_result(HandlerResult::requeue(deliveries))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            log.settlements(),
+            vec![
+                (1, Settlement::Reject { requeue: true }),
+                (2, Settlement::Reject { requeue: true })
+            ]
+        );
+        assert!(recorded_retries(&worker).is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_attempt_cap_is_decided_per_delivery() {
+        let log = SettlementLog::default();
+        let mut worker =
+            create_retrying_worker(RecordingQueue::default().into(), Some(retry_config(12)));
+        let deliveries = vec![
+            hold(&mut worker, &log, 1, 11, None),
+            hold(&mut worker, &log, 2, 12, None),
+        ];
+
+        worker
+            .handle_result(HandlerResult::requeue(deliveries))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            log.settlements(),
+            vec![
+                (1, Settlement::Ack),
+                (2, Settlement::Reject { requeue: false })
+            ]
+        );
+        assert_eq!(recorded_retries(&worker).len(), 1);
+        assert_eq!(recorded_retries(&worker)[0].attempt, 12);
+        assert_eq!(worker.handler.exhausted.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn a_failed_park_requeues_immediately() {
+        let log = SettlementLog::default();
+        let mut worker = create_retrying_worker(
+            RecordingQueue::failing_retries().into(),
+            Some(retry_config(12)),
+        );
+        let deliveries = vec![hold(&mut worker, &log, 1, 0, None)];
+
+        worker
+            .handle_result(HandlerResult::requeue(deliveries))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            log.settlements(),
+            vec![(1, Settlement::Reject { requeue: true })]
+        );
+        assert_eq!(worker.handler.exhausted.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn the_in_memory_queue_falls_back_to_an_immediate_requeue() {
+        // LITE mode: the in-memory transport refuses `publish_retry`.
+        let log = SettlementLog::default();
+        let mut worker = create_retrying_worker(
+            MessageQueue::TokioMpsc(TokioMpscQueue::new()),
+            Some(retry_config(12)),
+        );
+        let deliveries = vec![hold(&mut worker, &log, 1, 0, None)];
+
+        worker
+            .handle_result(HandlerResult::requeue(deliveries))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            log.settlements(),
+            vec![(1, Settlement::Reject { requeue: true })]
+        );
+    }
+
     #[tokio::test]
     async fn test_worker_initializes_with_empty_state() {
         let queue = create_test_queue();
@@ -390,7 +709,7 @@ mod tests {
         let worker = create_worker(handler, queue);
 
         assert!(worker.state.is_empty());
-        assert!(worker.ackers.is_empty());
+        assert!(worker.held.is_empty());
     }
 
     #[tokio::test]
@@ -453,7 +772,7 @@ mod tests {
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
 
-        // Add some ackers
+        // Hold some deliveries
         let delivery1 = MessageDelivery::new(
             TestMessage {
                 id: "msg-1".to_string(),
@@ -469,14 +788,18 @@ mod tests {
             2,
         );
 
-        worker.ackers.insert(1, MessageQueueAcker::TokioMpscAcker);
-        worker.ackers.insert(2, MessageQueueAcker::TokioMpscAcker);
+        worker
+            .held
+            .insert(1, held(MessageQueueAcker::TokioMpscAcker));
+        worker
+            .held
+            .insert(2, held(MessageQueueAcker::TokioMpscAcker));
 
         let result = HandlerResult::ack(vec![delivery1, delivery2]);
         worker.handle_result(result).await.unwrap();
 
-        // Both ackers should be removed after acking
-        assert!(worker.ackers.is_empty());
+        // Both should be released after acking
+        assert!(worker.held.is_empty());
     }
 
     #[tokio::test]
@@ -492,12 +815,14 @@ mod tests {
             },
             1,
         );
-        worker.ackers.insert(1, MessageQueueAcker::TokioMpscAcker);
+        worker
+            .held
+            .insert(1, held(MessageQueueAcker::TokioMpscAcker));
 
         let result = HandlerResult::reject(vec![delivery]);
         worker.handle_result(result).await.unwrap();
 
-        assert!(worker.ackers.is_empty());
+        assert!(worker.held.is_empty());
     }
 
     #[tokio::test]
@@ -513,12 +838,14 @@ mod tests {
             },
             1,
         );
-        worker.ackers.insert(1, MessageQueueAcker::TokioMpscAcker);
+        worker
+            .held
+            .insert(1, held(MessageQueueAcker::TokioMpscAcker));
 
         let result = HandlerResult::requeue(vec![delivery]);
         worker.handle_result(result).await.unwrap();
 
-        assert!(worker.ackers.is_empty());
+        assert!(worker.held.is_empty());
     }
 
     #[tokio::test]
@@ -549,9 +876,15 @@ mod tests {
             3,
         );
 
-        worker.ackers.insert(1, MessageQueueAcker::TokioMpscAcker);
-        worker.ackers.insert(2, MessageQueueAcker::TokioMpscAcker);
-        worker.ackers.insert(3, MessageQueueAcker::TokioMpscAcker);
+        worker
+            .held
+            .insert(1, held(MessageQueueAcker::TokioMpscAcker));
+        worker
+            .held
+            .insert(2, held(MessageQueueAcker::TokioMpscAcker));
+        worker
+            .held
+            .insert(3, held(MessageQueueAcker::TokioMpscAcker));
 
         let result = HandlerResult {
             to_ack: vec![delivery1],
@@ -560,8 +893,8 @@ mod tests {
         };
         worker.handle_result(result).await.unwrap();
 
-        // All ackers should be removed
-        assert!(worker.ackers.is_empty());
+        // All should be released
+        assert!(worker.held.is_empty());
     }
 
     /// Flushes every message immediately, but slowly, so shutdown can land mid-flush.

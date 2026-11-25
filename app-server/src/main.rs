@@ -65,7 +65,8 @@ use signals::private::{
 };
 use tonic::transport::Server;
 use traces::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_RETRY_EXCHANGE,
+    OBSERVATIONS_RETRY_ROUTING_KEY, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
     SPANS_DATA_PLANE_QUEUE, SPANS_DATA_PLANE_ROUTING_KEY,
     consumer::SpanHandler,
     data_plane_consumer::DataPlaneSpanHandler,
@@ -95,7 +96,8 @@ use cache::{
 };
 use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
 use quickwit::{
-    SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
+    SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_RETRY_EXCHANGE,
+    SPANS_INDEXER_RETRY_ROUTING_KEY, SPANS_INDEXER_ROUTING_KEY,
     client::{QuickwitClient, QuickwitConfig},
     consumer::QuickwitIndexerHandler,
     stream_consumer::StreamQuickwitIndexerHandler,
@@ -113,9 +115,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
-#[cfg(feature = "signals")]
-use crate::worker::RetryConfig;
-use crate::worker::{QueueConfig, WorkerPool, WorkerType};
+use crate::worker::{QueueConfig, RetryConfig, WorkerPool, WorkerType};
 use crate::{
     ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse, service::ClickhouseService},
     reports::generator::ReportsGenerator,
@@ -930,7 +930,13 @@ fn main() -> anyhow::Result<()> {
                                 OBSERVATIONS_QUEUE,
                                 OBSERVATIONS_EXCHANGE,
                                 OBSERVATIONS_ROUTING_KEY,
-                            ),
+                            )
+                            .with_retry(RetryConfig {
+                                exchange: OBSERVATIONS_RETRY_EXCHANGE,
+                                routing_key: OBSERVATIONS_RETRY_ROUTING_KEY,
+                                delay_ms: env::span_retries::SPANS_DELAY_MS.get(),
+                                max_attempts: env::span_retries::SPANS_MAX_ATTEMPTS.get(),
+                            }),
                         );
                     }
 
@@ -995,7 +1001,13 @@ fn main() -> anyhow::Result<()> {
                                 SPANS_INDEXER_QUEUE,
                                 SPANS_INDEXER_EXCHANGE,
                                 SPANS_INDEXER_ROUTING_KEY,
-                            ),
+                            )
+                            .with_retry(RetryConfig {
+                                exchange: SPANS_INDEXER_RETRY_EXCHANGE,
+                                routing_key: SPANS_INDEXER_RETRY_ROUTING_KEY,
+                                delay_ms: env::span_retries::SPANS_INDEXER_DELAY_MS.get(),
+                                max_attempts: env::span_retries::SPANS_INDEXER_MAX_ATTEMPTS.get(),
+                            }),
                         );
                     } else {
                         log::warn!("Quickwit not available - skipping spans indexer workers");

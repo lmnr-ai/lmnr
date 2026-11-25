@@ -46,6 +46,7 @@ pub mod rate_limit;
 pub mod secrets;
 pub mod sentry_sampling;
 pub mod server;
+pub mod span_retries;
 pub mod sql;
 pub mod static_sp;
 pub mod storage;
