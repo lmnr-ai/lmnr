@@ -27,6 +27,7 @@ interface MetricAlertsProps {
 export default function MetricAlerts({ projectId, workspaceId, userEmail, slackAvailable }: MetricAlertsProps) {
   const {
     data: alerts,
+    error,
     isLoading,
     mutate,
   } = useSWR<MetricAlert[]>(`/api/projects/${projectId}/alerts/metric`, swrFetcher, { refreshInterval: REFRESH_MS });
@@ -59,6 +60,8 @@ export default function MetricAlerts({ projectId, workspaceId, userEmail, slackA
       </div>
       {isLoading && !alerts ? (
         <Skeleton className="h-36 w-full" />
+      ) : error && !alerts ? (
+        <p className="px-1 text-sm text-muted-foreground">Metric alerts could not be loaded.</p>
       ) : !alerts?.length ? (
         <button
           type="button"
