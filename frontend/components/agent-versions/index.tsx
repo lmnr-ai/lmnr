@@ -47,7 +47,7 @@ export default function AgentVersions({
                   projectId={projectId}
                   agentId={selectedAgentId}
                   initialVersions={initialVersions}
-                  onRenamed={() => mutate()}
+                  onAgentChanged={() => mutate()}
                 />
               ) : (
                 !isLoading &&

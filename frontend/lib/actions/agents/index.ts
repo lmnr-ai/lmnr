@@ -1,10 +1,11 @@
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { agentReleases, agents, agentVersionModels, agentVersions } from "@/lib/db/migrations/schema";
 
 import { type AgentDefinition, AgentDefinitionSchema } from "./definition";
+import { shownVersionIds } from "./deleted-versions";
 
 export type { AgentDefinition } from "./definition";
 
@@ -36,7 +37,7 @@ export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise
       versionCount: count(agentVersions.id),
     })
     .from(agents)
-    .leftJoin(agentVersions, eq(agentVersions.agentId, agents.id))
+    .leftJoin(agentVersions, and(eq(agentVersions.agentId, agents.id), isNull(agentVersions.deletedAt)))
     .where(eq(agents.projectId, projectId))
     .groupBy(agents.id)
     .orderBy(desc(count(agentVersions.id)), desc(agents.createdAt))
@@ -126,6 +127,12 @@ export async function getAgentVersions(
 
   const agent = { ...row, definition: AgentDefinitionSchema.safeParse(row.definition).data ?? null };
 
+  const versionRefs = await db
+    .select({ id: agentVersions.id, versionNumber: agentVersions.versionNumber, deletedAt: agentVersions.deletedAt })
+    .from(agentVersions)
+    .where(and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId)));
+  const shownAs = shownVersionIds(versionRefs);
+
   const versions = await db
     .select({
       id: agentVersions.id,
@@ -137,16 +144,20 @@ export async function getAgentVersions(
       createdAt: agentVersions.createdAt,
     })
     .from(agentVersions)
-    .where(and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId)))
+    .where(
+      and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId), isNull(agentVersions.deletedAt))
+    )
     .orderBy(desc(agentVersions.versionNumber))
     .limit(VERSIONS_LIMIT);
 
   if (versions.length === 0) return { agent, versions: [] };
 
-  const versionIds = versions.map((v) => v.id);
+  // The listed versions and the deleted ones shown as them.
+  const listed = new Set(versions.map((v) => v.id));
+  const versionIds = versionRefs.filter((v) => listed.has(shownAs.get(v.id) ?? "")).map((v) => v.id);
   const [models, releases] = await Promise.all([
-    getVersionModels(projectId, versionIds),
-    getVersionReleases(projectId, versionIds),
+    getVersionModels(projectId, versionIds, shownAs),
+    getVersionReleases(projectId, versionIds, shownAs),
   ]);
 
   return {
@@ -160,7 +171,11 @@ export async function getAgentVersions(
   };
 }
 
-async function getVersionModels(projectId: string, versionIds: string[]): Promise<Map<string, string[]>> {
+async function getVersionModels(
+  projectId: string,
+  versionIds: string[],
+  shownAs: Map<string, string>
+): Promise<Map<string, string[]>> {
   const rows = await db
     .select({ agentVersionId: agentVersionModels.agentVersionId, model: agentVersionModels.model })
     .from(agentVersionModels)
@@ -169,12 +184,18 @@ async function getVersionModels(projectId: string, versionIds: string[]): Promis
 
   const models = new Map<string, string[]>();
   for (const row of rows) {
-    models.set(row.agentVersionId, [...(models.get(row.agentVersionId) ?? []), row.model]);
+    const id = shownAs.get(row.agentVersionId) ?? row.agentVersionId;
+    const seen = models.get(id) ?? [];
+    if (!seen.includes(row.model)) models.set(id, [...seen, row.model]);
   }
   return models;
 }
 
-async function getVersionReleases(projectId: string, versionIds: string[]): Promise<Map<string, string[]>> {
+async function getVersionReleases(
+  projectId: string,
+  versionIds: string[],
+  shownAs: Map<string, string>
+): Promise<Map<string, string[]>> {
   const rows = await db
     .select({ versionId: agentReleases.versionId, release: agentReleases.release })
     .from(agentReleases)
@@ -184,7 +205,8 @@ async function getVersionReleases(projectId: string, versionIds: string[]): Prom
   const releases = new Map<string, string[]>();
   for (const row of rows) {
     if (!row.versionId) continue;
-    releases.set(row.versionId, [...(releases.get(row.versionId) ?? []), row.release]);
+    const id = shownAs.get(row.versionId) ?? row.versionId;
+    releases.set(id, [...(releases.get(id) ?? []), row.release]);
   }
   return releases;
 }

@@ -7,7 +7,7 @@
 ## RowBinary is positional AND unvalidated (both directions)
 
 - `main.rs` builds every `clickhouse::Client` with `.with_validation(false)`. The crate applies that to **SELECTs as well as inserts** (`query.rs` picks `RowBinary` vs `RowBinaryWithNamesAndTypes` from `get_validation()`), so no column names or types are on the wire in either direction. A `Row` struct whose fields do not line up with the query's column list — wrong order, wrong type, one column too few — does NOT fail with `SchemaMismatch`; it desyncs the byte stream and decodes garbage (or errors several rows later with `CANNOT_READ_ALL_DATA`, pointing at the wrong column — see the `uuid_vec` note in `ch/utils.rs`).
-- Consequence for any query built dynamically: keep the SELECT's column shape FIXED and substitute same-typed constants for the parts a caller does not want (`toInt64(0)`, `toUInt8(0)`, `emptyArrayString()`), rather than emitting a shorter column list. `get_trace_filter_stats` (`ch/private/trace_stats.rs`) does this for its per-caller `TraceStatsProjection`.
+- Consequence for any query built dynamically: keep the SELECT's column shape FIXED and substitute same-typed constants for the parts a caller does not want (`toInt64(0)`, `toUInt8(0)`, `emptyArrayString()`), rather than emitting a shorter column list.
 
 ## Trace Type Upsert
 

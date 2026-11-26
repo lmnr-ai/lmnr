@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type AgentVersionTracesPoint } from "@/lib/actions/agents";
+import { shownVersionIds } from "@/lib/actions/agents/deleted-versions";
 import { UNVERSIONED_KEY } from "@/lib/actions/agents/types";
 import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { TimeRangeSchema } from "@/lib/actions/common/types";
@@ -48,10 +49,16 @@ export async function getAgentTracesStats(
   if (!agent) return null;
 
   const versions = await db
-    .select({ id: agentVersions.id, versionHash: agentVersions.versionHash })
+    .select({
+      id: agentVersions.id,
+      versionHash: agentVersions.versionHash,
+      versionNumber: agentVersions.versionNumber,
+      deletedAt: agentVersions.deletedAt,
+    })
     .from(agentVersions)
     .where(and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId)));
-  const idByHash = new Map(versions.map((v) => [v.versionHash, v.id]));
+  const shownAs = shownVersionIds(versions);
+  const idByHash = new Map(versions.map((v) => [v.versionHash, shownAs.get(v.id)]));
 
   const timeRange = buildTimeRangeWithFill({
     startTime: startDate,
@@ -97,7 +104,7 @@ export async function getAgentTracesStats(
     const point: AgentVersionTracesPoint = { timestamp: new Date(`${timestamp.replace(" ", "T")}Z`).toISOString() };
     versionHashes.forEach((hash, i) => {
       const id = idByHash.get(hash);
-      if (id) point[id] = Number(counts[i]);
+      if (id) point[id] = Number(point[id] ?? 0) + Number(counts[i]);
     });
     return point;
   });
