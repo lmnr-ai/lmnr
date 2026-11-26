@@ -226,7 +226,7 @@ const tableSchemas: Record<string, TableSchema> = {
         name: "agent_versions",
         type: "Array(Tuple(agent_hash String, version_hash String, model String))",
         description:
-          "Agent versions that ran in this trace, one element per (agent, version, model) seen. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models",
+          "Agent versions that ran in this trace, one element per (agent, version, model) seen. A version deleted in the UI reads as the earlier version it is shown under. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models",
       },
       {
         name: "release",

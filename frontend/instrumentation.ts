@@ -176,6 +176,18 @@ export async function register() {
           },
           layout: "direct",
         },
+        // The version a deleted agent version is shown under, for the traces
+        // views' `agent_versions` (migration 89). DIRECT so a delete shows in
+        // SQL at once; the table holds one row per deleted version.
+        {
+          name: "deleted_agent_versions_dict",
+          keyColumns: ["project_id UUID", "version_hash String"],
+          attrColumns: ["shown_version_hash String"],
+          source: {
+            query: "SELECT project_id, version_hash, shown_version_hash FROM deleted_agent_versions FINAL",
+          },
+          layout: "direct",
+        },
       ];
 
       const ensureContentDicts = async () => {
