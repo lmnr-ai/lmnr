@@ -162,7 +162,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, and `tsc --noEmit` run on s
 | `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, MCP OAuth (frontend as authorization server), project API keys |
 | `docs/internal/rbac.md` | `piiMode` (off/redact/dual), PII masks (`*_masks`, `pii_checked`, redactor contract), `spans_v1`/`traces_v1` policy param, `AccessPolicy` (`maskPii`, `traceFilters`), `trace_access_policy_dict`, SQL route `actor`, role-based PII masking |
 | `docs/internal/billing.md` | Tiers (display names vs internal keys), free trial, usage warnings/hard limits, signal cost metering, custom model costs |
-| `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
+| `docs/internal/llm-profiles.md` | Workspace LLM profiles: CRUD surfaces, encrypted secrets, wire shapes, runtime resolution, pinning a profile on a signal |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
 | `docs/internal/metric-alerts.md` | Metric alerts (`METRIC` rules in `alerts`), `span_metrics_1m` rollup, `metric_alert_states` / `metric_alert_incidents` |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
