@@ -967,6 +967,13 @@
       "when": 1795544446727,
       "tag": "0137_agent_github_repo",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1795630216260,
+      "tag": "0138_agent_version_deleted_at",
+      "breakpoints": true
     }
   ]
 }

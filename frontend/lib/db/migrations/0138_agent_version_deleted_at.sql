@@ -1,0 +1,1 @@
+ALTER TABLE "agent_versions" ADD COLUMN "deleted_at" timestamp with time zone;
