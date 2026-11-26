@@ -60,7 +60,8 @@ pub struct GroupPreview {
 #[serde(rename_all = "camelCase")]
 pub struct Preview {
     pub check_interval_minutes: i64,
-    /// Time from the first breaching check to the alert.
+    /// Longest time from the value crossing a threshold to the alert: a full
+    /// interval may pass before the first breaching check.
     pub fires_after_minutes: i64,
     /// Incidents opened or reopened in the replayed range.
     pub fired_count: usize,
