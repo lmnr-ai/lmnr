@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { parseAsArrayOf, parseAsString } from "nuqs/server";
+
 import { chartAlertPreset } from "@/components/dashboards/chart-alert";
 import { CHART_PRESETS } from "@/components/dashboards/chart-presets";
 import { incidentTracesHref, tracesHref } from "@/components/settings/alerts/metric-alert-page/traces-href";
@@ -180,7 +182,10 @@ const budget = rule({ ...template("monthly-budget"), budgetAmount: "2000" });
 describe("traces link", () => {
   const filtered = rule({
     ...template("error-rate"),
-    filters: [{ column: "user_id", operator: Operator.Eq, value: "u1" }],
+    filters: [
+      { column: "user_id", operator: Operator.Eq, value: "u1" },
+      { column: "status", operator: Operator.Eq, value: "error" },
+    ],
   });
 
   it("carries the time range, each rule filter, and sorts by cost", () => {
@@ -189,10 +194,11 @@ describe("traces link", () => {
     assert.equal(url.pathname, "/project/p1/traces");
     assert.equal(url.searchParams.get("startDate"), "2026-01-01T10:00:00.000Z");
     assert.equal(url.searchParams.get("endDate"), "2026-01-01T11:00:00.000Z");
-    assert.deepEqual(
-      url.searchParams.getAll("filter").map((f) => JSON.parse(f)),
-      [{ column: "user_id", operator: "eq", value: "u1" }]
-    );
+    // Read back the way the traces table does (nuqs `parseAsArrayOf`).
+    assert.deepEqual(parseAsArrayOf(parseAsString).parse(url.searchParams.get("filter") ?? ""), [
+      JSON.stringify({ column: "user_id", operator: "eq", value: "u1" }),
+      JSON.stringify({ column: "status", operator: "eq", value: "error" }),
+    ]);
     assert.equal(url.searchParams.get("sortBy"), "cost");
     assert.equal(url.searchParams.get("sortDirection"), "desc");
   });

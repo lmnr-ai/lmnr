@@ -453,8 +453,16 @@ fn traces_path(subject: &Subject, event: &Event) -> String {
             .at
             .to_rfc3339_opts(SecondsFormat::Secs, true),
     );
-    for filter in &rule.filters {
-        query.append_pair("filter", &serde_json::to_string(filter).unwrap_or_default());
+    // The traces table reads `filter` as one comma-separated list, with the
+    // commas inside each filter escaped.
+    let filters: Vec<String> = rule
+        .filters
+        .iter()
+        .filter_map(|filter| serde_json::to_string(filter).ok())
+        .map(|filter| filter.replace(',', "%2C"))
+        .collect();
+    if !filters.is_empty() {
+        query.append_pair("filter", &filters.join(","));
     }
     query.append_pair("sortBy", "cost");
     query.append_pair("sortDirection", "desc");
@@ -747,11 +755,18 @@ mod tests {
     #[test]
     fn traces_link_covers_the_incident_with_the_rule_filters() {
         let mut rule = cost_rule();
-        rule.filters = vec![Filter {
-            column: "user_id".to_string(),
-            operator: "eq".to_string(),
-            value: json!("user 1"),
-        }];
+        rule.filters = vec![
+            Filter {
+                column: "user_id".to_string(),
+                operator: "eq".to_string(),
+                value: json!("user 1"),
+            },
+            Filter {
+                column: "status".to_string(),
+                operator: "eq".to_string(),
+                value: json!("error"),
+            },
+        ];
         let opened = transition(TransitionKind::Opened, Level::Warning, 2.41);
         let message = message(&rule, "", &opened, &incident());
 
@@ -760,7 +775,8 @@ mod tests {
             message.traces_path,
             "/project/00000000-0000-0000-0000-000000000001/traces?\
              startDate=2026-11-25T19%3A05%3A00Z&endDate=2026-11-25T19%3A35%3A00Z\
-             &filter=%7B%22column%22%3A%22user_id%22%2C%22operator%22%3A%22eq%22%2C%22value%22%3A%22user+1%22%7D\
+             &filter=%7B%22column%22%3A%22user_id%22%252C%22operator%22%3A%22eq%22%252C%22value%22%3A%22user+1%22%7D\
+             %2C%7B%22column%22%3A%22status%22%252C%22operator%22%3A%22eq%22%252C%22value%22%3A%22error%22%7D\
              &sortBy=cost&sortDirection=desc"
         );
         assert_eq!(

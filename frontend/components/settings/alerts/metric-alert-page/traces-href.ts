@@ -7,7 +7,11 @@ const DAY_MS = 24 * 60 * MINUTE_MS;
 /** The traces table over a time range, narrowed by the rule's filters, most expensive first. */
 export const tracesHref = (projectId: string, rule: MetricRule, from: Date, to: Date): string => {
   const query = new URLSearchParams({ startDate: from.toISOString(), endDate: to.toISOString() });
-  for (const filter of rule.filters) query.append("filter", JSON.stringify(filter));
+  // The traces table reads `filter` as one comma-separated list, with the
+  // commas inside each filter escaped.
+  if (rule.filters.length > 0) {
+    query.set("filter", rule.filters.map((filter) => JSON.stringify(filter).replaceAll(",", "%2C")).join(","));
+  }
   query.set("sortBy", "cost");
   query.set("sortDirection", "desc");
   return `/project/${projectId}/traces?${query.toString()}`;
