@@ -1,10 +1,17 @@
-import { type MetricAlert, type MetricRule, type MetricRuleInput } from "@/lib/actions/alerts/metric-rule";
+import {
+  DEFAULT_WARN_AT_PERCENT,
+  type MetricAlert,
+  type MetricRule,
+  type MetricRuleInput,
+} from "@/lib/actions/alerts/metric-rule";
 import { ALERT_TARGET_TYPE } from "@/lib/actions/alerts/types";
 import { type Filter } from "@/lib/actions/common/filters";
 
 import { DEFAULT_CHECKS_IN_A_ROW, DEFAULT_MIN_TRACES, METRIC_META, MONTH_TO_DATE } from "../constants";
-import { windowKey } from "../utils";
-import { type ConditionType, type MetricAlertFormValues } from "./types";
+import { formatMetricValue, formatRuleValue, windowKey } from "../utils";
+import { type MetricAlertFormValues } from "./types";
+
+export const DAY_WINDOW = "1440";
 
 export const DEFAULT_FORM_VALUES: MetricAlertFormValues = {
   name: "",
@@ -14,7 +21,8 @@ export const DEFAULT_FORM_VALUES: MetricAlertFormValues = {
   window: "60",
   conditionType: "value",
   compareTo: "1w",
-  budgetAmount: "",
+  spendingLimit: "",
+  warnAtPercent: String(DEFAULT_WARN_AT_PERCENT),
   direction: "above",
   warning: "",
   critical: "",
@@ -36,31 +44,16 @@ const toNumber = (text: string): number | null => {
 
 const toText = (value: number | null | undefined) => (value == null ? "" : String(value));
 
-const round = (value: number) => Number(value.toPrecision(3));
-
-/**
- * The resolve threshold offered for a first alerting threshold: a step back
- * towards normal, so a value hovering at the threshold does not flap.
- * Percentages step by 10 points (130% gives 120%), other values by a tenth.
- */
-export const suggestResolve = (
-  conditionType: ConditionType,
-  direction: "above" | "below",
-  threshold: string
-): string => {
-  const value = toNumber(threshold);
-  if (value == null) return "";
-  const back = direction === "above" ? -1 : 1;
-  const relative = conditionType === "change" || conditionType === "trace_p99";
-  return String(relative ? Math.max(0, value + back * 10) : round(value * (1 + back * 0.1)));
-};
-
 const condition = (values: MetricAlertFormValues): MetricRuleInput["condition"] => {
   switch (values.conditionType) {
     case "change":
       return { type: "change", compareTo: values.compareTo };
-    case "budget":
-      return { type: "budget", amount: toNumber(values.budgetAmount) ?? 0 };
+    case "spending_limit":
+      return {
+        type: "spending_limit",
+        limit: toNumber(values.spendingLimit) ?? 0,
+        warnAtPercent: toNumber(values.warnAtPercent) ?? DEFAULT_WARN_AT_PERCENT,
+      };
     default:
       return { type: values.conditionType };
   }
@@ -68,23 +61,39 @@ const condition = (values: MetricAlertFormValues): MetricRuleInput["condition"] 
 
 /** The rule a form describes. Fields a condition does not use are left out. */
 export const toRule = (values: MetricAlertFormValues): MetricRuleInput => {
-  const budget = values.conditionType === "budget";
+  // A spending limit takes its thresholds from the limit and covers a day or the month so far.
+  const limit = values.conditionType === "spending_limit";
   const meta = METRIC_META[values.metric];
+  const monthToDate = limit && values.window === MONTH_TO_DATE;
   return {
     metric: values.metric,
     filters: values.filters.map(({ column, operator, value }) => ({ column, operator, value })),
-    groupBy: values.splitByModel && meta.splittable && !budget ? "model" : null,
-    window: budget || values.window === MONTH_TO_DATE ? { monthToDate: true } : { minutes: Number(values.window) },
+    groupBy: values.splitByModel && meta.splittable && !limit ? "model" : null,
+    window: monthToDate ? { monthToDate: true } : { minutes: Number(limit ? DAY_WINDOW : values.window) },
     condition: condition(values),
     direction: values.direction,
-    warning: budget ? null : toNumber(values.warning),
-    critical: budget ? null : toNumber(values.critical),
-    resolve: toNumber(values.resolve),
+    warning: limit ? null : toNumber(values.warning),
+    critical: limit ? null : toNumber(values.critical),
+    resolve: limit ? null : toNumber(values.resolve),
     minChange: values.conditionType === "change" ? toNumber(values.minChange) : null,
     checksInARow: toNumber(values.checksInARow) ?? DEFAULT_CHECKS_IN_A_ROW,
     minTraces: meta.needsMinTraces ? (toNumber(values.minTraces) ?? DEFAULT_MIN_TRACES) : DEFAULT_MIN_TRACES,
     onNoData: values.onNoData === "default" ? null : values.onNoData,
   };
+};
+
+/** The numbers a form alerts at, e.g. "Warning above $4.00 · Critical above $8.00". */
+export const thresholdsLine = (values: MetricAlertFormValues): string | null => {
+  const rule = toRule(values);
+  if (rule.condition.type === "spending_limit") {
+    const { limit, warnAtPercent } = rule.condition;
+    return limit > 0 ? `Limit ${formatMetricValue(rule.metric, limit)} · Warn at ${warnAtPercent}%` : null;
+  }
+  const levels = [
+    rule.warning == null ? null : `Warning ${rule.direction} ${formatRuleValue(rule, rule.warning)}`,
+    rule.critical == null ? null : `Critical ${rule.direction} ${formatRuleValue(rule, rule.critical)}`,
+  ].filter(Boolean);
+  return levels.length > 0 ? levels.join(" · ") : null;
 };
 
 export const fromRule = (rule: MetricRule): Omit<MetricAlertFormValues, "name" | "slackChannels" | "emailEnabled"> => ({
@@ -94,7 +103,11 @@ export const fromRule = (rule: MetricRule): Omit<MetricAlertFormValues, "name" |
   window: windowKey(rule),
   conditionType: rule.condition.type,
   compareTo: rule.condition.type === "change" ? rule.condition.compareTo : DEFAULT_FORM_VALUES.compareTo,
-  budgetAmount: rule.condition.type === "budget" ? toText(rule.condition.amount) : "",
+  spendingLimit: rule.condition.type === "spending_limit" ? toText(rule.condition.limit) : "",
+  warnAtPercent:
+    rule.condition.type === "spending_limit"
+      ? String(rule.condition.warnAtPercent ?? DEFAULT_WARN_AT_PERCENT)
+      : DEFAULT_FORM_VALUES.warnAtPercent,
   direction: rule.direction,
   warning: toText(rule.warning),
   critical: toText(rule.critical),

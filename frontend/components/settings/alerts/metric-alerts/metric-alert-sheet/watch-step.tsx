@@ -1,11 +1,19 @@
 import { Controller, useFormContext } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { type Metric, METRICS } from "@/lib/actions/alerts/metric-rule";
+import { type Metric } from "@/lib/actions/alerts/metric-rule";
 
-import { METRIC_META, MONTH_TO_DATE } from "../constants";
+import { METRIC_GROUPS, METRIC_META, MONTH_TO_DATE } from "../constants";
 import { conditionOptions } from "./condition-options";
 import Field from "./field";
 import FiltersField from "./filters-field";
@@ -16,13 +24,13 @@ export default function WatchStep() {
   const { control, register, watch, setValue, getValues } = useFormContext<MetricAlertFormValues>();
   const [metric, filters, conditionType] = watch(["metric", "filters", "conditionType"]);
   const splittable = METRIC_META[metric].splittable;
-  const canSplit = splittable && filters.length === 0 && conditionType !== "budget";
+  const canSplit = splittable && filters.length === 0 && conditionType !== "spending_limit";
   const splitHint = canSplit
     ? "Each model is checked on its own and opens its own incident. Covers the 20 largest models."
     : !splittable
       ? "Not available for this metric."
-      : conditionType === "budget"
-        ? "Not available for a monthly budget."
+      : conditionType === "spending_limit"
+        ? "Not available for a spending limit."
         : "Not available together with filters.";
 
   const changeMetric = (next: Metric) => {
@@ -52,15 +60,25 @@ export default function WatchStep() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {METRICS.map((value) => (
-              <SelectItem key={value} value={value}>
-                {METRIC_META[value].label}
-              </SelectItem>
+            {METRIC_GROUPS.map((group) => (
+              <SelectGroup key={group.label}>
+                <SelectLabel className="pt-2 pb-1 text-[11px] font-medium text-muted-foreground">
+                  {group.label}
+                </SelectLabel>
+                {group.metrics.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {METRIC_META[value].label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             ))}
           </SelectContent>
         </Select>
       </Field>
-      <Field label="Filters" hint="Only traces that match are counted.">
+      <Field
+        label="Filters"
+        hint="Only traces that match are counted. Evaluation and playground traces are left out unless you filter on trace type."
+      >
         <FiltersField />
       </Field>
       <Controller

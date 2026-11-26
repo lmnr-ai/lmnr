@@ -1,4 +1,5 @@
 import { Ellipsis, Pen, Trash2 } from "lucide-react";
+import { type PropsWithChildren } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -8,7 +9,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export default function AlertRowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+interface AlertRowMenuProps {
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+/** Edit and Delete, with any extra items of the caller between them. */
+export default function AlertRowMenu({ onEdit, onDelete, children }: PropsWithChildren<AlertRowMenuProps>) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -28,6 +35,7 @@ export default function AlertRowMenu({ onEdit, onDelete }: { onEdit: () => void;
           <Pen className="size-3.5" />
           Edit
         </DropdownMenuItem>
+        {children}
         <DropdownMenuItem onClick={onDelete} variant="destructive" className="cursor-pointer">
           <Trash2 className="size-3.5" />
           Delete

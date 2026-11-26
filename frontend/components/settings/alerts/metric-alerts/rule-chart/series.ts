@@ -1,4 +1,4 @@
-import { type MetricRuleInput, type PreviewGroup } from "@/lib/actions/alerts/metric-rule";
+import { DEFAULT_WARN_AT_PERCENT, type MetricRuleInput, type PreviewGroup } from "@/lib/actions/alerts/metric-rule";
 
 import { formatRuleValue } from "../utils";
 
@@ -7,7 +7,6 @@ export type ChartRule = Pick<MetricRuleInput, "metric" | "condition" | "warning"
 export interface ChartRow {
   at: number;
   value: number | null;
-  projected: number | null;
 }
 
 export interface ThresholdLine {
@@ -30,16 +29,27 @@ export const LEVEL_COLORS = {
 } as const;
 
 export const toRows = (group: PreviewGroup): ChartRow[] =>
-  group.points.map((point) => ({ at: new Date(point.at).getTime(), value: point.value, projected: point.projected }));
+  group.points.map((point) => ({ at: new Date(point.at).getTime(), value: point.value }));
 
-/** The lines a rule draws across its chart. A budget's amount is its critical line. */
+/** The lines a rule draws across its chart. A spending limit is critical at the limit and warns below it. */
 export const thresholdLines = (rule: ChartRule): ThresholdLine[] => {
-  const budget = rule.condition.type === "budget" ? rule.condition.amount : null;
-  const lines: [ThresholdLine["key"], string, number | null | undefined][] = [
-    ["critical", budget == null ? "Critical" : "Budget", budget ?? rule.critical],
-    ["warning", "Warning", rule.warning],
-    ["resolve", "Resolve", rule.resolve],
-  ];
+  const { condition } = rule;
+  const limit = condition.type === "spending_limit" && condition.limit > 0 ? condition.limit : null;
+  const warnAt =
+    condition.type === "spending_limit" && limit != null
+      ? (limit * (condition.warnAtPercent ?? DEFAULT_WARN_AT_PERCENT)) / 100
+      : null;
+  const lines: [ThresholdLine["key"], string, number | null | undefined][] =
+    condition.type === "spending_limit"
+      ? [
+          ["critical", "Limit", limit],
+          ["warning", "Warn at", warnAt],
+        ]
+      : [
+          ["critical", "Critical", rule.critical],
+          ["warning", "Warning", rule.warning],
+          ["resolve", "Resolve", rule.resolve],
+        ];
   return lines.flatMap(([key, name, value]) =>
     value == null ? [] : [{ key, value, label: `${name} ${formatRuleValue(rule, value)}` }]
   );
@@ -80,7 +90,7 @@ export const incidentBands = (group: PreviewGroup, rows: ChartRow[]): IncidentBa
 /** Keeps every threshold in view, so a quiet series still shows how far it is from alerting. */
 export const yDomain = (rows: ChartRow[], lines: ThresholdLine[]): [number, number] => {
   const values = [
-    ...rows.flatMap((row) => [row.value, row.projected]).filter((value): value is number => value != null),
+    ...rows.map((row) => row.value).filter((value): value is number => value != null),
     ...lines.map((line) => line.value),
   ];
   const max = values.length > 0 ? Math.max(...values) : 1;

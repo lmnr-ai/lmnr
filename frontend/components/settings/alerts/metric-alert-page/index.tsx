@@ -10,19 +10,17 @@ import { useUserContext } from "@/contexts/user-context";
 import { type MetricAlertDetail } from "@/lib/actions/alerts/metric-rule";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
-import { PREVIEW_HOURS } from "../metric-alerts/constants";
+import { REFRESH_MS } from "../metric-alerts/constants";
 import MetricAlertSheet from "../metric-alerts/metric-alert-sheet";
 import StatusPill from "../metric-alerts/status-pill";
 import { useMetricAlertActions } from "../metric-alerts/use-metric-alert-actions";
-import { useRuleCheck, useRulePreview } from "../metric-alerts/use-rule-requests";
+import { useRuleCheck } from "../metric-alerts/use-rule-requests";
 import { useSlackAvailable } from "../metric-alerts/use-slack-available";
 import { alertStatus, cadenceLine, conditionSummary, isSnoozed } from "../metric-alerts/utils";
 import AlertActions from "./alert-actions";
 import AlertChart from "./alert-chart";
 import IncidentHistory from "./incident-history";
 import { incidentTracesHref, lastDayTracesHref } from "./traces-href";
-
-const REFRESH_MS = 60 * 1000;
 
 export default function MetricAlertPage({ projectId, alertId }: { projectId: string; alertId: string }) {
   const { workspace, settingsHref } = useProjectContext();
@@ -35,11 +33,6 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
     mutate,
   } = useSWR<MetricAlertDetail>(`/api/projects/${projectId}/alerts/metric/${alertId}`, swrFetcher, {
     refreshInterval: REFRESH_MS,
-  });
-  const preview = useRulePreview(projectId, alert?.rule ?? null, {
-    hours: PREVIEW_HOURS,
-    alertId,
-    refreshMs: REFRESH_MS,
   });
   const { pendingIds, setMuted, snooze } = useMetricAlertActions(projectId, mutate);
   const [editing, setEditing] = useState(false);
@@ -85,7 +78,7 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
                   onEdit={() => setEditing(true)}
                 />
               </div>
-              <AlertChart alert={alert} preview={preview.preview} error={preview.error} />
+              <AlertChart alert={alert} />
               <section className="flex flex-col gap-2">
                 <h2 className="text-sm font-medium">Incident history</h2>
                 <IncidentHistory

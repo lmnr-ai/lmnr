@@ -9,26 +9,63 @@ import { incidentTracesHref, tracesHref } from "@/components/settings/alerts/met
 import {
   DEFAULT_FORM_VALUES,
   fromRule,
-  suggestResolve,
+  thresholdsLine,
   toRule,
 } from "@/components/settings/alerts/metric-alerts/metric-alert-sheet/form-rule";
+import {
+  niceCeil,
+  probeRule,
+  suggestionFor,
+  suggestValues,
+  usualPeak,
+} from "@/components/settings/alerts/metric-alerts/metric-alert-sheet/suggestions";
 import { TEMPLATES } from "@/components/settings/alerts/metric-alerts/metric-alert-sheet/templates";
 import { type MetricAlertFormValues } from "@/components/settings/alerts/metric-alerts/metric-alert-sheet/types";
-import { alertStatus, cadenceLine, conditionSummary } from "@/components/settings/alerts/metric-alerts/utils";
+import { thresholdLines } from "@/components/settings/alerts/metric-alerts/rule-chart/series";
+import {
+  alertStatus,
+  alertsWhen,
+  cadenceLine,
+  conditionSummary,
+} from "@/components/settings/alerts/metric-alerts/utils";
 import { mergeRulePatch, type MetricRule, MetricRuleSchema, wholeNumberError } from "@/lib/actions/alerts/metric-rule";
+import { METRIC_ALERT_TEMPLATES, TEMPLATE_CATEGORIES } from "@/lib/actions/alerts/metric-templates";
 import { Operator } from "@/lib/actions/common/operators";
 import defaultCharts from "@/lib/db/default-charts";
 
 const form = (values: Partial<MetricAlertFormValues>): MetricAlertFormValues => ({ ...DEFAULT_FORM_VALUES, ...values });
 const rule = (values: Partial<MetricAlertFormValues>): MetricRule => MetricRuleSchema.parse(toRule(form(values)));
-const template = (id: string) => TEMPLATES.find((t) => t.id === id)!.values;
+const formTemplate = (id: string) => TEMPLATES.find((t) => t.id === id)!;
+const template = (id: string) => formTemplate(id).values;
+const spendingLimit = (values: Partial<MetricAlertFormValues> = {}) =>
+  rule({ ...template("daily-spending-limit"), spendingLimit: "50", ...values });
+/** One preview point per entry: `[day of the month, hour, value]`. */
+const points = (...entries: [number, number, number | null][]) =>
+  entries.map(([day, hour, value]) => ({ at: new Date(Date.UTC(2026, 0, day, hour)).toISOString(), value }));
 
-describe("metric alert form", () => {
+describe("metric alert templates", () => {
+  it("offers ten templates, each in one of the four categories", () => {
+    assert.deepEqual(
+      TEMPLATE_CATEGORIES.map((category) =>
+        METRIC_ALERT_TEMPLATES.filter((t) => t.category === category).map((t) => t.id)
+      ),
+      [
+        ["error-spike", "cost-spike", "error-rate"],
+        ["traffic-stopped", "cost-tracking-stopped", "token-usage-missing"],
+        ["daily-spending-limit", "expensive-trace"],
+        ["unusually-expensive-trace", "cost-vs-last-week"],
+      ]
+    );
+  });
+
   it("turns every template into a rule and back without losing a field", () => {
     for (const { id, values } of TEMPLATES) {
-      // The budget template leaves the amount to the user.
-      if (values.conditionType === "budget") assert.equal(values.budgetAmount, "");
-      const filled = form({ ...values, ...(values.conditionType === "budget" && { budgetAmount: "2000" }) });
+      // Templates whose number depends on the project leave it to the user.
+      const filled = form({
+        ...values,
+        ...(values.conditionType === "spending_limit" && { spendingLimit: "50" }),
+        ...(values.warning === "" && values.conditionType !== "spending_limit" && { warning: "5" }),
+      });
       const parsed = MetricRuleSchema.safeParse(toRule(filled));
       assert.ok(parsed.success, `template ${id}`);
       const { name: _name, slackChannels: _slack, emailEnabled: _email, ...ruleFields } = filled;
@@ -36,8 +73,73 @@ describe("metric alert form", () => {
     }
   });
 
+  it("sets no resolve threshold, so every template resolves at its warning", () => {
+    for (const { id, values } of TEMPLATES) assert.equal(values.resolve, "", id);
+  });
+});
+
+describe("metric alert suggestions", () => {
+  it("takes the usual peak as the median of each day's highest value", () => {
+    assert.equal(usualPeak(points([1, 3, 2], [1, 9, 8], [2, 4, 4], [3, 5, 40], [3, 6, 1])), 8);
+    assert.equal(usualPeak(points([1, 3, 2], [2, 4, 6])), 4);
+    // Days without traffic do not pull the peak down.
+    assert.equal(usualPeak(points([1, 3, 0], [2, 4, null], [3, 5, 6])), 6);
+    assert.equal(usualPeak(points([1, 3, 0], [2, 4, null])), null);
+  });
+
+  it("rounds a threshold up to a number that reads well", () => {
+    assert.equal(niceCeil(0.0351), 0.04);
+    assert.equal(niceCeil(13), 15);
+    assert.equal(niceCeil(10), 10);
+    assert.equal(niceCeil(1.1, true), 2);
+    assert.equal(niceCeil(0), 0);
+  });
+
+  it("puts warning and critical above the usual peak", () => {
+    assert.deepEqual(suggestValues(formTemplate("cost-spike"), 2.6), { warning: "4", critical: "8" });
+    assert.deepEqual(suggestValues(formTemplate("daily-spending-limit"), 30), { spendingLimit: "50" });
+    // A quiet project keeps the template's own thresholds as a floor.
+    assert.deepEqual(suggestValues(formTemplate("error-spike"), 1), { warning: "5", critical: "25" });
+    assert.deepEqual(suggestValues(formTemplate("error-spike"), 40), { warning: "60", critical: "120" });
+  });
+
+  it("suggests nothing without data or for a template with fixed thresholds", () => {
+    assert.equal(suggestValues(formTemplate("cost-spike"), null), null);
+    assert.equal(suggestValues(formTemplate("error-rate"), 12), null);
+  });
+
+  it("reads a template's series with a rule that can be saved and never fires", () => {
+    for (const probed of TEMPLATES.filter((t) => t.suggest)) {
+      const parsed = MetricRuleSchema.safeParse(probeRule(probed));
+      assert.ok(parsed.success, probed.id);
+    }
+    assert.equal(probeRule(formTemplate("error-spike")).warning, 1e15);
+    assert.equal(probeRule(formTemplate("error-spike")).critical, null);
+  });
+
+  it("drops the suggestion once the form no longer describes the template", () => {
+    const picked = formTemplate("cost-spike");
+    const suggestions = { "cost-spike": { warning: "4", critical: "8" } };
+    assert.deepEqual(suggestionFor(picked, form(picked.values), suggestions), suggestions["cost-spike"]);
+    assert.equal(suggestionFor(picked, form({ ...picked.values, window: "15" }), suggestions), undefined);
+    assert.equal(suggestionFor(picked, form({ ...picked.values, metric: "total_tokens" }), suggestions), undefined);
+    assert.equal(suggestionFor(undefined, form(picked.values), suggestions), undefined);
+  });
+
+  it("names the thresholds a template would set", () => {
+    assert.equal(thresholdsLine(form(template("error-rate"))), "Warning above 5% · Critical above 20%");
+    assert.equal(thresholdsLine(form(template("traffic-stopped"))), "Warning below 1");
+    assert.equal(thresholdsLine(form(template("cost-spike"))), null);
+    assert.equal(
+      thresholdsLine(form({ ...template("daily-spending-limit"), spendingLimit: "50" })),
+      "Limit $50.00 · Warn at 80%"
+    );
+  });
+});
+
+describe("metric alert form", () => {
   it("writes the rule JSON the engine reads", () => {
-    assert.deepEqual(toRule(form({ ...template("cost-spike"), splitByModel: true })), {
+    assert.deepEqual(toRule(form({ ...template("cost-vs-last-week"), splitByModel: true })), {
       metric: "total_cost",
       filters: [],
       groupBy: "model",
@@ -46,7 +148,8 @@ describe("metric alert form", () => {
       direction: "above",
       warning: 130,
       critical: 150,
-      resolve: 120,
+      // Left out, so the engine resolves at the warning threshold.
+      resolve: null,
       minChange: 1,
       checksInARow: 3,
       minTraces: 50,
@@ -54,13 +157,27 @@ describe("metric alert form", () => {
     });
   });
 
-  it("stores a budget without thresholds, on the month-to-date window, never split", () => {
-    const budget = toRule(form({ ...template("monthly-budget"), budgetAmount: "2000", splitByModel: true }));
-    assert.deepEqual(budget.condition, { type: "budget", amount: 2000 });
-    assert.deepEqual(budget.window, { monthToDate: true });
-    assert.equal(budget.warning, null);
-    assert.equal(budget.critical, null);
-    assert.equal(budget.groupBy, null);
+  it("stores a spending limit without thresholds, over a day or the month, never split", () => {
+    const daily = toRule(
+      form({ ...template("daily-spending-limit"), spendingLimit: "50", resolve: "10", splitByModel: true })
+    );
+    assert.deepEqual(daily.condition, { type: "spending_limit", limit: 50, warnAtPercent: 80 });
+    assert.deepEqual(daily.window, { minutes: 1440 });
+    assert.equal(daily.warning, null);
+    assert.equal(daily.critical, null);
+    assert.equal(daily.resolve, null);
+    assert.equal(daily.groupBy, null);
+
+    const monthly = toRule(
+      form({ ...template("daily-spending-limit"), spendingLimit: "2000", warnAtPercent: "90", window: "mtd" })
+    );
+    assert.deepEqual(monthly.condition, { type: "spending_limit", limit: 2000, warnAtPercent: 90 });
+    assert.deepEqual(monthly.window, { monthToDate: true });
+  });
+
+  it("keeps a resolve threshold the user typed", () => {
+    assert.equal(toRule(form({ ...template("error-rate"), resolve: "3" })).resolve, 3);
+    assert.equal(toRule(form(template("error-rate"))).resolve, null);
   });
 
   it("leaves an empty threshold out instead of storing zero", () => {
@@ -69,42 +186,88 @@ describe("metric alert form", () => {
     assert.equal(stopped.critical, null);
   });
 
-  it("suggests a resolve threshold a step back towards normal", () => {
-    assert.equal(suggestResolve("change", "above", "130"), "120");
-    assert.equal(suggestResolve("change", "below", "50"), "60");
-    assert.equal(suggestResolve("trace_p99", "above", "300"), "290");
-    assert.equal(suggestResolve("value", "above", "5"), "4.5");
-    assert.equal(suggestResolve("value", "below", "100"), "110");
-    assert.equal(suggestResolve("value", "above", ""), "");
+  it("accepts the new metrics, the 30 minute window and the 30 minutes earlier comparison", () => {
+    for (const metric of ["error_traces", "no_cost_rate", "no_tokens_rate"] as const) {
+      const parsed = rule({ metric, window: "30", conditionType: "change", compareTo: "30m", warning: "150" });
+      assert.equal(parsed.metric, metric);
+      assert.deepEqual(parsed.window, { minutes: 30 });
+      assert.deepEqual(parsed.condition, { type: "change", compareTo: "30m" });
+    }
   });
 });
 
 describe("metric alert summaries", () => {
   it("describes each kind of condition in one line", () => {
-    assert.equal(conditionSummary(rule(template("cost-spike"))), "Total cost over 1 hour above 130% of 1 week earlier");
     assert.equal(
-      conditionSummary(rule({ ...template("monthly-budget"), budgetAmount: "2000" })),
-      "Monthly budget of $2,000"
+      conditionSummary(rule(template("cost-vs-last-week"))),
+      "Total cost over 1 hour above 130% of 1 week earlier"
     );
+    assert.equal(conditionSummary(spendingLimit()), "Spending limit of $50.00 over the last day");
+    assert.equal(conditionSummary(spendingLimit({ window: "mtd" })), "Spending limit of $50.00 this month");
     assert.equal(conditionSummary(rule(template("error-rate"))), "Error rate over 15 minutes above 5%");
+    assert.equal(conditionSummary(rule(template("error-spike"))), "Errored traces over 15 minutes above 5");
     assert.equal(
-      conditionSummary(rule({ ...template("cost-spike"), splitByModel: true })),
+      conditionSummary(rule({ ...template("cost-vs-last-week"), splitByModel: true })),
       "Total cost over 1 hour above 130% of 1 week earlier · by model"
     );
   });
 
-  it("calls a budget at warning 'On pace to exceed' and a muted rule 'Muted'", () => {
-    const budget = rule({ ...template("monthly-budget"), budgetAmount: "2000" });
-    assert.deepEqual(alertStatus({ rule: budget, level: "warning" }), { label: "On pace to exceed", tone: "warning" });
-    assert.deepEqual(alertStatus({ rule: budget, level: "critical" }), { label: "Critical", tone: "critical" });
-    assert.deepEqual(alertStatus({ rule: { ...budget, disabled: true }, level: "critical" }), {
+  it("reads a rule back as an 'Alerts when' sentence", () => {
+    assert.equal(
+      alertsWhen(toRule(form({ ...template("cost-spike"), warning: "5", critical: "10" }))),
+      "Alerts when total cost over the last hour is above $5.00 (warning) or $10.00 (critical)."
+    );
+    assert.equal(
+      alertsWhen(toRule(form(template("traffic-stopped")))),
+      "Alerts when trace count over the last 15 minutes is below 1 (warning)."
+    );
+    assert.equal(
+      alertsWhen(toRule(form(template("cost-vs-last-week")))),
+      "Alerts when total cost over the last hour is above 130% (warning) or 150% (critical) of the same window 1 week earlier."
+    );
+    assert.equal(
+      alertsWhen(toRule(form(template("unusually-expensive-trace")))),
+      "Alerts when a single trace costs more than 300% (warning) or 1,000% (critical) of this project's usual p99 trace cost."
+    );
+    assert.equal(
+      alertsWhen(toRule(form({ ...template("expensive-trace"), critical: "2" }))),
+      "Alerts when a trace from the last 15 minutes costs more than $2.00 (critical)."
+    );
+    assert.equal(
+      alertsWhen(spendingLimit()),
+      "Alerts when spend over the last day reaches $40.00 (warning, 80% of the limit) and $50.00 (critical)."
+    );
+    assert.equal(
+      alertsWhen(spendingLimit({ window: "mtd", spendingLimit: "2000", warnAtPercent: "90" })),
+      "Alerts when spend this month reaches $1,800 (warning, 90% of the limit) and $2,000 (critical)."
+    );
+  });
+
+  it("has no sentence until a threshold is set", () => {
+    assert.equal(alertsWhen(toRule(form(template("cost-spike")))), null);
+    assert.equal(alertsWhen(toRule(form(template("daily-spending-limit")))), null);
+  });
+
+  it("draws a spending limit as a limit line and a warn line", () => {
+    assert.deepEqual(thresholdLines(spendingLimit()), [
+      { key: "critical", value: 50, label: "Limit $50.00" },
+      { key: "warning", value: 40, label: "Warn at $40.00" },
+    ]);
+    assert.deepEqual(
+      thresholdLines(rule(template("error-rate"))).map((line) => line.label),
+      ["Critical 20%", "Warning 5%"]
+    );
+  });
+
+  it("calls a level by its name and a muted rule 'Muted'", () => {
+    const limit = spendingLimit();
+    assert.deepEqual(alertStatus({ rule: limit, level: "warning" }), { label: "Warning", tone: "warning" });
+    assert.deepEqual(alertStatus({ rule: limit, level: "critical" }), { label: "Critical", tone: "critical" });
+    assert.deepEqual(alertStatus({ rule: { ...limit, disabled: true }, level: "critical" }), {
       label: "Muted",
       tone: "muted",
     });
-    assert.deepEqual(alertStatus({ rule: rule(template("error-rate")), level: "warning" }), {
-      label: "Warning",
-      tone: "warning",
-    });
+    assert.deepEqual(alertStatus({ rule: rule(template("error-rate")), level: "ok" }), { label: "OK", tone: "ok" });
   });
 
   it("states the check interval and time to fire", () => {
@@ -177,7 +340,7 @@ describe("chartAlertPreset", () => {
   });
 });
 
-const budget = rule({ ...template("monthly-budget"), budgetAmount: "2000" });
+const monthly = spendingLimit({ window: "mtd", spendingLimit: "2000" });
 
 describe("traces link", () => {
   const filtered = rule({
@@ -204,7 +367,7 @@ describe("traces link", () => {
   });
 
   it("leaves the filter out for a rule without filters", () => {
-    const href = tracesHref("p1", budget, new Date("2026-01-01T10:00:00Z"), new Date("2026-01-01T11:00:00Z"));
+    const href = tracesHref("p1", monthly, new Date("2026-01-01T10:00:00Z"), new Date("2026-01-01T11:00:00Z"));
     const url = new URL(href, "http://localhost");
     assert.equal(url.searchParams.has("filter"), false);
     assert.equal(url.searchParams.get("sortBy"), "cost");
@@ -223,27 +386,27 @@ describe("traces link", () => {
     assert.equal(incidentTracesHref("p1", filtered, incident, undefined), null);
   });
 
-  it("starts a budget incident's range at the start of the UTC month", () => {
+  it("starts a month-to-date incident's range at the start of the UTC month", () => {
     const incident = { openedAt: "2026-01-20 12:00:00+00", resolvedAt: null };
     const now = new Date("2026-01-21T00:00:00Z");
     // The month start does not depend on how often the rule is checked.
-    const url = new URL(incidentTracesHref("p1", budget, incident, undefined, now)!, "http://x");
+    const url = new URL(incidentTracesHref("p1", monthly, incident, undefined, now)!, "http://x");
     assert.equal(url.searchParams.get("startDate"), "2026-01-01T00:00:00.000Z");
     assert.equal(url.searchParams.get("endDate"), "2026-01-21T00:00:00.000Z");
   });
 });
 
 describe("metric rule patches", () => {
-  const stored = budget;
+  const stored = monthly;
 
-  it("changes a budget's amount and keeps its type", () => {
-    const merged = MetricRuleSchema.parse(mergeRulePatch(stored, { condition: { amount: 3000 } }));
-    assert.deepEqual(merged.condition, { type: "budget", amount: 3000 });
+  it("changes a spending limit and keeps its type", () => {
+    const merged = MetricRuleSchema.parse(mergeRulePatch(stored, { condition: { limit: 3000 } }));
+    assert.deepEqual(merged.condition, { type: "spending_limit", limit: 3000, warnAtPercent: 80 });
     assert.deepEqual({ ...merged, condition: stored.condition }, stored);
   });
 
   it("drops the old condition's fields when the type changes", () => {
-    const change = rule(template("cost-spike"));
+    const change = rule(template("cost-vs-last-week"));
     const merged = MetricRuleSchema.parse(mergeRulePatch(change, { condition: { type: "value" }, warning: 5 }));
     assert.deepEqual(merged.condition, { type: "value" });
     assert.equal(merged.warning, 5);

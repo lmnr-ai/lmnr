@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { MONTH_TO_DATE } from "../constants";
 import { CONDITION_LABELS, conditionOptions } from "./condition-options";
-import { DEFAULT_FORM_VALUES } from "./form-rule";
+import { DAY_WINDOW, DEFAULT_FORM_VALUES } from "./form-rule";
 import { type ConditionType, type MetricAlertFormValues } from "./types";
 
 export default function ConditionTypeField() {
@@ -16,9 +16,10 @@ export default function ConditionTypeField() {
     setValue("conditionType", next, { shouldDirty: true });
     // A percentage of a baseline and a plain value are different numbers, so thresholds start over.
     for (const field of ["warning", "critical", "resolve"] as const) setValue(field, "");
-    if (next === "budget") {
+    if (next === "spending_limit") {
       setValue("direction", "above");
       setValue("splitByModel", false);
+      setValue("window", DAY_WINDOW);
     } else if (getValues("window") === MONTH_TO_DATE) {
       setValue("window", DEFAULT_FORM_VALUES.window);
     }

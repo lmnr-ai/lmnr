@@ -15,15 +15,20 @@ export const METRICS = [
   "total_tokens",
   "tokens_per_trace",
   "trace_count",
+  "error_traces",
   "error_rate",
+  "no_cost_rate",
+  "no_tokens_rate",
   "latency_p50",
   "latency_p95",
 ] as const;
 export type Metric = (typeof METRICS)[number];
 
-export const WINDOW_MINUTES = [5, 15, 60, 1440] as const;
-export const COMPARE_TO = ["5m", "15m", "1h", "1d", "1w", "30d"] as const;
+export const WINDOW_MINUTES = [5, 15, 30, 60, 1440] as const;
+export const COMPARE_TO = ["5m", "15m", "30m", "1h", "1d", "1w", "30d"] as const;
 export type CompareTo = (typeof COMPARE_TO)[number];
+/** Where a spending limit warns, as a share of the limit. */
+export const DEFAULT_WARN_AT_PERCENT = 80;
 
 const WindowSchema = z.union([
   z.object({ minutes: z.number().int().positive() }).strict(),
@@ -33,7 +38,11 @@ const WindowSchema = z.union([
 const ConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("value") }),
   z.object({ type: z.literal("change"), compareTo: z.enum(COMPARE_TO) }),
-  z.object({ type: z.literal("budget"), amount: z.number().positive() }),
+  z.object({
+    type: z.literal("spending_limit"),
+    limit: z.number("A spending limit needs a limit").positive("The limit must be above 0"),
+    warnAtPercent: z.number().default(DEFAULT_WARN_AT_PERCENT),
+  }),
   z.object({ type: z.literal("trace_p99") }),
 ]);
 
@@ -83,8 +92,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * A stored rule with a partial one laid over it. Keys replace stored keys, and
- * `condition` is merged one level down, so `{ condition: { amount: 3000 } }`
- * changes a budget's amount and keeps its type.
+ * `condition` is merged one level down, so `{ condition: { limit: 3000 } }`
+ * changes a spending limit and keeps its type.
  */
 export const mergeRulePatch = (
   stored: Record<string, unknown>,
@@ -138,7 +147,6 @@ export interface RuleCadence {
 export interface PreviewPoint {
   at: string;
   value: number | null;
-  projected: number | null;
 }
 
 export interface PreviewIncident {

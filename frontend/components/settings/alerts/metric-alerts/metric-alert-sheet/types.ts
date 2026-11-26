@@ -14,10 +14,13 @@ export interface MetricAlertFormValues {
   window: string;
   conditionType: ConditionType;
   compareTo: CompareTo;
-  budgetAmount: string;
+  spendingLimit: string;
+  /** Where a spending limit warns, as a percent of the limit. */
+  warnAtPercent: string;
   direction: "above" | "below";
   warning: string;
   critical: string;
+  /** Empty resolves at the first alerting threshold. */
   resolve: string;
   minChange: string;
   checksInARow: string;

@@ -37,7 +37,6 @@ export default function RuleChart({ rule, group, className }: RuleChartProps) {
   const lines = useMemo(() => thresholdLines(rule), [rule]);
   const bands = useMemo(() => incidentBands(group, rows), [group, rows]);
   const span = rows.length > 1 ? rows[rows.length - 1].at - rows[0].at : 0;
-  const hasProjection = rows.some((row) => row.projected != null);
 
   return (
     <div className="flex flex-col gap-2">
@@ -99,21 +98,9 @@ export default function RuleChart({ rule, group, className }: RuleChartProps) {
             activeDot={{ r: 4 }}
             isAnimationActive={false}
           />
-          {hasProjection && (
-            <Line
-              dataKey="projected"
-              stroke={SERIES_COLOR}
-              strokeWidth={1.5}
-              strokeDasharray="4 4"
-              strokeOpacity={0.6}
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-            />
-          )}
         </LineChart>
       </ChartContainer>
-      <ThresholdLegend lines={lines} hasProjection={hasProjection} />
+      <ThresholdLegend lines={lines} />
     </div>
   );
 }

@@ -6,12 +6,25 @@ import { useFormContext } from "react-hook-form";
 
 import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import { filters as traceFilters } from "@/components/traces/traces-table/columns";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 
 import { type MetricAlertFormValues } from "./types";
 
+// Rules leave evaluation and playground traces out by default; this filter is how one opts in.
+const TRACE_TYPE_FILTER: ColumnFilter = {
+  name: "Trace type",
+  key: "trace_type",
+  dataType: "enum",
+  options: [
+    { label: "Default", value: "DEFAULT" },
+    { label: "Evaluation", value: "EVALUATION" },
+    { label: "Playground", value: "PLAYGROUND" },
+  ],
+};
+
 // A rule watches many traces, so picking one by id is not offered.
-const RULE_FILTERS = traceFilters.filter((filter) => filter.key !== "id");
+const RULE_FILTERS = [...traceFilters.filter((filter) => filter.key !== "id"), TRACE_TYPE_FILTER];
 
 /** Mirrors the search bar's own value coercion so the two sides compare. */
 const normalize = (filters: Filter[]) =>
@@ -46,7 +59,7 @@ export default function FiltersField() {
       onChange={handleChange}
       filters={RULE_FILTERS}
       allowFreeTextSearch={false}
-      placeholder="All traces. Add a filter, e.g. tags include …"
+      placeholder="All production traces. Add a filter, e.g. tags include …"
       className="w-full"
       options={{ disableHotKey: true }}
     />

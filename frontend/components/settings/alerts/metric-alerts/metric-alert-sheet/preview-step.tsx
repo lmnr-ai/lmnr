@@ -10,6 +10,7 @@ import { type MetricRuleInput, type PreviewGroup } from "@/lib/actions/alerts/me
 import { NOISY_FIRES_PER_WEEK, PREVIEW_HOURS } from "../constants";
 import RuleChart from "../rule-chart";
 import { useRulePreview } from "../use-rule-requests";
+import RuleSentence from "./rule-sentence";
 
 interface PreviewStepProps {
   projectId: string;
@@ -42,6 +43,7 @@ export default function PreviewStep({ projectId, rule, alertId }: PreviewStepPro
 
   return (
     <div className="flex flex-col gap-4" aria-busy={isLoading}>
+      <RuleSentence rule={rule} />
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm">
           Would have fired <span className="font-semibold">{times(preview.firedCount)}</span> in the last 7 days.

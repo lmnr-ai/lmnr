@@ -11,7 +11,8 @@ import { type MetricAlert } from "@/lib/actions/alerts/metric-rule";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
 import DeleteAlertDialog from "../delete-alert-dialog";
-import MetricAlertRow from "./metric-alert-row";
+import { REFRESH_MS } from "./constants";
+import MetricAlertCard from "./metric-alert-card";
 import MetricAlertSheet from "./metric-alert-sheet";
 import { useMetricAlertActions } from "./use-metric-alert-actions";
 
@@ -28,7 +29,7 @@ export default function MetricAlerts({ projectId, workspaceId, userEmail, slackA
     data: alerts,
     isLoading,
     mutate,
-  } = useSWR<MetricAlert[]>(`/api/projects/${projectId}/alerts/metric`, swrFetcher);
+  } = useSWR<MetricAlert[]>(`/api/projects/${projectId}/alerts/metric`, swrFetcher, { refreshInterval: REFRESH_MS });
   const { pendingIds, setMuted } = useMetricAlertActions(projectId, mutate);
 
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -57,9 +58,7 @@ export default function MetricAlerts({ projectId, workspaceId, userEmail, slackA
         </Button>
       </div>
       {isLoading && !alerts ? (
-        <div className="rounded-md border px-4 py-3">
-          <Skeleton className="h-8 w-full" />
-        </div>
+        <Skeleton className="h-36 w-full" />
       ) : !alerts?.length ? (
         <button
           type="button"
@@ -76,9 +75,10 @@ export default function MetricAlerts({ projectId, workspaceId, userEmail, slackA
         </button>
       ) : (
         <TooltipProvider delayDuration={300}>
-          <div className="divide-y rounded-md border bg-surface-up">
+          {/* Grid rows stretch their cards, so every card in a row has the same height. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {alerts.map((alert) => (
-              <MetricAlertRow
+              <MetricAlertCard
                 key={alert.id}
                 alert={alert}
                 isToggling={pendingIds.has(alert.id)}

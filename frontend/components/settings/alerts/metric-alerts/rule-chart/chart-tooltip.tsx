@@ -21,11 +21,6 @@ export default function ChartTooltip({ rule, active, payload }: ChartTooltipProp
           {row.value == null ? "No data" : formatRuleValue(rule, row.value)}
         </span>
       </span>
-      {row.projected != null && (
-        <span className="text-muted-foreground tabular-nums">
-          Projected for the month: {formatRuleValue(rule, row.projected)}
-        </span>
-      )}
     </div>
   );
 }
