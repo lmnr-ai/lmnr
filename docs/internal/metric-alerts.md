@@ -8,11 +8,11 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 ## Storage
 
 - **`span_metrics_1m`** (ClickHouse, migration 89) is a per-minute rollup keyed by `(project_id, minute, model)` with summed cost, tokens and LLM call count. The materialized view `span_metrics_1m_mv` fills it from every insert into `spans`. Readers must `sum()` and `GROUP BY`: unmerged parts hold several rows per key.
-- **The rollup holds production traffic only.** Migration 90 makes the view skip spans whose `trace_type` is evaluation (1) or playground (3). The SDKs and the playground put the trace type on every span of such a trace, so the span's own column is enough. A span that reaches us without it (a custom exporter that only marks the root span) is counted.
+- **The rollup holds production traffic only.** The view skips spans whose `trace_type` is evaluation (1) or playground (3). The SDKs and the playground put the trace type on every span of such a trace, so the span's own column is enough. A span that reaches us without it (a custom exporter that only marks the root span) is counted.
 - **`minute` is the minute the span ended, not started.** A span is exported when it ends, so its end time is seconds from the insert while its start time is earlier by the whole span duration. A reader can treat a minute as complete shortly after it passes.
 - The rollup counts what `spans` holds. A redelivered ingest batch inserts its rows again, and `spans` (plain MergeTree) and `traces_agg` (`sum` columns) already count those twice, so the rollup agrees with both.
 - Trace-level numbers (trace count, error rate, duration, cost of one trace) are NOT in the rollup. A trace is "errored" on the traces page when any span errored (`has(statuses, 'error')` in `traces_agg`), and the root span arrives last or never, so counting root spans in a per-minute view would give different numbers than the traces page. Read those from `traces_agg`.
-- The rollup has no rows from before the migrations ran. To fill history, run once per deployment (the `created_at` bound keeps rows the view already counted out; it is the time migration 90 last changed the view):
+- The rollup has no rows from before the migration ran. To fill history, run once per deployment (the `created_at` bound keeps rows the view already counted out; it is the time the view was created):
 
   ```sql
   INSERT INTO span_metrics_1m
