@@ -67,6 +67,7 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 ## Notifications
 
 - A transition with `notify = true` becomes one `NotificationKind::MetricAlert` on the notification queue. `message::build` (pure) writes every word of it once: headline, sentence, detail rows and both link paths. Slack, email and the panel only lay those out, so a wording change is one edit in `metric_alerts/message.rs`.
+- **A spending limit has its own words.** Headlines are "Approaching spending limit", "Spending limit reached" and their "Still ..." reminders; the sentence states the spend, its share of the limit, and names the window ("Spend this month", "Spend over the last day"). It has no threshold sentence: the limit is the threshold.
 - **Slack: one thread per incident per channel.** The first message in a channel is posted top-level and its `ts` is stored in `metric_alert_incidents.slack_threads` under the channel id; everything later replies under it. Escalated and reopened replies are also shown in the channel (`reply_broadcast`); de-escalated, resolved and reminders stay in the thread. If the thread's first message was deleted, the next message starts a new thread and replaces the stored `ts`.
 - **The stored `ts` is written after the post and a failed write is logged, not retried:** a retry would post the message twice. The cost is that the next message starts a second thread.
 - **Email and the panel get opened, escalated, resolved and reopened** (`MetricAlertNotification::is_major`). Reminders and de-escalations are Slack-only.

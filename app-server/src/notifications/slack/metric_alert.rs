@@ -240,7 +240,7 @@ mod tests {
         let mut reminder = alert(
             TransitionKind::Reminder,
             Level::Warning,
-            "Still on pace to exceed budget",
+            "Still approaching spending limit",
         );
         reminder.alert_name = "x".repeat(400);
         let blocks = message_blocks(&reminder);

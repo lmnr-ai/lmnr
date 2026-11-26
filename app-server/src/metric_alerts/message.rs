@@ -89,7 +89,8 @@ fn metric_value(metric: Metric, value: f64) -> String {
         Metric::TokensPerTrace if value < 100.0 => format!("{} tokens", number(value, 1)),
         Metric::TokensPerTrace => plural(value.round(), "token"),
         Metric::TraceCount => plural(value.round(), "trace"),
-        Metric::ErrorRate => percent(value),
+        Metric::ErrorTraces => number(value.round(), 0),
+        Metric::ErrorRate | Metric::NoCostRate | Metric::NoTokensRate => percent(value),
         Metric::LatencyP50 | Metric::LatencyP95 if value < 1.0 => {
             format!("{} ms", number(value * 1000.0, 0))
         }
@@ -117,7 +118,10 @@ fn metric_label(metric: Metric) -> &'static str {
         Metric::TotalTokens => "Total tokens",
         Metric::TokensPerTrace => "Tokens per trace",
         Metric::TraceCount => "Trace count",
+        Metric::ErrorTraces => "Errored traces",
         Metric::ErrorRate => "Error rate",
+        Metric::NoCostRate => "Traces with no cost",
+        Metric::NoTokensRate => "Traces with no tokens",
         Metric::LatencyP50 => "Latency p50",
         Metric::LatencyP95 => "Latency p95",
     }
@@ -167,21 +171,17 @@ fn level_label(level: Level) -> &'static str {
     }
 }
 
-fn is_budget(rule: &Rule) -> bool {
-    matches!(rule.condition, Condition::Budget { .. })
-}
-
 fn headline(rule: &Rule, transition: &Transition) -> String {
     let level = level_label(transition.to);
-    let over_budget = transition.to == Level::Critical;
-    match (transition.kind, is_budget(rule)) {
+    let at_limit = transition.to == Level::Critical;
+    match (transition.kind, rule.is_spending_limit()) {
         (TransitionKind::Resolved, _) => "Resolved".to_string(),
-        (TransitionKind::Opened | TransitionKind::Escalated, true) if over_budget => {
-            "Budget exceeded".to_string()
+        (TransitionKind::Opened | TransitionKind::Escalated, true) if at_limit => {
+            "Spending limit reached".to_string()
         }
-        (TransitionKind::Opened, true) => "On pace to exceed budget".to_string(),
-        (TransitionKind::Reminder, true) if over_budget => "Still over budget".to_string(),
-        (TransitionKind::Reminder, true) => "Still on pace to exceed budget".to_string(),
+        (TransitionKind::Opened, true) => "Approaching spending limit".to_string(),
+        (TransitionKind::Reminder, true) if at_limit => "Still at spending limit".to_string(),
+        (TransitionKind::Reminder, true) => "Still approaching spending limit".to_string(),
         (TransitionKind::Opened, _) => level.to_string(),
         (TransitionKind::Escalated, _) => format!("Escalated to {level}"),
         (TransitionKind::Deescalated, _) => format!("Down to {level}"),
@@ -228,13 +228,22 @@ fn measured_what(subject: &Subject) -> String {
     }
 }
 
-/// The sentence that holds the value against the baseline or the budget.
+/// "Spend this month" or "Spend over the last day"
+fn spend_label(window: Window) -> String {
+    match window {
+        Window::MonthToDate { .. } => "Spend this month".to_string(),
+        window => format!("Spend over {}", window_label(window)),
+    }
+}
+
+/// The sentence that holds the value against the baseline or the limit.
 fn measurement(subject: &Subject, transition: &Transition) -> String {
     let rule = subject.rule;
     let Some(value) = transition.value else {
         return format!("No data in {}.", window_label(rule.window));
     };
     let what = measured_what(subject);
+    let measured = value;
     let value = metric_value(rule.metric, value);
     let relative = transition.compared.zip(transition.baseline);
 
@@ -250,26 +259,26 @@ fn measurement(subject: &Subject, transition: &Transition) -> String {
             percent(compared),
             money(baseline),
         ),
-        (Condition::Budget { amount }, _) if transition.to == Level::Critical => {
+        (Condition::SpendingLimit { limit, .. }, _) if transition.to == Level::Critical => {
             format!(
-                "Spend this month is {value}, over the budget of {}.",
-                money(amount)
+                "{} is {value} and has reached the spending limit of {}.",
+                spend_label(rule.window),
+                money(limit)
             )
         }
-        (Condition::Budget { amount }, _) => {
-            let projected = transition.projected.map(money).unwrap_or(value.clone());
-            format!(
-                "Spend this month is {value} and is on pace to reach {projected} by the end of the month. The budget is {}.",
-                money(amount)
-            )
-        }
+        (Condition::SpendingLimit { limit, .. }, _) => format!(
+            "{} is {value}, {} of the spending limit of {}.",
+            spend_label(rule.window),
+            percent((measured / limit * 100.0).floor()),
+            money(limit)
+        ),
         _ => format!("{what} is {value}."),
     }
 }
 
 /// How the compared number stands against the threshold that matters now.
 fn standing(rule: &Rule, transition: &Transition) -> Option<String> {
-    if is_budget(rule) || transition.value.is_none() {
+    if rule.is_spending_limit() || transition.value.is_none() {
         return None;
     }
     let sides = sides(rule.direction);
@@ -376,11 +385,13 @@ fn details(subject: &Subject, event: &Event) -> Vec<MetricAlertDetail> {
         rows.push(detail("Compared", percent(compared)));
     }
 
-    if let Condition::Budget { amount } = rule.condition {
-        if let Some(projected) = transition.projected {
-            rows.push(detail("Projected month end", money(projected)));
-        }
-        rows.push(detail("Budget", money(amount)));
+    if let Condition::SpendingLimit {
+        limit,
+        warn_at_percent,
+    } = rule.condition
+    {
+        rows.push(detail("Spending limit", money(limit)));
+        rows.push(detail("Warn at", percent(warn_at_percent)));
     } else if resolved {
         rows.push(detail(
             "Resolve threshold",
@@ -546,7 +557,6 @@ mod tests {
             value: Some(value),
             compared: Some(value),
             baseline: None,
-            projected: None,
             notify: true,
         }
     }
@@ -589,6 +599,8 @@ mod tests {
             "1,250,000 tokens"
         );
         assert_eq!(metric_value(Metric::TraceCount, 1.0), "1 trace");
+        assert_eq!(metric_value(Metric::ErrorTraces, 12.0), "12");
+        assert_eq!(metric_value(Metric::NoCostRate, 62.5), "62.5%");
         assert_eq!(metric_value(Metric::LatencyP95, 0.34), "340 ms");
         assert_eq!(metric_value(Metric::LatencyP95, 2.314), "2.31 s");
         assert_eq!(duration_label(Duration::minutes(23)), "23 min");
@@ -709,27 +721,56 @@ mod tests {
     }
 
     #[test]
-    fn budget_speaks_of_pace_and_spend() {
-        let rule = rule(json!({
+    fn a_spending_limit_speaks_of_spend_and_the_limit() {
+        let monthly = rule(json!({
             "metric": "total_cost",
             "window": { "monthToDate": true },
-            "condition": { "type": "budget", "amount": 2000 },
+            "condition": { "type": "spending_limit", "limit": 2000 },
         }));
-        let mut pace = transition(TransitionKind::Opened, Level::Warning, 1400.0);
-        pace.projected = Some(2300.0);
-        let on_pace = message(&rule, "", &pace, &incident());
-        assert_eq!(on_pace.headline, "On pace to exceed budget");
+        let near = transition(TransitionKind::Opened, Level::Warning, 1650.0);
+        let approaching = message(&monthly, "", &near, &incident());
+        assert_eq!(approaching.headline, "Approaching spending limit");
         assert_eq!(
-            on_pace.summary,
-            "Spend this month is $1,400.00 and is on pace to reach $2,300.00 by the end of the month. The budget is $2,000.00."
+            approaching.summary,
+            "Spend this month is $1,650.00, 82% of the spending limit of $2,000.00."
+        );
+        assert!(
+            approaching
+                .details
+                .contains(&detail("Spending limit", "$2,000.00".to_string()))
+        );
+        assert!(
+            approaching
+                .details
+                .contains(&detail("Warn at", "80%".to_string()))
         );
 
-        let over = transition(TransitionKind::Escalated, Level::Critical, 2010.0);
-        let exceeded = message(&rule, "", &over, &incident());
-        assert_eq!(exceeded.headline, "Budget exceeded");
+        let daily = rule(json!({
+            "metric": "total_cost",
+            "window": { "minutes": 1440 },
+            "condition": { "type": "spending_limit", "limit": 50, "warnAtPercent": 90 },
+        }));
+        let over = transition(TransitionKind::Escalated, Level::Critical, 50.0);
+        let reached = message(&daily, "", &over, &incident());
+        assert_eq!(reached.headline, "Spending limit reached");
         assert_eq!(
-            exceeded.summary,
-            "Spend this month is $2,010.00, over the budget of $2,000.00."
+            reached.summary,
+            "Spend over the last day is $50.00 and has reached the spending limit of $50.00."
+        );
+    }
+
+    #[test]
+    fn errored_traces_are_a_plain_count() {
+        let rule = rule(json!({
+            "metric": "error_traces",
+            "window": { "minutes": 30 },
+            "condition": { "type": "value" },
+            "warning": 5,
+        }));
+        let opened = transition(TransitionKind::Opened, Level::Warning, 12.0);
+        assert_eq!(
+            message(&rule, "", &opened, &incident()).summary,
+            "Errored traces over the last 30 minutes is 12. That is above the warning threshold of 5."
         );
     }
 
