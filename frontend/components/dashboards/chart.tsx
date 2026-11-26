@@ -6,6 +6,7 @@ import { useSWRConfig } from "swr";
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { ChartType, type TableColumnConfig } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
+import { chartAlertPreset } from "@/components/dashboards/chart-alert";
 import ChartHeader from "@/components/dashboards/chart-header";
 import { useDashboardRefresh } from "@/components/dashboards/dashboard-refresh-context";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
@@ -35,6 +36,7 @@ const Chart = ({ chart }: ChartProps) => {
         .filter((c): c is string => !!c && c.length > 0),
     [settings.queryStructure]
   );
+  const alertPreset = useMemo(() => chartAlertPreset({ name, query, settings }), [name, query, settings]);
   const { projectId } = useParams();
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -195,7 +197,13 @@ const Chart = ({ chart }: ChartProps) => {
   return (
     <div className="relative h-full">
       <div className="flex flex-col border rounded-lg p-3 h-full border-border relative overflow-hidden">
-        <ChartHeader name={name} id={id} projectId={projectId as string} dashboardId={dashboardId} />
+        <ChartHeader
+          name={name}
+          id={id}
+          projectId={projectId as string}
+          dashboardId={dashboardId}
+          alertPreset={alertPreset}
+        />
         {error ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center">
             <p className="text text-muted-foreground">Error loading chart data</p>

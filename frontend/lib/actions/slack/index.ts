@@ -19,6 +19,8 @@ const SendTestNotificationSchema = z.object({
   workspaceId: z.guid(),
   channelId: z.string(),
   eventName: z.string().optional(),
+  /** Set to test a metric alert, whose message names a rule instead of an event. */
+  metricAlert: z.object({ name: z.string(), summary: z.string() }).optional(),
 });
 
 export interface SlackIntegration {
@@ -343,42 +345,49 @@ export async function getSlackChannels(workspaceId: string): Promise<GetSlackCha
   return { channels, rateLimited: false };
 }
 
+const TEST_NOTE = "This is a test notification from Laminar. Your alert is configured correctly.";
+
+const eventTestBlocks = (eventName: string) => [
+  {
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: `*Event*: \`${eventName}\``,
+    },
+  },
+  {
+    type: "markdown",
+    text: `*sample_key*:\n${TEST_NOTE}`,
+  },
+  {
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Trace",
+          emoji: true,
+        },
+        url: "https://laminar.sh",
+        action_id: "view_trace",
+      },
+    ],
+  },
+];
+
+const metricAlertTestBlocks = (alert: { name: string; summary: string }) => [
+  { type: "section", text: { type: "mrkdwn", text: `*Test: ${alert.name}*\n${alert.summary}` } },
+  { type: "context", elements: [{ type: "mrkdwn", text: TEST_NOTE }] },
+];
+
 export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {
-  const { workspaceId, channelId, eventName } = SendTestNotificationSchema.parse(input);
+  const { workspaceId, channelId, eventName, metricAlert } = SendTestNotificationSchema.parse(input);
   await assertWorkspaceHasSlack(workspaceId);
 
   const integration = await getIntegrationWithToken(workspaceId);
 
-  const displayEventName = eventName || "test_event";
-
-  const blocks = [
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `*Event*: \`${displayEventName}\``,
-      },
-    },
-    {
-      type: "markdown",
-      text: "*sample_key*:\nThis is a test notification from Laminar. Your alert is configured correctly.",
-    },
-    {
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: "View Trace",
-            emoji: true,
-          },
-          url: "https://laminar.sh",
-          action_id: "view_trace",
-        },
-      ],
-    },
-  ];
+  const blocks = metricAlert ? metricAlertTestBlocks(metricAlert) : eventTestBlocks(eventName || "test_event");
 
   const response = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",

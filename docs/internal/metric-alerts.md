@@ -47,7 +47,7 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 - Unfiltered cost and token sums, and the numerators of per-trace metrics, come from `span_metrics_1m`. Everything else comes from trace rows: `traces_agg` when the rule has no filters, `traces_v0` with the rule's filters otherwise. `series::reads_spans` / `reads_traces` decide.
 - A trace is counted in the minute its last stored span ended. Traces are found by start time, looking back 60 minutes before the window (24 h for single-trace cost), so a trace longer than that is missed. A trace still running is counted again in a later window as more spans arrive.
 - Filters go through `filters::build_where`, a whitelist of columns and operators with bound values. Never interpolate a filter value.
-- Split by model works only for span sums and per-trace metrics without filters. Each check looks at the window's top 20 models, plus any model with an open incident or a running streak.
+- Split by model works only for span sums and per-trace metrics without filters. Each check looks at the window's top 20 models, plus any model with an open incident or a running streak. A model with no rows in the window and neither of those is not checked, so a `below` rule split by model does not fire for a model that goes silent from one check to the next.
 - `query::fetch_series` reads once per project per tick and serves every due rule of that project.
 
 ## Scheduler
@@ -73,3 +73,19 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 ## Preview
 
 `POST /api/v1/projects/{project_id}/metric-alerts/preview` with `{ rule, alertId?, hours? }` replays the rule over up to 7 days (`preview::replay`) and returns the points, the incidents with their transitions, `checkIntervalMinutes`, `firesAfterMinutes` and `firedCount`. An invalid rule returns 400 with the validation message, which is the same `Rule::validate` the scheduler uses.
+
+## Frontend and CLI
+
+- **`Rule::validate` in the app-server is the only place a rule is accepted.** `POST /api/v1/projects/{project_id}/metric-alerts/validate` with `{ rule }` returns the cadence or a 400 with the message. The UI save, the preview and the CLI write path all go through `parseMetricRule` (`lib/actions/alerts/metric.ts`), which checks the shape with zod and then calls that endpoint. Add a rule constraint in Rust only; the zod schema mirrors field types, not rules.
+- `lib/actions/alerts/metric-rule.ts` and `metric-templates.ts` are client-safe (no drizzle). Client components import values only from those; `metric.ts` is server-only.
+- **Templates are one list** (`METRIC_ALERT_TEMPLATES`). The sheet turns them into form values; the CLI write API takes the same ids in `template`.
+- Read routes: `/api/projects/[projectId]/alerts/metric` (list with status; each row's small chart calls `/preview` for 24 h), `/[alertId]` (detail with incidents), `/preview`, `/validate`. Writes reuse the existing alert routes with `type: "METRIC"`: create, update, delete, mute (`toggleDisabled`) and the `snooze` PATCH action. `source_id` holds the project id because a metric alert watches no signal.
+- **CLI body** on `/api/internal/projects/:projectId/alerts`: `{ type: "METRIC", name?, template?, rule?, disabled?, notifyMe?, slackChannels? }`. `rule` is merged key by key over the template on create and over the stored rule on update, under the row lock (`mergeRulePatch`; `condition` merges one level down so its `type` survives a partial patch). A patch without `rule` or `disabled` does not re-check the rule. The CLI lists rules through SQL over `alerts`; states and incidents are not exposed to SQL.
+- The form (`components/settings/alerts/metric-alerts/metric-alert-sheet/`) keeps numbers as text and converts in `form-rule.ts` (`toRule` / `fromRule`). An empty threshold is `null`, never `0`.
+- The sheet's footer button is "Next" (`type="button"`) or "Save" (`type="submit"`) in the same place. They carry different `key`s: without them React reuses the DOM node, and the click that turns "Next" into "Save" submits the form.
+- The alert page's shaded spans come from the preview (a replay of the current rule), not from `metric_alert_incidents`: an incident row keeps its first open, last reopen and resolve times, not every stretch it was open.
+- After an edit the row can show the previous level for up to one check interval: the state is reset by the scheduler at the rule's next check, not by the save.
+- **Dashboard "Create alert"** appears only when `chartAlertPreset` (`components/dashboards/chart-alert.ts`) matches the chart to one of the four supported presets. Charts carry no preset marker, so the match is by query structure, or by normalized SQL for the default charts seeded without one. An edited preset stops matching, which is the intent.
+- Chart reference lines: `ChartContainer` forces `stroke-border` on every reference line through CSS, so threshold lines set their colour with inline `style`, not the `stroke` prop.
+- The Slack "Send test" in the sheet posts a sample metric alert message. There is no email test send.
+- Plans: metric alerts are not gated. Free workspaces get email and the panel; the sheet shows a line instead of the Slack channel picker (`useSlackAvailable`), and `handle_slack` drops Slack at delivery.

@@ -15,7 +15,7 @@ import { track } from "@/lib/posthog";
 
 interface DeleteAlertDialogProps {
   projectId: string;
-  alert: AlertWithDetails | null;
+  alert: Pick<AlertWithDetails, "id" | "name"> | null;
   onClose: () => void;
   onDeleted: () => void;
 }

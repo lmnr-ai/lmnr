@@ -1,11 +1,13 @@
-import { Copy, Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
+import { BellPlus, Copy, Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
+import ChartAlertSheet from "@/components/dashboards/chart-alert-sheet";
 import MoveChartSubmenu from "@/components/dashboards/move-chart-submenu";
 import { useWithTimeRange } from "@/components/dashboards/time-range";
 import { type DashboardChart, dragHandleKey, getChartsUrl, getDashboardsUrl } from "@/components/dashboards/types";
+import { type MetricAlertPreset } from "@/components/settings/alerts/metric-alerts/metric-alert-sheet/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,6 +25,8 @@ interface ChartHeaderProps {
   id: string;
   projectId: string;
   dashboardId: string;
+  /** Set on preset charts a metric alert can watch. */
+  alertPreset?: MetricAlertPreset | null;
 }
 
 const deleteChart = async (chartsUrl: string, id: string) => {
@@ -48,7 +52,7 @@ const updateChart = async (chartsUrl: string, id: string, name: string) => {
   });
 };
 
-const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => {
+const ChartHeader = ({ name, id, projectId, dashboardId, alertPreset }: ChartHeaderProps) => {
   const chartsUrl = getChartsUrl(projectId, dashboardId);
   // The switcher's chart counts come from the dashboards list, so adding or
   // removing a chart has to revalidate it alongside the charts themselves.
@@ -57,6 +61,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
   const withTimeRange = useWithTimeRange();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
   const { mutate } = useSWRConfig();
   const handleDeleteChart = useCallback(async () => {
     try {
@@ -177,7 +182,7 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
               <Ellipsis className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-32">
+          <DropdownMenuContent align="end" className="w-36">
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();
@@ -204,6 +209,18 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
               <Copy className="size-3.5" />
               Duplicate
             </DropdownMenuItem>
+            {alertPreset && (
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsAlertOpen(true);
+                }}
+                className="cursor-pointer"
+              >
+                <BellPlus className="size-3.5" />
+                Create alert
+              </DropdownMenuItem>
+            )}
             <MoveChartSubmenu id={id} projectId={projectId} dashboardId={dashboardId} />
             <DropdownMenuItem
               onClick={(e) => {
@@ -218,6 +235,9 @@ const ChartHeader = ({ name, id, projectId, dashboardId }: ChartHeaderProps) => 
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
+      {alertPreset && isAlertOpen && (
+        <ChartAlertSheet projectId={projectId} preset={alertPreset} open={isAlertOpen} onOpenChange={setIsAlertOpen} />
       )}
     </div>
   );

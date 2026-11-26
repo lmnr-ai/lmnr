@@ -504,17 +504,21 @@ const tableSchemas: Record<string, TableSchema> = {
   },
   alerts: {
     description:
-      "Signal alerts stored in Postgres. Join to alert_targets and alert_filters on alerts.id = alert_id, and to signals on alerts.signal_id = signals.id",
+      "Signal alerts and metric alert rules stored in Postgres. Join to alert_targets and alert_filters on alerts.id = alert_id, and to signals on alerts.signal_id = signals.id",
     columns: [
       { name: "id", type: "UUID", description: "Unique identifier for the alert" },
       { name: "name", type: "String", description: "Alert name" },
-      { name: "type", type: "String", description: "SIGNAL_EVENT or NEW_CLUSTER" },
-      { name: "signal_id", type: "UUID", description: "Id of the signal the alert watches" },
+      { name: "type", type: "String", description: "SIGNAL_EVENT, NEW_CLUSTER or METRIC" },
+      {
+        name: "signal_id",
+        type: "UUID",
+        description: "Id of the signal the alert watches. A METRIC alert holds the project id here",
+      },
       {
         name: "metadata",
         type: "String",
         description:
-          "Alert settings as a JSON object: severities (0 info, 1 warning, 2 critical), skipSimilar, disabled",
+          "Alert settings as a JSON object: severities (0 info, 1 warning, 2 critical), skipSimilar, disabled. For a METRIC alert, the rule",
       },
       { name: "created_at", type: "DateTime64(6)", description: "When the alert was created" },
     ],

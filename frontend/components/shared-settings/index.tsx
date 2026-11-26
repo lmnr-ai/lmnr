@@ -284,24 +284,13 @@ const SharedSettings = ({
       case "render-templates":
         return <RenderTemplates />;
       case "alerts":
-        if (isFree) {
-          return (
-            <>
-              <SettingsSectionHeader title="Alerts" description="Get notified about new events or clusters." />
-              <UpgradeNotice
-                title="Alerts aren't included in the Free plan"
-                description="Upgrade to Pro to get alerts on Signal events and clusters by Slack and email."
-                source="alerts"
-              />
-            </>
-          );
-        }
         return (
           <AlertsSettings
             projectId={projectId}
             workspaceId={workspaceId}
             slackClientId={slackClientId}
             slackRedirectUri={slackRedirectUri}
+            isFree={isFree}
           />
         );
       default:

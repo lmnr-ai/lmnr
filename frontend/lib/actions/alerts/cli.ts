@@ -9,11 +9,17 @@ import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { alertFilters, alerts, alertTargets, projects, signals, users } from "@/lib/db/migrations/schema";
 
+import { parseMetricRule } from "./metric";
+import { mergeRulePatch, METRIC_ALERT_TYPE, type MetricRule } from "./metric-rule";
+import { METRIC_ALERT_TEMPLATES } from "./metric-templates";
 import { ALERT_TARGET_TYPE, ALERT_TYPE, type AlertMetadata, type AlertType } from "./types";
 
 // The `lmnr-cli alert` write API (`/api/internal/projects/:projectId/alerts`, reached through
 // app-server's `/v1/cli/alerts`). It writes the same rows as the settings form. Reads go through
 // SQL (`alerts`, `alert_targets`, `alert_filters`).
+//
+// A METRIC alert carries a `rule` instead of a signal: the same JSON the metric alert form saves,
+// accepted through the same `parseMetricRule`.
 
 export class AlertApiError extends ApiError {
   constructor(message: string, status: 400 | 401 | 404) {
@@ -36,19 +42,30 @@ const UpdateAlertBodySchema = z.object({
   notifyMe: z.boolean().nullish(),
   slackChannels: z.array(z.string()).nullish(),
   filters: FilterGroupsSchema.nullish(),
+  /** METRIC only. On update the given keys replace the stored ones and the rest are kept. */
+  rule: z.record(z.string(), z.unknown()).nullish(),
 });
 
 const CreateAlertBodySchema = UpdateAlertBodySchema.extend({
-  signalId: z.guid(),
-  type: z.enum([ALERT_TYPE.SIGNAL_EVENT, ALERT_TYPE.NEW_CLUSTER]).nullish(),
+  /** Required unless the alert is a METRIC one, which watches the project. */
+  signalId: z.guid().nullish(),
+  type: z.enum([ALERT_TYPE.SIGNAL_EVENT, ALERT_TYPE.NEW_CLUSTER, METRIC_ALERT_TYPE]).nullish(),
+  /** METRIC only: the id of a template the rule starts from. `rule` keys are laid over it. */
+  template: z.string().nullish(),
 });
+
+type UpdateAlertBody = z.infer<typeof UpdateAlertBodySchema>;
+type CreateAlertBody = z.infer<typeof CreateAlertBodySchema>;
 
 export interface CliAlert {
   id: string;
   name: string;
   type: string;
-  signalId: string;
+  /** Null for METRIC alerts. */
+  signalId: string | null;
   signalName: string | null;
+  /** Set for METRIC alerts only. */
+  rule: MetricRule | null;
   /** Empty for NEW_CLUSTER alerts. */
   severities: Severity[];
   skipSimilar: boolean;
@@ -86,8 +103,12 @@ async function getCliAlert(ctx: CliAlertContext, alertId: string): Promise<CliAl
 
 export async function createCliAlert(ctx: CliAlertContext, input: unknown): Promise<CliAlert> {
   const body = CreateAlertBodySchema.parse(input);
+  if (body.type === METRIC_ALERT_TYPE) return createCliMetricAlert(ctx, body);
   const type = body.type ?? ALERT_TYPE.SIGNAL_EVENT;
-  const signal = await getSignal(ctx.projectId, body.signalId);
+  const { signalId } = body;
+  if (!signalId) throw new AlertApiError("signalId is required", 400);
+  if (body.rule || body.template) throw new AlertApiError("rule and template only apply to METRIC alerts", 400);
+  const signal = await getSignal(ctx.projectId, signalId);
   if (!signal) throw new AlertApiError("Signal not found", 404);
 
   const name = body.name == null ? `${signal.name} alert` : validateName(body.name);
@@ -109,7 +130,7 @@ export async function createCliAlert(ctx: CliAlertContext, input: unknown): Prom
   const alertId = await db.transaction(async (tx) => {
     const [alert] = await tx
       .insert(alerts)
-      .values({ projectId: ctx.projectId, name, type, sourceId: body.signalId, metadata })
+      .values({ projectId: ctx.projectId, name, type, sourceId: signalId, metadata })
       .returning({ id: alerts.id });
     await insertTargets(tx, ctx.projectId, alert.id, slack, email);
     await insertFilters(tx, ctx.projectId, alert.id, filters);
@@ -119,12 +140,56 @@ export async function createCliAlert(ctx: CliAlertContext, input: unknown): Prom
   return getCliAlert(ctx, alertId);
 }
 
+async function createCliMetricAlert(ctx: CliAlertContext, body: CreateAlertBody): Promise<CliAlert> {
+  const template = body.template == null ? null : METRIC_ALERT_TEMPLATES.find((t) => t.id === body.template);
+  if (template === undefined) {
+    const ids = METRIC_ALERT_TEMPLATES.map((t) => t.id).join(", ");
+    throw new AlertApiError(`No template "${body.template}". Templates: ${ids}`, 400);
+  }
+  if (!template && !body.rule) throw new AlertApiError("A METRIC alert needs a rule, a template, or both", 400);
+  if (body.name == null && !template) throw new AlertApiError("name is required for a METRIC alert", 400);
+  const name = body.name == null ? template!.name : validateName(body.name);
+  const rule = await metricRule(ctx.projectId, body, template?.rule ?? {});
+  const slack = await resolveSlackChannels(ctx.projectId, body.slackChannels ?? []);
+  const email = body.notifyMe === false ? null : body.notifyMe ? requireEmail(ctx.userEmail) : ctx.userEmail;
+
+  const alertId = await db.transaction(async (tx) => {
+    const [alert] = await tx
+      .insert(alerts)
+      // `alerts.source_id` is required; a metric alert's source is its project.
+      .values({ projectId: ctx.projectId, name, type: METRIC_ALERT_TYPE, sourceId: ctx.projectId, metadata: rule })
+      .returning({ id: alerts.id });
+    await insertTargets(tx, ctx.projectId, alert.id, slack, email);
+    return alert.id;
+  });
+
+  return getCliAlert(ctx, alertId);
+}
+
+function rejectSignalFields(body: UpdateAlertBody) {
+  if (body.severities || body.skipSimilar != null || body.filters) {
+    throw new AlertApiError(
+      "severities, skipSimilar and filters only apply to SIGNAL_EVENT alerts. A METRIC alert filters traces with rule.filters.",
+      400
+    );
+  }
+}
+
+/** The stored rule with the body's `rule` keys and `disabled` laid over it, accepted by the engine. */
+async function metricRule(projectId: string, body: UpdateAlertBody, stored: Record<string, unknown>) {
+  rejectSignalFields(body);
+  return parseMetricRule(projectId, {
+    ...mergeRulePatch(stored, body.rule),
+    ...(body.disabled != null && { disabled: body.disabled }),
+  });
+}
+
 /** A partial patch: omitted fields keep their stored value. `slackChannels` and `filters` replace the whole list. */
 export async function updateCliAlert(ctx: CliAlertContext, alertId: string, input: unknown): Promise<CliAlert> {
   const body = UpdateAlertBodySchema.parse(input);
   if (Object.values(body).every((v) => v == null)) {
     throw new AlertApiError(
-      "Nothing to update. Pass at least one of name, severities, skipSimilar, disabled, notifyMe, slackChannels, filters.",
+      "Nothing to update. Pass at least one of name, severities, skipSimilar, disabled, notifyMe, slackChannels, filters, rule.",
       400
     );
   }
@@ -140,17 +205,27 @@ export async function updateCliAlert(ctx: CliAlertContext, alertId: string, inpu
       .where(and(eq(alerts.id, alertId), eq(alerts.projectId, ctx.projectId)))
       .for("update");
     if (!stored) throw new AlertApiError("Alert not found", 404);
+    const isMetric = stored.type === METRIC_ALERT_TYPE;
+    if (body.rule && !isMetric) throw new AlertApiError("rule only applies to METRIC alerts", 400);
     const type = stored.type as AlertType;
 
-    const metadata = buildMetadata(
-      type,
-      {
-        severities: body.severities ?? undefined,
-        skipSimilar: body.skipSimilar ?? undefined,
-        disabled: body.disabled ?? undefined,
-      },
-      (stored.metadata as AlertMetadata) ?? {}
-    );
+    // The rule is checked under the row lock so two patches cannot both merge over the same stored rule.
+    // A patch of only the name or the targets leaves the stored rule as it is.
+    const changesRule = body.rule != null || body.disabled != null;
+    if (isMetric && !changesRule) rejectSignalFields(body);
+    const metadata = isMetric
+      ? changesRule
+        ? await metricRule(ctx.projectId, body, (stored.metadata as Record<string, unknown>) ?? {})
+        : undefined
+      : buildMetadata(
+          type,
+          {
+            severities: body.severities ?? undefined,
+            skipSimilar: body.skipSimilar ?? undefined,
+            disabled: body.disabled ?? undefined,
+          },
+          (stored.metadata as AlertMetadata) ?? {}
+        );
     let filters: Filter[][] | null = null;
     if (body.filters != null) {
       const signal = await getSignal(ctx.projectId, stored.sourceId);
@@ -160,10 +235,13 @@ export async function updateCliAlert(ctx: CliAlertContext, alertId: string, inpu
       filters = validateFilters(type, body.filters, signal.structuredOutputSchema);
     }
 
-    await tx
-      .update(alerts)
-      .set({ metadata, ...(name !== undefined && { name }) })
-      .where(and(eq(alerts.id, alertId), eq(alerts.projectId, ctx.projectId)));
+    const changes = { ...(metadata !== undefined && { metadata }), ...(name !== undefined && { name }) };
+    if (Object.keys(changes).length > 0) {
+      await tx
+        .update(alerts)
+        .set(changes)
+        .where(and(eq(alerts.id, alertId), eq(alerts.projectId, ctx.projectId)));
+    }
     if (slack) {
       await tx.delete(alertTargets).where(targetsOf(ctx.projectId, alertId, ALERT_TARGET_TYPE.SLACK));
     }
@@ -228,12 +306,14 @@ async function queryAlerts(ctx: CliAlertContext, where: ReturnType<typeof and>):
   return rows.map((row) => {
     const metadata = (row.metadata as AlertMetadata) ?? {};
     const own = targets.filter((t) => t.alertId === row.id);
+    const isMetric = row.type === METRIC_ALERT_TYPE;
     return {
       id: row.id,
       name: row.name,
       type: row.type,
-      signalId: row.signalId,
+      signalId: isMetric ? null : row.signalId,
       signalName: row.signalName,
+      rule: isMetric ? (metadata as MetricRule) : null,
       severities: row.type === ALERT_TYPE.SIGNAL_EVENT ? storedSeverities(metadata) : [],
       skipSimilar: metadata.skipSimilar === true,
       disabled: metadata.disabled === true,
