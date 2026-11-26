@@ -29,10 +29,11 @@ const MODEL_COSTS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 /// Cache invalidation handles the common case, but this limits the blast
 /// radius if invalidation misses a variant (e.g. uncommon model name form).
 const MODEL_COSTS_NEGATIVE_CACHE_TTL_SECONDS: u64 = 60 * 30; // 30 minutes
-/// Custom model costs are project-specific, user-entered entries that change
-/// infrequently, and every write path (`upsertCustomModelCost`, delete, copy)
-/// explicitly invalidates the affected cache key. So a positive hit can be
-/// cached much longer than universal model costs without risking staleness.
+/// Custom model costs are project-specific, user-entered entries. Redis is
+/// shared by the frontend and app-server, so its invalidation path keeps these
+/// long-lived entries coherent. The app-server bypasses this cache when it is
+/// using the process-local in-memory backend: frontend writes cannot invalidate
+/// another process's in-memory entries.
 const CUSTOM_MODEL_COSTS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 30; // 30 days
 
 /// Costs JSON blob from the `model_costs` table, cached as-is.
@@ -141,7 +142,8 @@ impl ModelInfo {
 /// Look up custom model costs for a specific project, then fall back to universal costs.
 ///
 /// Priority:
-/// 1. Project-specific custom model costs (cache → DB)
+/// 1. Project-specific custom model costs (shared Redis cache → DB; local
+///    in-memory cache is bypassed)
 /// 2. Universal model costs (cache → DB)
 pub async fn get_model_costs_for_project(
     db: Arc<DB>,
@@ -172,7 +174,11 @@ pub async fn get_model_costs_for_project(
     get_model_costs(db, cache, model_info).await
 }
 
-/// Look up custom model costs for a project from cache or DB.
+/// Look up custom model costs for a project from Redis or the database.
+///
+/// The process-local in-memory cache is deliberately bypassed. Custom-cost
+/// writes happen in the frontend process, so an in-memory app-server entry
+/// cannot be invalidated reliably without a shared Redis backend.
 /// Uses exact model name match — custom costs are user-entered, so
 /// the span's model string must match the DB entry exactly.
 async fn get_custom_model_costs(
@@ -191,18 +197,21 @@ async fn get_custom_model_costs(
         CUSTOM_MODEL_COSTS_CACHE_KEY, project_id, provider, model
     );
 
-    // Check cache first
-    match cache.get::<Option<ModelCosts>>(&cache_key).await {
-        Ok(Some(maybe_costs)) => {
-            return maybe_costs;
-        }
-        Ok(None) => {} // Cache miss
-        Err(e) => {
-            log::warn!(
-                "Cache error looking up custom model costs for {}: {:?}",
-                cache_key,
-                e
-            );
+    if custom_model_cost_cache_enabled(cache.as_ref()) {
+        // Check the shared cache first. InMemory is intentionally excluded;
+        // the frontend cannot invalidate another process's local cache.
+        match cache.get::<Option<ModelCosts>>(&cache_key).await {
+            Ok(Some(maybe_costs)) => {
+                return maybe_costs;
+            }
+            Ok(None) => {} // Cache miss
+            Err(e) => {
+                log::warn!(
+                    "Cache error looking up custom model costs for {}: {:?}",
+                    cache_key,
+                    e
+                );
+            }
         }
     }
 
@@ -230,15 +239,26 @@ async fn get_custom_model_costs(
         }
     };
 
-    // Cache the result (positive or negative)
-    let ttl = if result.is_some() {
-        CUSTOM_MODEL_COSTS_CACHE_TTL_SECONDS
-    } else {
-        MODEL_COSTS_NEGATIVE_CACHE_TTL_SECONDS
-    };
-    let _ = cache.insert_with_ttl(&cache_key, result.clone(), ttl).await;
+    if custom_model_cost_cache_enabled(cache.as_ref()) {
+        // Cache positive and negative results only in shared Redis. An
+        // in-memory cache would make a frontend write invisible to this
+        // process until TTL expiry or restart.
+        let ttl = if result.is_some() {
+            CUSTOM_MODEL_COSTS_CACHE_TTL_SECONDS
+        } else {
+            MODEL_COSTS_NEGATIVE_CACHE_TTL_SECONDS
+        };
+        let _ = cache.insert_with_ttl(&cache_key, result.clone(), ttl).await;
+    }
 
     result
+}
+
+/// Custom costs may be cached only when the cache is shared with the frontend.
+/// The in-memory backend is process-local, so a frontend write cannot
+/// invalidate an app-server entry in another process.
+fn custom_model_cost_cache_enabled(cache: &Cache) -> bool {
+    matches!(cache, Cache::Redis(_))
 }
 
 /// Look up model costs from cache or DB, trying lookup keys in priority order.

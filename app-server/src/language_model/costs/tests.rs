@@ -1,7 +1,12 @@
-use serde_json::json;
+use serde_json::{Value, json};
+use std::{str::FromStr, sync::Arc};
+use uuid::Uuid;
 
 use super::cost_calculator::{SpanCostInput, calculate_span_cost, find_applicable_threshold};
 use super::{ModelCosts, ModelInfo};
+
+use crate::cache::{Cache, CacheTrait, in_memory::InMemoryCache};
+use crate::db::DB;
 
 fn make_costs(value: serde_json::Value) -> ModelCosts {
     ModelCosts(value)
@@ -9,6 +14,354 @@ fn make_costs(value: serde_json::Value) -> ModelCosts {
 
 fn default_input() -> SpanCostInput {
     SpanCostInput::default()
+}
+
+#[test]
+fn custom_cost_cache_policy_bypasses_process_local_cache() {
+    let cache = Cache::InMemory(InMemoryCache::new(None));
+
+    assert!(!super::custom_model_cost_cache_enabled(&cache));
+}
+
+/// A stale local entry must never satisfy a custom-cost lookup. The database
+/// endpoint is deliberately unreachable, so a regression that re-enables the
+/// in-memory read returns the seeded value while the correct policy returns
+/// `None` after the database attempt fails.
+#[tokio::test]
+async fn in_memory_custom_cost_lookup_does_not_return_stale_entry() {
+    let project_id = Uuid::new_v4();
+    let provider = "openai";
+    let model = "gpt-test";
+    let cache_key = format!("custom_model_costs:{project_id}:{provider}:{model}");
+    let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+    cache
+        .insert(
+            &cache_key,
+            Some(ModelCosts(json!({
+                "input_cost_per_token": 999.0,
+            }))),
+        )
+        .await
+        .unwrap();
+
+    let db = Arc::new(DB {
+        pool: sqlx::postgres::PgPoolOptions::new()
+            .acquire_timeout(std::time::Duration::from_millis(100))
+            .connect_lazy("postgres://127.0.0.1:1/lmnr-unused")
+            .unwrap(),
+    });
+
+    let result = super::get_custom_model_costs(db, cache, provider, model, &project_id).await;
+
+    assert!(result.is_none());
+}
+
+/// This is intentionally opt-in: it creates and drops a uniquely named schema
+/// in the database named by TEST_DATABASE_URL. It never reads DATABASE_URL or
+/// any of the app-server's normal database settings.
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL and a reachable PostgreSQL instance"]
+async fn in_memory_custom_costs_track_create_update_and_delete() {
+    let Ok(database_url) = std::env::var("TEST_DATABASE_URL") else {
+        eprintln!("skipping: TEST_DATABASE_URL is not set");
+        return;
+    };
+
+    let admin_pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .expect("TEST_DATABASE_URL must point to a reachable PostgreSQL database");
+    let schema = generated_test_schema_name();
+    // Arm cleanup before CREATE SCHEMA: if the server commits the DDL but the
+    // client observes a transport error, the guard still attempts to remove
+    // the generated schema during unwinding.
+    let mut schema_guard =
+        TestSchemaGuard::new(admin_pool.clone(), database_url.clone(), schema.clone());
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE SCHEMA {}",
+        quote_test_schema_identifier(&schema)
+    )))
+    .execute(&admin_pool)
+    .await
+    .expect("the generated test schema should be creatable");
+
+    let isolated_options = sqlx::postgres::PgConnectOptions::from_str(&database_url)
+        .expect("TEST_DATABASE_URL must be a valid PostgreSQL URL")
+        .options([("search_path", schema.as_str())]);
+    let isolated_pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(4)
+        .connect_with(isolated_options)
+        .await
+        .expect("the isolated test pool should connect");
+    sqlx::query(
+        "CREATE TABLE custom_model_costs (
+            id uuid PRIMARY KEY,
+            project_id uuid NOT NULL,
+            provider text NOT NULL,
+            model text NOT NULL,
+            costs jsonb NOT NULL,
+            UNIQUE (project_id, provider, model)
+        )",
+    )
+    .execute(&isolated_pool)
+    .await
+    .expect("the isolated custom_model_costs table should be creatable");
+
+    let db = Arc::new(DB {
+        pool: isolated_pool.clone(),
+    });
+    let reader_cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+    let writer_cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+    let project_id = Uuid::new_v4();
+    let provider = "openai";
+    let model = "gpt-test";
+    let cache_key = format!("custom_model_costs:{project_id}:{provider}:{model}");
+
+    // Seed a negative entry in the reader process. A frontend write can clear
+    // only its own local cache, represented here by the distinct writer cache.
+    reader_cache
+        .insert(&cache_key, None::<ModelCosts>)
+        .await
+        .unwrap();
+    writer_cache.remove(&cache_key).await.unwrap();
+    assert!(
+        super::get_custom_model_costs(
+            db.clone(),
+            reader_cache.clone(),
+            provider,
+            model,
+            &project_id,
+        )
+        .await
+        .is_none(),
+        "missing custom costs should remain a miss"
+    );
+
+    let created = json!({"input_cost_per_token": 0.1});
+    insert_custom_cost(&isolated_pool, project_id, provider, model, &created).await;
+    writer_cache.remove(&cache_key).await.unwrap();
+    let result = super::get_custom_model_costs(
+        db.clone(),
+        reader_cache.clone(),
+        provider,
+        model,
+        &project_id,
+    )
+    .await
+    .expect("the newly created custom cost must be visible immediately");
+    assert_eq!(result.0, created);
+    assert!(
+        matches!(
+            reader_cache
+                .get::<Option<ModelCosts>>(&cache_key)
+                .await
+                .unwrap(),
+            Some(None)
+        ),
+        "the in-memory reader cache must not be rewritten by the lookup"
+    );
+
+    // Seed an old positive value, then update and delete it from the database.
+    // Both writes clear only the distinct writer cache; the reader's stale
+    // value remains present and therefore catches any accidental local read.
+    let old = json!({"input_cost_per_token": 0.2});
+    let updated = json!({"input_cost_per_token": 0.3});
+    reader_cache
+        .insert(&cache_key, Some(ModelCosts(old)))
+        .await
+        .unwrap();
+    update_custom_cost(&isolated_pool, project_id, provider, model, &updated).await;
+    writer_cache.remove(&cache_key).await.unwrap();
+    let result = super::get_custom_model_costs(
+        db.clone(),
+        reader_cache.clone(),
+        provider,
+        model,
+        &project_id,
+    )
+    .await
+    .expect("the updated custom cost must bypass the stale local value");
+    assert_eq!(result.0, updated);
+
+    delete_custom_cost(&isolated_pool, project_id, provider, model).await;
+    writer_cache.remove(&cache_key).await.unwrap();
+    assert!(
+        super::get_custom_model_costs(db, reader_cache, provider, model, &project_id,)
+            .await
+            .is_none(),
+        "deleting a custom cost must be visible despite a stale local value"
+    );
+
+    isolated_pool.close().await;
+    schema_guard
+        .cleanup()
+        .await
+        .expect("the generated test schema should be cleaned up");
+}
+
+struct TestSchemaGuard {
+    admin_pool: sqlx::PgPool,
+    database_url: String,
+    schema: String,
+    cleaned: bool,
+}
+
+impl TestSchemaGuard {
+    fn new(admin_pool: sqlx::PgPool, database_url: String, schema: String) -> Self {
+        Self {
+            admin_pool,
+            database_url,
+            schema,
+            cleaned: false,
+        }
+    }
+
+    async fn cleanup(&mut self) -> Result<(), sqlx::Error> {
+        let query = sqlx::AssertSqlSafe(format!(
+            "DROP SCHEMA {} CASCADE",
+            quote_test_schema_identifier(&self.schema)
+        ));
+        let result = sqlx::query(query).execute(&self.admin_pool).await;
+        if result.is_ok() {
+            self.cleaned = true;
+        }
+        self.admin_pool.close().await;
+        result.map(|_| ())
+    }
+}
+
+impl Drop for TestSchemaGuard {
+    fn drop(&mut self) {
+        if self.cleaned {
+            return;
+        }
+
+        // A task spawned on the test runtime is not reliable here: a panic
+        // tears down that runtime immediately after Drop runs. Use a small
+        // independent runtime on a blocking thread so ordinary assertion and
+        // setup failures still remove the generated schema before the test
+        // process continues.
+        let database_url = self.database_url.clone();
+        let schema = self.schema.clone();
+        let schema_for_cleanup = schema.clone();
+        let cleanup = std::thread::spawn(move || {
+            cleanup_test_schema_blocking(&database_url, &schema_for_cleanup)
+        });
+        if let Err(error) = cleanup.join() {
+            eprintln!("failed to clean up test schema {schema}: thread panicked: {error:?}");
+        }
+    }
+}
+
+fn generated_test_schema_name() -> String {
+    format!("lmnr_custom_costs_{}", Uuid::new_v4().simple())
+}
+
+/// The schema name is used in raw DDL because PostgreSQL cannot bind an
+/// identifier as a parameter. Keep the interpolation safe by accepting only
+/// the fixed prefix plus the 32 lowercase hexadecimal characters emitted by
+/// Uuid::simple().
+fn quote_test_schema_identifier(schema: &str) -> String {
+    const PREFIX: &str = "lmnr_custom_costs_";
+    let suffix = schema
+        .strip_prefix(PREFIX)
+        .expect("test schema must use the generated prefix");
+    assert_eq!(
+        suffix.len(),
+        32,
+        "test schema suffix must be the 32-character Uuid::simple() form"
+    );
+    assert!(
+        suffix
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()),
+        "test schema suffix must contain only lowercase hexadecimal characters"
+    );
+    format!("\"{schema}\"")
+}
+
+fn cleanup_test_schema_blocking(database_url: &str, schema: &str) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("cleanup runtime should build");
+    runtime.block_on(async {
+        let pool = match sqlx::postgres::PgPoolOptions::new()
+            .max_connections(1)
+            .connect(database_url)
+            .await
+        {
+            Ok(pool) => pool,
+            Err(error) => {
+                eprintln!("failed to connect for test-schema cleanup {schema}: {error}");
+                return;
+            }
+        };
+        let query = sqlx::AssertSqlSafe(format!(
+            "DROP SCHEMA {} CASCADE",
+            quote_test_schema_identifier(schema)
+        ));
+        if let Err(error) = sqlx::query(query).execute(&pool).await {
+            eprintln!("failed to clean up test schema {schema}: {error}");
+        }
+        pool.close().await;
+    });
+}
+
+async fn insert_custom_cost(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    provider: &str,
+    model: &str,
+    costs: &Value,
+) {
+    sqlx::query(
+        "INSERT INTO custom_model_costs (id, project_id, provider, model, costs)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(project_id)
+    .bind(provider)
+    .bind(model)
+    .bind(costs)
+    .execute(pool)
+    .await
+    .expect("custom cost insert should succeed");
+}
+
+async fn update_custom_cost(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    provider: &str,
+    model: &str,
+    costs: &Value,
+) {
+    sqlx::query(
+        "UPDATE custom_model_costs
+         SET costs = $1
+         WHERE project_id = $2 AND provider = $3 AND model = $4",
+    )
+    .bind(costs)
+    .bind(project_id)
+    .bind(provider)
+    .bind(model)
+    .execute(pool)
+    .await
+    .expect("custom cost update should succeed");
+}
+
+async fn delete_custom_cost(pool: &sqlx::PgPool, project_id: Uuid, provider: &str, model: &str) {
+    sqlx::query(
+        "DELETE FROM custom_model_costs
+         WHERE project_id = $1 AND provider = $2 AND model = $3",
+    )
+    .bind(project_id)
+    .bind(provider)
+    .bind(model)
+    .execute(pool)
+    .await
+    .expect("custom cost delete should succeed");
 }
 
 // ===== ModelInfo extraction tests =====
