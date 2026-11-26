@@ -11,6 +11,7 @@ use crate::utils::truncate_chars;
 
 const CAMPAIGN: &str = "metric_alert";
 // Slack caps a `header` at 150 characters and a section at 10 fields.
+const MAX_HEADER_CHARS: usize = 150;
 const MAX_SUBJECT_CHARS: usize = 100;
 const MAX_FIELDS: usize = 10;
 
@@ -91,7 +92,10 @@ fn actions(alert: &MetricAlertNotification) -> Value {
 
 /// The message that starts an incident's thread in a channel.
 pub fn message_blocks(alert: &MetricAlertNotification) -> Value {
-    let header = format!("{} {}", level_emoji(alert.level), title(alert));
+    let header = truncate_chars(
+        &format!("{} {}", level_emoji(alert.level), title(alert)),
+        MAX_HEADER_CHARS,
+    );
     let statline = format!(
         "*{}* · {}",
         escape_mrkdwn(&alert.project_name),
@@ -231,5 +235,16 @@ mod tests {
         let header = blocks[0]["text"]["text"].as_str().unwrap();
         assert!(header.chars().count() <= 150);
         assert_eq!(fallback_text(&opened), header[":red_circle: ".len()..]);
+
+        // The longest emoji and headline together.
+        let mut reminder = alert(
+            TransitionKind::Reminder,
+            Level::Warning,
+            "Still on pace to exceed budget",
+        );
+        reminder.alert_name = "x".repeat(400);
+        let blocks = message_blocks(&reminder);
+        let header = blocks[0]["text"]["text"].as_str().unwrap();
+        assert_eq!(header.chars().count(), 150);
     }
 }
