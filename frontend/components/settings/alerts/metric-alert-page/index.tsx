@@ -45,7 +45,7 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
   const [editing, setEditing] = useState(false);
 
   // Asked on its own: the replay behind the chart can be slow or fail.
-  const { cadence } = useRuleCheck(projectId, alert?.rule ?? null);
+  const { cadence } = useRuleCheck(projectId, alert?.rule ?? null, { refreshMs: REFRESH_MS });
   const openIncident = alert?.incidents.find((incident) => !incident.resolvedAt);
 
   return (

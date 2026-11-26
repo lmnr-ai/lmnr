@@ -51,7 +51,7 @@ export default function SheetForm({ alert, defaultValues, skipTemplate, onSaved,
   const parsed = MetricRuleSchema.safeParse(rule);
   // The rule is only judged once its thresholds have been asked for.
   const showCheck = index >= steps.indexOf("condition");
-  const check = useRuleCheck(projectId, rule, showCheck);
+  const check = useRuleCheck(projectId, rule, { enabled: showCheck });
   const { cadence, isChecking } = check;
   const error = (parsed.success ? undefined : wholeNumberError(parsed.error)) ?? check.error;
   const save = useSaveMetricAlert({ projectId, userEmail, integrationId, alert, onSaved });

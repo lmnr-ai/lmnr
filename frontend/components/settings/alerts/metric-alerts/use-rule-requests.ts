@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import useSWR from "swr";
+import useSWR, { type SWRConfiguration } from "swr";
 
 import { type MetricRuleInput, type MetricRulePreview, type RuleCadence } from "@/lib/actions/alerts/metric-rule";
 import { fetchApi } from "@/lib/api/fetch-api";
@@ -27,6 +27,19 @@ const post = async <T>([url, body]: [string, string]): Promise<T> => {
 
 const SWR_OPTIONS = { keepPreviousData: true, revalidateOnFocus: false, shouldRetryOnError: false };
 
+// SWR stops refreshing while its last answer is an error, so a page that
+// stays open asks again at the same pace.
+const polling = (refreshMs?: number): SWRConfiguration =>
+  refreshMs
+    ? {
+        refreshInterval: refreshMs,
+        shouldRetryOnError: true,
+        onErrorRetry: (_error, _key, _config, revalidate, options) => {
+          setTimeout(() => revalidate(options), refreshMs);
+        },
+      }
+    : {};
+
 interface Options {
   /** Hours of history to replay. */
   hours: number;
@@ -49,7 +62,7 @@ export const useRulePreview = (projectId: string, rule: MetricRuleInput | null, 
 
   const { data, error, isLoading } = useSWR<MetricRulePreview, Error>(key, post<MetricRulePreview>, {
     ...SWR_OPTIONS,
-    refreshInterval: options.refreshMs,
+    ...polling(options.refreshMs),
   });
 
   return {
@@ -59,13 +72,23 @@ export const useRulePreview = (projectId: string, rule: MetricRuleInput | null, 
   };
 };
 
-/** Asks whether a rule can be saved, and how often it would be checked. Touches no stored data. */
-export const useRuleCheck = (projectId: string, rule: MetricRuleInput | null, enabled = true) => {
+/**
+ * Asks whether a rule can be saved, and how often it would be checked. Touches no stored data.
+ * With `refreshMs` it is asked again that often, also after a failed call.
+ */
+export const useRuleCheck = (
+  projectId: string,
+  rule: MetricRuleInput | null,
+  { enabled = true, refreshMs }: { enabled?: boolean; refreshMs?: number } = {}
+) => {
   const body = rule ? JSON.stringify({ rule }) : null;
   const settled = useDebounced(body, DEBOUNCE_MS);
   const key = enabled && settled ? [`/api/projects/${projectId}/alerts/metric/validate`, settled] : null;
 
-  const { data, error, isLoading } = useSWR<RuleCadence, Error>(key, post<RuleCadence>, SWR_OPTIONS);
+  const { data, error, isLoading } = useSWR<RuleCadence, Error>(key, post<RuleCadence>, {
+    ...SWR_OPTIONS,
+    ...polling(refreshMs),
+  });
 
   return {
     cadence: error ? undefined : data,
