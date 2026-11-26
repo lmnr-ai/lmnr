@@ -13,21 +13,25 @@ use crate::ch::span_metrics::{MinuteRange, get_span_metrics};
 
 use super::{
     filters::{Bind, FilterSql, build_where},
-    rule::{Filter, Metric, Rule},
+    rule::{Filter, Metric, Rule, Window},
     series::{LATENCY_BUCKET_BASE, Minutes, Series, merge_ranges, reads_spans, reads_traces},
 };
 
+const MIN_TRACE_LOOKBACK_MINUTES: i64 = 60;
+const MAX_TRACE_LOOKBACK_MINUTES: i64 = 24 * 60;
+
 /// A trace is found by its start time, so a scan starts this long before the
 /// window. A trace that ran longer is left out of every scan, so a rule counts
-/// the same traces whichever ranges it is read with.
-const TRACE_LOOKBACK_MINUTES: i64 = 60;
-/// Single-trace cost rules exist to catch long runaway traces.
-const TRACE_COST_LOOKBACK_MINUTES: i64 = 24 * 60;
-
-fn lookback_minutes(metric: Metric) -> i64 {
-    match metric {
-        Metric::TraceCost => TRACE_COST_LOOKBACK_MINUTES,
-        _ => TRACE_LOOKBACK_MINUTES,
+/// the same traces whichever ranges it is read with. The lookback is at least
+/// the window, up to a day, so a trace that started inside the window counts.
+fn lookback_minutes(rule: &Rule) -> i64 {
+    match rule.window {
+        Window::Minutes { minutes } if rule.metric != Metric::TraceCost => {
+            (minutes as i64).clamp(MIN_TRACE_LOOKBACK_MINUTES, MAX_TRACE_LOOKBACK_MINUTES)
+        }
+        // The month so far, and single-trace cost rules, which exist to catch
+        // long runaway traces.
+        _ => MAX_TRACE_LOOKBACK_MINUTES,
     }
 }
 
@@ -222,7 +226,7 @@ pub async fn get_trace_cost_p99(
 fn trace_read_key(rule: &Rule, filter: &FilterSql) -> String {
     format!(
         "{}|{}|{:?}",
-        lookback_minutes(rule.metric),
+        lookback_minutes(rule),
         filter.sql,
         filter.binds
     )
@@ -256,7 +260,7 @@ pub async fn fetch_series(
         let key = trace_read_key(check.rule, &filter);
         let read = trace_reads.entry(key.clone()).or_insert_with(|| TraceRead {
             filter,
-            lookback: lookback_minutes(check.rule.metric),
+            lookback: lookback_minutes(check.rule),
             ..Default::default()
         });
         read.ranges.extend(check.ranges.iter().copied());
@@ -332,18 +336,28 @@ mod tests {
 
     #[test]
     fn a_longer_lookback_gets_its_own_scan() {
-        let rule = |metric: &str| {
+        let rule = |metric: &str, minutes: u32| {
             Rule::parse(&json!({
                 "metric": metric,
-                "window": { "minutes": 5 },
+                "window": { "minutes": minutes },
                 "condition": { "type": "value" },
                 "warning": 100,
             }))
             .unwrap()
         };
-        let key = |metric: &str| trace_read_key(&rule(metric), &trace_filter(&[]).unwrap());
+        let lookback = |metric: &str, minutes: u32| lookback_minutes(&rule(metric, minutes));
+        let key = |metric: &str, minutes: u32| {
+            trace_read_key(&rule(metric, minutes), &trace_filter(&[]).unwrap())
+        };
 
-        assert_eq!(key("trace_count"), key("error_rate"));
-        assert_ne!(key("trace_count"), key("trace_cost"));
+        // Never shorter than the window, so a trace that started in it counts.
+        assert_eq!(lookback("trace_count", 5), 60);
+        assert_eq!(lookback("trace_count", 60), 60);
+        assert_eq!(lookback("trace_count", 1440), 1440);
+        assert_eq!(lookback("trace_cost", 5), 1440);
+
+        assert_eq!(key("trace_count", 5), key("error_rate", 60));
+        assert_ne!(key("trace_count", 5), key("trace_count", 1440));
+        assert_ne!(key("trace_count", 5), key("trace_cost", 5));
     }
 }
