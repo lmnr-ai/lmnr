@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { ApiError, NotFoundError } from "@/lib/api/errors";
-import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { agents, agentVersions } from "@/lib/db/migrations/schema";
 
@@ -42,7 +41,7 @@ export async function deleteAgentVersion(input: z.infer<typeof DeleteAgentVersio
   const { projectId, agentId, versionId } = DeleteAgentVersionSchema.parse(input);
 
   await db.transaction(async (tx) => {
-    // Serializes an agent's deletes, so each one maps every deleted version onto a version still shown.
+    // Serializes an agent's deletes, so each one sees the others when it re-points `shown_version_hash`.
     const [agent] = await tx
       .select({ id: agents.id })
       .from(agents)
@@ -56,41 +55,26 @@ export async function deleteAgentVersion(input: z.infer<typeof DeleteAgentVersio
         versionHash: agentVersions.versionHash,
         versionNumber: agentVersions.versionNumber,
         deletedAt: agentVersions.deletedAt,
+        shownVersionHash: agentVersions.shownVersionHash,
       })
       .from(agentVersions)
       .where(and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId)));
     const version = versions.find((v) => v.id === versionId && !v.deletedAt);
     if (!version) throw new NotFoundError("Version not found");
     if (version.versionNumber === 1) throw new ApiError("v1 can't be deleted.", 400);
-
     version.deletedAt = new Date().toISOString();
-    await tx.update(agentVersions).set({ deletedAt: version.deletedAt }).where(eq(agentVersions.id, versionId));
-    // Inside the transaction, so a failed ClickHouse write rolls the delete back.
-    await writeDeletedVersions(projectId, versions);
-  });
-}
 
-/** Rewrites where each of an agent's deleted versions is shown, for the traces views' `agent_versions`. */
-async function writeDeletedVersions(
-  projectId: string,
-  versions: (VersionRef & { versionHash: string })[]
-): Promise<void> {
-  const shownAs = shownVersionIds(versions);
-  const hashById = new Map(versions.map((v) => [v.id, v.versionHash]));
-  const updatedAt = new Date().toISOString();
-  const rows = versions.flatMap((v) => {
-    const shownHash = hashById.get(shownAs.get(v.id) ?? "");
-    if (!v.deletedAt || !shownHash) return [];
-    return [
-      { project_id: projectId, version_hash: v.versionHash, shown_version_hash: shownHash, updated_at: updatedAt },
-    ];
-  });
-
-  // Sync, so the refetch right after the delete already reads the new mapping.
-  await clickhouseClient.insert({
-    table: "deleted_agent_versions",
-    values: rows,
-    format: "JSONEachRow",
-    clickhouse_settings: { async_insert: 0 },
+    // Versions shown under this one move to the version it is now shown under.
+    const shownAs = shownVersionIds(versions);
+    const hashById = new Map(versions.map((v) => [v.id, v.versionHash]));
+    for (const v of versions) {
+      const shownVersionHash = hashById.get(shownAs.get(v.id) ?? "");
+      if (!v.deletedAt || !shownVersionHash) continue;
+      if (v.id !== versionId && v.shownVersionHash === shownVersionHash) continue;
+      await tx
+        .update(agentVersions)
+        .set({ deletedAt: v.deletedAt, shownVersionHash })
+        .where(eq(agentVersions.id, v.id));
+    }
   });
 }
