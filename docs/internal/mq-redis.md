@@ -26,7 +26,7 @@
 - **Every message in one retry queue MUST carry the same TTL.** RabbitMQ expires messages only at the head of a queue, so a longer TTL holds up shorter ones behind it. Exponential backoff needs one queue per delay tier, not a varying `delay_ms`. Same constraint as the signals park queues. Priorities do not weaken this: a quorum queue runs its expiry scan **per priority level**, stopping at each level's first unexpired message, so the rule holds level by level and a park queue can carry mixed bands safely.
 - **`park_for_retry` echoes the delivery's priority instead of recomputing it** (`MessageQueueDeliveryTrait::priority` → `publish_retry`). See the priority section below for why the plumbing runs that way.
 - **Two fallbacks to an immediate requeue, both load-bearing:** no `RetryConfig` on the queue, and a failed retry publish. Several transient causes ARE broker failures (a failed `push_to_*`), so parking in the broker can't be assumed to work, and the in-memory `TokioMpscQueue` refuses `publish_retry` outright (it has neither TTL nor dead-lettering) — which is what keeps local dev on the pre-existing behavior with no transport sniffing at the call site.
-- Publish-then-ack has a duplicate window: an ack failure after a successful publish redelivers the original too. Accepted — millisecond-wide, and the signals pipeline already tolerates duplicate runs (see `docs/internal/signals.md`, "Signal Triggers").
+- Publish-then-ack has a duplicate window: an ack failure after a successful publish redelivers the original too. Accepted — millisecond-wide, and the signals pipeline already tolerates duplicate runs.
 
 ## Message priority on quorum queues (LAM-2264)
 
