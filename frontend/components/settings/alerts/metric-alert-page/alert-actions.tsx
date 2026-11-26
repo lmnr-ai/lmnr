@@ -22,7 +22,8 @@ const SNOOZE_HOURS = [
 
 interface AlertActionsProps {
   alert: MetricAlert;
-  tracesHref: string;
+  /** `null` while the range of the open incident is not known. */
+  tracesHref: string | null;
   isPending: boolean;
   onSnooze: (until: Date | null) => void;
   onMute: (muted: boolean) => void;
@@ -35,11 +36,18 @@ export default function AlertActions({ alert, tracesHref, isPending, onSnooze, o
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button asChild variant="outline" className="gap-2">
-        <Link href={tracesHref}>
-          <ExternalLink className="size-3.5" />
-          Open traces
-        </Link>
+      <Button asChild={!!tracesHref} variant="outline" className="gap-2" disabled={!tracesHref}>
+        {tracesHref ? (
+          <Link href={tracesHref}>
+            <ExternalLink className="size-3.5" />
+            Open traces
+          </Link>
+        ) : (
+          <>
+            <ExternalLink className="size-3.5" />
+            Open traces
+          </>
+        )}
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

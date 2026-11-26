@@ -14,7 +14,7 @@ import { PREVIEW_HOURS } from "../metric-alerts/constants";
 import MetricAlertSheet from "../metric-alerts/metric-alert-sheet";
 import StatusPill from "../metric-alerts/status-pill";
 import { useMetricAlertActions } from "../metric-alerts/use-metric-alert-actions";
-import { useRulePreview } from "../metric-alerts/use-rule-requests";
+import { useRuleCheck, useRulePreview } from "../metric-alerts/use-rule-requests";
 import { useSlackAvailable } from "../metric-alerts/use-slack-available";
 import { alertStatus, cadenceLine, conditionSummary, isSnoozed } from "../metric-alerts/utils";
 import AlertActions from "./alert-actions";
@@ -44,7 +44,8 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
   const { pendingIds, setMuted, snooze } = useMetricAlertActions(projectId, mutate);
   const [editing, setEditing] = useState(false);
 
-  const firesAfter = preview.preview?.firesAfterMinutes ?? 0;
+  // Asked on its own: the replay behind the chart can be slow or fail.
+  const { cadence } = useRuleCheck(projectId, alert?.rule ?? null);
   const openIncident = alert?.incidents.find((incident) => !incident.resolvedAt);
 
   return (
@@ -66,7 +67,7 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
                   </div>
                   <p className="text-sm text-muted-foreground">{conditionSummary(alert.rule)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {preview.preview && cadenceLine(preview.preview)}
+                    {cadence && cadenceLine(cadence)}
                     {isSnoozed(alert.rule) && " Snoozed: no messages are sent, the rule is still checked."}
                     {alert.rule.disabled && " Muted: no messages are sent, the rule is still checked."}
                   </p>
@@ -75,7 +76,7 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
                   alert={alert}
                   tracesHref={
                     openIncident
-                      ? incidentTracesHref(projectId, alert.rule, openIncident, firesAfter)
+                      ? incidentTracesHref(projectId, alert.rule, openIncident, cadence)
                       : lastDayTracesHref(projectId, alert.rule)
                   }
                   isPending={pendingIds.has(alert.id)}
@@ -91,7 +92,7 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
                   projectId={projectId}
                   rule={alert.rule}
                   incidents={alert.incidents}
-                  firesAfterMinutes={firesAfter}
+                  cadence={cadence}
                 />
               </section>
               {workspace && (

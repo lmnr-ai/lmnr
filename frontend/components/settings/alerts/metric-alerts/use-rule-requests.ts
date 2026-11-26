@@ -60,10 +60,10 @@ export const useRulePreview = (projectId: string, rule: MetricRuleInput | null, 
 };
 
 /** Asks whether a rule can be saved, and how often it would be checked. Touches no stored data. */
-export const useRuleCheck = (projectId: string, rule: MetricRuleInput, enabled = true) => {
-  const body = JSON.stringify({ rule });
+export const useRuleCheck = (projectId: string, rule: MetricRuleInput | null, enabled = true) => {
+  const body = rule ? JSON.stringify({ rule }) : null;
   const settled = useDebounced(body, DEBOUNCE_MS);
-  const key = enabled ? [`/api/projects/${projectId}/alerts/metric/validate`, settled] : null;
+  const key = enabled && settled ? [`/api/projects/${projectId}/alerts/metric/validate`, settled] : null;
 
   const { data, error, isLoading } = useSWR<RuleCadence, Error>(key, post<RuleCadence>, SWR_OPTIONS);
 

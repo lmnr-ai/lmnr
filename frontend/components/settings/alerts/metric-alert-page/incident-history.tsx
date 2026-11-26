@@ -1,7 +1,7 @@
 import { format, formatDistanceStrict, formatDistanceToNowStrict } from "date-fns";
 import Link from "next/link";
 
-import { type MetricAlertIncident, type MetricRule } from "@/lib/actions/alerts/metric-rule";
+import { type MetricAlertIncident, type MetricRule, type RuleCadence } from "@/lib/actions/alerts/metric-rule";
 import { parseUtcTimestamp } from "@/lib/charts/time";
 
 import StatusPill from "../metric-alerts/status-pill";
@@ -12,14 +12,15 @@ interface IncidentHistoryProps {
   projectId: string;
   rule: MetricRule;
   incidents: MetricAlertIncident[];
-  firesAfterMinutes: number;
+  /** Unknown until the rule's cadence has loaded. */
+  cadence?: RuleCadence;
 }
 
 const time = (value: string | null) => (value ? format(parseUtcTimestamp(value), "MMM d, HH:mm") : "-");
 
 const LEVEL_LABEL = { ok: "OK", warning: "Warning", critical: "Critical" } as const;
 
-export default function IncidentHistory({ projectId, rule, incidents, firesAfterMinutes }: IncidentHistoryProps) {
+export default function IncidentHistory({ projectId, rule, incidents, cadence }: IncidentHistoryProps) {
   if (incidents.length === 0) {
     return (
       <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -46,6 +47,7 @@ export default function IncidentHistory({ projectId, rule, incidents, firesAfter
         <tbody className="divide-y">
           {incidents.map((incident) => {
             const opened = parseUtcTimestamp(incident.openedAt);
+            const tracesHref = incidentTracesHref(projectId, rule, incident, cadence);
             return (
               <tr key={incident.id} className="[&>td]:px-3 [&>td]:py-2 [&>td]:whitespace-nowrap">
                 <td>{time(incident.openedAt)}</td>
@@ -64,12 +66,11 @@ export default function IncidentHistory({ projectId, rule, incidents, firesAfter
                     : formatDistanceToNowStrict(opened)}
                 </td>
                 <td className="text-right">
-                  <Link
-                    href={incidentTracesHref(projectId, rule, incident, firesAfterMinutes)}
-                    className="text-xs text-primary-text hover:underline"
-                  >
-                    Open traces
-                  </Link>
+                  {tracesHref && (
+                    <Link href={tracesHref} className="text-xs text-primary-text hover:underline">
+                      Open traces
+                    </Link>
+                  )}
                 </td>
               </tr>
             );

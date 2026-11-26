@@ -1,4 +1,4 @@
-import { type MetricAlertIncident, type MetricRule } from "@/lib/actions/alerts/metric-rule";
+import { type MetricAlertIncident, type MetricRule, type RuleCadence } from "@/lib/actions/alerts/metric-rule";
 import { parseUtcTimestamp } from "@/lib/charts/time";
 
 const MINUTE_MS = 60 * 1000;
@@ -21,20 +21,23 @@ export const tracesHref = (projectId: string, rule: MetricRule, from: Date, to: 
  * The traces behind an incident: from the first window that breached, which
  * ended `firesAfterMinutes` before the incident opened, until it resolved.
  * A month-to-date rule counts spend from the start of the UTC month.
+ * `null` while the rule's cadence is not known, so no link shows a range that is too short.
  */
 export const incidentTracesHref = (
   projectId: string,
   rule: MetricRule,
   incident: Pick<MetricAlertIncident, "openedAt" | "resolvedAt">,
-  firesAfterMinutes: number,
+  cadence: Pick<RuleCadence, "firesAfterMinutes"> | undefined,
   now = new Date()
-): string => {
+): string | null => {
   const opened = parseUtcTimestamp(incident.openedAt);
-  const from =
-    "minutes" in rule.window
-      ? new Date(opened.getTime() - (firesAfterMinutes + rule.window.minutes) * MINUTE_MS)
-      : new Date(Date.UTC(opened.getUTCFullYear(), opened.getUTCMonth(), 1));
-  return tracesHref(projectId, rule, from, incident.resolvedAt ? parseUtcTimestamp(incident.resolvedAt) : now);
+  const to = incident.resolvedAt ? parseUtcTimestamp(incident.resolvedAt) : now;
+  if (!("minutes" in rule.window)) {
+    return tracesHref(projectId, rule, new Date(Date.UTC(opened.getUTCFullYear(), opened.getUTCMonth(), 1)), to);
+  }
+  if (!cadence) return null;
+  const lead = (cadence.firesAfterMinutes + rule.window.minutes) * MINUTE_MS;
+  return tracesHref(projectId, rule, new Date(opened.getTime() - lead), to);
 };
 
 export const lastDayTracesHref = (projectId: string, rule: MetricRule, now = new Date()): string =>

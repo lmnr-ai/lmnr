@@ -206,15 +206,21 @@ describe("traces link", () => {
   it("starts an incident's range at the first window that breached", () => {
     // Opened 12:00 after 6 minutes of breaching checks over a 15 minute window.
     const incident = { openedAt: "2026-01-01 12:00:00+00", resolvedAt: "2026-01-01 12:30:00+00" };
-    const url = new URL(incidentTracesHref("p1", filtered, incident, 6), "http://localhost");
+    const url = new URL(incidentTracesHref("p1", filtered, incident, { firesAfterMinutes: 6 })!, "http://localhost");
     assert.equal(url.searchParams.get("startDate"), "2026-01-01T11:39:00.000Z");
     assert.equal(url.searchParams.get("endDate"), "2026-01-01T12:30:00.000Z");
+  });
+
+  it("gives no incident link while the cadence is unknown", () => {
+    const incident = { openedAt: "2026-01-01 12:00:00+00", resolvedAt: null };
+    assert.equal(incidentTracesHref("p1", filtered, incident, undefined), null);
   });
 
   it("starts a budget incident's range at the start of the UTC month", () => {
     const incident = { openedAt: "2026-01-20 12:00:00+00", resolvedAt: null };
     const now = new Date("2026-01-21T00:00:00Z");
-    const url = new URL(incidentTracesHref("p1", budget, incident, 180, now), "http://x");
+    // The month start does not depend on how often the rule is checked.
+    const url = new URL(incidentTracesHref("p1", budget, incident, undefined, now)!, "http://x");
     assert.equal(url.searchParams.get("startDate"), "2026-01-01T00:00:00.000Z");
     assert.equal(url.searchParams.get("endDate"), "2026-01-21T00:00:00.000Z");
   });
