@@ -9,10 +9,9 @@ use sha2::{Digest, Sha256};
 use super::filters;
 
 pub const MAX_GROUPS: usize = 20;
-const WINDOW_MINUTES: [u32; 4] = [5, 15, 60, 1440];
+const WINDOW_MINUTES: [u32; 5] = [5, 15, 30, 60, 1440];
+const MINUTES_PER_DAY: u32 = 1440;
 const MAX_CHECKS_IN_A_ROW: u32 = 10;
-/// A budget without its own resolve threshold resolves below this share of it.
-const BUDGET_RESOLVE_RATIO: f64 = 0.9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -26,7 +25,13 @@ pub enum Metric {
     TotalTokens,
     TokensPerTrace,
     TraceCount,
+    /// Number of traces with an error. Fires on projects too quiet for a rate.
+    ErrorTraces,
     ErrorRate,
+    /// Share of traces without any cost, in percent.
+    NoCostRate,
+    /// Share of traces without any tokens, in percent.
+    NoTokensRate,
     LatencyP50,
     LatencyP95,
 }
@@ -52,6 +57,8 @@ impl Metric {
             Metric::CostPerTrace
                 | Metric::TokensPerTrace
                 | Metric::ErrorRate
+                | Metric::NoCostRate
+                | Metric::NoTokensRate
                 | Metric::LatencyP50
                 | Metric::LatencyP95
         )
@@ -74,7 +81,7 @@ pub enum Window {
     Minutes {
         minutes: u32,
     },
-    /// From the start of the UTC month. Budgets only.
+    /// From the start of the UTC month. Spending limits only.
     MonthToDate {
         #[serde(rename = "monthToDate")]
         month_to_date: bool,
@@ -87,6 +94,8 @@ pub enum CompareTo {
     FiveMinutes,
     #[serde(rename = "15m")]
     FifteenMinutes,
+    #[serde(rename = "30m")]
+    ThirtyMinutes,
     #[serde(rename = "1h")]
     Hour,
     #[serde(rename = "1d")]
@@ -102,6 +111,7 @@ impl CompareTo {
         match self {
             CompareTo::FiveMinutes => 5,
             CompareTo::FifteenMinutes => 15,
+            CompareTo::ThirtyMinutes => 30,
             CompareTo::Hour => 60,
             CompareTo::Day => 1440,
             CompareTo::Week => 7 * 1440,
@@ -120,8 +130,13 @@ pub enum Condition {
         #[serde(rename = "compareTo")]
         compare_to: CompareTo,
     },
-    /// Month-to-date spend against a budget in dollars.
-    Budget { amount: f64 },
+    /// Spend in the last day or the month so far against a limit in dollars.
+    /// Critical at the limit, warning at `warn_at_percent` of it.
+    SpendingLimit {
+        limit: f64,
+        #[serde(rename = "warnAtPercent", default = "default_warn_at_percent")]
+        warn_at_percent: f64,
+    },
     /// Compare the most expensive trace to the project's p99 trace cost, as a
     /// percentage.
     TraceP99,
@@ -151,6 +166,10 @@ pub struct Filter {
     pub value: Value,
 }
 
+fn default_warn_at_percent() -> f64 {
+    80.0
+}
+
 fn default_checks_in_a_row() -> u32 {
     3
 }
@@ -175,6 +194,7 @@ pub struct Rule {
     pub warning: Option<f64>,
     #[serde(default)]
     pub critical: Option<f64>,
+    /// `None` resolves at the first alerting threshold.
     #[serde(default)]
     pub resolve: Option<f64>,
     /// Smallest absolute difference from the past value that counts as a change.
@@ -239,13 +259,32 @@ impl Rule {
         )
     }
 
-    pub fn resolve_threshold(&self) -> f64 {
-        match (self.resolve, self.condition) {
-            (Some(resolve), _) => resolve,
-            (None, Condition::Budget { amount }) => amount * BUDGET_RESOLVE_RATIO,
-            // `validate` requires a resolve threshold for every other condition.
-            (None, _) => self.warning.or(self.critical).unwrap_or(0.0),
+    pub fn is_spending_limit(&self) -> bool {
+        matches!(self.condition, Condition::SpendingLimit { .. })
+    }
+
+    pub fn warning_threshold(&self) -> Option<f64> {
+        match self.condition {
+            Condition::SpendingLimit {
+                limit,
+                warn_at_percent,
+            } => Some(limit * warn_at_percent / 100.0),
+            _ => self.warning,
         }
+    }
+
+    pub fn critical_threshold(&self) -> Option<f64> {
+        match self.condition {
+            Condition::SpendingLimit { limit, .. } => Some(limit),
+            _ => self.critical,
+        }
+    }
+
+    pub fn resolve_threshold(&self) -> f64 {
+        self.resolve
+            .or(self.warning_threshold())
+            .or(self.critical_threshold())
+            .unwrap_or(0.0)
     }
 
     pub fn notifications_paused(&self, at: DateTime<Utc>) -> bool {
@@ -296,24 +335,24 @@ impl Rule {
             if !self.filters.is_empty() {
                 return Err("A rule with trace filters cannot be split by model".to_string());
             }
-            if matches!(self.condition, Condition::Budget { .. }) {
-                return Err("A budget cannot be split by model".to_string());
+            if self.is_spending_limit() {
+                return Err("A spending limit cannot be split by model".to_string());
             }
         }
         filters::build_where(&self.filters).map(|_| ())
     }
 
     fn validate_window(&self) -> Result<(), String> {
-        let is_budget = matches!(self.condition, Condition::Budget { .. });
+        let is_spending_limit = self.is_spending_limit();
         match self.window {
             Window::Minutes { minutes } if !WINDOW_MINUTES.contains(&minutes) => {
-                Err("Window must be 5 minutes, 15 minutes, 1 hour or 1 day".to_string())
+                Err("Window must be 5, 15 or 30 minutes, 1 hour or 1 day".to_string())
             }
-            Window::Minutes { .. } if is_budget => {
-                Err("A budget uses the month-to-date window".to_string())
+            Window::Minutes { minutes } if is_spending_limit && minutes != MINUTES_PER_DAY => {
+                Err("A spending limit covers the last day or the month so far".to_string())
             }
-            Window::MonthToDate { .. } if !is_budget => {
-                Err("Only budgets can use the month-to-date window".to_string())
+            Window::MonthToDate { .. } if !is_spending_limit => {
+                Err("Only spending limits can use the month-to-date window".to_string())
             }
             Window::MonthToDate {
                 month_to_date: false,
@@ -324,12 +363,18 @@ impl Rule {
 
     fn validate_condition(&self) -> Result<(), String> {
         match self.condition {
-            Condition::Budget { amount } => {
-                if !(amount.is_finite() && amount > 0.0) {
-                    return Err("Budget must be greater than zero".to_string());
+            Condition::SpendingLimit {
+                limit,
+                warn_at_percent,
+            } => {
+                if !(limit.is_finite() && limit > 0.0) {
+                    return Err("The spending limit must be greater than zero".to_string());
+                }
+                if !(warn_at_percent >= 1.0 && warn_at_percent < 100.0) {
+                    return Err("Warn at must be between 1% and 99% of the limit".to_string());
                 }
                 if self.metric != Metric::TotalCost || self.direction != Direction::Above {
-                    return Err("A budget watches total cost going above it".to_string());
+                    return Err("A spending limit watches total cost going above it".to_string());
                 }
             }
             Condition::TraceP99 if self.metric != Metric::TraceCost => {
@@ -349,12 +394,15 @@ impl Rule {
     }
 
     fn validate_thresholds(&self) -> Result<(), String> {
-        if matches!(self.condition, Condition::Budget { .. }) {
-            return Ok(());
+        if self.is_spending_limit() {
+            let unset = [self.warning, self.critical, self.resolve]
+                .iter()
+                .all(Option::is_none);
+            return match unset {
+                true => Ok(()),
+                false => Err("A spending limit takes its thresholds from the limit".to_string()),
+            };
         }
-        let Some(resolve) = self.resolve else {
-            return Err("A resolve threshold is required".to_string());
-        };
         if self.warning.is_none() && self.critical.is_none() {
             return Err("Set a warning or a critical threshold".to_string());
         }
@@ -368,9 +416,11 @@ impl Rule {
                 return Err("Critical must be further out than warning".to_string());
             }
         }
-        let first = self.warning.or(self.critical).unwrap_or(resolve);
-        if resolve * sign > first * sign {
-            return Err("Resolve cannot be past the first alerting threshold".to_string());
+        let first = self.warning.or(self.critical);
+        if let (Some(resolve), Some(first)) = (self.resolve, first) {
+            if resolve * sign > first * sign {
+                return Err("Resolve cannot be past the first alerting threshold".to_string());
+            }
         }
         Ok(())
     }
@@ -419,16 +469,24 @@ mod tests {
 
     #[test]
     fn parses_other_conditions() {
-        let budget = json!({
+        let limit = json!({
             "metric": "total_cost",
             "window": { "monthToDate": true },
-            "condition": { "type": "budget", "amount": 2000 },
+            "condition": { "type": "spending_limit", "limit": 2000 },
             "warning": null,
             "critical": null
         });
-        let rule = Rule::parse(&budget).unwrap();
-        assert_eq!(rule.condition, Condition::Budget { amount: 2000.0 });
-        assert_eq!(rule.resolve_threshold(), 1800.0);
+        let rule = Rule::parse(&limit).unwrap();
+        assert_eq!(
+            rule.condition,
+            Condition::SpendingLimit {
+                limit: 2000.0,
+                warn_at_percent: 80.0
+            }
+        );
+        assert_eq!(rule.warning_threshold(), Some(1600.0));
+        assert_eq!(rule.critical_threshold(), Some(2000.0));
+        assert_eq!(rule.resolve_threshold(), 1600.0);
         assert_eq!(rule.checks_in_a_row, 3);
         assert_eq!(rule.min_traces, 50);
 
@@ -445,11 +503,19 @@ mod tests {
     #[test]
     fn rejects_invalid_rules() {
         let cases = [
-            ("resolve", json!(null), "resolve threshold is required"),
             ("resolve", json!(140), "Resolve cannot be past"),
             ("critical", json!(125), "Critical must be further out"),
             ("window", json!({ "minutes": 7 }), "Window must be"),
-            ("window", json!({ "monthToDate": true }), "Only budgets"),
+            (
+                "window",
+                json!({ "monthToDate": true }),
+                "Only spending limits",
+            ),
+            (
+                "condition",
+                json!({ "type": "change", "compareTo": "2h" }),
+                "unknown variant",
+            ),
             ("checksInARow", json!(0), "Checks in a row"),
             ("metric", json!("error_rate"), "cannot be split by model"),
             (
@@ -473,6 +539,71 @@ mod tests {
     }
 
     #[test]
+    fn resolve_follows_the_first_threshold_when_unset() {
+        let mut rule = contract();
+        rule["resolve"] = json!(null);
+        assert_eq!(Rule::parse(&rule).unwrap().resolve_threshold(), 130.0);
+        rule["warning"] = json!(null);
+        assert_eq!(Rule::parse(&rule).unwrap().resolve_threshold(), 150.0);
+    }
+
+    #[test]
+    fn accepts_30_minutes_as_a_window_and_as_a_comparison() {
+        let mut rule = contract();
+        rule["window"] = json!({ "minutes": 30 });
+        rule["condition"] = json!({ "type": "change", "compareTo": "30m" });
+        let rule = Rule::parse(&rule).unwrap();
+        assert_eq!(rule.window, Window::Minutes { minutes: 30 });
+        let Condition::Change { compare_to } = rule.condition else {
+            panic!("expected a change condition");
+        };
+        assert_eq!(compare_to.minutes(), 30);
+    }
+
+    #[test]
+    fn a_spending_limit_covers_a_day_or_the_month() {
+        let limit = |fields: Value| {
+            let mut rule = json!({
+                "metric": "total_cost",
+                "window": { "minutes": 1440 },
+                "condition": { "type": "spending_limit", "limit": 100, "warnAtPercent": 50 }
+            });
+            if let (Some(rule), Some(fields)) = (rule.as_object_mut(), fields.as_object()) {
+                rule.extend(fields.clone());
+            }
+            Rule::parse(&rule)
+        };
+        let daily = limit(json!({})).unwrap();
+        assert_eq!(daily.warning_threshold(), Some(50.0));
+        assert!(limit(json!({ "window": { "monthToDate": true } })).is_ok());
+
+        let cases = [
+            (
+                json!({ "window": { "minutes": 60 } }),
+                "last day or the month",
+            ),
+            (
+                json!({ "warning": 10 }),
+                "takes its thresholds from the limit",
+            ),
+            (json!({ "metric": "total_tokens" }), "watches total cost"),
+            (json!({ "direction": "below" }), "watches total cost"),
+            (
+                json!({ "condition": { "type": "spending_limit", "limit": 0 } }),
+                "greater than zero",
+            ),
+            (
+                json!({ "condition": { "type": "spending_limit", "limit": 100, "warnAtPercent": 100 } }),
+                "between 1% and 99%",
+            ),
+        ];
+        for (fields, expected) in cases {
+            let error = limit(fields).unwrap_err();
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
     fn no_data_defaults_to_zero_for_sums_and_skip_for_ratios() {
         let mode = |metric: &str, on_no_data: Value| {
             let mut rule = contract();
@@ -481,10 +612,17 @@ mod tests {
             rule["onNoData"] = on_no_data;
             Rule::parse(&rule).unwrap().no_data_mode()
         };
-        for metric in ["total_cost", "total_tokens", "trace_count"] {
+        for metric in ["total_cost", "total_tokens", "trace_count", "error_traces"] {
             assert_eq!(mode(metric, json!(null)), OnNoData::Zero, "{metric}");
         }
-        for metric in ["cost_per_trace", "error_rate", "latency_p95"] {
+        let ratios = [
+            "cost_per_trace",
+            "error_rate",
+            "no_cost_rate",
+            "no_tokens_rate",
+            "latency_p95",
+        ];
+        for metric in ratios {
             assert_eq!(mode(metric, json!(null)), OnNoData::Skip, "{metric}");
         }
         assert_eq!(mode("total_cost", json!("skip")), OnNoData::Skip);

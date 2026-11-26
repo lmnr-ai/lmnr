@@ -18,16 +18,16 @@ use super::{
 pub const MAX_PREVIEW_HOURS: i64 = 7 * 24;
 const P99_RANGE_MINUTES: i64 = 7 * 24 * 60;
 /// Points returned per group. Longer replays keep the most extreme value of
-/// each stretch, so a spike stays visible.
+/// each stretch, so a spike stays visible, and always the newest point.
 const MAX_POINTS: usize = 600;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Point {
     pub at: DateTime<Utc>,
-    /// The number held against the thresholds.
+    /// The number held against the thresholds, with an empty window read as
+    /// zero. `None` only when a relative condition has nothing to compare to.
     pub value: Option<f64>,
-    pub projected: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -67,11 +67,16 @@ pub struct Preview {
     pub groups: Vec<GroupPreview>,
 }
 
+/// The chart draws a window without data as zero, whatever the rule's
+/// `onNoData` does with it, so a quiet stretch is a flat line and not a hole.
 fn point_of(rule: &Rule, observation: &Observation) -> Point {
+    let filled = Observation {
+        value: observation.value.or(Some(0.0)),
+        ..observation.clone()
+    };
     Point {
         at: observation.at,
-        value: compared_value(rule, observation),
-        projected: observation.projected,
+        value: compared_value(rule, &filled),
     }
 }
 
@@ -86,9 +91,14 @@ fn more_extreme(rule: &Rule, candidate: &Point, current: &Point) -> bool {
     }
 }
 
-fn downsample(rule: &Rule, points: Vec<Point>) -> Vec<Point> {
-    let stride = points.len().div_ceil(MAX_POINTS).max(1);
-    let mut sampled: Vec<Point> = Vec::with_capacity(points.len() / stride + 1);
+fn downsample(rule: &Rule, mut points: Vec<Point>) -> Vec<Point> {
+    if points.len() <= MAX_POINTS {
+        return points;
+    }
+    // The newest point is kept as it is, so the chart ends at the latest check.
+    let newest = points.pop();
+    let stride = points.len().div_ceil(MAX_POINTS - 1).max(1);
+    let mut sampled: Vec<Point> = Vec::with_capacity(MAX_POINTS);
     for (index, point) in points.into_iter().enumerate() {
         match sampled.last_mut() {
             Some(last) if index % stride != 0 => {
@@ -99,15 +109,20 @@ fn downsample(rule: &Rule, points: Vec<Point>) -> Vec<Point> {
             _ => sampled.push(point),
         }
     }
+    sampled.extend(newest);
     sampled
 }
 
-/// Replays one group over `minutes`, the window ends of its checks.
+/// Replays one group over `minutes`, the window ends of its checks. `newest`
+/// is the latest settled minute: when the last check is older, the window
+/// ending there is plotted too, without being evaluated, so the chart does not
+/// trail the data by up to a check interval.
 pub fn replay(
     rule: &Rule,
     series: &Series,
     group: Option<&str>,
     minutes: &[i64],
+    newest: i64,
     context: Context,
 ) -> GroupPreview {
     let mut state = State::default();
@@ -146,6 +161,10 @@ pub fn replay(
             last.peak_value = incident.peak_value;
         }
     }
+    if minutes.last().is_some_and(|last| *last < newest) {
+        let observation = observe(rule, series, group, newest, context);
+        points.push(point_of(rule, &observation));
+    }
 
     GroupPreview {
         group: group.unwrap_or_default().to_string(),
@@ -154,10 +173,9 @@ pub fn replay(
     }
 }
 
-/// The window ends a rule is checked at during the `hours` before now.
-fn check_minutes(alert_id: &Uuid, interval_minutes: i64, hours: i64) -> Vec<i64> {
-    let end = Utc::now().timestamp().div_euclid(60) - METRIC_ALERTS_SETTLE_MINUTES.get();
-    (end - hours * 60..=end)
+/// The window ends a rule is checked at during the `hours` before `newest`.
+fn check_minutes(alert_id: &Uuid, interval_minutes: i64, hours: i64, newest: i64) -> Vec<i64> {
+    (newest - hours * 60..=newest)
         .filter(|minute| is_due(alert_id, interval_minutes, *minute))
         .collect()
 }
@@ -177,12 +195,15 @@ pub async fn preview(
     rule.disabled = false;
 
     let interval = check_interval_minutes(&rule);
-    let minutes = check_minutes(alert_id, interval, hours.clamp(1, MAX_PREVIEW_HOURS));
-    let (Some(first), Some(last)) = (minutes.first().copied(), minutes.last().copied()) else {
+    let newest = Utc::now().timestamp().div_euclid(60) - METRIC_ALERTS_SETTLE_MINUTES.get();
+    let hours = hours.clamp(1, MAX_PREVIEW_HOURS);
+    let minutes = check_minutes(alert_id, interval, hours, newest);
+    let Some(first) = minutes.first().copied() else {
         anyhow::bail!("No checks in the preview range");
     };
 
-    let ranges = merge_ranges(minutes.iter().flat_map(|m| ranges_of(&rule, *m)).collect());
+    let plotted = minutes.iter().chain([&newest]);
+    let ranges = merge_ranges(plotted.flat_map(|m| ranges_of(&rule, *m)).collect());
     let checks = [RuleChecks {
         rule: &rule,
         ranges,
@@ -195,8 +216,8 @@ pub async fn preview(
     let trace_cost_p99 = match rule.condition {
         Condition::TraceP99 => {
             let range = Minutes {
-                start: last - P99_RANGE_MINUTES,
-                end: last,
+                start: newest - P99_RANGE_MINUTES,
+                end: newest,
             };
             get_trace_cost_p99(clickhouse, project_id, &rule, range).await?
         }
@@ -208,16 +229,16 @@ pub async fn preview(
     };
 
     let groups: Vec<GroupPreview> = match rule.group_by {
-        None => vec![replay(&rule, &series, None, &minutes, context)],
+        None => vec![replay(&rule, &series, None, &minutes, newest, context)],
         Some(GroupBy::Model) => {
             let whole_range = Minutes {
                 start: window_of(&rule, first).start,
-                end: last,
+                end: newest,
             };
             series
                 .top_models(&rule, whole_range)
                 .iter()
-                .map(|model| replay(&rule, &series, Some(model), &minutes, context))
+                .map(|model| replay(&rule, &series, Some(model), &minutes, newest, context))
                 .collect()
         }
     };

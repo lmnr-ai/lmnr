@@ -67,11 +67,11 @@ mod tests {
             let rule = rule(json!({ "minutes": minutes }), value.clone());
             assert_eq!(check_interval_minutes(&rule), expected, "{minutes} min");
         }
-        let budget = rule(
+        let spending_limit = rule(
             json!({ "monthToDate": true }),
-            json!({ "type": "budget", "amount": 10 }),
+            json!({ "type": "spending_limit", "limit": 10 }),
         );
-        assert_eq!(check_interval_minutes(&budget), 60);
+        assert_eq!(check_interval_minutes(&spending_limit), 60);
     }
 
     #[test]
