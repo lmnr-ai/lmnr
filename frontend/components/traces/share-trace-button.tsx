@@ -18,6 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
+import { withBasePath } from "@/lib/utils";
+
+export const getTraceSharePath = (traceId: string) => withBasePath(`/shared/traces/${traceId}`);
 
 const ShareTraceButton = ({ projectId }: { projectId: string }) => {
   const { trace, updateTraceVisibility } = useTraceViewStore(
@@ -54,7 +57,7 @@ const ShareTraceButton = ({ projectId }: { projectId: string }) => {
 
   const handleCopyLink = async () => {
     if (!trace) return;
-    await navigator.clipboard.writeText(`${window.location.origin}/shared/traces/${trace.id}`);
+    await navigator.clipboard.writeText(`${window.location.origin}${getTraceSharePath(trace.id)}`);
     track("traces", "share_link_copied");
     toast({ title: "Copied share link", duration: 1000 });
   };

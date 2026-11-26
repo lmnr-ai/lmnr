@@ -8,6 +8,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
+import { withBasePath } from "@/lib/utils";
 
 type EvalVisibility = "private" | "public";
 
@@ -16,8 +17,10 @@ interface ShareEvalButtonProps {
   projectId: string;
 }
 
+export const getEvaluationSharePath = (evaluationId: string) => withBasePath(`/shared/evals/${evaluationId}`);
+
 const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
-  const url = typeof window !== "undefined" ? `${window.location.origin}/shared/evals/${evaluationId}` : "";
+  const url = typeof window !== "undefined" ? `${window.location.origin}${getEvaluationSharePath(evaluationId)}` : "";
   const [visibility, setVisibility] = useState<EvalVisibility>("private");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
