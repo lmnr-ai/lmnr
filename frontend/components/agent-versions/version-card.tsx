@@ -6,8 +6,8 @@ import { type AgentVersionItem } from "@/lib/actions/agents";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 import ChangeSummary from "./change-summary";
-import DeleteVersionButton from "./delete-version-button";
 import { versionColor, versionTitle } from "./utils";
+import VersionActionsMenu from "./version-actions-menu";
 import VersionDetails from "./version-details";
 import VersionSource from "./version-source";
 
@@ -20,7 +20,7 @@ interface VersionCardProps {
   isLast: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Unset for an agent's only version. */
+  /** Unset for v1, which can't be deleted. */
   onDeleted?: () => void;
 }
 
@@ -58,19 +58,33 @@ export default function VersionCard({
         {!isLast && <div className="w-px flex-1 bg-border" />}
       </div>
       <div className="flex min-w-0 flex-1 flex-col pb-6">
-        <CollapsibleTrigger asChild>
-          <div
-            role="button"
-            tabIndex={0}
-            className="group flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-emphasis-1 active:bg-emphasis-2 transition-colors"
-          >
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <ChangeSummary segments={versionTitle(version, previous)} className={cn(!open && "truncate")} />
-              <span className="text-xs text-muted-foreground">{formatRelativeTime(version.createdAt)}</span>
+        {/* The menu sits outside the trigger so its clicks and dialog don't toggle the card. */}
+        <div className="group flex items-start rounded-md hover:bg-emphasis-1 transition-colors">
+          <CollapsibleTrigger asChild>
+            <div
+              role="button"
+              tabIndex={0}
+              className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 active:bg-emphasis-2 transition-colors"
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <ChangeSummary segments={versionTitle(version, previous)} className={cn(!open && "truncate")} />
+                <span className="text-xs text-muted-foreground">{formatRelativeTime(version.createdAt)}</span>
+              </div>
+              <CardExpandIndicator expanded={open} />
             </div>
-            <CardExpandIndicator expanded={open} />
-          </div>
-        </CollapsibleTrigger>
+          </CollapsibleTrigger>
+          {onDeleted && (
+            <VersionActionsMenu
+              projectId={projectId}
+              agentId={agentId}
+              versionId={version.id}
+              versionNumber={version.versionNumber}
+              onDeleted={onDeleted}
+              collapsed={!open}
+              className="mt-1.5"
+            />
+          )}
+        </div>
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
           {/* Spacing lives inside the animated content so it opens with it rather than jumping. */}
           <div className="pt-2">
@@ -80,17 +94,6 @@ export default function VersionCard({
               promptChanged={promptChanged}
               toolsChanged={toolsChanged}
             />
-            {onDeleted && (
-              <div className="px-2 pt-4">
-                <DeleteVersionButton
-                  projectId={projectId}
-                  agentId={agentId}
-                  versionId={version.id}
-                  versionNumber={version.versionNumber}
-                  onDeleted={onDeleted}
-                />
-              </div>
-            )}
           </div>
         </CollapsibleContent>
         {version.source && <VersionSource source={version.source} />}

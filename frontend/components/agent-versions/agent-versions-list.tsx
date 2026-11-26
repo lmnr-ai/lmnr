@@ -105,7 +105,7 @@ export default function AgentVersionsList({
                 isLast={i === versions.length - 1}
                 open={version.id === expandedId}
                 onOpenChange={(open) => setExpandedId(open ? version.id : null)}
-                onDeleted={versions.length > 1 ? onVersionDeleted : undefined}
+                onDeleted={version.versionNumber > 1 ? onVersionDeleted : undefined}
               />
             ))}
           </div>
