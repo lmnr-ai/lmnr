@@ -210,6 +210,8 @@ fn measure(rule: &Rule, series: &Series, group: Option<&str>, window: Minutes) -
         Metric::TotalCost | Metric::InputTokens | Metric::OutputTokens | Metric::TotalTokens => {
             sums.map(|s| s.metric(rule.metric))
         }
+        // Split by model, this is the model's part of the project's cost per
+        // trace: its sum over every trace in the window, not only its own.
         Metric::CostPerTrace | Metric::TokensPerTrace => sums
             .filter(|_| trace_count > 0)
             .map(|s| s.metric(rule.metric) / trace_count as f64),
@@ -250,7 +252,8 @@ fn month_bounds(minute: i64) -> (i64, i64) {
 pub fn window_of(rule: &Rule, end: i64) -> Minutes {
     let start = match rule.window {
         Window::Minutes { minutes } => end - minutes as i64,
-        // The first check of a month still closes the month that just ended.
+        // `end` is exclusive: a check ending at midnight on the 1st measures
+        // the whole month that just ended.
         Window::MonthToDate { .. } => month_bounds(end - 1).0,
     };
     Minutes { start, end }
@@ -558,7 +561,7 @@ mod tests {
         // 700 in the last 7 days is 100 a day, with 16 days left.
         assert_eq!(observed.projected, Some(2600.0));
 
-        // The first check of December still closes November.
+        // A check ending at midnight on December 1 measures all of November.
         let month_end = minute_at(2026, 12, 1);
         let closing = observe(&rule, &series, None, month_end, Context::default());
         assert_eq!(closing.value, Some(1000.0));
