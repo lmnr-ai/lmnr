@@ -46,6 +46,8 @@ const MAX_CATCH_UP_MINUTES: i64 = 10;
 const PROJECT_CONCURRENCY: usize = 8;
 const P99_RANGE_MINUTES: i64 = 7 * 24 * 60;
 const P99_TTL_SECONDS: u64 = 24 * 60 * 60;
+// A project with no baseline yet is asked again soon, so its first traces count.
+const EMPTY_P99_TTL_SECONDS: u64 = 10 * 60;
 
 struct MetricAlert {
     row: MetricAlertRow,
@@ -137,6 +139,17 @@ async fn load_alerts(pool: &PgPool) -> anyhow::Result<Vec<MetricAlert>> {
     Ok(alerts)
 }
 
+/// The first minute a tick checks, given the last one that was checked. A
+/// marker far from the clock, behind or ahead, is dropped: a long outage is
+/// not replayed, and a marker written by a clock that ran ahead cannot hold
+/// the scheduler back.
+fn first_minute(last: Option<i64>, target: i64) -> i64 {
+    match last {
+        Some(last) if (target - last).abs() <= MAX_CATCH_UP_MINUTES => last + 1,
+        _ => target,
+    }
+}
+
 async fn run_tick(
     pool: &PgPool,
     clickhouse: &clickhouse::Client,
@@ -148,10 +161,7 @@ async fn run_tick(
         .get::<i64>(METRIC_ALERTS_LAST_MINUTE_CACHE_KEY)
         .await
         .unwrap_or(None);
-    let first = match last {
-        Some(last) if target - last <= MAX_CATCH_UP_MINUTES => last + 1,
-        _ => target,
-    };
+    let first = first_minute(last, target);
 
     let alerts = load_alerts(pool).await?;
     let tick = Tick {
@@ -236,9 +246,13 @@ async fn trace_cost_p99(
     };
     let value =
         get_trace_cost_p99(tick.clickhouse, &alert.row.project_id, &alert.rule, range).await?;
+    let ttl = match value {
+        Some(_) => P99_TTL_SECONDS,
+        None => EMPTY_P99_TTL_SECONDS,
+    };
     if let Err(e) = tick
         .cache
-        .insert_with_ttl(&key, CachedP99 { value }, P99_TTL_SECONDS)
+        .insert_with_ttl(&key, CachedP99 { value }, ttl)
         .await
     {
         log::warn!("[Metric alerts] Failed to cache p99 trace cost: {:?}", e);
@@ -381,6 +395,20 @@ mod tests {
     use crate::cache::in_memory::InMemoryCache;
 
     use super::*;
+
+    #[test]
+    fn a_tick_starts_after_the_last_checked_minute() {
+        assert_eq!(first_minute(None, 100), 100);
+        assert_eq!(first_minute(Some(99), 100), 100);
+        assert_eq!(first_minute(Some(90), 100), 91);
+        // A long outage is not replayed.
+        assert_eq!(first_minute(Some(89), 100), 100);
+        // Already checked: nothing to do until the clock passes the marker.
+        assert_eq!(first_minute(Some(100), 100), 101);
+        assert_eq!(first_minute(Some(103), 100), 104);
+        // A marker far ahead of the clock is dropped.
+        assert_eq!(first_minute(Some(500), 100), 100);
+    }
 
     #[tokio::test]
     async fn only_one_replica_runs_a_tick() {
