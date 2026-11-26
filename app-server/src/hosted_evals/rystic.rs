@@ -213,12 +213,12 @@ pub async fn authorize(
 }
 
 /// Counts a simulator start; `false` once the trial is past its allowance.
+/// `increment` leaves the key without an expiry, so every start sets it: one
+/// failed `set_ttl` can't leave the counter in the cache for good.
 pub async fn count_registration(cache: &Cache, token_hash: &str) -> Result<bool> {
     let key = registrations_key(token_hash);
     let count = cache.increment(&key, 1).await?;
-    if count == 1 {
-        cache.set_ttl(&key, ttl_seconds()).await?;
-    }
+    cache.set_ttl(&key, ttl_seconds()).await?;
     Ok(count <= MAX_REGISTRATIONS_PER_TRIAL)
 }
 
