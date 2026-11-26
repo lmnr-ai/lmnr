@@ -58,9 +58,10 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 
 ## Scheduler
 
-- Every consumer replica ticks each minute; the one that takes the Redis lock does the work. `upsert_state` only writes when `last_processed_at` is older than the check, and `store::save` rolls the incident back when that guard fails, so two replicas that both evaluate a check still record one transition.
+- Every consumer replica ticks each minute; the one that takes the Redis lock does the work. `upsert_state` only writes when `last_processed_at` is older than the check, whichever rule version stored the row, and `store::save` rolls the incident back when that guard fails, so two replicas that both evaluate a check still record one transition.
 - A rule is checked on a grid: `cadence::is_due(alert_id, interval, minute)` spreads rules over the interval by alert id. The interval comes from the window (`cadence::check_interval_minutes`), never from the user. The preview uses the same grid when it is given the alert id.
 - A check looks at the window ending `METRIC_ALERTS_SETTLE_MINUTES` (2) minutes ago. A late tick catches up on at most 10 missed minutes. A last-checked marker more than 10 minutes from the clock, behind or ahead, is dropped (`scheduler::first_minute`); replaying a minute is safe because the engine ignores a check at or before `last_processed_at`.
+- **A failed read is not retried.** When `fetch_series` fails for a project, its checks due in that minute are skipped and the marker still moves on, so one project cannot hold up the others. A streak keeps its count, so the rule fires one interval later (up to an hour for a monthly limit).
 - **Ingestion backlog.** Producers stamp `accepted_at_ms` on the first message of each span batch and write an "accepted" watermark to Redis; consumers write a "stored up to" watermark after the ClickHouse insert (`ingestion.rs`). When stored trails accepted by more than `METRIC_ALERTS_INGESTION_LAG_SECONDS` (60), checks that could only fire because data is missing are skipped: no-data checks, every `below` rule, and any reading lower than the current level. Data Plane workspaces are not covered.
 - State is saved before a transition is handed on, so a crash between the two loses one message instead of sending it twice.
 
@@ -83,4 +84,6 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 
 - **The points are for a chart, the incidents are what the rule does.** A point plots an empty window as 0 whatever `onNoData` says, so a quiet stretch is a flat line and not a gap. Only a relative condition without a baseline has no value.
 - **The chart ends at the newest settled minute.** A rule with a 1-day window is checked every 15 minutes and a monthly limit every hour; when the last check is older than the newest settled minute, the window ending there is added as a last point. It is plotted, never evaluated, so incidents still match the scheduler.
+- **`firesAfterMinutes` is the longest wait**, interval times checks in a row: the value can cross the line right after a check, so a full interval may pass before the first breaching check. From that first check to the alert it is one interval less, which is what the message's traces link uses.
+- **A split rule previews the top 20 models of the whole range.** The scheduler ranks per window, so a model that was in the top 20 only for a while can have incidents the preview does not show.
 - More than 600 points are downsampled: each stretch keeps its most extreme value in the rule's direction, and the newest point is always kept as it is.
