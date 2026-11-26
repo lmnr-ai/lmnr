@@ -113,7 +113,7 @@ pub async fn create_trial(
     project_id: &Uuid,
     request: &ImageRequest,
 ) -> Result<String, CreateError> {
-    let rystic = rystic::issue(cache, project_id).await;
+    let rystic = rystic::issue_token(cache, project_id).await;
     let spec = SandboxSpec {
         project_id: *project_id,
         role: SandboxRole::Trial,

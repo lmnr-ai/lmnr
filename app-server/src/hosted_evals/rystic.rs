@@ -87,9 +87,13 @@ struct Grant {
     project_id: Uuid,
 }
 
-/// A trial's token (by hash) and the env that points its simulators at the proxy.
+/// A new trial token, split by where each part goes.
 pub struct TrialAccess {
+    /// Stays in the app-server, which binds and revokes the token by it; the
+    /// cache only ever holds hashes, as for project API keys.
     pub token_hash: String,
+    /// Goes into the sandbox: the raw token as `RYSTIC_TOKEN`, plus the proxy
+    /// URLs the Rystic CLI and simulators send it to.
     pub env: HashMap<String, String>,
 }
 
@@ -111,7 +115,7 @@ fn ttl_seconds() -> u64 {
 /// A new token for one trial of the project. `None` when Rystic isn't
 /// configured, or the token couldn't be stored: the trial then runs without
 /// simulators rather than failing to start.
-pub async fn issue(cache: &Cache, project_id: &Uuid) -> Option<TrialAccess> {
+pub async fn issue_token(cache: &Cache, project_id: &Uuid) -> Option<TrialAccess> {
     api_key()?;
     let token = format!(
         "{TOKEN_PREFIX}{}",
