@@ -1,0 +1,1 @@
+ALTER TABLE "agent_versions" ADD COLUMN "shown_version_hash" text;
