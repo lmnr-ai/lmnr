@@ -81,23 +81,20 @@ pub fn decide(
 }
 
 pub struct Params {
-    /// N: traces a release is decided from.
+    /// N: traces a release is decided once it has.
     pub min_run: u64,
+    /// Most traces read from a release, at least N.
+    pub samples: u64,
     /// Nanoseconds after its first prompt that a short release is decided anyway.
     pub decide_after: i64,
 }
 
 /// How many of an undecided release's `traces` to decide it from now, if it
-/// can be decided: N once it has them, else however many it has once a newer
-/// release reached N or it is `age` old enough.
+/// can be decided: up to `samples` once it has N, else however many it has
+/// once a newer release reached N or it is `age` old enough.
 pub fn sample_size(traces: u64, newer_has_min_run: bool, age: i64, params: &Params) -> Option<u64> {
-    if traces >= params.min_run {
-        Some(params.min_run)
-    } else if (newer_has_min_run || age >= params.decide_after) && traces > 0 {
-        Some(traces)
-    } else {
-        None
-    }
+    let decidable = traces >= params.min_run || newer_has_min_run || age >= params.decide_after;
+    (decidable && traces > 0).then(|| traces.min(params.samples))
 }
 
 #[cfg(test)]
@@ -106,6 +103,7 @@ mod tests {
 
     const PARAMS: Params = Params {
         min_run: 10,
+        samples: 100,
         decide_after: 100,
     };
 
@@ -188,7 +186,8 @@ mod tests {
 
     #[test]
     fn sample_size_waits_for_n_or_a_reason() {
-        assert_eq!(sample_size(12, false, 0, &PARAMS), Some(10));
+        assert_eq!(sample_size(12, false, 0, &PARAMS), Some(12));
+        assert_eq!(sample_size(500, false, 0, &PARAMS), Some(100));
         assert_eq!(sample_size(5, false, 0, &PARAMS), None);
         // A newer release reached N, or the release timed out.
         assert_eq!(sample_size(5, true, 0, &PARAMS), Some(5));
