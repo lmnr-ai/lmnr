@@ -1,6 +1,6 @@
 //! ClickHouse reads for metric rules. Every due rule of a project shares one
-//! scan of the span rollup, and rules with the same trace filters share one
-//! scan of the traces.
+//! scan of the span rollup, and rules with the same trace filters and lookback
+//! share one scan of the traces.
 
 use std::collections::HashMap;
 
@@ -17,11 +17,19 @@ use super::{
     series::{LATENCY_BUCKET_BASE, Minutes, Series, merge_ranges, reads_spans, reads_traces},
 };
 
-/// A trace is found by its start time, so a trace that started longer than
-/// this before the window is not counted.
+/// A trace is found by its start time, so a scan starts this long before the
+/// window. A trace that ran longer is left out of every scan, so a rule counts
+/// the same traces whichever ranges it is read with.
 const TRACE_LOOKBACK_MINUTES: i64 = 60;
 /// Single-trace cost rules exist to catch long runaway traces.
 const TRACE_COST_LOOKBACK_MINUTES: i64 = 24 * 60;
+
+fn lookback_minutes(metric: Metric) -> i64 {
+    match metric {
+        Metric::TraceCost => TRACE_COST_LOOKBACK_MINUTES,
+        _ => TRACE_LOOKBACK_MINUTES,
+    }
+}
 
 /// Traces whose last span so far ended in `minute`, per latency bucket.
 #[derive(Row, Deserialize, Debug, Clone, PartialEq)]
@@ -128,7 +136,8 @@ fn with_lookback(ranges: &[Minutes], lookback: i64) -> Vec<Minutes> {
     merge_ranges(extended)
 }
 
-/// What a group of rules with the same filters needs from the traces.
+/// What a group of rules with the same filters and lookback needs from the
+/// traces.
 #[derive(Debug, Clone, Default)]
 struct TraceRead {
     filter: FilterSql,
@@ -173,10 +182,12 @@ async fn get_trace_minutes(
                 sum(trace_total_tokens) AS total_tokens,
                 max(trace_cost) AS max_cost
          FROM ({source})
-         WHERE {ended_in_range}
+         WHERE ({ended_in_range})
+           AND trace_start >= trace_end - toIntervalMinute({lookback})
          GROUP BY minute, bucket
          ORDER BY minute, bucket",
         source = traces_source(&read.filter, scans.len()),
+        lookback = read.lookback,
     );
 
     let mut query = clickhouse.query(&query_str);
@@ -206,6 +217,17 @@ pub async fn get_trace_cost_p99(
     Ok(query.fetch_one::<Option<f64>>().await?)
 }
 
+/// Rules that count the same traces share a scan: same predicate, same
+/// lookback.
+fn trace_read_key(rule: &Rule, filter: &FilterSql) -> String {
+    format!(
+        "{}|{}|{:?}",
+        lookback_minutes(rule.metric),
+        filter.sql,
+        filter.binds
+    )
+}
+
 /// A rule and the minutes at which it is checked.
 pub struct RuleChecks<'a> {
     pub rule: &'a Rule,
@@ -219,7 +241,6 @@ pub async fn fetch_series(
     checks: &[RuleChecks<'_>],
 ) -> Result<Vec<Series>> {
     let mut span_ranges = Vec::new();
-    // Keyed by the predicate, so rules with equal filters share a scan.
     let mut trace_reads: HashMap<String, TraceRead> = HashMap::new();
     let mut trace_keys = Vec::with_capacity(checks.len());
 
@@ -232,17 +253,14 @@ pub async fn fetch_series(
             continue;
         }
         let filter = trace_filter(&check.rule.filters)?;
-        let key = format!("{}|{:?}", filter.sql, filter.binds);
+        let key = trace_read_key(check.rule, &filter);
         let read = trace_reads.entry(key.clone()).or_insert_with(|| TraceRead {
             filter,
+            lookback: lookback_minutes(check.rule.metric),
             ..Default::default()
         });
         read.ranges.extend(check.ranges.iter().copied());
         read.latency |= check.rule.metric.is_latency();
-        read.lookback = read.lookback.max(match check.rule.metric {
-            Metric::TraceCost => TRACE_COST_LOOKBACK_MINUTES,
-            _ => TRACE_LOOKBACK_MINUTES,
-        });
         trace_keys.push(Some(key));
     }
 
@@ -310,5 +328,22 @@ mod tests {
         let evals = [filter("trace_type", "EVALUATION"), filter("user_id", "u1")];
         let evals = trace_filter(&evals).unwrap();
         assert!(!evals.sql.contains(PRODUCTION_ONLY), "{}", evals.sql);
+    }
+
+    #[test]
+    fn a_longer_lookback_gets_its_own_scan() {
+        let rule = |metric: &str| {
+            Rule::parse(&json!({
+                "metric": metric,
+                "window": { "minutes": 5 },
+                "condition": { "type": "value" },
+                "warning": 100,
+            }))
+            .unwrap()
+        };
+        let key = |metric: &str| trace_read_key(&rule(metric), &trace_filter(&[]).unwrap());
+
+        assert_eq!(key("trace_count"), key("error_rate"));
+        assert_ne!(key("trace_count"), key("trace_cost"));
     }
 }
