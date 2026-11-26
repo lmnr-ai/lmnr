@@ -8,6 +8,8 @@ const DAY_MS = 24 * 60 * MINUTE_MS;
 
 // Written with the parser the traces table reads `filter` with, so the commas
 // inside each filter's JSON are escaped the way it expects.
+const startOfUtcMonth = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+
 const serializeTracesQuery = createSerializer({
   startDate: parseAsString,
   endDate: parseAsString,
@@ -43,12 +45,13 @@ export const incidentTracesHref = (
   const opened = parseUtcTimestamp(incident.openedAt);
   const to = incident.resolvedAt ? parseUtcTimestamp(incident.resolvedAt) : now;
   if (!("minutes" in rule.window)) {
-    return tracesHref(projectId, rule, new Date(Date.UTC(opened.getUTCFullYear(), opened.getUTCMonth(), 1)), to);
+    return tracesHref(projectId, rule, startOfUtcMonth(opened), to);
   }
   if (!cadence) return null;
   const lead = (cadence.firesAfterMinutes + rule.window.minutes) * MINUTE_MS;
   return tracesHref(projectId, rule, new Date(opened.getTime() - lead), to);
 };
 
-export const lastDayTracesHref = (projectId: string, rule: MetricRule, now = new Date()): string =>
-  tracesHref(projectId, rule, new Date(now.getTime() - DAY_MS), now);
+/** What a rule with no open incident is counting: the month so far for a month-to-date rule, else the last day. */
+export const currentTracesHref = (projectId: string, rule: MetricRule, now = new Date()): string =>
+  tracesHref(projectId, rule, "minutes" in rule.window ? new Date(now.getTime() - DAY_MS) : startOfUtcMonth(now), now);

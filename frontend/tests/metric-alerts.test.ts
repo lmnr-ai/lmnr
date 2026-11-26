@@ -5,7 +5,11 @@ import { parseAsArrayOf, parseAsString } from "nuqs/server";
 
 import { chartAlertPreset } from "@/components/dashboards/chart-alert";
 import { CHART_PRESETS } from "@/components/dashboards/chart-presets";
-import { incidentTracesHref, tracesHref } from "@/components/settings/alerts/metric-alert-page/traces-href";
+import {
+  currentTracesHref,
+  incidentTracesHref,
+  tracesHref,
+} from "@/components/settings/alerts/metric-alert-page/traces-href";
 import {
   DEFAULT_FORM_VALUES,
   fromRule,
@@ -338,6 +342,12 @@ describe("chartAlertPreset", () => {
       null
     );
   });
+
+  it("falls back to the query text when the stored structure is incomplete", () => {
+    const partial = (name: string) => ({ ...preset(name), settings: { queryStructure: { table: "spans" } } as never });
+    assert.equal(chartAlertPreset(partial("Total cost"))?.metric, "total_cost");
+    assert.equal(chartAlertPreset({ ...partial("Total cost"), query: "SELECT 1" }), null);
+  });
 });
 
 const monthly = spendingLimit({ window: "mtd", spendingLimit: "2000" });
@@ -393,6 +403,22 @@ describe("traces link", () => {
     const url = new URL(incidentTracesHref("p1", monthly, incident, undefined, now)!, "http://x");
     assert.equal(url.searchParams.get("startDate"), "2026-01-01T00:00:00.000Z");
     assert.equal(url.searchParams.get("endDate"), "2026-01-21T00:00:00.000Z");
+  });
+
+  it("covers what a quiet rule is counting: the last day, or the month so far", () => {
+    const now = new Date("2026-01-21T08:30:00Z");
+    const range = (href: string) => {
+      const { searchParams } = new URL(href, "http://x");
+      return [searchParams.get("startDate"), searchParams.get("endDate")];
+    };
+    assert.deepEqual(range(currentTracesHref("p1", filtered, now)), [
+      "2026-01-20T08:30:00.000Z",
+      "2026-01-21T08:30:00.000Z",
+    ]);
+    assert.deepEqual(range(currentTracesHref("p1", monthly, now)), [
+      "2026-01-01T00:00:00.000Z",
+      "2026-01-21T08:30:00.000Z",
+    ]);
   });
 });
 

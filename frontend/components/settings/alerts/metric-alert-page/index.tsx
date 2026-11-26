@@ -20,7 +20,7 @@ import { alertStatus, cadenceLine, conditionSummary, isSnoozed } from "../metric
 import AlertActions from "./alert-actions";
 import AlertChart from "./alert-chart";
 import IncidentHistory from "./incident-history";
-import { incidentTracesHref, lastDayTracesHref } from "./traces-href";
+import { currentTracesHref, incidentTracesHref } from "./traces-href";
 
 export default function MetricAlertPage({ projectId, alertId }: { projectId: string; alertId: string }) {
   const { workspace, settingsHref } = useProjectContext();
@@ -70,7 +70,7 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
                   tracesHref={
                     openIncident
                       ? incidentTracesHref(projectId, alert.rule, openIncident, cadence)
-                      : lastDayTracesHref(projectId, alert.rule)
+                      : currentTracesHref(projectId, alert.rule)
                   }
                   isPending={pendingIds.has(alert.id)}
                   onSnooze={(until) => snooze(alert, until)}
