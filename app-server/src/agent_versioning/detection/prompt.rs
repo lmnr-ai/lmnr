@@ -35,10 +35,17 @@ A prompt change usually ships in a deploy: a known agent goes quiet as prompts a
 keep the shape of its latest prompt (same structure and surrounding text) with some text \
 reworded. Extend that agent rather than defining a new one.
 
+Prompts that fill one template with different values are one agent. Platforms let their \
+users configure agents: every prompt keeps the template's structure and fixed text, and \
+only values such as the configured agent's name, goal or instructions differ (`You are \
+\"Inbound\", an agent that Acme runs...` and `You are \"Support\", an agent that Acme \
+runs...`). Those values are user content, like an organization name: define one agent for \
+the template and check its fixed text.
+
 Rules for checks:
 - Use static text that every prompt of the agent carries, usually its role statement \
-(\"You are a GTM assistant...\"). Never use dynamic content: dates, names, ids, \
-organizations, counts, credits, user context.
+(\"You are a GTM assistant...\"). Never use dynamic content: dates, names (a configured \
+agent's name too), ids, organizations, counts, credits, user context.
 - A check must not match other agents' prompts, so avoid boilerplate several agents share.
 - Prefer one or two distinctive sentences or phrases.
 
