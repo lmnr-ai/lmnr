@@ -27,8 +27,9 @@ export const tracesHref = (projectId: string, rule: MetricRule, from: Date, to: 
   })}`;
 
 /**
- * The traces behind an incident: from the first window that breached, which
- * ended `firesAfterMinutes` before the incident opened, until it resolved.
+ * The traces behind an incident, until it resolved. The range starts
+ * `firesAfterMinutes` and one window before the incident opened, which covers
+ * the first window that breached with up to one check interval to spare.
  * A month-to-date rule counts spend from the start of the UTC month.
  * `null` while the rule's cadence is not known, so no link shows a range that is too short.
  */
