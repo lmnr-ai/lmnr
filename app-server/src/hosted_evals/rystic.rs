@@ -1,7 +1,6 @@
 //! Rystic service simulators (Slack, Linear, GitHub "twins") in trial sandboxes.
 //! A simulator runs inside the trial and serves the app under test on
-//! localhost. Only its download (`twin-release`) and its license check-ins
-//! (`lease`) reach Rystic, through `/v1/hosted-evals/rystic/*`: each trial gets
+//! localhost. Only its download and its license check-ins reach Rystic, through `/v1/hosted-evals/rystic/*`: each trial gets
 //! a token of its own, shaped like a Rystic key, and the proxy swaps it for
 //! `RYSTIC_API_KEY`, which never enters a sandbox.
 
@@ -30,24 +29,26 @@ use crate::{
 /// nothing else locally.
 const TOKEN_PREFIX: &str = "rys_";
 const TOKEN_LEN: usize = 43;
-const RELEASE_URL: &str = "https://www.rystic.ai/api/twin-release";
-const LEASE_URL: &str = "https://lease.rystic.ai/v1";
-const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(30);
+const DOWNLOAD_URL: &str = "https://www.rystic.ai/api/twin-release";
+const LICENSE_CHECK_URL: &str = "https://lease.rystic.ai/v1";
+const RYSTIC_TIMEOUT: Duration = Duration::from_secs(30);
 /// Simulator starts one trial may make, so a token read by the code under test
 /// can't run many simulators on Laminar's account.
 const MAX_REGISTRATIONS_PER_TRIAL: i64 = 20;
 
-/// The simulator's check-in calls, `POST <RYSTIC_LEASE_URL>/v1/<op>`.
+/// A running simulator's license check-in with Rystic, sent to
+/// `<RYSTIC_LEASE_URL>/v1/<name>`: `Register` when it starts, `Heartbeat` every
+/// 30 s, `Close` when it exits.
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum LeaseOp {
+pub enum LicenseCheck {
     Register,
     Heartbeat,
     Close,
 }
 
-impl LeaseOp {
-    pub fn parse(op: &str) -> Option<Self> {
-        match op {
+impl LicenseCheck {
+    pub fn parse(name: &str) -> Option<Self> {
+        match name {
             "register" => Some(Self::Register),
             "heartbeat" => Some(Self::Heartbeat),
             "close" => Some(Self::Close),
@@ -64,16 +65,19 @@ impl LeaseOp {
     }
 }
 
-pub enum Upstream {
-    Release,
-    Lease(LeaseOp),
+/// The calls a simulator makes to Rystic, the only ones the proxy forwards.
+pub enum RysticCall {
+    /// `rystic pull`: answers with a short-lived URL the trial downloads the
+    /// simulator from.
+    Download,
+    LicenseCheck(LicenseCheck),
 }
 
-impl Upstream {
+impl RysticCall {
     fn url(&self) -> String {
         match self {
-            Self::Release => RELEASE_URL.to_string(),
-            Self::Lease(op) => format!("{LEASE_URL}/{}", op.name()),
+            Self::Download => DOWNLOAD_URL.to_string(),
+            Self::LicenseCheck(check) => format!("{LICENSE_CHECK_URL}/{}", check.name()),
         }
     }
 }
@@ -90,7 +94,7 @@ pub struct TrialAccess {
 }
 
 /// What Rystic answered, passed back to the simulator as is.
-pub struct UpstreamResponse {
+pub struct RysticResponse {
     pub status: u16,
     pub content_type: Option<String>,
     pub body: Bytes,
@@ -136,9 +140,12 @@ pub async fn issue(cache: &Cache, project_id: &Uuid) -> Option<TrialAccess> {
         ("RYSTIC_TOKEN".to_string(), token),
         (
             "RYSTIC_RELEASE_ENDPOINT".to_string(),
-            format!("{base}/twin-release"),
+            format!("{base}/download"),
         ),
-        ("RYSTIC_LEASE_URL".to_string(), format!("{base}/lease")),
+        (
+            "RYSTIC_LEASE_URL".to_string(),
+            format!("{base}/license-check"),
+        ),
     ]);
     Some(TrialAccess { token_hash, env })
 }
@@ -215,13 +222,13 @@ pub async fn count_registration(cache: &Cache, token_hash: &str) -> Result<bool>
 pub async fn forward(
     client: &reqwest::Client,
     api_key: &str,
-    upstream: &Upstream,
+    call: &RysticCall,
     content_type: Option<&str>,
     body: Bytes,
-) -> Result<UpstreamResponse> {
+) -> Result<RysticResponse> {
     let mut request = client
-        .post(upstream.url())
-        .timeout(UPSTREAM_TIMEOUT)
+        .post(call.url())
+        .timeout(RYSTIC_TIMEOUT)
         .bearer_auth(api_key)
         .body(body);
     if let Some(content_type) = content_type {
@@ -235,7 +242,7 @@ pub async fn forward(
         .and_then(|value| value.to_str().ok())
         .map(str::to_string);
     let body = response.bytes().await?;
-    Ok(UpstreamResponse {
+    Ok(RysticResponse {
         status,
         content_type,
         body,
@@ -273,13 +280,16 @@ mod tests {
     }
 
     #[test]
-    fn lease_ops_map_to_rystic_paths() {
-        assert_eq!(LeaseOp::parse("heartbeat"), Some(LeaseOp::Heartbeat));
-        assert_eq!(LeaseOp::parse("renew"), None);
+    fn calls_map_to_rystic_urls() {
         assert_eq!(
-            Upstream::Lease(LeaseOp::Register).url(),
+            LicenseCheck::parse("heartbeat"),
+            Some(LicenseCheck::Heartbeat)
+        );
+        assert_eq!(LicenseCheck::parse("renew"), None);
+        assert_eq!(
+            RysticCall::LicenseCheck(LicenseCheck::Register).url(),
             "https://lease.rystic.ai/v1/register"
         );
-        assert_eq!(Upstream::Release.url(), RELEASE_URL);
+        assert_eq!(RysticCall::Download.url(), DOWNLOAD_URL);
     }
 }

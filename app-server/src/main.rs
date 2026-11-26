@@ -1984,8 +1984,8 @@ fn main() -> anyhow::Result<()> {
                             // project-key `/v1` scope below.
                             .service(
                                 web::scope("/v1/hosted-evals/rystic")
-                                    .service(api::v1::rystic::twin_release)
-                                    .service(api::v1::rystic::lease),
+                                    .service(api::v1::rystic::download)
+                                    .service(api::v1::rystic::license_check),
                             );
                         // Must precede the catch-all `/v1` scope, which would capture `/v1/chat/*`.
                         #[cfg(feature = "signals")]
