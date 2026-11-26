@@ -1,21 +1,30 @@
+import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
+
 import { type MetricAlertIncident, type MetricRule, type RuleCadence } from "@/lib/actions/alerts/metric-rule";
 import { parseUtcTimestamp } from "@/lib/charts/time";
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
+// Written with the parser the traces table reads `filter` with, so the commas
+// inside each filter's JSON are escaped the way it expects.
+const serializeTracesQuery = createSerializer({
+  startDate: parseAsString,
+  endDate: parseAsString,
+  filter: parseAsArrayOf(parseAsString),
+  sortBy: parseAsString,
+  sortDirection: parseAsString,
+});
+
 /** The traces table over a time range, narrowed by the rule's filters, most expensive first. */
-export const tracesHref = (projectId: string, rule: MetricRule, from: Date, to: Date): string => {
-  const query = new URLSearchParams({ startDate: from.toISOString(), endDate: to.toISOString() });
-  // The traces table reads `filter` as one comma-separated list, with the
-  // commas inside each filter escaped.
-  if (rule.filters.length > 0) {
-    query.set("filter", rule.filters.map((filter) => JSON.stringify(filter).replaceAll(",", "%2C")).join(","));
-  }
-  query.set("sortBy", "cost");
-  query.set("sortDirection", "desc");
-  return `/project/${projectId}/traces?${query.toString()}`;
-};
+export const tracesHref = (projectId: string, rule: MetricRule, from: Date, to: Date): string =>
+  `/project/${projectId}/traces${serializeTracesQuery({
+    startDate: from.toISOString(),
+    endDate: to.toISOString(),
+    filter: rule.filters.length > 0 ? rule.filters.map((filter) => JSON.stringify(filter)) : null,
+    sortBy: "cost",
+    sortDirection: "desc",
+  })}`;
 
 /**
  * The traces behind an incident: from the first window that breached, which

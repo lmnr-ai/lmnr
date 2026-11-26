@@ -203,6 +203,13 @@ describe("traces link", () => {
     assert.equal(url.searchParams.get("sortDirection"), "desc");
   });
 
+  it("leaves the filter out for a rule without filters", () => {
+    const href = tracesHref("p1", budget, new Date("2026-01-01T10:00:00Z"), new Date("2026-01-01T11:00:00Z"));
+    const url = new URL(href, "http://localhost");
+    assert.equal(url.searchParams.has("filter"), false);
+    assert.equal(url.searchParams.get("sortBy"), "cost");
+  });
+
   it("starts an incident's range at the first window that breached", () => {
     // Opened 12:00 after 6 minutes of breaching checks over a 15 minute window.
     const incident = { openedAt: "2026-01-01 12:00:00+00", resolvedAt: "2026-01-01 12:30:00+00" };
