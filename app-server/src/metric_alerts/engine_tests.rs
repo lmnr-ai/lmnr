@@ -62,10 +62,11 @@ fn change_rule(overrides: Value) -> Rule {
     rule(fields)
 }
 
-fn budget_rule() -> Rule {
+/// Critical at 1000 this month, Warning at 80% of it.
+fn spending_limit_rule() -> Rule {
     rule(json!({
         "window": { "monthToDate": true },
-        "condition": { "type": "budget", "amount": 1000 },
+        "condition": { "type": "spending_limit", "limit": 1000, "warnAtPercent": 80 },
         "warning": null,
         "critical": null,
         "resolve": null,
@@ -78,7 +79,6 @@ struct Check {
     minute: i64,
     value: Option<f64>,
     baseline: Option<f64>,
-    projected: Option<f64>,
     traces: u64,
     behind: bool,
 }
@@ -88,7 +88,6 @@ fn check(minute: i64, value: f64) -> Check {
         minute,
         value: Some(value),
         baseline: None,
-        projected: None,
         traces: 1000,
         behind: false,
     }
@@ -145,7 +144,6 @@ fn observation(check: &Check) -> Observation {
         at: time_of(check.minute),
         value: check.value,
         baseline: check.baseline,
-        projected: check.projected,
         traces: check.traces,
         ingestion_behind: check.behind,
     }
@@ -212,6 +210,47 @@ fn transitions() {
             rule: rule(json!({})),
             checks: each_minute(&[150., 150., 150., 80., 80., 80.]),
             expected: vec![(2, Opened, Warning), (5, Resolved, Okay)],
+        },
+        Case {
+            name: "without a resolve threshold the rule resolves at warning",
+            rule: rule(json!({ "resolve": null })),
+            checks: each_minute(&[150., 150., 150., 101., 101., 101., 100., 100., 100.]),
+            expected: vec![(2, Opened, Warning), (8, Resolved, Okay)],
+        },
+        Case {
+            name: "without resolve and warning the rule resolves at critical",
+            rule: rule(json!({ "resolve": null, "warning": null })),
+            checks: each_minute(&[250., 250., 250., 201., 201., 201., 200., 200., 200.]),
+            expected: vec![(2, Opened, Critical), (8, Resolved, Okay)],
+        },
+        Case {
+            name: "errored traces fire on a handful of traces",
+            rule: rule(json!({
+                "metric": "error_traces", "warning": 2, "critical": null, "resolve": null
+            })),
+            checks: with_traces(each_minute(&[0., 3., 3., 3., 3., 2., 2., 2.]), 4),
+            expected: vec![(3, Opened, Warning), (7, Resolved, Okay)],
+        },
+        Case {
+            name: "errored traces over nothing are zero, so the incident resolves",
+            rule: rule(json!({
+                "metric": "error_traces", "warning": 2, "critical": null, "resolve": null,
+                "checksInARow": 1
+            })),
+            checks: vec![check(0, 3.), no_data(1)],
+            expected: vec![(0, Opened, Warning), (1, Resolved, Okay)],
+        },
+        Case {
+            name: "a share of traces without cost is not checked on too few traces",
+            rule: rule(json!({
+                "metric": "no_cost_rate", "warning": 50, "critical": null, "resolve": null
+            })),
+            checks: [
+                with_traces(each_minute(&[100., 100., 100.]), 10),
+                starting_at(3, with_traces(each_minute(&[100., 100., 100.]), 60)),
+            ]
+            .concat(),
+            expected: vec![(5, Opened, Warning)],
         },
         Case {
             name: "a value at the warning threshold does not fire",
@@ -477,30 +516,49 @@ fn transitions() {
 }
 
 #[test]
-fn budget_warns_on_pace_and_goes_critical_on_spend() {
-    let budget = |hour: i64, spend: f64, projected: f64| Check {
-        projected: Some(projected),
-        ..check(hour * 60, spend)
-    };
+fn a_spending_limit_warns_at_its_share_and_goes_critical_at_the_limit() {
+    let spend = |hour: i64, spend: f64| check(hour * 60, spend);
     let checks = [
-        budget(0, 500.0, 900.0),
-        // The projection passes the budget.
-        budget(1, 600.0, 1100.0),
-        // Back under the budget but above the resolve line (90%): still on pace.
-        budget(2, 700.0, 950.0),
-        // Actual spend reaches the budget.
-        budget(3, 1000.0, 1200.0),
+        spend(0, 799.0),
+        // Exactly 80% of the limit.
+        spend(1, 800.0),
+        spend(2, 999.0),
+        // Exactly the limit.
+        spend(3, 1000.0),
         // A new month.
-        budget(4, 10.0, 300.0),
+        spend(4, 10.0),
     ];
 
     assert_eq!(
-        run(&budget_rule(), &checks),
+        run(&spending_limit_rule(), &checks),
         vec![
             (60, Opened, Warning),
             (120, Reminder, Warning),
             (180, Escalated, Critical),
             (240, Resolved, Okay),
+        ]
+    );
+}
+
+#[test]
+fn a_daily_spending_limit_steps_down_as_the_day_rolls_on() {
+    let rule = rule(json!({
+        "window": { "minutes": 1440 },
+        "condition": { "type": "spending_limit", "limit": 100, "warnAtPercent": 50 },
+        "warning": null,
+        "critical": null,
+        "resolve": null,
+        "checksInARow": 1
+    }));
+    let checks = each_minute(&[40., 50., 120., 99., 50., 49.]);
+
+    assert_eq!(
+        run(&rule, &checks),
+        vec![
+            (1, Opened, Warning),
+            (2, Escalated, Critical),
+            (3, Deescalated, Warning),
+            (5, Resolved, Okay),
         ]
     );
 }
@@ -742,7 +800,7 @@ fn preview_and_scheduler_agree_on_a_recorded_series() {
         .into_iter()
         .filter(|(_, kind, _)| *kind != Reminder)
         .collect();
-    let preview = replay(&rule, &series, None, &minutes, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 299, Context::default());
     let previewed: Vec<Seen> = preview
         .incidents
         .iter()
@@ -770,4 +828,77 @@ fn preview_and_scheduler_agree_on_a_recorded_series() {
     assert_eq!(preview.incidents[0].peak_level, Critical);
     assert_eq!(preview.incidents[0].peak_value, 350.0);
     assert_eq!(preview.incidents[0].resolved_at, Some(time_of(255)));
+}
+
+#[test]
+fn the_preview_plots_empty_windows_as_zero() {
+    let rule = rule(json!({ "metric": "error_rate", "resolve": null }));
+    let series = Series::default();
+    let minutes: Vec<i64> = (10..20).collect();
+
+    let preview = replay(&rule, &series, None, &minutes, 19, Context::default());
+    assert_eq!(preview.points.len(), 10);
+    assert!(preview.points.iter().all(|point| point.value == Some(0.0)));
+    // The rule itself skips those checks: an error rate over nothing says nothing.
+    assert!(preview.incidents.is_empty());
+
+    // A relative rule with nothing to compare to has no number to plot.
+    let change = change_rule(json!({ "resolve": null }));
+    let preview = replay(&change, &series, None, &minutes, 19, Context::default());
+    assert!(preview.points.iter().all(|point| point.value.is_none()));
+}
+
+#[test]
+fn the_preview_ends_at_the_newest_minute() {
+    let rule = rule(json!({}));
+    let series = recorded_series();
+
+    // Checked every 15 minutes: the last check is at 285, the data goes on.
+    let minutes: Vec<i64> = (15..=285).step_by(15).collect();
+    let preview = replay(&rule, &series, None, &minutes, 297, Context::default());
+    assert_eq!(preview.points.len(), minutes.len() + 1);
+    assert_eq!(preview.points.last().map(|p| p.at), Some(time_of(297)));
+
+    // The extra point is plotted, not evaluated.
+    let on_grid = replay(&rule, &series, None, &minutes, 285, Context::default());
+    assert_eq!(on_grid.points.len(), minutes.len());
+    assert_eq!(on_grid.incidents, preview.incidents);
+}
+
+#[test]
+fn a_long_preview_keeps_spikes_and_the_newest_point() {
+    let rule = rule(json!({}));
+    let rows: Vec<SpanMetricsMinute> = (0..3000)
+        .map(|minute| SpanMetricsMinute {
+            minute: (minute * 60) as u32,
+            model: "model-a".to_string(),
+            // One spike in the middle, and a quiet last minute after a busy one.
+            total_cost: match minute {
+                1500 => 500.0,
+                2998 => 50.0,
+                2999 => 0.0,
+                _ => 1.0,
+            },
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            llm_calls: 1,
+        })
+        .collect();
+    let mut series = Series::default();
+    series.add_span_rows(&rows);
+    let minutes: Vec<i64> = (5..=3000).collect();
+
+    let preview = replay(&rule, &series, None, &minutes, 3000, Context::default());
+    assert!(preview.points.len() <= 600, "{}", preview.points.len());
+    let peak = preview
+        .points
+        .iter()
+        .filter_map(|p| p.value)
+        .fold(0.0, f64::max);
+    assert_eq!(peak, 504.0);
+    let newest = preview.points.last().unwrap();
+    assert_eq!((newest.at, newest.value), (time_of(3000), Some(53.0)));
+    let before = &preview.points[preview.points.len() - 2];
+    assert!(before.at < newest.at);
 }

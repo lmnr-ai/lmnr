@@ -87,8 +87,6 @@ pub struct Observation {
     /// What a relative condition divides by: the past window for `change`,
     /// the project's p99 trace cost for `trace_p99`.
     pub baseline: Option<f64>,
-    /// Projected month-end spend, for budgets.
-    pub projected: Option<f64>,
     pub traces: u64,
     /// Our own ingestion is behind, so recent windows are under-counted.
     pub ingestion_behind: bool,
@@ -117,7 +115,6 @@ pub struct Transition {
     /// percentage of the baseline.
     pub compared: Option<f64>,
     pub baseline: Option<f64>,
-    pub projected: Option<f64>,
     /// False while the rule is snoozed or muted.
     pub notify: bool,
 }
@@ -140,7 +137,7 @@ struct Reading {
 }
 
 fn highest_level(rule: &Rule) -> Level {
-    if rule.critical.is_some() || matches!(rule.condition, Condition::Budget { .. }) {
+    if rule.critical_threshold().is_some() {
         Level::Critical
     } else {
         Level::Warning
@@ -155,30 +152,29 @@ fn past(rule: &Rule, compared: f64, threshold: f64) -> f64 {
     }
 }
 
+/// A threshold is breached by passing it. A spending limit is breached by
+/// reaching it.
+fn breaches(rule: &Rule, compared: f64, threshold: f64) -> bool {
+    let past = past(rule, compared, threshold);
+    past > 0.0 || (rule.is_spending_limit() && past == 0.0)
+}
+
 /// The level a single number asks for. While firing, only the resolve
 /// threshold leads back to OK.
 fn threshold_level(rule: &Rule, current: Level, compared: f64) -> Level {
-    if rule.critical.is_some_and(|t| past(rule, compared, t) > 0.0) {
+    let warning = rule.warning_threshold();
+    if rule
+        .critical_threshold()
+        .is_some_and(|t| breaches(rule, compared, t))
+    {
         Level::Critical
-    } else if rule.warning.is_some_and(|t| past(rule, compared, t) > 0.0) {
+    } else if warning.is_some_and(|t| breaches(rule, compared, t)) {
         Level::Warning
     } else if current != Level::Ok && past(rule, compared, rule.resolve_threshold()) > 0.0 {
-        match rule.warning {
+        match warning {
             Some(_) => Level::Warning,
             None => current,
         }
-    } else {
-        Level::Ok
-    }
-}
-
-fn budget_level(rule: &Rule, current: Level, amount: f64, spend: f64, projected: f64) -> Level {
-    if spend >= amount {
-        Level::Critical
-    } else if projected >= amount {
-        Level::Warning
-    } else if current != Level::Ok && projected > rule.resolve_threshold() {
-        Level::Warning
     } else {
         Level::Ok
     }
@@ -205,10 +201,8 @@ fn read(rule: &Rule, current: Level, observation: &Observation) -> Option<Readin
     }
 
     let (level, compared) = match rule.condition {
-        Condition::Value => (threshold_level(rule, current, value), value),
-        Condition::Budget { amount } => {
-            let projected = observation.projected.unwrap_or(value);
-            (budget_level(rule, current, amount, value, projected), value)
+        Condition::Value | Condition::SpendingLimit { .. } => {
+            (threshold_level(rule, current, value), value)
         }
         Condition::Change { .. } | Condition::TraceP99 => {
             let baseline = observation.baseline.filter(|b| *b > 0.0)?;
@@ -411,7 +405,6 @@ pub fn evaluate(rule: &Rule, state: &mut State, observation: &Observation) -> Op
         value: reading.value,
         compared: reading.compared,
         baseline: observation.baseline,
-        projected: observation.projected,
         notify,
     })
 }
