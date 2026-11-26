@@ -12,6 +12,11 @@
 -- else with usage). Trace-level numbers (trace count, error rate, duration)
 -- are read from `traces_agg`, which already defines a trace.
 --
+-- Metric alerts watch production traffic, so spans of evaluation (1) and
+-- playground (3) traces are left out. The SDKs put the trace type on every
+-- span of such a trace. A rule that asks for another trace type has a filter,
+-- and filtered rules read the traces instead of this rollup.
+--
 -- 45 days covers the longest comparison (30 days back) plus a 1-day window and
 -- a 7-day preview. Whole weekly parts are dropped, so rows live 45 to 52 days.
 CREATE TABLE IF NOT EXISTS span_metrics_1m
@@ -44,5 +49,6 @@ SELECT
     sum(total_tokens) AS total_tokens,
     countIf(span_type = 1) AS llm_calls
 FROM spans
-WHERE spans.span_type = 1 OR spans.total_cost != 0 OR spans.total_tokens != 0
+WHERE spans.trace_type NOT IN (1, 3)
+  AND (spans.span_type = 1 OR spans.total_cost != 0 OR spans.total_tokens != 0)
 GROUP BY project_id, minute, model;
