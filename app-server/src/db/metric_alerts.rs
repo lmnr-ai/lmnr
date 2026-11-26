@@ -95,8 +95,9 @@ pub async fn get_states(
     Ok(rows)
 }
 
-/// Writes the state unless a newer observation was already stored. Returns
-/// whether the row was written.
+/// Writes the state unless the same or a newer observation was already
+/// stored, whichever rule version stored it. Returns whether the row was
+/// written.
 pub async fn upsert_state(
     conn: &mut PgConnection,
     state: &MetricAlertStateRow,
@@ -117,8 +118,7 @@ pub async fn upsert_state(
              rule_fingerprint = EXCLUDED.rule_fingerprint,
              updated_at = now()
          WHERE metric_alert_states.project_id = EXCLUDED.project_id
-           AND (metric_alert_states.rule_fingerprint <> EXCLUDED.rule_fingerprint
-                OR metric_alert_states.last_processed_at IS NULL
+           AND (metric_alert_states.last_processed_at IS NULL
                 OR metric_alert_states.last_processed_at < EXCLUDED.last_processed_at)",
     )
     .bind(state.alert_id)
