@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use chrono::{DateTime, Datelike, Months, TimeZone, Utc};
+use chrono::{DateTime, Datelike, TimeZone, Utc};
 
 use crate::ch::span_metrics::SpanMetricsMinute;
 
@@ -15,8 +15,6 @@ use super::{
 
 /// Latency histogram buckets grow by 5%, so a quantile is off by at most 2.5%.
 pub const LATENCY_BUCKET_BASE: f64 = 1.05;
-const BUDGET_PACE_DAYS: i64 = 7;
-const MINUTES_PER_DAY: i64 = 1440;
 /// The model the ingestion pipeline stores for spans that have none.
 const NULL_MODEL: &str = "<null>";
 
@@ -57,6 +55,8 @@ impl SpanSums {
 pub struct TraceSums {
     pub traces: u64,
     pub error_traces: u64,
+    pub no_cost_traces: u64,
+    pub no_tokens_traces: u64,
     pub sums: SpanSums,
     pub max_cost: f64,
     /// Latency histogram bucket to trace count.
@@ -67,11 +67,17 @@ impl TraceSums {
     fn add(&mut self, other: &TraceSums) {
         self.traces += other.traces;
         self.error_traces += other.error_traces;
+        self.no_cost_traces += other.no_cost_traces;
+        self.no_tokens_traces += other.no_tokens_traces;
         self.sums.add(&other.sums);
         self.max_cost = self.max_cost.max(other.max_cost);
         for (bucket, count) in &other.durations {
             *self.durations.entry(*bucket).or_default() += count;
         }
+    }
+
+    fn percent_of_traces(&self, count: u64) -> f64 {
+        count as f64 / self.traces as f64 * 100.0
     }
 
     /// Latency quantile in seconds.
@@ -121,6 +127,8 @@ impl Series {
             let mut sums = TraceSums {
                 traces: row.traces,
                 error_traces: row.error_traces,
+                no_cost_traces: row.no_cost_traces,
+                no_tokens_traces: row.no_tokens_traces,
                 sums: SpanSums {
                     cost: row.total_cost,
                     input_tokens: row.input_tokens,
@@ -235,7 +243,10 @@ fn measure(rule: &Rule, series: &Series, group: Option<&str>, window: Minutes) -
             .map(|s| s.metric(rule.metric) / trace_count as f64),
         Metric::TraceCost => traces.map(|t| t.max_cost),
         Metric::TraceCount => traces.map(|t| t.traces as f64),
-        Metric::ErrorRate => traces.map(|t| t.error_traces as f64 / t.traces as f64 * 100.0),
+        Metric::ErrorTraces => traces.map(|t| t.error_traces as f64),
+        Metric::ErrorRate => traces.map(|t| t.percent_of_traces(t.error_traces)),
+        Metric::NoCostRate => traces.map(|t| t.percent_of_traces(t.no_cost_traces)),
+        Metric::NoTokensRate => traces.map(|t| t.percent_of_traces(t.no_tokens_traces)),
         Metric::LatencyP50 => traces.and_then(|t| t.latency(0.5)),
         Metric::LatencyP95 => traces.and_then(|t| t.latency(0.95)),
     };
@@ -255,15 +266,14 @@ pub fn time_of(minute: i64) -> DateTime<Utc> {
         .unwrap_or_default()
 }
 
-/// Start of the UTC month that `minute` falls in, and of the month after.
-fn month_bounds(minute: i64) -> (i64, i64) {
+/// Start of the UTC month that `minute` falls in.
+fn month_start(minute: i64) -> i64 {
     let at = time_of(minute);
     let start = Utc
         .with_ymd_and_hms(at.year(), at.month(), 1, 0, 0, 0)
         .single()
         .unwrap_or(at);
-    let next = start.checked_add_months(Months::new(1)).unwrap_or(start);
-    (minute_of(start), minute_of(next))
+    minute_of(start)
 }
 
 /// The window a check ending at `end` measures.
@@ -272,7 +282,7 @@ pub fn window_of(rule: &Rule, end: i64) -> Minutes {
         Window::Minutes { minutes } => end - minutes as i64,
         // `end` is exclusive: a check ending at midnight on the 1st measures
         // the whole month that just ended.
-        Window::MonthToDate { .. } => month_bounds(end - 1).0,
+        Window::MonthToDate { .. } => month_start(end - 1),
     };
     Minutes { start, end }
 }
@@ -281,19 +291,12 @@ pub fn window_of(rule: &Rule, end: i64) -> Minutes {
 pub fn ranges_of(rule: &Rule, end: i64) -> Vec<Minutes> {
     let window = window_of(rule, end);
     let mut ranges = vec![window];
-    match rule.condition {
-        Condition::Change { compare_to } => {
-            let shift = compare_to.minutes();
-            ranges.push(Minutes {
-                start: window.start - shift,
-                end: window.end - shift,
-            });
-        }
-        Condition::Budget { .. } => ranges.push(Minutes {
-            start: end - BUDGET_PACE_DAYS * MINUTES_PER_DAY,
-            end,
-        }),
-        _ => {}
+    if let Condition::Change { compare_to } = rule.condition {
+        let shift = compare_to.minutes();
+        ranges.push(Minutes {
+            start: window.start - shift,
+            end: window.end - shift,
+        });
     }
     ranges
 }
@@ -343,27 +346,10 @@ pub fn observe(
         _ => None,
     };
 
-    let projected = match rule.condition {
-        Condition::Budget { .. } => {
-            let pace_window = Minutes {
-                start: end - BUDGET_PACE_DAYS * MINUTES_PER_DAY,
-                end,
-            };
-            let recent = measure(rule, series, group, pace_window)
-                .value
-                .unwrap_or(0.0);
-            let daily = recent / BUDGET_PACE_DAYS as f64;
-            let days_left = (month_bounds(end - 1).1 - end) as f64 / MINUTES_PER_DAY as f64;
-            Some(measured.value.unwrap_or(0.0) + daily * days_left.max(0.0))
-        }
-        _ => None,
-    };
-
     Observation {
         at: time_of(end),
         value: measured.value,
         baseline,
-        projected,
         traces: measured.traces,
         ingestion_behind: context.ingestion_behind,
     }
@@ -408,6 +394,8 @@ mod tests {
             bucket,
             traces,
             error_traces: errors,
+            no_cost_traces: 0,
+            no_tokens_traces: 0,
             total_cost: cost,
             input_tokens: 0,
             output_tokens: 0,
@@ -496,7 +484,7 @@ mod tests {
 
     #[test]
     fn change_reads_the_same_window_shifted_back() {
-        let week = 7 * MINUTES_PER_DAY;
+        let week = 7 * 1440;
         let end = 100 + week;
         let mut series = Series::default();
         series.add_span_rows(&[span_row(96, "a", 4.0, 0), span_row(end - 2, "a", 6.0, 0)]);
@@ -546,6 +534,10 @@ mod tests {
             observed(json!({ "metric": "trace_count" })).value,
             Some(100.0)
         );
+        assert_eq!(
+            observed(json!({ "metric": "error_traces" })).value,
+            Some(5.0)
+        );
         assert_eq!(observed(json!({ "metric": "error_rate" })).value, Some(5.0));
         assert_eq!(observed(json!({ "metric": "error_rate" })).traces, 100);
         // Unfiltered per-trace numbers divide the span sums by the traces.
@@ -578,33 +570,60 @@ mod tests {
     }
 
     #[test]
-    fn a_budget_projects_the_month_from_the_last_7_days() {
-        let rule = rule(json!({
-            "window": { "monthToDate": true },
-            "condition": { "type": "budget", "amount": 2000 },
-            "warning": null,
-            "resolve": null
-        }));
+    fn share_metrics_divide_by_the_traces_in_the_window() {
+        let mut series = Series::default();
+        let row = |minute: i64, traces: u64, no_cost: u64, no_tokens: u64| TraceMinute {
+            no_cost_traces: no_cost,
+            no_tokens_traces: no_tokens,
+            ..trace_row(minute, 0, traces, 0, 1.0)
+        };
+        series.add_trace_rows(&[row(96, 60, 30, 0), row(98, 40, 20, 10), row(120, 9, 9, 9)]);
+        let observed = |metric: &str, end: i64| {
+            let rule = rule(json!({ "metric": metric }));
+            observe(&rule, &series, None, end, Context::default())
+        };
+
+        assert_eq!(observed("no_cost_rate", 100).value, Some(50.0));
+        assert_eq!(observed("no_tokens_rate", 100).value, Some(10.0));
+        assert_eq!(observed("no_cost_rate", 100).traces, 100);
+        // A window without traces has no share, and no errored traces either.
+        assert_eq!(observed("no_cost_rate", 110).value, None);
+        assert_eq!(observed("error_traces", 110).value, None);
+    }
+
+    #[test]
+    fn a_spending_limit_sums_the_month_or_the_last_day() {
+        let limit = |window: Value| {
+            rule(json!({
+                "window": window,
+                "condition": { "type": "spending_limit", "limit": 2000 },
+                "warning": null,
+                "resolve": null
+            }))
+        };
+        let monthly = limit(json!({ "monthToDate": true }));
         let end = minute_at(2026, 11, 15);
         let mut series = Series::default();
         series.add_span_rows(&[
             // Last month does not count towards the spend.
             span_row(minute_at(2026, 10, 31), "a", 5000.0, 0),
             span_row(minute_at(2026, 11, 2), "a", 300.0, 0),
-            span_row(minute_at(2026, 11, 10), "a", 700.0, 0),
+            span_row(minute_at(2026, 11, 14) + 60, "a", 700.0, 0),
         ]);
 
-        let observed = observe(&rule, &series, None, end, Context::default());
+        let observed = observe(&monthly, &series, None, end, Context::default());
         assert_eq!(observed.value, Some(1000.0));
-        // 700 in the last 7 days is 100 a day, with 16 days left.
-        assert_eq!(observed.projected, Some(2600.0));
+        assert_eq!(ranges_of(&monthly, end).len(), 1);
 
         // A check ending at midnight on December 1 measures all of November.
         let month_end = minute_at(2026, 12, 1);
-        let closing = observe(&rule, &series, None, month_end, Context::default());
+        let closing = observe(&monthly, &series, None, month_end, Context::default());
         assert_eq!(closing.value, Some(1000.0));
-        assert_eq!(closing.projected, Some(1000.0));
-        assert_eq!(window_of(&rule, month_end + 1).start, month_end);
+        assert_eq!(window_of(&monthly, month_end + 1).start, month_end);
+
+        let daily = limit(json!({ "minutes": 1440 }));
+        let observed = observe(&daily, &series, None, end, Context::default());
+        assert_eq!(observed.value, Some(700.0));
     }
 
     #[test]

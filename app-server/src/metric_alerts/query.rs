@@ -13,7 +13,7 @@ use crate::ch::span_metrics::{MinuteRange, get_span_metrics};
 
 use super::{
     filters::{Bind, FilterSql, build_where},
-    rule::{Metric, Rule},
+    rule::{Filter, Metric, Rule},
     series::{LATENCY_BUCKET_BASE, Minutes, Series, merge_ranges, reads_spans, reads_traces},
 };
 
@@ -31,6 +31,8 @@ pub struct TraceMinute {
     pub bucket: i32,
     pub traces: u64,
     pub error_traces: u64,
+    pub no_cost_traces: u64,
+    pub no_tokens_traces: u64,
     pub total_cost: f64,
     pub input_tokens: i64,
     pub output_tokens: i64,
@@ -49,7 +51,8 @@ const TRACES_AGG_SOURCE: &str = "
     FROM traces_agg
     WHERE project_id = ?
       AND start_time >= fromUnixTimestamp(?) AND start_time < fromUnixTimestamp(?)
-    GROUP BY id";
+    GROUP BY id
+    HAVING NOT hasAny(groupUniqArrayArray(trace_types), ['EVALUATION', 'PLAYGROUND'])";
 
 const TRACES_VIEW_SOURCE: &str = "
     SELECT start_time AS trace_start,
@@ -64,6 +67,21 @@ const TRACES_VIEW_SOURCE: &str = "
         min_start_time = toDateTime64(fromUnixTimestamp(?), 9),
         max_start_time = toDateTime64(fromUnixTimestamp(?), 9) - toIntervalNanosecond(1)
     )";
+
+const PRODUCTION_ONLY: &str = "trace_type NOT IN ('EVALUATION', 'PLAYGROUND')";
+
+/// The rule's trace predicate. Rules watch production traffic: evaluation and
+/// playground traces are left out unless the rule filters on the trace type
+/// itself. With no filters the predicate is empty and `TRACES_AGG_SOURCE`
+/// leaves them out.
+fn trace_filter(filters: &[Filter]) -> Result<FilterSql> {
+    let mut filter = build_where(filters).map_err(anyhow::Error::msg)?;
+    let picks_trace_type = filters.iter().any(|f| f.column == "trace_type");
+    if !filter.sql.is_empty() && !picks_trace_type {
+        filter.sql = format!("{PRODUCTION_ONLY} AND ({})", filter.sql);
+    }
+    Ok(filter)
+}
 
 /// One subquery per range, each returning one row per trace. Unfiltered rules
 /// read `traces_agg` directly, which skips the joins the view needs for
@@ -147,6 +165,8 @@ async fn get_trace_minutes(
                 {bucket} AS bucket,
                 count() AS traces,
                 countIf(is_error) AS error_traces,
+                countIf(trace_cost = 0) AS no_cost_traces,
+                countIf(trace_total_tokens = 0) AS no_tokens_traces,
                 sum(trace_cost) AS total_cost,
                 sum(trace_input_tokens) AS input_tokens,
                 sum(trace_output_tokens) AS output_tokens,
@@ -176,7 +196,7 @@ pub async fn get_trace_cost_p99(
     rule: &Rule,
     range: Minutes,
 ) -> Result<Option<f64>> {
-    let filter = build_where(&rule.filters).map_err(anyhow::Error::msg)?;
+    let filter = trace_filter(&rule.filters)?;
     let query_str = format!(
         "SELECT if(count() = 0, NULL, quantile(0.99)(trace_cost)) FROM ({})",
         traces_source(&filter, 1)
@@ -211,7 +231,7 @@ pub async fn fetch_series(
             trace_keys.push(None);
             continue;
         }
-        let filter = build_where(&check.rule.filters).map_err(anyhow::Error::msg)?;
+        let filter = trace_filter(&check.rule.filters)?;
         let key = format!("{}|{:?}", filter.sql, filter.binds);
         let read = trace_reads.entry(key.clone()).or_insert_with(|| TraceRead {
             filter,
@@ -260,4 +280,35 @@ pub async fn fetch_series(
         .collect();
 
     Ok(series)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn filter(column: &str, value: &str) -> Filter {
+        Filter {
+            column: column.to_string(),
+            operator: "eq".to_string(),
+            value: json!(value),
+        }
+    }
+
+    #[test]
+    fn rules_watch_production_traffic_unless_they_pick_a_trace_type() {
+        let unfiltered = trace_filter(&[]).unwrap();
+        assert!(unfiltered.sql.is_empty());
+        let source = traces_source(&unfiltered, 1);
+        assert!(source.contains("FROM traces_agg") && source.contains("'PLAYGROUND'"));
+
+        let by_user = trace_filter(&[filter("user_id", "u1")]).unwrap();
+        assert!(by_user.sql.starts_with(PRODUCTION_ONLY), "{}", by_user.sql);
+        assert!(traces_source(&by_user, 1).contains("FROM traces_v0"));
+
+        let evals = [filter("trace_type", "EVALUATION"), filter("user_id", "u1")];
+        let evals = trace_filter(&evals).unwrap();
+        assert!(!evals.sql.contains(PRODUCTION_ONLY), "{}", evals.sql);
+    }
 }
