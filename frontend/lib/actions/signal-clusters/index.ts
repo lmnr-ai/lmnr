@@ -382,6 +382,7 @@ export async function getClusterVersionMarkers(
     .where(
       and(
         eq(agentVersions.projectId, projectId),
+        isNull(agentVersions.deletedAt),
         inArray(
           agentVersions.versionHash,
           rows.map((r) => r.versionHash)

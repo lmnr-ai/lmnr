@@ -37,6 +37,12 @@ pub const LOOKBACK_SECONDS: NumEnv<i64> = NumEnv::new("AGENT_VERSIONING_LOOKBACK
 /// and lets every older undecided release be decided early.
 pub const RELEASE_MIN_RUN: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_RELEASE_MIN_RUN", 10);
 
+/// Release mode: traces read from each side when comparing two releases,
+/// spread over the release (never fewer than `RELEASE_MIN_RUN`). The more and
+/// the more varied, the likelier an optional tool or clause shows up as
+/// coming and going on both sides instead of as a change.
+pub const RELEASE_SAMPLES: NumEnv<u64> = NumEnv::new("AGENT_VERSIONING_RELEASE_SAMPLES", 100);
+
 /// Release mode: a release short of `RELEASE_MIN_RUN` traces is decided from
 /// however many it has (even one) this long after it was first seen.
 pub const RELEASE_DECIDE_AFTER_SECONDS: NumEnv<i64> =

@@ -31,7 +31,7 @@ use crate::{
         Agent, Release, VersionText, get_releases, get_version_text, get_versions, insert_version,
         save_progress, set_backfilled, set_release_version, set_version_source, upsert_releases,
     },
-    env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN},
+    env::agent_versioning::{RELEASE_DECIDE_AFTER_SECONDS, RELEASE_MIN_RUN, RELEASE_SAMPLES},
 };
 
 /// Traces tagged per `traces_agg` insert.
@@ -151,13 +151,15 @@ impl<'a> Run<'a> {
             true => None,
             false => agent.current_version_id.and_then(|id| versions.index(id)),
         };
+        let min_run = RELEASE_MIN_RUN.get().max(1);
 
         Ok(Self {
             job,
             agent,
             scope,
             params: Params {
-                min_run: RELEASE_MIN_RUN.get().max(1),
+                min_run,
+                samples: RELEASE_SAMPLES.get().max(min_run),
                 decide_after: RELEASE_DECIDE_AFTER_SECONDS.get() * NS,
             },
             now,
@@ -294,7 +296,7 @@ impl<'a> Run<'a> {
         let (release, before, limit, version) = match (neighbour, self.before_releases) {
             (Some((j, version)), _) => {
                 let release = self.releases[j].release.as_str();
-                let limit = self.count(release).min(self.params.min_run);
+                let limit = self.count(release).min(self.params.samples);
                 (release, i64::MAX, limit, version)
             }
             (None, Some(version)) => {
