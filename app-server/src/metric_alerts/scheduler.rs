@@ -1,11 +1,15 @@
 //! Checks every metric rule on its grid. Each replica ticks once a minute and
 //! the one holding the lock does the work.
 
-use std::{collections::HashMap, future::Future, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    future::Future,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use chrono::Utc;
 use futures_util::{StreamExt, stream};
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tokio::time::{self, MissedTickBehavior};
 use uuid::Uuid;
@@ -13,10 +17,7 @@ use uuid::Uuid;
 use crate::{
     cache::{
         Cache, CacheTrait,
-        keys::{
-            METRIC_ALERT_TRACE_COST_P99_CACHE_KEY, METRIC_ALERTS_LAST_MINUTE_CACHE_KEY,
-            METRIC_ALERTS_SCHEDULER_LOCK_CACHE_KEY,
-        },
+        keys::{METRIC_ALERTS_LAST_MINUTE_CACHE_KEY, METRIC_ALERTS_SCHEDULER_LOCK_CACHE_KEY},
     },
     db::metric_alerts::{MetricAlertRow, get_all_metric_alerts},
     env::metric_alerts::METRIC_ALERTS_SETTLE_MINUTES,
@@ -32,22 +33,26 @@ use super::{
     engine::{State, Transition, evaluate},
     ingestion,
     message::{self, Event, Subject},
-    query::{RuleChecks, fetch_series, get_trace_cost_p99},
-    rule::{Condition, GroupBy, Rule},
-    series::{Context, Minutes, Series, observe, ranges_of, window_of},
+    query::fetch_series,
+    rule::{GroupBy, Rule},
+    series::{Series, observe, ranges_of, time_of, window_of},
     store::{self, StateKey},
 };
 
 const TICK_INTERVAL_SECONDS: u64 = 60;
 // Safety net in case the holder crashes; a normal tick releases the lock.
 const LOCK_TTL_SECONDS: u64 = 300;
-/// Minutes a late tick goes back to check. Older minutes are dropped.
-const MAX_CATCH_UP_MINUTES: i64 = 10;
+/// Missed minutes one tick checks. A longer gap takes several ticks.
+const MAX_MINUTES_PER_TICK: i64 = 15;
+/// Missed minutes older than this are skipped.
+const MAX_REPLAY_MINUTES: i64 = 3 * 60;
+/// A marker further ahead of the clock was written by a clock that ran ahead.
+const MAX_MARKER_AHEAD_MINUTES: i64 = 10;
+/// Checks wait for ingestion, so a stuck pipeline shows up here and not as
+/// an alert.
+const DATA_CLOCK_BEHIND_ERROR_MINUTES: i64 = 10;
+const SLOW_TICK_SECONDS: u64 = 30;
 const PROJECT_CONCURRENCY: usize = 8;
-const P99_RANGE_MINUTES: i64 = 7 * 24 * 60;
-const P99_TTL_SECONDS: u64 = 24 * 60 * 60;
-// A project with no baseline yet is asked again soon, so its first traces count.
-const EMPTY_P99_TTL_SECONDS: u64 = 10 * 60;
 
 struct MetricAlert {
     row: MetricAlertRow,
@@ -56,17 +61,10 @@ struct MetricAlert {
     interval_minutes: i64,
 }
 
-#[derive(Serialize, Deserialize)]
-struct CachedP99 {
-    value: Option<f64>,
-}
-
 struct Tick<'a> {
     pool: &'a PgPool,
     clickhouse: &'a clickhouse::Client,
     queue: &'a Arc<MessageQueue>,
-    cache: &'a Cache,
-    ingestion_behind: bool,
 }
 
 /// Runs `work` unless another replica holds the scheduler lock. Returns
@@ -139,14 +137,42 @@ async fn load_alerts(pool: &PgPool) -> anyhow::Result<Vec<MetricAlert>> {
     Ok(alerts)
 }
 
-/// The first minute a tick checks, given the last one that was checked. A
-/// marker far from the clock, behind or ahead, is dropped: a long outage is
-/// not replayed, and a marker written by a clock that ran ahead cannot hold
-/// the scheduler back.
-fn first_minute(last: Option<i64>, target: i64) -> i64 {
-    match last {
-        Some(last) if (target - last).abs() <= MAX_CATCH_UP_MINUTES => last + 1,
-        _ => target,
+/// The newest window end whose spans are all stored: `wall_target`, or the
+/// minute before the oldest batch a consumer is still storing if that is
+/// earlier.
+fn target_minute(wall_target: i64, oldest_in_flight_ms: Option<i64>) -> i64 {
+    match oldest_in_flight_ms {
+        Some(accepted_at_ms) => wall_target.min(accepted_at_ms.div_euclid(60_000) - 1),
+        None => wall_target,
+    }
+}
+
+/// The minutes one tick checks, in order. Empty when `first > last`.
+#[derive(Debug, PartialEq)]
+struct Replay {
+    first: i64,
+    last: i64,
+    /// Missed minutes before `first` that were too old to check.
+    skipped: i64,
+}
+
+/// Continues after the last checked minute, up to `target`. A marker ahead of
+/// `target` leaves nothing to do: the data clock went back, or another
+/// replica's clock is slightly ahead.
+fn replay(marker: Option<i64>, target: i64, wall_target: i64) -> Replay {
+    let marker = marker.filter(|marker| marker - wall_target <= MAX_MARKER_AHEAD_MINUTES);
+    let Some(marker) = marker else {
+        return Replay {
+            first: target,
+            last: target,
+            skipped: 0,
+        };
+    };
+    let first = (marker + 1).max(target - MAX_REPLAY_MINUTES + 1);
+    Replay {
+        first,
+        last: target.min(first + MAX_MINUTES_PER_TICK - 1),
+        skipped: first - (marker + 1),
     }
 }
 
@@ -156,27 +182,42 @@ async fn run_tick(
     queue: &Arc<MessageQueue>,
     cache: &Cache,
 ) -> anyhow::Result<()> {
-    let target = Utc::now().timestamp().div_euclid(60) - METRIC_ALERTS_SETTLE_MINUTES.get();
-    let last = cache
+    let started = Instant::now();
+    let wall_target = Utc::now().timestamp().div_euclid(60) - METRIC_ALERTS_SETTLE_MINUTES.get();
+    let target = target_minute(wall_target, ingestion::oldest_in_flight(cache).await?);
+    if wall_target - target > DATA_CLOCK_BEHIND_ERROR_MINUTES {
+        log::error!(
+            "[Metric alerts] Span ingestion is {} minutes behind, checks wait for it",
+            wall_target - target
+        );
+    }
+    let marker = cache
         .get::<i64>(METRIC_ALERTS_LAST_MINUTE_CACHE_KEY)
-        .await
-        .unwrap_or(None);
-    let first = first_minute(last, target);
+        .await?;
+    let replay = replay(marker, target, wall_target);
+    if replay.skipped > 0 {
+        log::warn!(
+            "[Metric alerts] Skipped {} missed minutes older than {} minutes, before {}",
+            replay.skipped,
+            MAX_REPLAY_MINUTES,
+            time_of(replay.first)
+        );
+    }
 
     let alerts = load_alerts(pool).await?;
     let tick = Tick {
         pool,
         clickhouse,
         queue,
-        cache,
-        ingestion_behind: !alerts.is_empty() && ingestion::is_behind(cache).await,
     };
 
-    for minute in first..=target {
+    let mut rules_due = 0;
+    for minute in replay.first..=replay.last {
         let mut due: HashMap<Uuid, Vec<&MetricAlert>> = HashMap::new();
         for alert in &alerts {
             if is_due(&alert.row.id, alert.interval_minutes, minute) {
                 due.entry(alert.row.project_id).or_default().push(alert);
+                rules_due += 1;
             }
         }
         stream::iter(due)
@@ -189,18 +230,30 @@ async fn run_tick(
             .await?;
     }
 
+    let elapsed = started.elapsed();
+    let summary = format!(
+        "[Metric alerts] Tick: {} rules loaded, {} due over {} minutes up to {}, took {} ms",
+        alerts.len(),
+        rules_due,
+        (replay.last - replay.first + 1).max(0),
+        time_of(replay.last),
+        elapsed.as_millis()
+    );
+    if elapsed.as_secs() > SLOW_TICK_SECONDS {
+        log::warn!("{summary}, slower than {SLOW_TICK_SECONDS} s");
+    } else {
+        log::info!("{summary}");
+    }
+
     Ok(())
 }
 
 async fn check_project(tick: &Tick<'_>, project_id: Uuid, alerts: Vec<&MetricAlert>, minute: i64) {
-    let checks: Vec<RuleChecks> = alerts
+    let ranges = alerts
         .iter()
-        .map(|alert| RuleChecks {
-            rule: &alert.rule,
-            ranges: ranges_of(&alert.rule, minute),
-        })
+        .flat_map(|alert| ranges_of(&alert.rule, minute))
         .collect();
-    let series = match fetch_series(tick.clickhouse, &project_id, &checks).await {
+    let series = match fetch_series(tick.clickhouse, &project_id, ranges).await {
         Ok(series) => series,
         Err(e) => {
             log::error!(
@@ -212,8 +265,8 @@ async fn check_project(tick: &Tick<'_>, project_id: Uuid, alerts: Vec<&MetricAle
         }
     };
 
-    for (alert, series) in alerts.iter().zip(&series) {
-        if let Err(e) = check_alert(tick, alert, series, minute).await {
+    for alert in alerts {
+        if let Err(e) = check_alert(tick, alert, &series, minute).await {
             log::error!(
                 "[Metric alerts] Failed to check rule {}: {:?}",
                 alert.row.id,
@@ -221,44 +274,6 @@ async fn check_project(tick: &Tick<'_>, project_id: Uuid, alerts: Vec<&MetricAle
             );
         }
     }
-}
-
-/// The p99 trace cost a `trace_p99` rule compares against, refreshed daily.
-async fn trace_cost_p99(
-    tick: &Tick<'_>,
-    alert: &MetricAlert,
-    minute: i64,
-) -> anyhow::Result<Option<f64>> {
-    if alert.rule.condition != Condition::TraceP99 {
-        return Ok(None);
-    }
-    let key = format!(
-        "{METRIC_ALERT_TRACE_COST_P99_CACHE_KEY}:{}:{}:{}",
-        alert.row.project_id, alert.row.id, alert.fingerprint
-    );
-    if let Ok(Some(cached)) = tick.cache.get::<CachedP99>(&key).await {
-        return Ok(cached.value);
-    }
-
-    let range = Minutes {
-        start: minute - P99_RANGE_MINUTES,
-        end: minute,
-    };
-    let value =
-        get_trace_cost_p99(tick.clickhouse, &alert.row.project_id, &alert.rule, range).await?;
-    let ttl = match value {
-        Some(_) => P99_TTL_SECONDS,
-        None => EMPTY_P99_TTL_SECONDS,
-    };
-    if let Err(e) = tick
-        .cache
-        .insert_with_ttl(&key, CachedP99 { value }, ttl)
-        .await
-    {
-        log::warn!("[Metric alerts] Failed to cache p99 trace cost: {:?}", e);
-    }
-
-    Ok(value)
 }
 
 /// The groups to check: the whole project, or the top models of the window
@@ -297,16 +312,12 @@ async fn check_alert(
     let project_id = alert.row.project_id;
     let mut states =
         store::load_states(tick.pool, &project_id, &alert.row.id, &alert.fingerprint).await?;
-    let context = Context {
-        trace_cost_p99: trace_cost_p99(tick, alert, minute).await?,
-        ingestion_behind: tick.ingestion_behind,
-    };
 
     for group in groups(&alert.rule, series, minute, &states) {
         let mut state = states.remove(&group).unwrap_or_default();
         let before = state.clone();
         let model = alert.rule.group_by.map(|_| group.as_str());
-        let observation = observe(&alert.rule, series, model, minute, context);
+        let observation = observe(&alert.rule, series, model, minute);
         let transition = evaluate(&alert.rule, &mut state, &observation);
         if state == before {
             continue;
@@ -334,6 +345,7 @@ async fn check_alert(
                 transition: &transition,
                 incident,
                 top_model,
+                sent_at: Utc::now(),
             };
             notify(tick, alert, &group, &event).await;
         }
@@ -397,17 +409,45 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_tick_starts_after_the_last_checked_minute() {
-        assert_eq!(first_minute(None, 100), 100);
-        assert_eq!(first_minute(Some(99), 100), 100);
-        assert_eq!(first_minute(Some(90), 100), 91);
-        // A long outage is not replayed.
-        assert_eq!(first_minute(Some(89), 100), 100);
-        // Already checked: nothing to do until the clock passes the marker.
-        assert_eq!(first_minute(Some(100), 100), 101);
-        assert_eq!(first_minute(Some(103), 100), 104);
-        // A marker far ahead of the clock is dropped.
-        assert_eq!(first_minute(Some(500), 100), 100);
+    fn the_target_waits_for_the_oldest_batch_in_flight() {
+        let minute_ms = 60_000;
+        assert_eq!(target_minute(100, None), 100);
+        // A batch accepted in minute 90 can still add spans to minute 90.
+        assert_eq!(target_minute(100, Some(90 * minute_ms + 59_999)), 89);
+        assert_eq!(target_minute(100, Some(90 * minute_ms)), 89);
+        // A fresh batch does not move the clock past the settle time.
+        assert_eq!(target_minute(100, Some(102 * minute_ms)), 100);
+    }
+
+    #[test]
+    fn a_tick_replays_missed_minutes_in_order() {
+        let range = |marker, target| {
+            let replay = replay(marker, target, target);
+            (replay.first, replay.last, replay.skipped)
+        };
+        assert_eq!(range(None, 1000), (1000, 1000, 0));
+        assert_eq!(range(Some(999), 1000), (1000, 1000, 0));
+        assert_eq!(range(Some(990), 1000), (991, 1000, 0));
+        // At most 15 minutes a tick, the rest on the next ones.
+        assert_eq!(range(Some(900), 1000), (901, 915, 0));
+        assert_eq!(range(Some(915), 1000), (916, 930, 0));
+        // Three hours back at most.
+        assert_eq!(range(Some(820), 1000), (821, 835, 0));
+        assert_eq!(range(Some(500), 1000), (821, 835, 320));
+    }
+
+    #[test]
+    fn a_marker_ahead_of_the_target_leaves_nothing_to_do() {
+        // Already checked.
+        let done = replay(Some(1000), 1000, 1000);
+        assert!(done.first > done.last);
+        // The data clock went back behind checked minutes.
+        let back = replay(Some(1000), 940, 1000);
+        assert!(back.first > back.last);
+        assert_eq!(back.skipped, 0);
+        // A marker far ahead of the wall clock is dropped.
+        let ahead = replay(Some(1500), 1000, 1000);
+        assert_eq!((ahead.first, ahead.last), (1000, 1000));
     }
 
     #[tokio::test]

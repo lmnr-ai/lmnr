@@ -32,7 +32,6 @@ use crate::{
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, spans::Span, workspaces::DeploymentMode},
-    metric_alerts::ingestion,
     mq::{MessageQueue, MessageQueueTrait, stream::StreamPublisher, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
@@ -291,7 +290,6 @@ pub async fn publish_span_messages(
                     )
                     .await?;
             }
-            ingestion::record_accepted(&cache, accepted_at_ms).await;
         }
         DeploymentMode::HYBRID => {
             queue

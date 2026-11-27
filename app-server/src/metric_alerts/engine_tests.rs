@@ -11,7 +11,7 @@ use super::{
     engine::{Incident, Level, Observation, State, TransitionKind, evaluate},
     preview::replay,
     rule::Rule,
-    series::{Context, Series, observe, time_of},
+    series::{Series, observe, time_of},
     store::{StateKey, to_state, to_state_row},
 };
 
@@ -37,7 +37,7 @@ fn rule(overrides: Value) -> Rule {
 
 fn below_rule(overrides: Value) -> Rule {
     let mut fields = json!({
-        "metric": "trace_count",
+        "metric": "span_count",
         "direction": "below",
         "warning": 10,
         "critical": null,
@@ -62,25 +62,12 @@ fn change_rule(overrides: Value) -> Rule {
     rule(fields)
 }
 
-/// Critical at 1000 this month, Warning at 80% of it.
-fn spending_limit_rule() -> Rule {
-    rule(json!({
-        "window": { "monthToDate": true },
-        "condition": { "type": "spending_limit", "limit": 1000, "warnAtPercent": 80 },
-        "warning": null,
-        "critical": null,
-        "resolve": null,
-        "checksInARow": 1
-    }))
-}
-
 #[derive(Debug, Clone, Copy)]
 struct Check {
     minute: i64,
     value: Option<f64>,
     baseline: Option<f64>,
-    traces: u64,
-    behind: bool,
+    llm_calls: u64,
 }
 
 fn check(minute: i64, value: f64) -> Check {
@@ -88,15 +75,14 @@ fn check(minute: i64, value: f64) -> Check {
         minute,
         value: Some(value),
         baseline: None,
-        traces: 1000,
-        behind: false,
+        llm_calls: 1000,
     }
 }
 
 fn no_data(minute: i64) -> Check {
     Check {
         value: None,
-        traces: 0,
+        llm_calls: 0,
         ..check(minute, 0.0)
     }
 }
@@ -117,14 +103,10 @@ fn with_baseline(checks: Vec<Check>, baseline: Option<f64>) -> Vec<Check> {
         .collect()
 }
 
-fn with_traces(checks: Vec<Check>, traces: u64) -> Vec<Check> {
-    checks.into_iter().map(|c| Check { traces, ..c }).collect()
-}
-
-fn behind(checks: Vec<Check>) -> Vec<Check> {
+fn with_llm_calls(checks: Vec<Check>, llm_calls: u64) -> Vec<Check> {
     checks
         .into_iter()
-        .map(|c| Check { behind: true, ..c })
+        .map(|c| Check { llm_calls, ..c })
         .collect()
 }
 
@@ -144,8 +126,7 @@ fn observation(check: &Check) -> Observation {
         at: time_of(check.minute),
         value: check.value,
         baseline: check.baseline,
-        volume: check.traces,
-        ingestion_behind: check.behind,
+        volume: check.llm_calls,
     }
 }
 
@@ -224,33 +205,21 @@ fn transitions() {
             expected: vec![(2, Opened, Critical), (8, Resolved, Okay)],
         },
         Case {
-            name: "errored traces fire on a handful of traces",
+            name: "failed LLM calls fire on a handful of calls",
             rule: rule(json!({
-                "metric": "error_traces", "warning": 2, "critical": null, "resolve": null
+                "metric": "llm_errors", "warning": 2, "critical": null, "resolve": null
             })),
-            checks: with_traces(each_minute(&[0., 3., 3., 3., 3., 2., 2., 2.]), 4),
+            checks: with_llm_calls(each_minute(&[0., 3., 3., 3., 3., 2., 2., 2.]), 4),
             expected: vec![(3, Opened, Warning), (7, Resolved, Okay)],
         },
         Case {
-            name: "errored traces over nothing are zero, so the incident resolves",
+            name: "failed LLM calls over nothing are zero, so the incident resolves",
             rule: rule(json!({
-                "metric": "error_traces", "warning": 2, "critical": null, "resolve": null,
+                "metric": "llm_errors", "warning": 2, "critical": null, "resolve": null,
                 "checksInARow": 1
             })),
             checks: vec![check(0, 3.), no_data(1)],
             expected: vec![(0, Opened, Warning), (1, Resolved, Okay)],
-        },
-        Case {
-            name: "a share of traces without cost is not checked on too few traces",
-            rule: rule(json!({
-                "metric": "no_cost_rate", "warning": 50, "critical": null, "resolve": null
-            })),
-            checks: [
-                with_traces(each_minute(&[100., 100., 100.]), 10),
-                starting_at(3, with_traces(each_minute(&[100., 100., 100.]), 60)),
-            ]
-            .concat(),
-            expected: vec![(5, Opened, Warning)],
         },
         Case {
             name: "a share of LLM calls without cost is not checked on too few calls",
@@ -258,8 +227,8 @@ fn transitions() {
                 "metric": "llm_no_cost_rate", "warning": 50, "critical": null, "resolve": null
             })),
             checks: [
-                with_traces(each_minute(&[100., 100., 100.]), 10),
-                starting_at(3, with_traces(each_minute(&[100., 100., 100.]), 60)),
+                with_llm_calls(each_minute(&[100., 100., 100.]), 10),
+                starting_at(3, with_llm_calls(each_minute(&[100., 100., 100.]), 60)),
             ]
             .concat(),
             expected: vec![(5, Opened, Warning)],
@@ -318,21 +287,21 @@ fn transitions() {
             expected: vec![(3, Opened, Warning), (9, Resolved, Okay)],
         },
         Case {
-            name: "a ratio on too few traces is not checked",
+            name: "a rate on too few LLM calls is not checked",
             rule: rule(json!({
-                "metric": "error_rate", "warning": 5, "critical": null, "resolve": 2, "minTraces": 50
+                "metric": "llm_error_rate", "warning": 5, "critical": null, "resolve": 2, "minCalls": 50
             })),
             checks: [
-                with_traces(each_minute(&[100., 100., 100., 100.]), 49),
-                with_traces(starting_at(4, each_minute(&[100., 100., 100.])), 50),
+                with_llm_calls(each_minute(&[100., 100., 100., 100.]), 49),
+                with_llm_calls(starting_at(4, each_minute(&[100., 100., 100.])), 50),
             ]
             .concat(),
             expected: vec![(6, Opened, Warning)],
         },
         Case {
-            name: "minimum traces does not apply to sums",
-            rule: rule(json!({ "minTraces": 50 })),
-            checks: with_traces(each_minute(&[150., 150., 150.]), 1),
+            name: "minimum LLM calls does not apply to sums",
+            rule: rule(json!({ "minCalls": 50 })),
+            checks: with_llm_calls(each_minute(&[150., 150., 150.]), 1),
             expected: vec![(2, Opened, Warning)],
         },
         Case {
@@ -358,8 +327,8 @@ fn transitions() {
             expected: vec![(2, Opened, Warning)],
         },
         Case {
-            name: "no data: a ratio over nothing is not checked unless the rule says otherwise",
-            rule: below_rule(json!({ "metric": "tokens_per_trace" })),
+            name: "no data: a rate over nothing is not checked unless the rule says otherwise",
+            rule: below_rule(json!({ "metric": "llm_error_rate" })),
             checks: (0..6).map(no_data).collect(),
             expected: vec![],
         },
@@ -428,48 +397,6 @@ fn transitions() {
             expected: vec![(2, Opened, Critical)],
         },
         Case {
-            name: "a single trace is compared to the p99 trace cost",
-            rule: rule(json!({
-                "metric": "trace_cost", "condition": { "type": "trace_p99" },
-                "warning": 100, "critical": 300, "resolve": 100, "checksInARow": 1
-            })),
-            checks: with_baseline(each_minute(&[1., 2.5, 7., 1.]), Some(2.0)),
-            expected: vec![
-                (1, Opened, Warning),
-                (2, Escalated, Critical),
-                (3, Resolved, Okay),
-            ],
-        },
-        Case {
-            name: "ingestion behind: below rules are not checked",
-            rule: below_rule(json!({})),
-            checks: behind(each_minute(&[5., 5., 5., 5., 5.])),
-            expected: vec![],
-        },
-        Case {
-            name: "ingestion behind: missing data is not checked",
-            rule: rule(json!({ "onNoData": "alert" })),
-            checks: behind((0..5).map(no_data).collect()),
-            expected: vec![],
-        },
-        Case {
-            name: "ingestion behind: a low reading does not resolve",
-            rule: rule(json!({})),
-            checks: [
-                each_minute(&[150., 150., 150.]),
-                behind(starting_at(3, each_minute(&[50., 50., 50.]))),
-                starting_at(6, each_minute(&[50., 50., 50.])),
-            ]
-            .concat(),
-            expected: vec![(2, Opened, Warning), (8, Resolved, Okay)],
-        },
-        Case {
-            name: "ingestion behind: a breach still fires",
-            rule: rule(json!({})),
-            checks: behind(each_minute(&[150., 150., 150.])),
-            expected: vec![(2, Opened, Warning)],
-        },
-        Case {
             name: "duplicate and older timestamps are ignored",
             rule: rule(json!({})),
             checks: [1, 2, 2, 1, 2, 3]
@@ -525,54 +452,6 @@ fn transitions() {
             case.name
         );
     }
-}
-
-#[test]
-fn a_spending_limit_warns_at_its_share_and_goes_critical_at_the_limit() {
-    let spend = |hour: i64, spend: f64| check(hour * 60, spend);
-    let checks = [
-        spend(0, 799.0),
-        // Exactly 80% of the limit.
-        spend(1, 800.0),
-        spend(2, 999.0),
-        // Exactly the limit.
-        spend(3, 1000.0),
-        // A new month.
-        spend(4, 10.0),
-    ];
-
-    assert_eq!(
-        run(&spending_limit_rule(), &checks),
-        vec![
-            (60, Opened, Warning),
-            (120, Reminder, Warning),
-            (180, Escalated, Critical),
-            (240, Resolved, Okay),
-        ]
-    );
-}
-
-#[test]
-fn a_daily_spending_limit_steps_down_as_the_day_rolls_on() {
-    let rule = rule(json!({
-        "window": { "minutes": 1440 },
-        "condition": { "type": "spending_limit", "limit": 100, "warnAtPercent": 50 },
-        "warning": null,
-        "critical": null,
-        "resolve": null,
-        "checksInARow": 1
-    }));
-    let checks = each_minute(&[40., 50., 120., 99., 50., 49.]);
-
-    assert_eq!(
-        run(&rule, &checks),
-        vec![
-            (1, Opened, Warning),
-            (2, Escalated, Critical),
-            (3, Deescalated, Warning),
-            (5, Resolved, Okay),
-        ]
-    );
 }
 
 #[test]
@@ -755,17 +634,20 @@ fn recorded_series() -> Series {
         .map(|minute| SpanMetricsMinute {
             minute: (minute * 60) as u32,
             model: "model-a".to_string(),
+            span_count: 1,
             total_cost: cost_at(minute),
             input_tokens: 0,
             output_tokens: 0,
             total_tokens: 0,
             llm_calls: 1,
+            llm_errors: 0,
             llm_calls_no_cost: 0,
             llm_calls_no_tokens: 0,
+            llm_latency_buckets: vec![],
         })
         .collect();
     let mut series = Series::default();
-    series.add_span_rows(&rows);
+    series.add_rows(&rows);
     series
 }
 
@@ -787,7 +669,7 @@ fn run_like_the_scheduler(rule: &Rule, series: &Series, minutes: &[i64]) -> Vec<
             Some((row, incident)) => to_state(row, Option::as_ref(incident)),
             None => State::default(),
         };
-        let observation = observe(rule, series, None, *minute, Context::default());
+        let observation = observe(rule, series, None, *minute);
         if let Some(transition) = evaluate(rule, &mut state, &observation) {
             seen.push((*minute, transition.kind, transition.to));
         }
@@ -814,7 +696,7 @@ fn preview_and_scheduler_agree_on_a_recorded_series() {
         .into_iter()
         .filter(|(_, kind, _)| *kind != Reminder)
         .collect();
-    let preview = replay(&rule, &series, None, &minutes, 299, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 299);
     let previewed: Vec<Seen> = preview
         .incidents
         .iter()
@@ -846,11 +728,11 @@ fn preview_and_scheduler_agree_on_a_recorded_series() {
 
 #[test]
 fn the_preview_plots_empty_windows_as_zero() {
-    let rule = rule(json!({ "metric": "error_rate", "resolve": null }));
+    let rule = rule(json!({ "metric": "llm_error_rate", "resolve": null }));
     let series = Series::default();
     let minutes: Vec<i64> = (10..20).collect();
 
-    let preview = replay(&rule, &series, None, &minutes, 19, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 19);
     assert_eq!(preview.points.len(), 10);
     assert!(preview.points.iter().all(|point| point.value == Some(0.0)));
     // The rule itself skips those checks: an error rate over nothing says nothing.
@@ -858,7 +740,7 @@ fn the_preview_plots_empty_windows_as_zero() {
 
     // A relative rule with nothing to compare to has no number to plot.
     let change = change_rule(json!({ "resolve": null }));
-    let preview = replay(&change, &series, None, &minutes, 19, Context::default());
+    let preview = replay(&change, &series, None, &minutes, 19);
     assert!(preview.points.iter().all(|point| point.value.is_none()));
 }
 
@@ -869,12 +751,12 @@ fn the_preview_ends_at_the_newest_minute() {
 
     // Checked every 15 minutes: the last check is at 285, the data goes on.
     let minutes: Vec<i64> = (15..=285).step_by(15).collect();
-    let preview = replay(&rule, &series, None, &minutes, 297, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 297);
     assert_eq!(preview.points.len(), minutes.len() + 1);
     assert_eq!(preview.points.last().map(|p| p.at), Some(time_of(297)));
 
     // The extra point is plotted, not evaluated.
-    let on_grid = replay(&rule, &series, None, &minutes, 285, Context::default());
+    let on_grid = replay(&rule, &series, None, &minutes, 285);
     assert_eq!(on_grid.points.len(), minutes.len());
     assert_eq!(on_grid.incidents, preview.incidents);
 }
@@ -886,6 +768,7 @@ fn a_long_preview_keeps_spikes_and_the_newest_point() {
         .map(|minute| SpanMetricsMinute {
             minute: (minute * 60) as u32,
             model: "model-a".to_string(),
+            span_count: 1,
             // One spike in the middle, and a quiet last minute after a busy one.
             total_cost: match minute {
                 1500 => 500.0,
@@ -897,15 +780,17 @@ fn a_long_preview_keeps_spikes_and_the_newest_point() {
             output_tokens: 0,
             total_tokens: 0,
             llm_calls: 1,
+            llm_errors: 0,
             llm_calls_no_cost: 0,
             llm_calls_no_tokens: 0,
+            llm_latency_buckets: vec![],
         })
         .collect();
     let mut series = Series::default();
-    series.add_span_rows(&rows);
+    series.add_rows(&rows);
     let minutes: Vec<i64> = (5..=3000).collect();
 
-    let preview = replay(&rule, &series, None, &minutes, 3000, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 3000);
     assert!(preview.points.len() <= 600, "{}", preview.points.len());
     let peak = preview
         .points
