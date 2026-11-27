@@ -29,7 +29,13 @@ import {
   cadenceLine,
   conditionSummary,
 } from "@/components/settings/alerts/metric-alerts/utils";
-import { mergeRulePatch, type MetricRule, MetricRuleSchema, wholeNumberError } from "@/lib/actions/alerts/metric-rule";
+import {
+  mergeRulePatch,
+  type MetricRule,
+  MetricRuleSchema,
+  MetricRuleWriteSchema,
+  wholeNumberError,
+} from "@/lib/actions/alerts/metric-rule";
 import { METRIC_ALERT_TEMPLATES, TEMPLATE_CATEGORIES } from "@/lib/actions/alerts/metric-templates";
 import defaultCharts from "@/lib/db/default-charts";
 
@@ -365,6 +371,15 @@ describe("metric rule patches", () => {
     const merged = MetricRuleSchema.parse(mergeRulePatch(stored, { condition: { compareTo: "1w" } }));
     assert.deepEqual(merged.condition, { type: "change", compareTo: "1w" });
     assert.deepEqual({ ...merged, condition: stored.condition }, stored);
+  });
+
+  it("refuses a key a rule does not have when saving", () => {
+    const refused = MetricRuleWriteSchema.safeParse({ ...stored, filters: [] });
+    assert.equal(refused.success, false);
+    assert.match(refused.error?.issues[0].message ?? "", /filters/);
+    for (const t of METRIC_ALERT_TEMPLATES) {
+      assert.ok(MetricRuleWriteSchema.safeParse(toRule(form(template(t.id)))).success, t.id);
+    }
   });
 
   it("drops the old condition's fields when the type changes", () => {

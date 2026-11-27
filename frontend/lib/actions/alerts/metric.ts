@@ -14,6 +14,7 @@ import {
   type MetricRule,
   type MetricRulePreview,
   MetricRuleSchema,
+  MetricRuleWriteSchema,
   type RuleCadence,
 } from "./metric-rule";
 import { getTargetsByAlert } from "./targets";
@@ -36,7 +37,7 @@ export const parseMetricRule = async (
   stored?: Record<string, unknown> | null
 ): Promise<MetricRule> => {
   const kept = { snoozedUntil: stored?.snoozedUntil, disabled: stored?.disabled };
-  const rule = MetricRuleSchema.parse({ ...kept, ...(metadata as Record<string, unknown> | null) });
+  const rule = MetricRuleWriteSchema.parse({ ...kept, ...(metadata as Record<string, unknown> | null) });
   await validateMetricRule(projectId, rule);
   return rule;
 };

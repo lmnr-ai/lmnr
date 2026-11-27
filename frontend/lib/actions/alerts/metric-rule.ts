@@ -61,6 +61,9 @@ export const MetricRuleSchema = z.object({
 
 export type MetricRule = z.infer<typeof MetricRuleSchema>;
 
+/** For saving: a key the rule does not have is refused instead of dropped, so a mistyped one is noticed. */
+export const MetricRuleWriteSchema = MetricRuleSchema.strict();
+
 const COUNT_FIELDS: PropertyKey[] = ["checksInARow", "minCalls"];
 
 /** The message for a count that is not a whole number, which the engine would refuse less plainly. */
