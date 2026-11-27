@@ -343,7 +343,6 @@ fn details(subject: &Subject, event: &Event) -> Vec<MetricAlertDetail> {
     }
 
     if resolved {
-    } else if resolved {
         rows.push(detail(
             "Resolve threshold",
             compared_value(rule, rule.resolve_threshold()),
@@ -607,6 +606,11 @@ mod tests {
             message
                 .details
                 .contains(&detail("Duration", "23 min".to_string()))
+        );
+        assert!(
+            message
+                .details
+                .contains(&detail("Resolve threshold", "$1.50".to_string()))
         );
     }
 
