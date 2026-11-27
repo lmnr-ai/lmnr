@@ -144,7 +144,7 @@ fn observation(check: &Check) -> Observation {
         at: time_of(check.minute),
         value: check.value,
         baseline: check.baseline,
-        traces: check.traces,
+        volume: check.traces,
         ingestion_behind: check.behind,
     }
 }
@@ -244,6 +244,18 @@ fn transitions() {
             name: "a share of traces without cost is not checked on too few traces",
             rule: rule(json!({
                 "metric": "no_cost_rate", "warning": 50, "critical": null, "resolve": null
+            })),
+            checks: [
+                with_traces(each_minute(&[100., 100., 100.]), 10),
+                starting_at(3, with_traces(each_minute(&[100., 100., 100.]), 60)),
+            ]
+            .concat(),
+            expected: vec![(5, Opened, Warning)],
+        },
+        Case {
+            name: "a share of LLM calls without cost is not checked on too few calls",
+            rule: rule(json!({
+                "metric": "llm_no_cost_rate", "warning": 50, "critical": null, "resolve": null
             })),
             checks: [
                 with_traces(each_minute(&[100., 100., 100.]), 10),
@@ -748,6 +760,8 @@ fn recorded_series() -> Series {
             output_tokens: 0,
             total_tokens: 0,
             llm_calls: 1,
+            llm_calls_no_cost: 0,
+            llm_calls_no_tokens: 0,
         })
         .collect();
     let mut series = Series::default();
@@ -883,6 +897,8 @@ fn a_long_preview_keeps_spikes_and_the_newest_point() {
             output_tokens: 0,
             total_tokens: 0,
             llm_calls: 1,
+            llm_calls_no_cost: 0,
+            llm_calls_no_tokens: 0,
         })
         .collect();
     let mut series = Series::default();

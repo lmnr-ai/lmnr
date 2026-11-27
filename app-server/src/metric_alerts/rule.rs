@@ -32,6 +32,10 @@ pub enum Metric {
     NoCostRate,
     /// Share of traces without any tokens, in percent.
     NoTokensRate,
+    /// Share of LLM calls without a cost, in percent.
+    LlmNoCostRate,
+    /// Share of LLM calls without tokens, in percent.
+    LlmNoTokensRate,
     LatencyP50,
     LatencyP95,
 }
@@ -50,7 +54,18 @@ impl Metric {
         matches!(self, Metric::CostPerTrace | Metric::TokensPerTrace)
     }
 
-    /// Metrics that mean little on a handful of traces.
+    /// Shares of LLM calls. They are counted per span in the rollup, so they
+    /// can be split by model and cannot take trace filters.
+    pub fn is_llm_call_rate(self) -> bool {
+        matches!(self, Metric::LlmNoCostRate | Metric::LlmNoTokensRate)
+    }
+
+    pub fn can_split_by_model(self) -> bool {
+        self.is_span_sum() || self.is_per_trace() || self.is_llm_call_rate()
+    }
+
+    /// Metrics that mean little on a handful of traces, or of LLM calls for
+    /// the shares of LLM calls.
     pub fn needs_min_traces(self) -> bool {
         matches!(
             self,
@@ -59,6 +74,8 @@ impl Metric {
                 | Metric::ErrorRate
                 | Metric::NoCostRate
                 | Metric::NoTokensRate
+                | Metric::LlmNoCostRate
+                | Metric::LlmNoTokensRate
                 | Metric::LatencyP50
                 | Metric::LatencyP95
         )
@@ -328,8 +345,11 @@ impl Rule {
         self.validate_window()?;
         self.validate_condition()?;
         self.validate_thresholds()?;
+        if self.metric.is_llm_call_rate() && !self.filters.is_empty() {
+            return Err("A share of LLM calls cannot use trace filters".to_string());
+        }
         if self.group_by.is_some() {
-            if !(self.metric.is_span_sum() || self.metric.is_per_trace()) {
+            if !self.metric.can_split_by_model() {
                 return Err("This metric cannot be split by model".to_string());
             }
             if !self.filters.is_empty() {
@@ -620,6 +640,8 @@ mod tests {
             "error_rate",
             "no_cost_rate",
             "no_tokens_rate",
+            "llm_no_cost_rate",
+            "llm_no_tokens_rate",
             "latency_p95",
         ];
         for metric in ratios {
@@ -627,6 +649,24 @@ mod tests {
         }
         assert_eq!(mode("total_cost", json!("skip")), OnNoData::Skip);
         assert_eq!(mode("error_rate", json!("alert")), OnNoData::Alert);
+    }
+
+    #[test]
+    fn a_share_of_llm_calls_splits_by_model_and_takes_no_filters() {
+        for metric in ["llm_no_cost_rate", "llm_no_tokens_rate"] {
+            let mut rule = contract();
+            rule["metric"] = json!(metric);
+            rule["condition"] = json!({ "type": "value" });
+            assert!(Rule::parse(&rule).is_ok(), "{metric}");
+
+            rule["groupBy"] = json!(null);
+            rule["filters"] = json!([{ "column": "user_id", "operator": "eq", "value": "x" }]);
+            let error = Rule::parse(&rule).unwrap_err();
+            assert!(
+                error.contains("cannot use trace filters"),
+                "{metric}: {error}"
+            );
+        }
     }
 
     #[test]

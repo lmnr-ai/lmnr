@@ -87,7 +87,9 @@ pub struct Observation {
     /// What a relative condition divides by: the past window for `change`,
     /// the project's p99 trace cost for `trace_p99`.
     pub baseline: Option<f64>,
-    pub traces: u64,
+    /// What `min_traces` is compared to: the traces in the window, or the LLM
+    /// calls for a share of LLM calls.
+    pub volume: u64,
     /// Our own ingestion is behind, so recent windows are under-counted.
     pub ingestion_behind: bool,
 }
@@ -196,7 +198,7 @@ fn read(rule: &Rule, current: Level, observation: &Observation) -> Option<Readin
         }
     };
     let has_data = observation.value.is_some();
-    if has_data && rule.metric.needs_min_traces() && observation.traces < rule.min_traces {
+    if has_data && rule.metric.needs_min_traces() && observation.volume < rule.min_traces {
         return None;
     }
 
