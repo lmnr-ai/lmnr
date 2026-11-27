@@ -24,6 +24,7 @@ use super::{
     build::decrypt_secrets,
 };
 
+pub mod feature_routes;
 mod provider_fields;
 mod secrets;
 mod validate;

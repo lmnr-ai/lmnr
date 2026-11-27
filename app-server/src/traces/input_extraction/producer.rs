@@ -29,8 +29,8 @@ use super::queue::{InputExtractionMessage, push_to_input_extraction_queue};
 use super::regex::{apply_known_regex, regex_target};
 use crate::cache::{Cache, CacheTrait};
 use crate::db::{DB, spans::Span};
-use crate::features::{Feature, is_feature_enabled};
-use crate::llm::llm_client_available;
+use crate::features::{Feature, has_llm_backend, is_feature_enabled};
+use crate::llm::{LlmFeature, llm_client_available, profiles::has_feature_route};
 use crate::mq::{MessageQueue, stream::StreamPublisher};
 use crate::traces::metadata::publish_trace_input_update;
 use crate::traces::sp_versioning::{
@@ -176,8 +176,8 @@ pub async fn process_user_task_candidates(
     // LLM, and Pass 2 (trace outputs) depends on the path this pass
     // establishes. Only the extraction EFFECT (publishing `lmnr_user_task`
     // via a cached-regex apply, or enqueueing LLM-backed regex generation
-    // on a cache miss) is gated on `llm_client_available()` inside
-    // `process_trace_inputs`.
+    // on a cache miss) is gated on `llm_client_available()` and the project
+    // having a route ([`has_llm_for_project`]) inside `process_trace_inputs`.
     let mut contenders: HashMap<Uuid, Vec<InputContender>> = HashMap::new();
     for (ctx, path) in contexts.iter_mut() {
         // Move the candidate out of the context — Pass 2 (outputs) only
@@ -214,12 +214,15 @@ pub async fn process_user_task_candidates(
             });
     }
 
+    let extraction_enabled = !contenders.is_empty()
+        && llm_client_available()
+        && has_llm_for_project(&db, &cache, project_id).await;
     for (trace_id, trace_contenders) in contenders {
         process_trace_inputs(
             trace_id,
             trace_contenders,
             project_id,
-            llm_client_available(),
+            extraction_enabled,
             queue.clone(),
             db.clone(),
             cache.clone(),
@@ -283,6 +286,30 @@ pub async fn process_user_task_candidates(
         // trace's cached prefix doesn't expire mid-flight.
         if let Some(Some(prefix)) = path_cache.get(&trace_id) {
             write_main_agent_path(&cache, project_id, trace_id, prefix).await;
+        }
+    }
+}
+
+/// The env provider (or global routes) covers every project; otherwise a
+/// self-hosted project runs extraction only when its workspace routes the
+/// regex generation feature (its group row or `default`). A lookup error skips
+/// this batch: `published` is not moved, so a later batch retries.
+async fn has_llm_for_project(db: &Arc<DB>, cache: &Arc<Cache>, project_id: Uuid) -> bool {
+    if has_llm_backend() {
+        return true;
+    }
+    match has_feature_route(
+        db,
+        cache,
+        LlmFeature::InputExtractionRegexGeneration,
+        project_id,
+    )
+    .await
+    {
+        Ok(routed) => routed,
+        Err(e) => {
+            log::warn!("user-task: LLM route lookup failed for project [{project_id}]: {e}");
+            false
         }
     }
 }

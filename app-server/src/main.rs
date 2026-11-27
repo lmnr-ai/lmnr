@@ -2096,7 +2096,8 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::llm_profiles::probe_llm_profile)
                                 .service(routes::llm_profiles::create_llm_profile)
                                 .service(routes::llm_profiles::update_llm_profile)
-                                .service(routes::llm_profiles::delete_llm_profile),
+                                .service(routes::llm_profiles::delete_llm_profile)
+                                .service(routes::llm_profiles::set_llm_feature_routes),
                         );
                         app.route(
                             "/.well-known/oauth-protected-resource",

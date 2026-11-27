@@ -610,6 +610,24 @@ impl LlmClient {
             .map(|p| p.name)
     }
 
+    /// Whether a `Feature` call for `feature` would find a model: a route row
+    /// (workspace or global) or the env provider. Lets a caller with another
+    /// fallback (cluster naming → the signal's pinned profile) pick its route.
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    pub async fn is_feature_configured(
+        &self,
+        feature: LlmFeature,
+        project_id: Option<Uuid>,
+    ) -> ProviderResult<bool> {
+        if self.env_provider.is_some() {
+            return Ok(true);
+        }
+        match &self.profiles {
+            Some(store) => Ok(store.resolve_feature(feature, project_id).await?.is_some()),
+            None => Ok(false),
+        }
+    }
+
     /// The client and labels `route` resolves to, without firing a call. For
     /// callers that send their own request body (the signals gateway).
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]

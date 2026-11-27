@@ -64,6 +64,9 @@ pub enum Feature {
     /// Workspace audit log events (`src/audit/`). Gated on `AUDIT_LOG_ENABLED`
     /// (default true).
     AuditLog,
+    /// Workspace admins pick an LLM profile per AI feature group in settings
+    /// (workspace `llm_feature_routes` rows). Self-hosted only.
+    LlmFeatureRoutes,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -92,13 +95,18 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::InternalTracing => {
             std::env::var(env::observability::ENABLE_TRACING).is_ok_and(|s| s == "true")
         }
-        Feature::Clustering => has_llm_backend(),
+        // Self-hosted workspaces can route naming through their own profiles
+        // (or a signal's pinned one), so the workers boot without an env provider;
+        // a cluster with nothing to name it with is left "Unnamed Category".
+        Feature::Clustering => has_llm_backend() || !env::connections::LAMINAR_CLOUD.get(),
         // Self-hosted signals can additionally pin a workspace LLM profile per
         // signal, so they boot even with neither env provider nor system workspace.
         Feature::Signals => has_llm_backend() || is_feature_enabled(Feature::SignalLlmProfiles),
         Feature::SignalLlmProfiles => !env::connections::LAMINAR_CLOUD.get(),
         Feature::SignalsGateway => env::connections::LAMINAR_CLOUD.get(),
-        Feature::InputExtraction => has_llm_backend(),
+        // Self-hosted: the producer checks per project whether a workspace route
+        // exists (`input_extraction::producer`), so the flag only says "may run".
+        Feature::InputExtraction => has_llm_backend() || !env::connections::LAMINAR_CLOUD.get(),
         Feature::Reports => {
             std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
                 && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
@@ -127,13 +135,15 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::HostedEvals => {
             std::env::var(env::hosted_evals::DAYTONA_API_KEY).is_ok_and(|s| !s.is_empty())
         }
+        Feature::LlmFeatureRoutes => !env::connections::LAMINAR_CLOUD.get(),
     }
 }
 
 /// An LLM-backed feature can run when calls have somewhere to go: the
 /// `LLM_PROVIDER` env client, or global `llm_feature_routes` rows backed by the
-/// system workspace's profiles (`LLM_SYSTEM_WORKSPACE_ID`).
-fn has_llm_backend() -> bool {
+/// system workspace's profiles (`LLM_SYSTEM_WORKSPACE_ID`). Workspace routes
+/// are not visible here; callers that can name a project ask the route store.
+pub fn has_llm_backend() -> bool {
     has_llm_provider() || has_system_workspace()
 }
 
