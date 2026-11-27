@@ -87,7 +87,8 @@ export const conditionSummary = (rule: MetricRule): string => {
   return [summary, ...extras].join(" · ");
 };
 
-const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+/** Lowercases the first letter, unless the text opens with an acronym such as "LLM". */
+const lowerFirst = (text: string) => (/^[A-Z]{2}/.test(text) ? text : text.charAt(0).toLowerCase() + text.slice(1));
 
 /**
  * The rule as one sentence, e.g. "Alerts when total cost over the last hour is

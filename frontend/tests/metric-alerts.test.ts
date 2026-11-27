@@ -229,6 +229,10 @@ describe("metric alert summaries", () => {
       "Alerts when trace count over the last 15 minutes is below 1 (warning)."
     );
     assert.equal(
+      alertsWhen(toRule(form(template("cost-tracking-stopped")))),
+      "Alerts when LLM calls with no cost over the last hour is above 50% (warning) or 90% (critical)."
+    );
+    assert.equal(
       alertsWhen(toRule(form(template("cost-vs-last-week")))),
       "Alerts when total cost over the last hour is above 130% (warning) or 150% (critical) of the same window 1 week earlier."
     );
