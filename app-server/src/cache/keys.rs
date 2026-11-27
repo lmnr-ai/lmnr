@@ -17,6 +17,15 @@ pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_s
 /// `hosted_evals_layer:{project_id}:{diff_id}` → the registry blob (digest, size)
 /// holding that image layer, gzip-compressed.
 pub const HOSTED_EVALS_LAYER_CACHE_KEY: &str = "hosted_evals_layer";
+/// `hosted_evals_rystic_token:{token hash}` → the project a trial's Rystic token
+/// belongs to. Expires with the trial's TTL; removed when the trial is deleted.
+pub const HOSTED_EVALS_RYSTIC_TOKEN_CACHE_KEY: &str = "hosted_evals_rystic_token";
+/// `hosted_evals_rystic_sandbox:{project_id}:{sandbox_id}` → the hash of the
+/// trial's Rystic token, so deleting the trial can revoke it.
+pub const HOSTED_EVALS_RYSTIC_SANDBOX_CACHE_KEY: &str = "hosted_evals_rystic_sandbox";
+/// `hosted_evals_rystic_registrations:{token hash}` → simulator starts made with
+/// the token (counter).
+pub const HOSTED_EVALS_RYSTIC_REGISTRATIONS_CACHE_KEY: &str = "hosted_evals_rystic_registrations";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 /// `license_state` → the instance's license inputs (`license::Inputs`). Written on

@@ -7,7 +7,7 @@ Threshold and percent-change rules on a project's traffic, cost, tokens, LLM err
 
 ## Storage
 
-- **`span_metrics_1m`** (ClickHouse, migration 89) is a per-minute rollup keyed by `(project_id, minute, model)`. Columns: `span_count` (every span, of any type), summed `total_cost` / `input_tokens` / `output_tokens` / `total_tokens`, and for LLM spans (`span_type = 1`) `llm_calls`, `llm_errors` (`status = 'error'`), `llm_calls_no_cost`, `llm_calls_no_tokens` (zero cost / zero tokens) and `llm_latency_buckets`. The materialized view `span_metrics_1m_mv` fills it from every insert into `spans`, of every span type; a span without a model (most non-LLM spans) lands on the row with model `''`. Readers must `sum()` (`sumMap()` for the buckets) and `GROUP BY`: unmerged parts hold several rows per key.
+- **`span_metrics_1m`** (ClickHouse, migration 90) is a per-minute rollup keyed by `(project_id, minute, model)`. Columns: `span_count` (every span, of any type), summed `total_cost` / `input_tokens` / `output_tokens` / `total_tokens`, and for LLM spans (`span_type = 1`) `llm_calls`, `llm_errors` (`status = 'error'`), `llm_calls_no_cost`, `llm_calls_no_tokens` (zero cost / zero tokens) and `llm_latency_buckets`. The materialized view `span_metrics_1m_mv` fills it from every insert into `spans`, of every span type; a span without a model (most non-LLM spans) lands on the row with model `''`. Readers must `sum()` (`sumMap()` for the buckets) and `GROUP BY`: unmerged parts hold several rows per key.
 - **`llm_latency_buckets`** is a histogram, `Map(Int16, UInt64)` merged with `sumMap`: the key is `floor(log(max(duration_ms, 1)) / log(1.05))`, the value the number of LLM calls. A quantile read from it is at most 5% off (`ch::span_metrics::LATENCY_BUCKET_BASE`, `series::Sums::llm_latency`). Maps of different minutes and models add up, so a p95 over any window or over all models needs no second query.
 - **The rollup holds production traffic only.** The view skips spans whose `trace_type` is evaluation (1) or playground (3). The SDKs and the playground put the trace type on every span of such a trace, so the span's own column is enough. A span that reaches us without it (a custom exporter that only marks the root span) is counted.
 - **`minute` is the minute the span ended, not started.** A span is exported when it ends, so its end time is seconds from the insert while its start time is earlier by the whole span duration. Once the spans of a minute are stored, that minute is final: nothing is recounted later, and a window is the plain sum of its minutes, added up in Rust (`series::Series::window`).
@@ -29,13 +29,15 @@ Threshold and percent-change rules on a project's traffic, cost, tokens, LLM err
   GROUP BY project_id, minute, model;
   ```
 
-- **A dev database that ran an earlier text of migration 89** refuses to start the frontend (the migration is checksummed). Reset it, then restart the frontend, which applies the file again; run the backfill above afterwards if you want history:
+- **A dev database that ran this rollup while it was migration 89** (with any earlier text) refuses to start the frontend: the migration is checksummed, and 89 is now a different file. Reset it, then restart the frontend, which applies 89 and 90; run the backfill above afterwards if you want history:
 
   ```sql
   ALTER TABLE _migrations DELETE WHERE version >= 89 SETTINGS mutations_sync = 2;
   DROP VIEW IF EXISTS span_metrics_1m_mv;
   DROP TABLE IF EXISTS span_metrics_1m;
   ```
+
+  The Postgres migration moved from 0139 to 0140 the same way, so that database also needs `DROP TABLE IF EXISTS metric_alert_states, metric_alert_incidents;` in Postgres before the restart.
 
 - `span_metrics_1m` is project-scoped, so it is in the purge list of `deleteProjectDataFromClickHouse`.
 - **`metric_alert_states`** (Postgres) holds one row per `(alert_id, group_key)`: current level, the streak being counted, the last processed observation time and the current incident. `group_key` is `''` for rules that are not split. `rule_fingerprint` identifies the rule version the state belongs to.

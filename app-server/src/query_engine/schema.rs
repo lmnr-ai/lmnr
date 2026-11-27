@@ -252,7 +252,7 @@ const TABLES: &[Table] = &[
             col(
                 "agent_versions",
                 "Array(Tuple(agent_hash String, version_hash String, model String))",
-                "Agent versions that ran in this trace, one element per (agent, version, model) seen; model is '' when unknown. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models, counting traces with uniqExact(id), not count(), since a trace repeats once per model. Beta: shape may change. Traces are not tagged instantly, so recent traces may be empty",
+                "Agent versions that ran in this trace, one element per (agent, version, model) seen; model is '' when unknown. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models, counting traces with uniqExact(id), not count(), since a trace repeats once per model. Join the agent_versions table on version_hash for version numbers and shown_version_hash (deleted versions). Beta: shape may change. Traces are not tagged instantly, so recent traces may be empty",
             ),
             col(
                 "release",
@@ -805,6 +805,62 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "agents",
+        description: "Agents detected by agent versioning, stored in Postgres. Join to agent_versions on agents.id = agent_id, or to traces.agent_versions on agent_hash.",
+        columns: &[
+            col("id", "UUID", "Unique id of the agent"),
+            col(
+                "name",
+                "Nullable(String)",
+                "Name set in the UI; NULL until renamed",
+            ),
+            col(
+                "agent_hash",
+                "String",
+                "Agent identity, the agent_hash in traces.agent_versions",
+            ),
+            col(
+                "release_mode",
+                "UInt8",
+                "1 once the agent's versions are decided per release instead of inferred from traces",
+            ),
+            col("created_at", "DateTime64(6)", "When the agent was detected"),
+        ],
+    },
+    Table {
+        name: "agent_versions",
+        description: "Versions of each agent, stored in Postgres. Join to traces with FROM traces t ARRAY JOIN agent_versions AS v JOIN agent_versions av ON av.version_hash = tupleElement(v, 'version_hash'), and group by av.shown_version_hash to count a version deleted in the UI under the version it is shown as, like the UI does.",
+        columns: &[
+            col("id", "UUID", "Unique id of the version"),
+            col("agent_id", "UUID", "Agent the version belongs to"),
+            col(
+                "version_number",
+                "Int32",
+                "Version number within the agent, from 1, as shown in the UI (v1, v2, ...)",
+            ),
+            col(
+                "version_hash",
+                "String",
+                "Version identity, the version_hash in traces.agent_versions",
+            ),
+            col(
+                "shown_version_hash",
+                "String",
+                "For a deleted version, the version_hash of the nearest earlier version still shown; otherwise its own version_hash",
+            ),
+            col(
+                "deleted_at",
+                "Nullable(DateTime64(6))",
+                "When the version was deleted in the UI; NULL if not deleted",
+            ),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the version was created",
+            ),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -895,6 +951,8 @@ mod tests {
             "alert_targets",
             "alert_filters",
             "table_views",
+            "agents",
+            "agent_versions",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),
