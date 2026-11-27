@@ -16,6 +16,10 @@ const MAX_CHECKS_IN_A_ROW: u32 = 10;
 pub enum Metric {
     /// Spans of every type: the project's traffic.
     SpanCount,
+    /// Spans of every type that failed: tools and LLM calls alike.
+    SpanErrors,
+    /// Share of spans that failed, in percent.
+    SpanErrorRate,
     TotalCost,
     InputTokens,
     OutputTokens,
@@ -35,11 +39,12 @@ pub enum Metric {
 }
 
 impl Metric {
-    /// Counts and sums. The rest are rates and latencies of LLM calls.
+    /// Counts and sums. The rest are rates and latencies.
     pub fn is_sum(self) -> bool {
         matches!(
             self,
             Metric::SpanCount
+                | Metric::SpanErrors
                 | Metric::TotalCost
                 | Metric::InputTokens
                 | Metric::OutputTokens
@@ -49,15 +54,23 @@ impl Metric {
         )
     }
 
-    /// Spans without a model share one rollup row, so the span count has no
-    /// per-model split.
+    /// Spans without a model share one rollup row, so metrics over every span
+    /// have no per-model split.
     pub fn can_split_by_model(self) -> bool {
-        self != Metric::SpanCount
+        !self.counts_every_span()
     }
 
-    /// Rates and latencies mean little on a handful of LLM calls.
+    /// Rates and latencies mean little on a handful of calls.
     pub fn needs_min_calls(self) -> bool {
         !self.is_sum()
+    }
+
+    /// Read over spans of every type. `min_calls` then counts spans, not LLM calls.
+    pub fn counts_every_span(self) -> bool {
+        matches!(
+            self,
+            Metric::SpanCount | Metric::SpanErrors | Metric::SpanErrorRate
+        )
     }
 }
 
@@ -162,7 +175,8 @@ pub struct Rule {
     pub min_change: Option<f64>,
     #[serde(default = "default_checks_in_a_row")]
     pub checks_in_a_row: u32,
-    /// LLM calls a window needs before a rate or a latency is checked.
+    /// LLM calls (spans, for a metric over every span) a window needs before a
+    /// rate or a latency is checked.
     #[serde(default = "default_min_calls")]
     pub min_calls: u64,
     /// `None` picks the metric's default, see `Rule::no_data_mode`.
@@ -363,6 +377,11 @@ mod tests {
             ),
             ("checksInARow", json!(0), "Checks in a row"),
             ("metric", json!("span_count"), "cannot be split by model"),
+            (
+                "metric",
+                json!("span_error_rate"),
+                "cannot be split by model",
+            ),
             ("metric", json!("trace_count"), "unknown variant"),
         ];
         for (field, value, expected) in cases {
@@ -406,6 +425,7 @@ mod tests {
         };
         let sums = [
             "span_count",
+            "span_errors",
             "total_cost",
             "total_tokens",
             "llm_calls",
@@ -415,6 +435,7 @@ mod tests {
             assert_eq!(mode(metric, json!(null)), OnNoData::Zero, "{metric}");
         }
         let rates = [
+            "span_error_rate",
             "llm_error_rate",
             "llm_no_cost_rate",
             "llm_no_tokens_rate",
@@ -429,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn every_metric_but_the_span_count_splits_by_model() {
+    fn every_metric_but_those_over_every_span_splits_by_model() {
         let metrics = [
             "total_cost",
             "input_tokens",

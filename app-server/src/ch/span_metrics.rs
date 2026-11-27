@@ -12,6 +12,8 @@ pub struct SpanMetricsMinute {
     pub model: String,
     /// Every span, of any type.
     pub span_count: u64,
+    /// Every failed span, of any type.
+    pub span_errors: u64,
     pub total_cost: f64,
     pub input_tokens: i64,
     pub output_tokens: i64,
@@ -56,6 +58,7 @@ pub async fn get_span_metrics(
         "SELECT toUnixTimestamp(minute) AS minute,
                 toString(model) AS model,
                 sum(span_count) AS span_count,
+                sum(span_errors) AS span_errors,
                 sum(total_cost) AS total_cost,
                 sum(input_tokens) AS input_tokens,
                 sum(output_tokens) AS output_tokens,

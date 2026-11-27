@@ -635,6 +635,7 @@ fn recorded_series() -> Series {
             minute: (minute * 60) as u32,
             model: "model-a".to_string(),
             span_count: 1,
+            span_errors: 0,
             total_cost: cost_at(minute),
             input_tokens: 0,
             output_tokens: 0,
@@ -738,9 +739,14 @@ fn the_preview_plots_empty_windows_as_zero() {
     // The rule itself skips those checks: an error rate over nothing says nothing.
     assert!(preview.incidents.is_empty());
 
-    // A relative rule with nothing to compare to has no number to plot.
+    // Nothing now and nothing before is quiet, not a hole.
     let change = change_rule(json!({ "resolve": null }));
     let preview = replay(&change, &series, None, &minutes, 19);
+    assert!(preview.points.iter().all(|point| point.value == Some(0.0)));
+    assert!(preview.incidents.is_empty());
+
+    // Something now against nothing a week before has no percentage to plot.
+    let preview = replay(&change, &recorded_series(), None, &minutes, 19);
     assert!(preview.points.iter().all(|point| point.value.is_none()));
 }
 
@@ -769,6 +775,7 @@ fn a_long_preview_keeps_spikes_and_the_newest_point() {
             minute: (minute * 60) as u32,
             model: "model-a".to_string(),
             span_count: 1,
+            span_errors: 0,
             // One spike in the middle, and a quiet last minute after a busy one.
             total_cost: match minute {
                 1500 => 500.0,

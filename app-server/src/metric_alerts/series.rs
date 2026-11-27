@@ -27,6 +27,7 @@ pub struct Minutes {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Sums {
     pub spans: u64,
+    pub span_errors: u64,
     pub cost: f64,
     pub input_tokens: i64,
     pub output_tokens: i64,
@@ -42,6 +43,7 @@ pub struct Sums {
 impl Sums {
     fn add(&mut self, other: &Sums) {
         self.spans += other.spans;
+        self.span_errors += other.span_errors;
         self.cost += other.cost;
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
@@ -53,6 +55,10 @@ impl Sums {
         for (bucket, count) in &other.llm_latency {
             *self.llm_latency.entry(*bucket).or_default() += count;
         }
+    }
+
+    fn percent_of_spans(&self, count: u64) -> Option<f64> {
+        (self.spans > 0).then(|| count as f64 / self.spans as f64 * 100.0)
     }
 
     fn percent_of_llm_calls(&self, count: u64) -> Option<f64> {
@@ -74,10 +80,12 @@ impl Sums {
         None
     }
 
-    /// The rule's number. `None` for a rate or a latency without LLM calls.
+    /// The rule's number. `None` for a rate or a latency without the calls it divides by.
     fn metric(&self, metric: Metric) -> Option<f64> {
         match metric {
             Metric::SpanCount => Some(self.spans as f64),
+            Metric::SpanErrors => Some(self.span_errors as f64),
+            Metric::SpanErrorRate => self.percent_of_spans(self.span_errors),
             Metric::TotalCost => Some(self.cost),
             Metric::InputTokens => Some(self.input_tokens as f64),
             Metric::OutputTokens => Some(self.output_tokens as f64),
@@ -105,6 +113,7 @@ impl Series {
         for row in rows {
             let sums = Sums {
                 spans: row.span_count,
+                span_errors: row.span_errors,
                 cost: row.total_cost,
                 input_tokens: row.input_tokens,
                 output_tokens: row.output_tokens,
@@ -188,14 +197,22 @@ pub struct Contributor {
 struct Measured {
     value: Option<f64>,
     /// What `min_calls` is compared to.
-    llm_calls: u64,
+    volume: u64,
 }
 
 fn measure(rule: &Rule, series: &Series, group: Option<&str>, window: Minutes) -> Measured {
     let sums = series.window(group, window);
     Measured {
         value: sums.as_ref().and_then(|s| s.metric(rule.metric)),
-        llm_calls: sums.map(|s| s.llm_calls).unwrap_or(0),
+        volume: sums
+            .map(|s| {
+                if rule.metric.counts_every_span() {
+                    s.spans
+                } else {
+                    s.llm_calls
+                }
+            })
+            .unwrap_or(0),
     }
 }
 
@@ -261,7 +278,7 @@ pub fn observe(rule: &Rule, series: &Series, group: Option<&str>, end: i64) -> O
         at: time_of(end),
         value: measured.value,
         baseline,
-        volume: measured.llm_calls,
+        volume: measured.volume,
     }
 }
 
@@ -291,6 +308,7 @@ mod tests {
             minute: (minute * 60) as u32,
             model: model.to_string(),
             span_count: 1,
+            span_errors: 0,
             total_cost: cost,
             input_tokens: tokens,
             output_tokens: tokens,
@@ -434,6 +452,40 @@ mod tests {
 
         // Nothing a week before this window.
         assert_eq!(observed(&series, change, None, end + 3).baseline, None);
+    }
+
+    #[test]
+    fn span_errors_count_failed_spans_of_every_type() {
+        let spans = |minute: i64, model: &str, spans: u64, errors: u64| SpanMetricsMinute {
+            span_count: spans,
+            span_errors: errors,
+            llm_calls: 0,
+            ..row(minute, model, 0.0, 0)
+        };
+        let mut series = Series::default();
+        series.add_rows(&[
+            // Tool spans carry no model; one failed LLM call does.
+            spans(96, "", 150, 12),
+            spans(98, "gpt", 50, 1),
+            spans(120, "", 10, 10),
+        ]);
+
+        let failed = observed(
+            &series,
+            json!({ "metric": "span_errors", "groupBy": null }),
+            None,
+            100,
+        );
+        assert_eq!(failed.value, Some(13.0));
+        let rate = observed(
+            &series,
+            json!({ "metric": "span_error_rate", "groupBy": null }),
+            None,
+            100,
+        );
+        assert_eq!(rate.value, Some(6.5));
+        // The minimum volume counts spans, since there are no LLM calls here.
+        assert_eq!(rate.volume, 200);
     }
 
     #[test]

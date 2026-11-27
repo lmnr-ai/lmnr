@@ -8,8 +8,9 @@
 -- earlier by the span's whole duration. Once the spans that ended in a minute
 -- are stored the minute is final, and a window is the sum of its minutes.
 --
--- Every span is counted in `span_count`. Spans without a model, which is most
--- non-LLM spans, share the model ''. The `llm_*` columns count LLM spans only.
+-- Every span is counted in `span_count`, and every failed span, of any type, in
+-- `span_errors`. Spans without a model, which is most non-LLM spans, share the
+-- model ''. The `llm_*` columns count LLM spans only.
 -- `llm_latency_buckets` is a histogram of LLM span durations: the key is
 -- floor(log(milliseconds) / log(1.05)), so a quantile read from it is off by
 -- at most 2.5%.
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS span_metrics_1m
     minute DateTime('UTC'),
     model LowCardinality(String),
     span_count SimpleAggregateFunction(sum, UInt64),
+    span_errors SimpleAggregateFunction(sum, UInt64),
     total_cost SimpleAggregateFunction(sum, Float64),
     input_tokens SimpleAggregateFunction(sum, Int64),
     output_tokens SimpleAggregateFunction(sum, Int64),
@@ -50,6 +52,7 @@ SELECT
     toDateTime(toStartOfMinute(end_time), 'UTC') AS minute,
     model,
     count() AS span_count,
+    countIf(status = 'error') AS span_errors,
     sum(total_cost) AS total_cost,
     sum(input_tokens) AS input_tokens,
     sum(output_tokens) AS output_tokens,
