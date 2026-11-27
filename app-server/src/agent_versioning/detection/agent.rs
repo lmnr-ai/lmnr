@@ -319,8 +319,11 @@ impl<'a> DetectionAgent<'a> {
         let Some(definition) = Definition::new(args.any_of) else {
             return json!({ "error": "The check has no non-empty substring." });
         };
+        let matched_prompts = self.matched_prompts(&definition);
         json!({
-            "matched_prompts": self.matched_prompts(&definition),
+            "eligible": matched_prompts.len() >= self.min_matches,
+            "min_matches": self.min_matches,
+            "matched_prompts": matched_prompts,
             "matched_agents": self.matched_agents(&definition, None),
         })
     }
@@ -553,6 +556,73 @@ mod tests {
             .response;
         assert_eq!(result["matched_prompts"], json!([1, 2]));
         assert_eq!(result["matched_agents"], json!([1]));
+        assert_eq!(result["eligible"], json!(false));
+        assert_eq!(result["min_matches"], json!(3));
+    }
+
+    #[test]
+    fn update_probe_requires_three_unlabelled_prompts_even_for_known_agent() {
+        let client = mock_client();
+        let prompts = vec![
+            unlabelled("You are Meetings, an agent that Swan runs for this organization."),
+            unlabelled("You are ABM, an agent that Swan runs for this organization."),
+            unlabelled("You are Outreach copy, an agent that Swan runs for this organization."),
+        ];
+        let agents = vec![known("ABM", &[&["old abm role"]], "old abm role")];
+        let mut agent = agent(&client, prompts, agents);
+        let probe = agent
+            .call_tool(
+                TEST_CHECK_TOOL,
+                json!({ "any_of": [["You are ABM, an agent"]] }),
+            )
+            .response;
+        assert_eq!(probe["matched_prompts"], json!([2]));
+        assert_eq!(probe["eligible"], json!(false));
+        let submission = agent
+            .call_tool(
+                SUBMIT_TOOL,
+                json!({ "updates": [{ "agent_id": 1, "add_any_of": [["You are ABM, an agent"]] }] }),
+            )
+            .response;
+        assert_eq!(submission["accepted"], json!(0));
+        assert_eq!(
+            submission["rejected"][0]["reason"],
+            "Matches 1 prompts; at least 3 are needed."
+        );
+    }
+
+    #[test]
+    fn update_probe_allows_recurring_prompt_change() {
+        let client = mock_client();
+        let prompts = vec![
+            unlabelled(
+                "You are Meetings, an agent that Swan runs for this organization. Team: one",
+            ),
+            unlabelled(
+                "You are Meetings, an agent that Swan runs for this organization. Team: two",
+            ),
+            unlabelled(
+                "You are Meetings, an agent that Swan runs for this organization. Team: three",
+            ),
+        ];
+        let agents = vec![known(
+            "Meetings",
+            &[&["old meetings role"]],
+            "old meetings role",
+        )];
+        let mut agent = agent(&client, prompts, agents);
+        let check = json!({ "any_of": [["You are Meetings, an agent"]] });
+        let probe = agent.call_tool(TEST_CHECK_TOOL, check).response;
+        assert_eq!(probe["matched_prompts"], json!([1, 2, 3]));
+        assert_eq!(probe["eligible"], json!(true));
+        let submission = agent
+            .call_tool(
+                SUBMIT_TOOL,
+                json!({ "updates": [{ "agent_id": 1, "add_any_of": [["You are Meetings, an agent"]] }] }),
+            )
+            .response;
+        assert_eq!(submission["accepted"], json!(1));
+        assert!(submission["rejected"].as_array().unwrap().is_empty());
     }
 
     #[test]

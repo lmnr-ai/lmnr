@@ -49,11 +49,17 @@ agent's name too), ids, organizations, counts, credits, user context.
 - A check must not match other agents' prompts, so avoid boilerplate several agents share.
 - Prefer one or two distinctive sentences or phrases.
 
-A new agent must match at least {min_matches} prompts. Leave alone prompts that are \
-one-off, such as ad-hoc subagents; it is fine to submit nothing.
+Every check submitted, whether a new agent or an update to a known agent, must match \
+at least {min_matches} DISTINCT prompts from the unmatched <prompts> list. The \
+existing check on a known agent does not count toward an update's minimum. \
+Leave alone one-off prompts, such as ad-hoc subagents; it is fine to submit nothing.
 
-Test checks with `test_check` before submitting. `submit` reports rejected items; fix and \
-resubmit them or drop them.";
+Before submitting EACH new agent or update, call `test_check` with exactly its \
+`any_of` or `add_any_of`. Submit only items whose result says `eligible: true` \
+and which do not match another known agent. If a check matches too few prompts, \
+do not submit it: either find a broader static phrase that identifies the SAME agent \
+and retest, or leave that group alone. Do not combine unrelated agents just to \
+reach the minimum. `submit` reports rejected items; fix and resubmit them or drop them.";
 
 /// Minute precision is enough to line a deploy up with an agent going quiet.
 pub fn format_time(ns: i64) -> String {
@@ -148,8 +154,8 @@ pub fn tools() -> ProviderTool {
         function_declarations: vec![
             ProviderFunctionDeclaration {
                 name: TEST_CHECK_TOOL.to_string(),
-                description: "Report which prompts and which known agents' latest prompts a \
-                    check matches."
+                description: "Report matched prompt ids, known-agent collisions, and whether \
+                    this check meets the minimum for submission as a new agent OR update."
                     .to_string(),
                 parameters: json!({
                     "type": "object",
@@ -159,8 +165,8 @@ pub fn tools() -> ProviderTool {
             },
             ProviderFunctionDeclaration {
                 name: SUBMIT_TOOL.to_string(),
-                description: "Save new agents and extend known agents' checks. Reports the \
-                    items it rejected and why."
+                description: "Save only checks that match the minimum number of distinct \
+                    unmatched prompts, including updates. Reports rejected items and why."
                     .to_string(),
                 parameters: json!({
                     "type": "object",
