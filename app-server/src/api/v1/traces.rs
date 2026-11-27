@@ -52,8 +52,8 @@ pub struct RabbitMqSpanMessage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_prompt: Option<AgentPrompt>,
     /// When the producer accepted this batch, in unix milliseconds. Set on
-    /// the first message of a batch only. Consumers report it once the batch
-    /// is stored, which is how metric alerts notice an ingestion backlog.
+    /// the first message of a batch only. Consumers report it while they
+    /// store the batch, which is the clock metric alerts check against.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub accepted_at_ms: Option<i64>,
 }
