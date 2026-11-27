@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::batch_worker::BatchWorkerType;
 use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult, MessageDelivery};
 use crate::mq::{
-    MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiver,
-    MessageQueueReceiverTrait, MessageQueueTrait,
+    MessageQueue, MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait,
+    MessageQueueReceiver, MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use crate::utils::retry;
 use crate::worker::{HandlerError, QueueConfig};
@@ -25,8 +25,9 @@ use crate::worker::{HandlerError, QueueConfig};
 ///
 /// On `shutdown` the worker stops receiving but lets an in-flight
 /// `handle_message`/`handle_interval` (flush + ack) finish, so a batch that was
-/// written is also acked. Held-but-unflushed messages are simply never acked and
-/// get redelivered once, to the successor.
+/// written is also acked. RabbitMQ redelivers held messages to the successor.
+/// In-memory audit workers drain and flush before stopping because their
+/// transport cannot redeliver.
 pub struct BatchQueueWorker<H: BatchMessageHandler> {
     id: Uuid,
     worker_type: BatchWorkerType,
@@ -117,38 +118,25 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                 // and its acks always complete before we get here.
                 biased;
 
-                _ = self.shutdown.cancelled() => return Ok(()),
+                _ = self.shutdown.cancelled() => {
+                    if matches!(self.worker_type, BatchWorkerType::AuditEvents)
+                        && let MessageQueueReceiver::TokioMpsc(receiver) = &mut receiver
+                    {
+                        receiver.close();
+                        while let Some(delivery) = receiver.receive().await {
+                            self.handle_delivery(delivery?).await?;
+                        }
+                        let result = self.handler.handle_interval(&mut self.state).await;
+                        self.handle_result(result).await?;
+                    }
+                    return Ok(());
+                }
 
                 // Message arrived from queue
                 result = receiver.receive() => {
                     match result {
                         Some(delivery) => {
-                            let delivery = delivery?;
-
-                            // Extract delivery metadata
-                            let acker = delivery.acker();
-                            let delivery_tag = delivery.delivery_tag();
-                            let data = delivery.data(); // consumes delivery
-
-                            // Deserialize message
-                            let message = match self.deserialize_message(&data) {
-                                Ok(message) => message,
-                                Err(handler_error) => {
-                                    acker.reject(handler_error.should_requeue()).await?;
-                                    continue;
-                                }
-                            };
-
-                            // Store acker for later acknowledgment
-                            self.ackers.insert(delivery_tag, acker);
-
-                            // Wrap message with delivery metadata and handle
-                            let message_delivery = MessageDelivery::new(message, delivery_tag);
-                            let result = self.handler
-                                .handle_message(message_delivery, &mut self.state)
-                                .await;
-
-                            self.handle_result(result).await?;
+                            self.handle_delivery(delivery?).await?;
                         }
                         None => {
                             // Stream ended, exit to trigger reconnection
@@ -167,6 +155,21 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                 }
             }
         }
+    }
+
+    async fn handle_delivery(&mut self, delivery: MessageQueueDelivery) -> anyhow::Result<()> {
+        let acker = delivery.acker();
+        let tag = delivery.delivery_tag();
+        let message = match self.deserialize_message(&delivery.data()) {
+            Ok(message) => message,
+            Err(error) => return acker.reject(error.should_requeue()).await,
+        };
+        self.ackers.insert(tag, acker);
+        let result = self
+            .handler
+            .handle_message(MessageDelivery::new(message, tag), &mut self.state)
+            .await;
+        self.handle_result(result).await
     }
 
     /// Connect to the queue
@@ -648,5 +651,137 @@ mod tests {
             1,
             "the in-flight flush completes; the message sent after shutdown is not taken"
         );
+    }
+
+    /// Pauses the first delivery after the real audit handler buffers it.
+    struct GatedAuditHandler {
+        handler: crate::audit::consumer::AuditEventHandler,
+        buffered: Arc<tokio::sync::Notify>,
+        resume: Arc<tokio::sync::Notify>,
+    }
+
+    #[async_trait]
+    impl BatchMessageHandler for GatedAuditHandler {
+        type Message = crate::audit::AuditEvent;
+        type State = Vec<MessageDelivery<Self::Message>>;
+
+        fn interval(&self) -> Duration {
+            self.handler.interval()
+        }
+
+        fn initial_state(&self) -> Self::State {
+            self.handler.initial_state()
+        }
+
+        async fn handle_message(
+            &self,
+            delivery: MessageDelivery<Self::Message>,
+            state: &mut Self::State,
+        ) -> HandlerResult<Self::Message> {
+            let first = delivery.delivery_tag == 0;
+            let result = self.handler.handle_message(delivery, state).await;
+            if first {
+                self.buffered.notify_one();
+                self.resume.notified().await;
+            }
+            result
+        }
+
+        async fn handle_interval(&self, state: &mut Self::State) -> HandlerResult<Self::Message> {
+            self.handler.handle_interval(state).await
+        }
+    }
+
+    // Run against a disposable ClickHouse database with migration 82 applied.
+    #[tokio::test]
+    #[ignore = "requires a disposable ClickHouse audit table"]
+    async fn in_memory_audit_shutdown_persists_held_and_queued_events() {
+        use crate::audit::consumer::AuditEventHandler;
+        use crate::audit::{AuditAction, AuditEvent, AuditOutcome, AuditResource, AuditSource};
+        use crate::batch_worker::config::BatchingConfig;
+
+        let clickhouse = clickhouse::Client::default()
+            .with_url(std::env::var("TEST_AUDIT_CLICKHOUSE_URL").unwrap())
+            .with_user("default")
+            .with_password(std::env::var("TEST_AUDIT_CLICKHOUSE_PASSWORD").unwrap())
+            .with_validation(false);
+        let queue = create_test_queue();
+        let shutdown = CancellationToken::new();
+        let buffered = Arc::new(tokio::sync::Notify::new());
+        let resume = Arc::new(tokio::sync::Notify::new());
+        let mut worker = BatchQueueWorker::new(
+            BatchWorkerType::AuditEvents,
+            GatedAuditHandler {
+                handler: AuditEventHandler {
+                    clickhouse: clickhouse.clone(),
+                    config: BatchingConfig {
+                        size: 100,
+                        flush_interval: Duration::from_secs(60),
+                    },
+                },
+                buffered: buffered.clone(),
+                resume: resume.clone(),
+            },
+            queue.clone(),
+            QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY),
+            shutdown.clone(),
+        );
+        let workspace_id = Uuid::new_v4();
+        let event = AuditEvent {
+            event_id: Uuid::new_v4(),
+            timestamp: chrono::Utc::now(),
+            workspace_id,
+            project_id: None,
+            project_name: String::new(),
+            actor_type: "user".to_string(),
+            actor_id: Uuid::new_v4(),
+            actor_label: String::new(),
+            actor_role: "admin".to_string(),
+            actor_owner_user_id: None,
+            actor_owner_label: String::new(),
+            source: AuditSource::Ui,
+            resource_type: AuditResource::Workspace,
+            action: AuditAction::Update,
+            resource_id: workspace_id.to_string(),
+            resource_label: String::new(),
+            outcome: AuditOutcome::Success,
+            ip: String::new(),
+            user_agent: String::new(),
+            metadata: None,
+        };
+        let first = serde_json::to_vec(&event).unwrap();
+        let second = serde_json::to_vec(&AuditEvent {
+            event_id: Uuid::new_v4(),
+            ..event
+        })
+        .unwrap();
+        let running = tokio::spawn(async move { worker.process().await });
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while queue
+                .publish(&first, TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+                .await
+                .is_err()
+            {
+                tokio::task::yield_now().await;
+            }
+            buffered.notified().await;
+            queue
+                .publish(&second, TEST_EXCHANGE, TEST_ROUTING_KEY, None)
+                .await
+                .unwrap();
+            shutdown.cancel();
+            resume.notify_one();
+            running.await.unwrap();
+        })
+        .await
+        .expect("audit worker did not finish shutdown");
+
+        let count = clickhouse
+            .query("SELECT count() FROM audit_events WHERE workspace_id = {id:UUID}")
+            .param("id", workspace_id)
+            .fetch_one::<u64>()
+            .await
+            .unwrap();
+        assert_eq!(count, 2, "both accepted audit events should be persisted");
     }
 }

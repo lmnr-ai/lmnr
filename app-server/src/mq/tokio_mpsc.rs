@@ -19,6 +19,13 @@ pub struct TokioMpscReceiver {
     delivery_counter: AtomicU64,
 }
 
+impl TokioMpscReceiver {
+    /// Stop accepting sends while keeping deliveries already in the channel.
+    pub(crate) fn close(&mut self) {
+        self.receiver.close();
+    }
+}
+
 pub struct TokioMpscDelivery {
     data: Vec<u8>,
     delivery_tag: u64,
