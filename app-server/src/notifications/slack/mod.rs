@@ -10,8 +10,10 @@ use uuid::Uuid;
 
 use super::NotificationKind;
 use super::utils::build_report_data_from_batch;
+use crate::env::notifications::SLACK_API_URL;
 
-const SLACK_API_BASE: &str = "https://slack.com/api";
+/// Slack's error code for a reply to a message that no longer exists.
+const THREAD_NOT_FOUND: &str = "thread_not_found";
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SlackApiResponse {
@@ -111,6 +113,7 @@ pub fn format_message_blocks_batch(
                 .expect("SignalsReport batch must contain at least one report");
             format_report_blocks(&title, &report_data)
         }
+        NotificationKind::MetricAlert(alert) => metric_alert::message_blocks(alert),
         // Delivered by email only (fetch_targets never resolves a Slack target for
         // these), so these arms are unreachable in practice.
         NotificationKind::UsageWarning { .. }
@@ -140,6 +143,7 @@ fn truncate_with_ellipsis(text: &str, limit: usize) -> String {
 }
 
 mod event_identification;
+pub mod metric_alert;
 mod new_cluster;
 mod report;
 mod rich_text;
@@ -148,35 +152,83 @@ use event_identification::format_event_identification_blocks;
 use new_cluster::format_new_cluster_blocks;
 use report::format_report_blocks;
 
+/// A reply in the thread of an earlier message.
+pub struct ThreadReply<'a> {
+    pub thread_ts: &'a str,
+    /// Also show the reply in the channel.
+    pub broadcast: bool,
+}
+
+pub struct SlackMessage<'a> {
+    pub channel_id: &'a str,
+    pub blocks: &'a serde_json::Value,
+    /// Shown where blocks are not rendered, such as notifications.
+    pub text: Option<String>,
+    pub reply: Option<ThreadReply<'a>>,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum SlackSendError {
+    /// Slack took the request and refused it; the string is its error code.
+    #[error("Slack API returned error: {0}")]
+    Api(String),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
+}
+
+impl SlackSendError {
+    pub fn is_thread_not_found(&self) -> bool {
+        matches!(self, SlackSendError::Api(code) if code == THREAD_NOT_FOUND)
+    }
+}
+
+/// Posts a message and returns its `ts`, the id later replies thread under.
 pub async fn send_message(
     slack_client: &Client,
     token: &str,
-    channel_id: &str,
-    blocks: serde_json::Value,
-) -> Result<()> {
-    let body = json!({
-        "channel": channel_id,
-        "blocks": blocks,
+    message: &SlackMessage<'_>,
+) -> Result<String, SlackSendError> {
+    post_message(slack_client, &SLACK_API_URL.get(), token, message).await
+}
+
+async fn post_message(
+    slack_client: &Client,
+    api_url: &str,
+    token: &str,
+    message: &SlackMessage<'_>,
+) -> Result<String, SlackSendError> {
+    let mut body = json!({
+        "channel": message.channel_id,
+        "blocks": message.blocks,
         "unfurl_links": false,
         "unfurl_media": false
     });
+    if let Some(text) = &message.text {
+        body["text"] = json!(text);
+    }
+    if let Some(reply) = &message.reply {
+        body["thread_ts"] = json!(reply.thread_ts);
+        body["reply_broadcast"] = json!(reply.broadcast);
+    }
 
     let response = slack_client
-        .post(format!("{}/chat.postMessage", SLACK_API_BASE))
+        .post(format!("{}/chat.postMessage", api_url.trim_end_matches('/')))
         .header("Authorization", format!("Bearer {}", token))
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
-        .await?;
+        .await
+        .map_err(anyhow::Error::from)?;
     let status = response.status();
-    let body = response.text().await?;
+    let body = response.text().await.map_err(anyhow::Error::from)?;
 
     if !status.is_success() {
         return Err(anyhow::anyhow!(
             "Failed to send Slack message. HTTP Status: {}, Response: {}",
             status,
             body
-        ));
+        )
+        .into());
     }
 
     let slack_response: SlackApiResponse = serde_json::from_str(&body).map_err(|e| {
@@ -189,15 +241,12 @@ pub async fn send_message(
 
     if !slack_response.ok {
         log::error!("Slack API returned error: {}", body);
-        return Err(anyhow::anyhow!(
-            "Slack API returned error: {}",
-            slack_response
-                .error
-                .unwrap_or_else(|| "Unknown error".to_string())
+        return Err(SlackSendError::Api(
+            slack_response.error.unwrap_or("Unknown error".to_string()),
         ));
     }
 
-    Ok(())
+    Ok(slack_response.ts.unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -647,5 +696,111 @@ mod tests {
                 .unwrap()
                 .contains("Manage reports")
         );
+    }
+
+    use wiremock::matchers::{body_partial_json, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn a_posted_message_returns_its_ts() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat.postMessage"))
+            .and(header("Authorization", "Bearer xoxb-test"))
+            .and(body_partial_json(json!({ "channel": "C1", "text": "Warning: Cost spike" })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "ok": true, "ts": "111.222" })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let blocks = json!([]);
+        let message = SlackMessage {
+            channel_id: "C1",
+            blocks: &blocks,
+            text: Some("Warning: Cost spike".to_string()),
+            reply: None,
+        };
+        let ts = post_message(&Client::new(), &server.uri(), "xoxb-test", &message)
+            .await
+            .unwrap();
+
+        assert_eq!(ts, "111.222");
+        let sent: serde_json::Value = server.received_requests().await.unwrap()[0]
+            .body_json()
+            .unwrap();
+        assert!(sent.get("thread_ts").is_none(), "a new message is not a reply");
+    }
+
+    #[tokio::test]
+    async fn a_reply_names_its_thread() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat.postMessage"))
+            .and(body_partial_json(json!({
+                "channel": "C1",
+                "thread_ts": "111.222",
+                "reply_broadcast": true,
+            })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "ok": true, "ts": "333.444" })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let blocks = json!([]);
+        let message = SlackMessage {
+            channel_id: "C1",
+            blocks: &blocks,
+            text: None,
+            reply: Some(ThreadReply {
+                thread_ts: "111.222",
+                broadcast: true,
+            }),
+        };
+        let ts = post_message(&Client::new(), &server.uri(), "xoxb-test", &message)
+            .await
+            .unwrap();
+        assert_eq!(ts, "333.444");
+    }
+
+    #[tokio::test]
+    async fn a_deleted_thread_is_told_apart_from_other_failures() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_partial_json(json!({ "thread_ts": "gone" })))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "ok": false, "error": "thread_not_found" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(body_partial_json(json!({ "thread_ts": "other" })))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "ok": false, "error": "channel_not_found" })),
+            )
+            .mount(&server)
+            .await;
+
+        let blocks = json!([]);
+        let reply_to = |thread_ts| SlackMessage {
+            channel_id: "C1",
+            blocks: &blocks,
+            text: None,
+            reply: Some(ThreadReply {
+                thread_ts,
+                broadcast: false,
+            }),
+        };
+        let client = Client::new();
+
+        let gone = post_message(&client, &server.uri(), "t", &reply_to("gone")).await;
+        assert!(gone.unwrap_err().is_thread_not_found());
+        let other = post_message(&client, &server.uri(), "t", &reply_to("other")).await;
+        assert!(!other.unwrap_err().is_thread_not_found());
     }
 }

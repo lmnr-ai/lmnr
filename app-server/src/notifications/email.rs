@@ -14,7 +14,7 @@ use super::utils::{
     build_report_data_from_batch, frontend_url_email, inject_utm_into_links,
     md_links_to_html_escaped, with_utm,
 };
-use super::{NotificationKind, new_cluster_wording};
+use super::{MetricAlertNotification, NotificationKind, new_cluster_wording};
 use crate::reports::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
@@ -120,6 +120,11 @@ pub(super) const SEVERITY_ICONS: [(&str, &[u8]); 3] = [
 ];
 
 fn severity_kicker(severity: u8) -> String {
+    kicker(severity, severity_label(severity))
+}
+
+/// A line above the banner title: the icon and color of `severity` next to `label`.
+fn kicker(severity: u8, label: &str) -> String {
     let (color, cid) = match severity {
         2 => ("#e25050", SEVERITY_ICONS[0].0),
         1 => ("#e2a108", SEVERITY_ICONS[1].0),
@@ -127,7 +132,7 @@ fn severity_kicker(severity: u8) -> String {
     };
     format!(
         r#"<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0"><tr><td width="16" height="19" valign="top" style="padding-top:2px;line-height:0;font-size:0"><img src="cid:{cid}" alt="" width="16" height="16" style="display:block;border:0"></td><td width="4"></td><td style="font-size:16px;font-weight:500;line-height:19px;letter-spacing:-.32px;color:{color}"><div class="gmail-blend-screen"><div class="gmail-blend-difference">{label}</div></div></td></tr></table>"#,
-        label = severity_label(severity)
+        label = html_escape(label)
     )
 }
 
@@ -270,6 +275,15 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 body: EmailBody::Html(render_new_cluster_email(&clusters)),
             }
         }
+        NotificationKind::MetricAlert(alert) => EmailContent {
+            from: ALERT_FROM_EMAIL.to_string(),
+            subject: signal_notification_subject(
+                &alert.project_name,
+                &alert.subject(),
+                &alert.headline,
+            ),
+            body: EmailBody::Html(render_metric_alert_email(alert)),
+        },
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, *workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
@@ -508,6 +522,60 @@ fn render_alert_email(
         680,
         &body,
     )
+}
+
+// ── Metric alert email ──
+
+/// Render an HTML email for one transition of a metric alert incident.
+fn render_metric_alert_email(alert: &MetricAlertNotification) -> String {
+    const CAMPAIGN: &str = "metric_alert";
+    let base = frontend_url_email();
+    let link = |path: &str, content: &str| {
+        html_escape(&with_utm(
+            &format!("{base}{path}"),
+            "email",
+            CAMPAIGN,
+            content,
+        ))
+    };
+    let manage = link(
+        &format!("/project/{}/settings?tab=alerts", alert.project_id),
+        "manage_preferences",
+    );
+    let subject = alert.subject();
+    let rows: Vec<(String, String)> = alert
+        .details
+        .iter()
+        .map(|detail| (detail.label.clone(), html_escape(&detail.value)))
+        .collect();
+
+    let card = format!(
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:{}">{}</p><div style="margin-top:16px">{}</div>{}</div>"#,
+        breadcrumb(
+            &[&alert.project_name, &subject],
+            &link(&alert.alert_path, "open_alert")
+        ),
+        TEXT,
+        html_escape(&alert.summary),
+        data_rows(&rows),
+        action(&link(&alert.traces_path, "open_traces"), "Open traces"),
+    );
+    let body = format!(
+        "{}{}{}",
+        banner_with_kicker(
+            &alert.project_name,
+            &kicker(alert.severity(), &alert.headline),
+            &subject,
+            Some(&alert.checked_at),
+        ),
+        card,
+        footer(
+            "This alert was generated automatically by Laminar.",
+            &manage,
+            "Manage alert preferences",
+        ),
+    );
+    email_document(&format!("{}: {}", subject, alert.headline), 680, &body)
 }
 
 /// Render one cluster's section inside the new-cluster digest email.
@@ -993,6 +1061,8 @@ pub(super) fn html_escape(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::db::projects::WorkspaceTierName;
+    use crate::metric_alerts::engine::{Level, TransitionKind};
+    use crate::notifications::MetricAlertDetail;
     use crate::reports::{
         ProjectReportData, ReportChartBucket, ReportClusterData, ReportData, SignalReportData,
     };
@@ -1282,6 +1352,69 @@ mod tests {
 
         assert!(html.contains("used all Signals usage included in the Scale plan"));
         assert!(html.contains("billed at the overage rate"));
+    }
+
+    fn metric_alert(
+        transition: TransitionKind,
+        level: Level,
+        headline: &str,
+    ) -> MetricAlertNotification {
+        MetricAlertNotification {
+            project_id: Uuid::nil(),
+            project_name: "acme-production".to_string(),
+            alert_id: Uuid::from_u128(2),
+            alert_name: "Cost <spike>".to_string(),
+            incident_id: Uuid::from_u128(3),
+            transition,
+            level,
+            group: Some("gpt-4o".to_string()),
+            headline: headline.to_string(),
+            summary: "Total cost for gpt-4o over the last hour is $2.41. That is above the warning threshold of $2.00.".to_string(),
+            details: vec![MetricAlertDetail {
+                label: "Value".to_string(),
+                value: "$2.41".to_string(),
+            }],
+            traces_path: "/project/p/traces?startDate=a&sortBy=cost".to_string(),
+            alert_path: "/project/p/settings/alerts/a".to_string(),
+            checked_at: "Nov 25, 2026 at 7:35 PM UTC".to_string(),
+        }
+    }
+
+    #[test]
+    fn metric_alert_email_states_the_transition_and_links_both_pages() {
+        let opened = metric_alert(TransitionKind::Opened, Level::Warning, "Warning");
+        let content = format_email_batch(
+            &[NotificationKind::MetricAlert(opened)],
+            &Uuid::from_u128(9),
+        );
+
+        assert_eq!(content.from, ALERT_FROM_EMAIL);
+        assert_eq!(
+            content.subject,
+            "acme-production / Cost <spike> (gpt-4o) - Warning"
+        );
+        let EmailBody::Html(html) = content.body else {
+            panic!("metric alert emails are rendered inline");
+        };
+        assert!(html.contains("cid:severity-warning"));
+        assert!(html.contains("Cost &lt;spike&gt; (gpt-4o)"));
+        assert!(!html.contains("<spike>"));
+        assert!(html.contains("above the warning threshold of $2.00"));
+        assert!(html.contains("$2.41"));
+        assert!(html.contains("Open traces"));
+        assert!(html.contains(
+            "/project/p/traces?startDate=a&amp;sortBy=cost&amp;utm_source=email&amp;utm_medium=notification&amp;utm_campaign=metric_alert&amp;utm_content=open_traces"
+        ));
+        assert!(html.contains("/project/p/settings/alerts/a?utm_source=email"));
+        assert!(html.contains("Manage alert preferences"));
+    }
+
+    #[test]
+    fn resolved_metric_alert_email_drops_the_warning_color() {
+        let resolved = metric_alert(TransitionKind::Resolved, Level::Ok, "Resolved");
+        let html = render_metric_alert_email(&resolved);
+        assert!(html.contains("cid:severity-info"));
+        assert!(html.contains(">Resolved<"));
     }
 
     #[test]

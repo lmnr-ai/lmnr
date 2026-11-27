@@ -11,7 +11,11 @@ import {
   SeverityFilter,
   type SeverityFilterValue,
 } from "@/components/notifications/notification-panel/severity-filter";
-import { formatNotification, type FormattedNotification } from "@/components/notifications/notification-panel/utils";
+import {
+  formatNotification,
+  type FormattedNotification,
+  severityOf,
+} from "@/components/notifications/notification-panel/utils";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjectContext } from "@/contexts/project-context";
@@ -55,13 +59,9 @@ const NotificationPanel = () => {
     const base = { all: 0, critical: 0, warning: 0, info: 0 };
     formattedNotifications?.forEach(({ formatted }) => {
       base.all += 1;
-      // Non-alert notifications (reports, clusters) have no severity — bucket them as info.
-      if (formatted.kind !== "alert") {
-        base.info += 1;
-        return;
-      }
-      if (formatted.severity === 2) base.critical += 1;
-      else if (formatted.severity === 1) base.warning += 1;
+      const severity = severityOf(formatted);
+      if (severity === 2) base.critical += 1;
+      else if (severity === 1) base.warning += 1;
       else base.info += 1;
     });
     return base;
@@ -70,10 +70,10 @@ const NotificationPanel = () => {
   const visibleNotifications = useMemo(() => {
     if (severityFilter === "all") return formattedNotifications;
     return formattedNotifications?.filter(({ formatted }) => {
-      if (formatted.kind !== "alert") return severityFilter === "info";
-      if (severityFilter === "critical") return formatted.severity === 2;
-      if (severityFilter === "warning") return formatted.severity === 1;
-      return formatted.severity === 0;
+      const severity = severityOf(formatted);
+      if (severityFilter === "critical") return severity === 2;
+      if (severityFilter === "warning") return severity === 1;
+      return severity === 0;
     });
   }, [formattedNotifications, severityFilter]);
 

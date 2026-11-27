@@ -15,13 +15,17 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    NotificationKind, TargetType,
+    MetricAlertNotification, NotificationKind, TargetType,
     email::{self, EmailBody},
-    slack,
+    slack::{self, SlackMessage, ThreadReply},
 };
 use crate::ch::notification_deliveries::CHNotificationDelivery;
 use crate::ch::service::ClickhouseService;
-use crate::db::DB;
+use crate::db::{
+    DB,
+    metric_alerts::{get_incident, replace_slack_thread, set_slack_thread},
+};
+use crate::metric_alerts::engine::TransitionKind;
 use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::utils::retry;
 use crate::worker::{HandlerError, MessageHandler};
@@ -119,25 +123,15 @@ impl MessageHandler for NotificationDeliveryHandler {
                 .notification_ids
                 .iter()
                 .zip(message.notifications.iter())
-                .map(|(notification_id, kind)| {
-                    let project_id = match kind {
-                        NotificationKind::EventIdentification { project_id, .. } => *project_id,
-                        NotificationKind::NewCluster { project_id, .. } => *project_id,
-                        NotificationKind::SignalsReport { project_id, .. } => *project_id,
-                        NotificationKind::SignalEmptyTrace { project_id, .. } => *project_id,
-                        NotificationKind::UsageWarning { .. } => Uuid::nil(),
-                        NotificationKind::UsageHardLimit { .. } => Uuid::nil(),
-                    };
-                    CHNotificationDelivery {
-                        workspace_id: message.workspace_id,
-                        project_id,
-                        notification_id: *notification_id,
-                        delivery_id: Uuid::new_v4(),
-                        target_id: message.target.target_id,
-                        target_type: message.target.target_type.to_string(),
-                        message: raw_message.clone(),
-                        created_at: now_ms,
-                    }
+                .map(|(notification_id, kind)| CHNotificationDelivery {
+                    workspace_id: message.workspace_id,
+                    project_id: kind.project_id(),
+                    notification_id: *notification_id,
+                    delivery_id: Uuid::new_v4(),
+                    target_id: message.target.target_id,
+                    target_type: message.target.target_type.to_string(),
+                    message: raw_message.clone(),
+                    created_at: now_ms,
                 })
                 .collect();
 
@@ -207,19 +201,27 @@ impl NotificationDeliveryHandler {
             HandlerError::permanent(anyhow::anyhow!("Failed to decode Slack token: {}", e))
         })?;
 
+        // Metric alerts keep one thread per incident, so they pick their own layout.
+        if let Some(NotificationKind::MetricAlert(alert)) = message.notifications.first() {
+            return self
+                .send_metric_alert_to_slack(&decrypted_token, channel_id, alert)
+                .await;
+        }
+
         let blocks =
             slack::format_message_blocks_batch(&message.notifications, message.workspace_id);
 
-        slack::send_message(
-            &self.slack_client,
-            &decrypted_token,
+        let slack_message = SlackMessage {
             channel_id,
-            blocks.clone(),
-        )
-        .await
-        .map_err(|e| {
-            HandlerError::transient(anyhow::anyhow!("Failed to send Slack message: {}", e))
-        })?;
+            blocks: &blocks,
+            text: None,
+            reply: None,
+        };
+        slack::send_message(&self.slack_client, &decrypted_token, &slack_message)
+            .await
+            .map_err(|e| {
+                HandlerError::transient(anyhow::anyhow!("Failed to send Slack message: {}", e))
+            })?;
 
         log::debug!(
             "[NotificationDelivery] Slack notification sent ({} items)",
@@ -228,6 +230,100 @@ impl NotificationDeliveryHandler {
 
         let raw_message = serde_json::to_string(&blocks).unwrap_or_default();
         Ok(Some(raw_message))
+    }
+
+    /// Sends a metric alert: the first message about an incident in a channel
+    /// starts a thread, everything after it replies there.
+    async fn send_metric_alert_to_slack(
+        &self,
+        token: &str,
+        channel_id: &str,
+        alert: &MetricAlertNotification,
+    ) -> Result<Option<String>, HandlerError> {
+        let pool = &self.db.pool;
+        let incident = get_incident(pool, &alert.project_id, &alert.incident_id)
+            .await
+            .map_err(|e| {
+                HandlerError::transient(anyhow::anyhow!("Failed to get incident: {}", e))
+            })?;
+        // The rule was deleted while the message was queued.
+        let Some(incident) = incident else {
+            return Ok(None);
+        };
+        let thread_ts = incident.slack_threads.0.get(channel_id);
+
+        if let Some(thread_ts) = thread_ts {
+            let blocks = slack::metric_alert::reply_blocks(alert);
+            let reply = SlackMessage {
+                channel_id,
+                blocks: &blocks,
+                text: Some(slack::metric_alert::fallback_text(alert)),
+                reply: Some(ThreadReply {
+                    thread_ts,
+                    // The channel sees an incident get worse or come back;
+                    // everything else stays in the thread.
+                    broadcast: matches!(
+                        alert.transition,
+                        TransitionKind::Escalated | TransitionKind::Reopened
+                    ),
+                }),
+            };
+            match slack::send_message(&self.slack_client, token, &reply).await {
+                Ok(_) => return Ok(Some(blocks.to_string())),
+                // The message that opened the thread was deleted: start a new one.
+                Err(e) if e.is_thread_not_found() => {}
+                Err(e) => {
+                    return Err(HandlerError::transient(anyhow::anyhow!(
+                        "Failed to send Slack reply: {}",
+                        e
+                    )));
+                }
+            }
+        }
+
+        let blocks = slack::metric_alert::message_blocks(alert);
+        let opener = SlackMessage {
+            channel_id,
+            blocks: &blocks,
+            text: Some(slack::metric_alert::fallback_text(alert)),
+            reply: None,
+        };
+        let message_ts = slack::send_message(&self.slack_client, token, &opener)
+            .await
+            .map_err(|e| {
+                HandlerError::transient(anyhow::anyhow!("Failed to send Slack message: {}", e))
+            })?;
+
+        let stored = if thread_ts.is_some() {
+            replace_slack_thread(
+                pool,
+                &alert.project_id,
+                &alert.incident_id,
+                channel_id,
+                &message_ts,
+            )
+            .await
+        } else {
+            set_slack_thread(
+                pool,
+                &alert.project_id,
+                &alert.incident_id,
+                channel_id,
+                &message_ts,
+            )
+            .await
+        };
+        // The message is out, and a retry would post it twice. Without the
+        // thread the next message about this incident starts one.
+        if let Err(e) = stored {
+            log::error!(
+                "[NotificationDelivery] Failed to store Slack thread for incident {}: {:?}",
+                alert.incident_id,
+                e
+            );
+        }
+
+        Ok(Some(blocks.to_string()))
     }
 
     /// Format and send an email combining all notifications in the batch.
@@ -250,6 +346,13 @@ impl NotificationDeliveryHandler {
             log::error!("[NotificationDelivery] Email target missing email address");
             return Ok(None);
         };
+
+        // Email carries the turning points of an incident, not its reminders.
+        if let Some(NotificationKind::MetricAlert(alert)) = message.notifications.first()
+            && !alert.is_major()
+        {
+            return Ok(None);
+        }
 
         let content = email::format_email_batch(&message.notifications, &message.workspace_id);
 

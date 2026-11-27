@@ -5,6 +5,7 @@
 pub mod cadence;
 pub mod engine;
 pub mod ingestion;
+pub mod message;
 pub mod preview;
 pub mod query;
 pub mod rule;

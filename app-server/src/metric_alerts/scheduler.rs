@@ -21,12 +21,18 @@ use crate::{
     },
     db::metric_alerts::{MetricAlertRow, get_all_metric_alerts},
     env::metric_alerts::METRIC_ALERTS_SETTLE_MINUTES,
+    mq::MessageQueue,
+    notifications::{
+        NotificationDefinitionType, NotificationKind, NotificationMessage,
+        push_to_notification_queue,
+    },
 };
 
 use super::{
     cadence::{check_interval_minutes, is_due},
     engine::{State, Transition, evaluate},
     ingestion,
+    message::{self, Event, Subject},
     query::fetch_series,
     rule::{GroupBy, Rule},
     series::{Series, observe, ranges_of, time_of, window_of},
@@ -58,6 +64,7 @@ struct MetricAlert {
 struct Tick<'a> {
     pool: &'a PgPool,
     clickhouse: &'a clickhouse::Client,
+    queue: &'a Arc<MessageQueue>,
 }
 
 /// Runs `work` unless another replica holds the scheduler lock. Returns
@@ -91,6 +98,7 @@ where
 pub async fn run_metric_alerts_scheduler(
     pool: PgPool,
     clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
     cache: Arc<Cache>,
 ) {
     log::debug!("[Metric alerts] Starting scheduler");
@@ -100,7 +108,7 @@ pub async fn run_metric_alerts_scheduler(
     loop {
         interval.tick().await;
         run_exclusive(&cache, async {
-            if let Err(e) = run_tick(&pool, &clickhouse, &cache).await {
+            if let Err(e) = run_tick(&pool, &clickhouse, &queue, &cache).await {
                 log::error!("[Metric alerts] Tick failed: {:?}", e);
             }
         })
@@ -171,6 +179,7 @@ fn replay(marker: Option<i64>, target: i64, wall_target: i64) -> Replay {
 async fn run_tick(
     pool: &PgPool,
     clickhouse: &clickhouse::Client,
+    queue: &Arc<MessageQueue>,
     cache: &Cache,
 ) -> anyhow::Result<()> {
     let started = Instant::now();
@@ -196,7 +205,11 @@ async fn run_tick(
     }
 
     let alerts = load_alerts(pool).await?;
-    let tick = Tick { pool, clickhouse };
+    let tick = Tick {
+        pool,
+        clickhouse,
+        queue,
+    };
 
     let mut rules_due = 0;
     for minute in replay.first..=replay.last {
@@ -320,15 +333,28 @@ async fn check_alert(
         if !store::save(tick.pool, &key, &before, &mut state).await? {
             continue;
         }
-        if let Some(transition) = transition {
-            on_transition(alert, &group, &transition);
+        let Some(transition) = transition else {
+            continue;
+        };
+        log_transition(alert, &group, &transition);
+        if let (true, Some(incident)) = (transition.notify, &state.incident) {
+            let top_model = message::names_top_model(&alert.rule, &transition)
+                .then(|| series.top_contributor(&alert.rule, window_of(&alert.rule, minute)))
+                .flatten();
+            let event = Event {
+                transition: &transition,
+                incident,
+                top_model,
+                sent_at: Utc::now(),
+            };
+            notify(tick, alert, &group, &event).await;
         }
     }
 
     Ok(())
 }
 
-fn on_transition(alert: &MetricAlert, group: &str, transition: &Transition) {
+fn log_transition(alert: &MetricAlert, group: &str, transition: &Transition) {
     log::info!(
         "[Metric alerts] Rule {} ({}) group '{}': {:?} {} -> {} at {}, value {:?}",
         alert.row.id,
@@ -340,6 +366,38 @@ fn on_transition(alert: &MetricAlert, group: &str, transition: &Transition) {
         transition.at,
         transition.compared,
     );
+}
+
+/// Hands the transition to the notification pipeline. The state is already
+/// stored, so a failed publish loses this message instead of repeating it.
+async fn notify(tick: &Tick<'_>, alert: &MetricAlert, group: &str, event: &Event<'_>) {
+    let subject = Subject {
+        project_id: alert.row.project_id,
+        project_name: &alert.row.project_name,
+        alert_id: alert.row.id,
+        alert_name: &alert.row.name,
+        rule: &alert.rule,
+        interval_minutes: alert.interval_minutes,
+        group,
+    };
+    let Some(notification) = message::build(&subject, event) else {
+        return;
+    };
+    let message = NotificationMessage {
+        definition_type: NotificationDefinitionType::Alert,
+        definition_id: alert.row.id,
+        workspace_id: alert.row.workspace_id,
+        project_id: Some(alert.row.project_id),
+        notifications: vec![NotificationKind::MetricAlert(notification)],
+    };
+    if let Err(e) = push_to_notification_queue(message, tick.queue.clone()).await {
+        log::error!(
+            "[Metric alerts] Failed to publish {:?} for rule {}: {:?}",
+            event.transition.kind,
+            alert.row.id,
+            e
+        );
+    }
 }
 
 #[cfg(test)]

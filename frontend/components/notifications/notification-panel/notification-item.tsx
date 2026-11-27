@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AlertContent } from "@/components/notifications/notification-panel/alert-content";
 import { ClusterContent } from "@/components/notifications/notification-panel/cluster-content";
+import { MetricAlertContent } from "@/components/notifications/notification-panel/metric-alert-content";
 import { ReportContent } from "@/components/notifications/notification-panel/report-content";
 import { SeverityIcon } from "@/components/notifications/notification-panel/severity-icon";
 import { type FormattedNotification } from "@/components/notifications/notification-panel/utils";
@@ -60,6 +61,7 @@ export const NotificationItem = ({
       {formatted.kind === "alert" && <AlertContent formatted={formatted} isUnread={isUnread} />}
       {formatted.kind === "cluster" && <ClusterContent formatted={formatted} isUnread={isUnread} />}
       {formatted.kind === "report" && <ReportContent formatted={formatted} />}
+      {formatted.kind === "metric" && <MetricAlertContent formatted={formatted} isUnread={isUnread} />}
     </>
   );
 
@@ -73,7 +75,7 @@ export const NotificationItem = ({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          {formatted.kind === "alert" ? (
+          {formatted.kind === "alert" || formatted.kind === "metric" ? (
             <SeverityIcon severity={formatted.severity} />
           ) : formatted.kind === "cluster" ? (
             <Layers className="size-3.5 shrink-0 text-muted-foreground/60" />

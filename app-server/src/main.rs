@@ -792,11 +792,13 @@ fn main() -> anyhow::Result<()> {
 
         let pool_for_metric_alerts = db.pool.clone();
         let clickhouse_for_metric_alerts = clickhouse.clone();
+        let queue_for_metric_alerts = queue.clone();
         let cache_for_metric_alerts = cache.clone();
         runtime_handle.spawn(async move {
             metric_alerts::scheduler::run_metric_alerts_scheduler(
                 pool_for_metric_alerts,
                 clickhouse_for_metric_alerts,
+                queue_for_metric_alerts,
                 cache_for_metric_alerts,
             )
             .await;

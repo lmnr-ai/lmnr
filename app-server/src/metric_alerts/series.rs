@@ -174,6 +174,24 @@ impl Series {
             .map(|(model, _)| model.to_string())
             .collect()
     }
+
+    /// The model behind the largest part of an unsplit rule's sum.
+    pub fn top_contributor(&self, rule: &Rule, window: Minutes) -> Option<Contributor> {
+        let total = self.window(None, window)?.metric(rule.metric)?;
+        let model = self.top_models(rule, window).into_iter().next()?;
+        let value = self.window(Some(&model), window)?.metric(rule.metric)?;
+        (total > 0.0 && value > 0.0).then(|| Contributor {
+            model,
+            share: value / total,
+        })
+    }
+}
+
+/// A model and its share (0 to 1) of a window's total.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Contributor {
+    pub model: String,
+    pub share: f64,
 }
 
 struct Measured {
@@ -367,6 +385,26 @@ mod tests {
         assert_eq!(
             series.top_models(&rule, window_of(&rule, 100)),
             vec!["b", "a"]
+        );
+    }
+
+    #[test]
+    fn the_top_contributor_is_the_model_with_the_largest_share() {
+        let rule = rule(json!({ "metric": "total_cost" }));
+        let mut series = Series::default();
+        series.add_rows(&[
+            row(10, "model-a", 1.0, 10),
+            row(10, "model-b", 3.0, 10),
+            row(11, "", 4.0, 10),
+        ]);
+        let window = Minutes { start: 10, end: 12 };
+
+        let top = series.top_contributor(&rule, window).unwrap();
+        assert_eq!(top.model, "model-b");
+        assert_eq!(top.share, 3.0 / 8.0);
+        assert!(
+            Series::default().top_contributor(&rule, window).is_none(),
+            "nothing to name without spans"
         );
     }
 

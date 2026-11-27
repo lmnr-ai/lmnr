@@ -209,7 +209,7 @@ fn delta_with_dot(current: u64, previous: u64) -> String {
 }
 
 /// Escape the three characters Slack mrkdwn treats as control sequences.
-fn escape_mrkdwn(text: &str) -> String {
+pub(super) fn escape_mrkdwn(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
