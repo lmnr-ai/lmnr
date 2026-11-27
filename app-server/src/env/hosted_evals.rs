@@ -37,3 +37,7 @@ pub const REGISTRY_REPOSITORY_PREFIX: StringEnv = StringEnv::new(
 /// npm spec the orchestrator runs instead of `lmnr-cli@<requesting CLI's version>`
 /// (e.g. a tarball URL for an unreleased CLI).
 pub const CLI_PACKAGE: &str = "HOSTED_EVALS_CLI_PACKAGE";
+/// Rystic API key (`rys_...`). Presence lets trials run Rystic service
+/// simulators (`hosted_evals::rystic`). It stays in the app-server, which
+/// proxies the simulators' downloads and license check-ins.
+pub const RYSTIC_API_KEY: &str = "RYSTIC_API_KEY";
