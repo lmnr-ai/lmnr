@@ -715,20 +715,24 @@ const TABLES: &[Table] = &[
     },
     Table {
         name: "alerts",
-        description: "Signal alerts stored in Postgres. Join to alert_targets and alert_filters on alerts.id = alert_id, and to signals on alerts.signal_id = signals.id.",
+        description: "Signal alerts and metric alert rules stored in Postgres. Join to alert_targets and alert_filters on alerts.id = alert_id, and to signals on alerts.signal_id = signals.id.",
         columns: &[
             col("id", "UUID", "Unique id of the alert"),
             col("name", "String", "Alert name"),
             col(
                 "type",
                 "String",
-                "SIGNAL_EVENT (notify on each matching signal event) or NEW_CLUSTER (notify when a new cluster forms)",
+                "SIGNAL_EVENT (notify on each matching signal event), NEW_CLUSTER (notify when a new cluster forms) or METRIC (a rule on a project metric such as cost, tokens, traffic, error rate or latency)",
             ),
-            col("signal_id", "UUID", "Id of the signal the alert watches"),
+            col(
+                "signal_id",
+                "UUID",
+                "Id of the signal the alert watches. A METRIC alert watches no signal and holds the project id here",
+            ),
             col(
                 "metadata",
                 "String",
-                "Alert settings as a JSON object: severities (levels 0 info, 1 warning, 2 critical; absent means [2]), skipSimilar and disabled (true when set, absent otherwise)",
+                "Alert settings as a JSON object: severities (levels 0 info, 1 warning, 2 critical; absent means [2]), skipSimilar and disabled (true when set, absent otherwise). For a METRIC alert, the rule: metric, filters, groupBy, window, condition, direction, warning, critical, resolve, checksInARow, minTraces, onNoData, snoozedUntil, disabled",
             ),
             col("created_at", "DateTime64(6)", "When the alert was created"),
         ],

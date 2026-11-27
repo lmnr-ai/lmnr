@@ -12,6 +12,7 @@ export const POST = handlerNoAudit(
       workspaceId,
       channelId,
       eventName: body.eventName,
+      metricAlert: body.metricAlert,
     });
     return Response.json(result);
   })

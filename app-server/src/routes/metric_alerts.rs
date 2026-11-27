@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::metric_alerts::{
+    cadence::check_interval_minutes,
     preview::{MAX_PREVIEW_HOURS, preview},
     rule::Rule,
 };
@@ -49,4 +50,26 @@ pub async fn preview_metric_alert(
     .await?;
 
     Ok(HttpResponse::Ok().json(result))
+}
+
+#[derive(Deserialize)]
+pub struct ValidateRequest {
+    pub rule: Value,
+}
+
+/// Checks a rule before it is saved and says how often it would be checked.
+/// Every writer of `alerts.metadata` goes through this, so the UI and the CLI
+/// accept exactly the rules the scheduler can run.
+#[post("metric-alerts/validate")]
+pub async fn validate_metric_alert(req: web::Json<ValidateRequest>) -> ResponseResult {
+    let rule = match Rule::parse(&req.rule) {
+        Ok(rule) => rule,
+        Err(error) => return Ok(HttpResponse::BadRequest().json(json!({ "error": error }))),
+    };
+    let interval = check_interval_minutes(&rule);
+
+    Ok(HttpResponse::Ok().json(json!({
+        "checkIntervalMinutes": interval,
+        "firesAfterMinutes": interval * rule.checks_in_a_row as i64,
+    })))
 }

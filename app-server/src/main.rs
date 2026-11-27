@@ -2078,6 +2078,7 @@ fn main() -> anyhow::Result<()> {
                                 let scope = web::scope("/api/v1/projects/{project_id}")
                                     .service(routes::spans::create_span)
                                     .service(routes::metric_alerts::preview_metric_alert)
+                                    .service(routes::metric_alerts::validate_metric_alert)
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query)
                                     .service(routes::sql::sql_to_json)

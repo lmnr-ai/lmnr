@@ -1,12 +1,15 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, NotFoundError } from "@/lib/api/errors";
 import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
 
-import { type AlertMetadata, type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
+import { parseMetricRule, snoozeMetricAlert } from "./metric";
+import { METRIC_ALERT_TYPE } from "./metric-rule";
+import { getTargetsByAlert } from "./targets";
+import { type AlertMetadata, type AlertType, type AlertWithDetails } from "./types";
 
 const TargetSchema = z.object({
   type: z.string(),
@@ -24,8 +27,24 @@ const SignalEventMetadataSchema = z.object({
 
 const NewClusterMetadataSchema = z.object({ disabled: z.boolean().optional() }).strict();
 
-// NEW_CLUSTER alerts ignore metadata; SIGNAL_EVENT alerts require severities + optional skipSimilar.
-const buildMetadataValidator = (type: "SIGNAL_EVENT" | "NEW_CLUSTER", metadata: unknown) => {
+const AlertTypeSchema = z.enum(["SIGNAL_EVENT", "NEW_CLUSTER", METRIC_ALERT_TYPE]);
+
+// A signal alert watches a signal. A metric alert watches the project itself.
+const requireSource = (alert: { type: string; sourceId?: string }, ctx: z.RefinementCtx) => {
+  if (alert.type !== METRIC_ALERT_TYPE && !alert.sourceId) {
+    ctx.addIssue({ code: "custom", path: ["sourceId"], message: "sourceId is required" });
+  }
+};
+
+// NEW_CLUSTER alerts ignore metadata; SIGNAL_EVENT alerts require severities + optional skipSimilar;
+// METRIC alerts hold their rule, checked by the engine that runs it.
+const buildMetadataValidator = async (
+  projectId: string,
+  type: z.infer<typeof AlertTypeSchema>,
+  metadata: unknown,
+  stored?: Record<string, unknown> | null
+) => {
+  if (type === METRIC_ALERT_TYPE) return parseMetricRule(projectId, metadata, stored);
   if (type === "SIGNAL_EVENT") {
     const parsed = SignalEventMetadataSchema.parse(metadata ?? {});
     const dedupedSeverities = Array.from(new Set(parsed.severities)).sort((a, b) => a - b);
@@ -34,25 +53,29 @@ const buildMetadataValidator = (type: "SIGNAL_EVENT" | "NEW_CLUSTER", metadata: 
   return NewClusterMetadataSchema.parse(metadata ?? {});
 };
 
-const CreateAlertSchema = z.object({
-  projectId: z.guid(),
-  name: z.string().min(1),
-  type: z.enum(["SIGNAL_EVENT", "NEW_CLUSTER"]),
-  sourceId: z.guid(),
-  targets: z.array(TargetSchema),
-  metadata: z.unknown().optional(),
-});
+const CreateAlertSchema = z
+  .object({
+    projectId: z.guid(),
+    name: z.string().min(1),
+    type: AlertTypeSchema,
+    sourceId: z.guid().optional(),
+    targets: z.array(TargetSchema),
+    metadata: z.unknown().optional(),
+  })
+  .superRefine(requireSource);
 
-const UpdateAlertSchema = z.object({
-  alertId: z.guid(),
-  projectId: z.guid(),
-  name: z.string().min(1),
-  type: z.enum(["SIGNAL_EVENT", "NEW_CLUSTER"]),
-  sourceId: z.guid(),
-  targets: z.array(TargetSchema),
-  userEmail: z.string().optional(),
-  metadata: z.unknown().optional(),
-});
+const UpdateAlertSchema = z
+  .object({
+    alertId: z.guid(),
+    projectId: z.guid(),
+    name: z.string().min(1),
+    type: AlertTypeSchema,
+    sourceId: z.guid().optional(),
+    targets: z.array(TargetSchema),
+    userEmail: z.string().optional(),
+    metadata: z.unknown().optional(),
+  })
+  .superRefine(requireSource);
 
 const DeleteAlertSchema = z.object({
   alertId: z.guid(),
@@ -87,42 +110,16 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
     })
     .from(alerts)
     .leftJoin(signals, eq(alerts.sourceId, signals.id))
-    .where(eq(alerts.projectId, projectId))
+    // Metric alerts have their own list (`getMetricAlerts`).
+    .where(and(eq(alerts.projectId, projectId), ne(alerts.type, METRIC_ALERT_TYPE)))
     .orderBy(alerts.createdAt);
 
   if (alertRows.length === 0) return [];
 
-  const alertIds = alertRows.map((a) => a.id);
-
-  const targetRows = await db
-    .select({
-      id: alertTargets.id,
-      alertId: alertTargets.alertId,
-      type: alertTargets.type,
-      integrationId: alertTargets.integrationId,
-      channelId: alertTargets.channelId,
-      channelName: alertTargets.channelName,
-      email: alertTargets.email,
-    })
-    .from(alertTargets)
-    .where(inArray(alertTargets.alertId, alertIds));
-
-  const targetsByAlert = new Map<string, AlertTarget[]>();
-  for (const t of targetRows) {
-    // Only include the current user's own email target; never expose other members' emails.
-    // If userEmail is unknown, strip all email targets as a safeguard.
-    if (t.type === "EMAIL" && (!userEmail || t.email !== userEmail)) continue;
-    const list = targetsByAlert.get(t.alertId) ?? [];
-    list.push({
-      id: t.id,
-      type: t.type,
-      integrationId: t.integrationId,
-      channelId: t.channelId,
-      channelName: t.channelName,
-      email: t.email,
-    });
-    targetsByAlert.set(t.alertId, list);
-  }
+  const targetsByAlert = await getTargetsByAlert(
+    alertRows.map((a) => a.id),
+    userEmail
+  );
 
   return alertRows.map((a) => ({
     ...a,
@@ -135,8 +132,10 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
 }
 
 export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
-  const { projectId, name, type, sourceId, targets, metadata } = CreateAlertSchema.parse(input);
-  const validatedMetadata = buildMetadataValidator(type, metadata);
+  const { projectId, name, type, targets, metadata, ...rest } = CreateAlertSchema.parse(input);
+  const validatedMetadata = await buildMetadataValidator(projectId, type, metadata);
+  // `alerts.source_id` is required; a metric alert's source is its project.
+  const sourceId = type === METRIC_ALERT_TYPE ? projectId : rest.sourceId!;
 
   return await db.transaction(async (tx) => {
     const [alert] = await tx
@@ -163,10 +162,28 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
 }
 
 async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
-  const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata } = UpdateAlertSchema.parse(input);
-  const validatedMetadata = buildMetadataValidator(type, metadata);
+  const { alertId, projectId, name, type, targets, userEmail, metadata, ...rest } = UpdateAlertSchema.parse(input);
+  const sourceId = type === METRIC_ALERT_TYPE ? projectId : rest.sourceId!;
 
   const result = await db.transaction(async (tx) => {
+    // Locked, so a snooze or a mute saved while the rule is being checked is kept.
+    const [stored] = await tx
+      .select({ type: alerts.type, metadata: alerts.metadata })
+      .from(alerts)
+      .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)))
+      .for("update");
+    if (!stored) throw new NotFoundError("Alert not found");
+    // A rule and a signal alert are different things: an update never turns one into the other.
+    if ((stored.type === METRIC_ALERT_TYPE) !== (type === METRIC_ALERT_TYPE)) {
+      throw new ApiError("An alert cannot change between a metric rule and a signal alert.", 400);
+    }
+    const validatedMetadata = await buildMetadataValidator(
+      projectId,
+      type,
+      metadata,
+      stored.metadata as Record<string, unknown> | null
+    );
+
     await tx
       .update(alerts)
       .set({ name, type, sourceId, metadata: validatedMetadata })
@@ -230,25 +247,15 @@ async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
 async function setAlertDisabled(input: z.infer<typeof SetAlertDisabledSchema>) {
   const { alertId, projectId, disabled } = SetAlertDisabledSchema.parse(input);
 
-  const [existing] = await db
-    .select({ metadata: alerts.metadata })
-    .from(alerts)
-    .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)))
-    .limit(1);
-
-  if (!existing) throw new Error("Alert not found.");
-
-  const nextMetadata: AlertMetadata = { ...((existing.metadata as AlertMetadata) ?? {}) };
-  if (disabled) {
-    nextMetadata.disabled = true;
-  } else {
-    delete nextMetadata.disabled;
-  }
-
-  await db
+  // One statement, so a snooze or an edit saved at the same moment is not overwritten.
+  const stored = sql`coalesce(${alerts.metadata}, '{}'::jsonb)`;
+  const [updated] = await db
     .update(alerts)
-    .set({ metadata: nextMetadata })
-    .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
+    .set({ metadata: disabled ? sql`${stored} || '{"disabled": true}'::jsonb` : sql`${stored} - 'disabled'` })
+    .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)))
+    .returning({ id: alerts.id });
+
+  if (!updated) throw new NotFoundError("Alert not found");
 
   await cache.remove(`${ALERT_FILTERS_CACHE_KEY}:${projectId}:${alertId}`);
 
@@ -274,6 +281,8 @@ export async function patchAlert(input: {
   switch (body?.action ?? "update") {
     case "toggleDisabled":
       return setAlertDisabled({ alertId, projectId, disabled: body.disabled });
+    case "snooze":
+      return snoozeMetricAlert({ alertId, projectId, until: body.until ?? null });
     case "update": {
       const emailTargets = (body.targets ?? []).filter((t: { type: string; email?: string }) => t.type === "EMAIL");
       if (userEmail && emailTargets.some((t: { email?: string }) => t.email && t.email !== userEmail)) {
