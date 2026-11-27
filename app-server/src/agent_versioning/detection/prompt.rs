@@ -46,7 +46,12 @@ Rules for checks:
 - Use static text that every prompt of the agent carries, usually its role statement \
 (\"You are a GTM assistant...\"). Never use dynamic content: dates, names (a configured \
 agent's name too), ids, organizations, counts, credits, user context.
-- A check must not match other agents' prompts, so avoid boilerplate several agents share.
+- A check must not match other agents' prompts, so avoid boilerplate several agents share. \
+For example, `an agent that Swan runs for this organization` and `your definition is \
+/agents/` describe the platform, NOT one agent: never propose a check made of these \
+shared words merely because it reaches the minimum. Different named roles with \
+different goals and definition paths are not one agent unless the rest of the \
+prompt demonstrates a common, configurable template.
 - Prefer one or two distinctive sentences or phrases.
 
 Every check submitted, whether a new agent or an update to a known agent, must match \

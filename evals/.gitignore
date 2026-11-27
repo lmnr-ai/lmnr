@@ -1,0 +1,5 @@
+*/tasks/*
+!*/tasks/dataset.toml
+*/jobs/
+**/__pycache__/
+*.pyc

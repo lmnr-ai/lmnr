@@ -229,7 +229,22 @@ impl<'a> DetectionAgent<'a> {
                 .input(&json!({ "name": call.name, "args": args }))
                 .step(step)
                 .build();
+                #[cfg(test)]
+                let logged_args = args.clone();
                 let result = span.in_scope(|| self.call_tool(&call.name, args));
+                #[cfg(test)]
+                if let Ok(path) = std::env::var("DETECTION_EVAL_TOOL_LOG") {
+                    use std::io::Write;
+                    let mut file = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(path)?;
+                    writeln!(
+                        file,
+                        "{}",
+                        json!({ "step": step, "name": call.name, "args": logged_args, "response": result.response })
+                    )?;
+                }
                 spans::set_output(&span, &result.response);
                 finished |= result.finished;
                 responses.push(ProviderPart {
@@ -540,6 +555,58 @@ mod tests {
     fn submit_new(agent: &mut DetectionAgent, name: &str, any_of: &[&[&str]]) -> Value {
         let args = json!({ "new_agents": [{ "name": name, "any_of": check(any_of) }] });
         agent.call_tool(SUBMIT_TOOL, args).response
+    }
+
+    /// Harbor drives the actual detection loop with a real model and case data.
+    /// This is deliberately test-only: production scheduling/DB ingestion are not replayed.
+    #[tokio::test]
+    async fn harbor_replay_detection_case() {
+        let path = match std::env::var("DETECTION_EVAL_CASE") {
+            Ok(path) => path,
+            Err(_) => return,
+        };
+        let data: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let client = LlmClient::from_provider(
+            "azure_chat_completions",
+            ProviderClient::OpenAI(crate::llm::openai::OpenAIClient::azure().unwrap()),
+        );
+        let prompts = data["prompts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| unlabelled(p.as_str().unwrap()))
+            .collect();
+        let agents = data["agents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| KnownAgent {
+                agent: DefinedAgent {
+                    id: Uuid::new_v4(),
+                    agent_hash: Uuid::new_v4().simple().to_string(),
+                    name: Some(a["name"].as_str().unwrap().to_string()),
+                    definition: Json(
+                        Definition::new(serde_json::from_value(a["any_of"].clone()).unwrap())
+                            .unwrap(),
+                    ),
+                },
+                latest: Some(LatestPrompt {
+                    system_prompt: a["latest"].as_str().unwrap().to_string(),
+                    opening: definition::opening(a["latest"].as_str().unwrap()),
+                    time: 0,
+                }),
+            })
+            .collect();
+        let mut detector = agent(&client, prompts, agents);
+        detector
+            .converse()
+            .await
+            .expect("live detection loop failed");
+        std::fs::write(
+            std::env::var("DETECTION_EVAL_RESULT").unwrap(),
+            json!({ "changes": detector.changes }).to_string(),
+        )
+        .unwrap();
     }
 
     #[test]
