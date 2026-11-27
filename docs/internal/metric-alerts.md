@@ -7,7 +7,7 @@ Threshold and percent-change rules on a project's cost, tokens, traffic, error r
 
 ## Storage
 
-- **`span_metrics_1m`** (ClickHouse, migration 89) is a per-minute rollup keyed by `(project_id, minute, model)` with summed cost and tokens, the LLM call count, and how many of those calls have zero cost (`llm_calls_no_cost`) or zero tokens (`llm_calls_no_tokens`). The materialized view `span_metrics_1m_mv` fills it from every insert into `spans`. Readers must `sum()` and `GROUP BY`: unmerged parts hold several rows per key.
+- **`span_metrics_1m`** (ClickHouse, migration 90) is a per-minute rollup keyed by `(project_id, minute, model)` with summed cost and tokens, the LLM call count, and how many of those calls have zero cost (`llm_calls_no_cost`) or zero tokens (`llm_calls_no_tokens`). The materialized view `span_metrics_1m_mv` fills it from every insert into `spans`. Readers must `sum()` and `GROUP BY`: unmerged parts hold several rows per key.
 - **The rollup holds production traffic only.** The view skips spans whose `trace_type` is evaluation (1) or playground (3). The SDKs and the playground put the trace type on every span of such a trace, so the span's own column is enough. A span that reaches us without it (a custom exporter that only marks the root span) is counted.
 - **`minute` is the minute the span ended, not started.** A span is exported when it ends, so its end time is seconds from the insert while its start time is earlier by the whole span duration. A reader can treat a minute as complete shortly after it passes.
 - The rollup counts what `spans` holds. A redelivered ingest batch inserts its rows again, and `spans` (plain MergeTree) and `traces_agg` (`sum` columns) already count those twice, so the rollup agrees with both.

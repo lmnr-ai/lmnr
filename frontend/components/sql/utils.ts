@@ -563,6 +563,43 @@ const tableSchemas: Record<string, TableSchema> = {
       { name: "updated_at", type: "DateTime64(6)", description: "When the view was last saved" },
     ],
   },
+  agents: {
+    description:
+      "Agents detected by agent versioning, stored in Postgres. Join to agent_versions on agents.id = agent_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the agent" },
+      { name: "name", type: "Nullable(String)", description: "Name set in the UI; NULL until renamed" },
+      { name: "agent_hash", type: "String", description: "Agent identity, the agent_hash in traces.agent_versions" },
+      { name: "release_mode", type: "UInt8", description: "1 once versions are decided per release" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the agent was detected" },
+    ],
+  },
+  agent_versions: {
+    description:
+      "Versions of each agent, stored in Postgres. Join to traces.agent_versions on version_hash; group by shown_version_hash to count deleted versions under the version they are shown as",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the version" },
+      { name: "agent_id", type: "UUID", description: "Id of the agent" },
+      { name: "version_number", type: "Int32", description: "Version number shown in the UI (v1, v2, …)" },
+      {
+        name: "version_hash",
+        type: "String",
+        description: "Version identity, the version_hash in traces.agent_versions",
+      },
+      {
+        name: "shown_version_hash",
+        type: "String",
+        description:
+          "For a deleted version, the version_hash of the nearest earlier version still shown; otherwise its own",
+      },
+      {
+        name: "deleted_at",
+        type: "Nullable(DateTime64(6))",
+        description: "When the version was deleted in the UI; NULL if not deleted",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the version was created" },
+    ],
+  },
   clusters: {
     description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
     columns: [

@@ -175,7 +175,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, and `tsc --noEmit` run on s
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
 | `docs/internal/frontend-dependencies.md` | Adding/bumping frontend deps, `pnpm-workspace.yaml` `allowBuilds` (build-script policy) |
 | `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs, TLS/crypto-backend deps, MCP server (`/v1/mcp` auth, tools, project scoping) |
-| `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator, uploaded evals folder + file view (`evaluations.hosted_metadata`) |
+| `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator, uploaded evals folder + file view (`evaluations.hosted_metadata`), Rystic simulator proxy (`/v1/hosted-evals/rystic/*`) |
 | `docs/internal/eval-datasets.md` | Eval datasets (`/v1/eval-datasets/*`, `src/datasets_v2/`): independent task versions (no latest), `evaluations.dataset_v2_id`, `evaluation_datapoints.task_version_hash` |
 | `docs/internal/oss-release.md` | `.github/workflows/build-push.yml` (GHCR images, attestations, release-source gate) |
 | `docs/internal/backend-ci.md` | `.github/workflows/backend-build-and-test.yml`, `app-server/Dockerfile` (branch-scoped Actions cache, cargo-chef cook layers, CI timing baseline) |

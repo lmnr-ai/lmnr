@@ -735,6 +735,16 @@ impl TableRegistry {
             "created_at",
             "updated_at",
         ];
+        let agents_columns = ["id", "name", "agent_hash", "release_mode", "created_at"];
+        let agent_versions_columns = [
+            "id",
+            "agent_id",
+            "version_number",
+            "version_hash",
+            "shown_version_hash",
+            "deleted_at",
+            "created_at",
+        ];
         let dashboard_charts_columns = [
             "id",
             "dashboard_id",
@@ -781,6 +791,8 @@ impl TableRegistry {
         tables.insert("alert_targets", schema(&alert_targets_columns));
         tables.insert("alert_filters", schema(&alert_filters_columns));
         tables.insert("table_views", schema(&table_views_columns));
+        tables.insert("agents", schema(&agents_columns));
+        tables.insert("agent_versions", schema(&agent_versions_columns));
         tables.insert("dashboard_charts", schema(&dashboard_charts_columns));
 
         Self { tables }
