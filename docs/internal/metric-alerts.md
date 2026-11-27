@@ -29,16 +29,6 @@ Threshold and percent-change rules on a project's traffic, cost, tokens, LLM err
   GROUP BY project_id, minute, model;
   ```
 
-- **A dev database that ran this rollup while it was migration 89** (with any earlier text) refuses to start the frontend: the migration is checksummed, and 89 is now a different file. Reset it, then restart the frontend, which applies 89 and 90; run the backfill above afterwards if you want history:
-
-  ```sql
-  ALTER TABLE _migrations DELETE WHERE version >= 89 SETTINGS mutations_sync = 2;
-  DROP VIEW IF EXISTS span_metrics_1m_mv;
-  DROP TABLE IF EXISTS span_metrics_1m;
-  ```
-
-  The Postgres migration moved from 0139 to 0140 the same way, so that database also needs `DROP TABLE IF EXISTS metric_alert_states, metric_alert_incidents;` in Postgres before the restart.
-
 - `span_metrics_1m` is project-scoped, so it is in the purge list of `deleteProjectDataFromClickHouse`.
 - **`metric_alert_states`** (Postgres) holds one row per `(alert_id, group_key)`: current level, the streak being counted, the last processed observation time and the current incident. `group_key` is `''` for rules that are not split. `rule_fingerprint` identifies the rule version the state belongs to.
 - **`metric_alert_incidents`** (Postgres) holds one row per incident: level, peak, open/escalate/reopen/resolve times, last notification time and `slack_threads` (channel id to the `ts` of the message that opened the thread).
