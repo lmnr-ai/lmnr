@@ -35,7 +35,7 @@ use super::{
     message::{self, Event, Subject},
     query::fetch_series,
     rule::{GroupBy, Rule},
-    series::{Series, observe, ranges_of, window_of},
+    series::{Series, observe, ranges_of, time_of, window_of},
     store::{self, StateKey},
 };
 
@@ -197,10 +197,10 @@ async fn run_tick(
     let replay = replay(marker, target, wall_target);
     if replay.skipped > 0 {
         log::warn!(
-            "[Metric alerts] Skipped {} missed minutes older than {} minutes, before minute {}",
+            "[Metric alerts] Skipped {} missed minutes older than {} minutes, before {}",
             replay.skipped,
             MAX_REPLAY_MINUTES,
-            replay.first
+            time_of(replay.first)
         );
     }
 
@@ -236,7 +236,7 @@ async fn run_tick(
         alerts.len(),
         rules_due,
         (replay.last - replay.first + 1).max(0),
-        replay.last,
+        time_of(replay.last),
         elapsed.as_millis()
     );
     if elapsed.as_secs() > SLOW_TICK_SECONDS {
