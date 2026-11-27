@@ -209,6 +209,18 @@ pub async fn insert_version(
     core_lines: &[i64],
     text: &VersionText,
 ) -> Result<Uuid> {
+    // The job's cache lock can expire while a replica is still running.
+    // Serialize allocation in Postgres. Use READ COMMITTED so the MAX query
+    // sees the version committed by the previous lock holder.
+    let mut tx = pool
+        .begin_with("BEGIN ISOLATION LEVEL READ COMMITTED")
+        .await?;
+    sqlx::query("SELECT id FROM agents WHERE id = $1 AND project_id = $2 FOR NO KEY UPDATE")
+        .bind(agent_id)
+        .bind(project_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO agent_versions
             (project_id, agent_id, version_number, version_hash, core_lines,
@@ -224,8 +236,9 @@ pub async fn insert_version(
     .bind(core_lines)
     .bind(sanitize_string(&text.system_prompt))
     .bind(sanitize_string(&text.tool_definitions))
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(id)
 }
 
@@ -347,4 +360,48 @@ pub async fn release_version_hash(
     .fetch_optional(pool)
     .await?;
     Ok(hash)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Run against a disposable database with the agents and agent_versions
+    // tables, including the two unique constraints from migration 0119.
+    #[tokio::test]
+    #[ignore = "requires a disposable Postgres agent schema"]
+    async fn concurrent_version_inserts_get_distinct_numbers_and_reuse_hashes() {
+        let pool = PgPool::connect(&std::env::var("TEST_AGENT_POSTGRES_URL").unwrap())
+            .await
+            .unwrap();
+        let project_id = Uuid::new_v4();
+        let agent_id = Uuid::new_v4();
+        sqlx::query("INSERT INTO agents (id, project_id, agent_hash) VALUES ($1, $2, $3)")
+            .bind(agent_id)
+            .bind(project_id)
+            .bind("fixture")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let text = VersionText::default();
+        let mint = |hash| insert_version(&pool, project_id, agent_id, hash, &[17], &text);
+        let (first, second) = tokio::join!(mint("first"), mint("second"));
+        let first = first.unwrap();
+        let second = second.unwrap();
+        assert_ne!(first, second);
+
+        let (replayed_first, replayed_second) = tokio::join!(mint("first"), mint("second"));
+        assert_eq!(replayed_first.unwrap(), first);
+        assert_eq!(replayed_second.unwrap(), second);
+
+        let numbers = sqlx::query_scalar::<_, i32>(
+            "SELECT version_number FROM agent_versions WHERE agent_id = $1 ORDER BY version_number",
+        )
+        .bind(agent_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(numbers, [1, 2]);
+    }
 }
