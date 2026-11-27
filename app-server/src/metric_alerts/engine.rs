@@ -86,7 +86,7 @@ pub struct Observation {
     pub value: Option<f64>,
     /// What a `change` condition divides by: the past window.
     pub baseline: Option<f64>,
-    /// LLM calls in the window, which `min_calls` is compared to.
+    /// LLM calls (or spans) in the window, which `min_calls` is compared to.
     pub volume: u64,
 }
 

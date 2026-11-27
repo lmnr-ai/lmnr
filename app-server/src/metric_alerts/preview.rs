@@ -69,14 +69,22 @@ pub struct Preview {
 
 /// The chart draws a window without data as zero, whatever the rule's
 /// `onNoData` does with it, so a quiet stretch is a flat line and not a hole.
+/// A relative rule with nothing now and nothing before is quiet too; with
+/// something now and nothing before it has no percentage, so it stays a hole.
 fn point_of(rule: &Rule, observation: &Observation) -> Point {
+    let value = observation.value.unwrap_or(0.0);
+    let quiet = value == 0.0 && observation.baseline.unwrap_or(0.0) == 0.0;
     let filled = Observation {
-        value: observation.value.or(Some(0.0)),
+        value: Some(value),
         ..observation.clone()
     };
     Point {
         at: observation.at,
-        value: compared_value(rule, &filled),
+        value: if quiet {
+            Some(0.0)
+        } else {
+            compared_value(rule, &filled)
+        },
     }
 }
 
