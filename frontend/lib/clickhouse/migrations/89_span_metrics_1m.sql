@@ -9,8 +9,10 @@
 -- treat a minute as complete shortly after it passes.
 --
 -- Only spans that carry cost or tokens are rolled up (LLM spans and anything
--- else with usage). Trace-level numbers (trace count, error rate, duration)
--- are read from `traces_agg`, which already defines a trace.
+-- else with usage). `llm_calls_no_cost` and `llm_calls_no_tokens` count the
+-- LLM spans whose cost or token count is zero. Trace-level numbers (trace
+-- count, error rate, duration) are read from `traces_agg`, which already
+-- defines a trace.
 --
 -- Metric alerts watch production traffic, so spans of evaluation (1) and
 -- playground (3) traces are left out. The SDKs put the trace type on every
@@ -28,7 +30,9 @@ CREATE TABLE IF NOT EXISTS span_metrics_1m
     input_tokens SimpleAggregateFunction(sum, Int64),
     output_tokens SimpleAggregateFunction(sum, Int64),
     total_tokens SimpleAggregateFunction(sum, Int64),
-    llm_calls SimpleAggregateFunction(sum, UInt64)
+    llm_calls SimpleAggregateFunction(sum, UInt64),
+    llm_calls_no_cost SimpleAggregateFunction(sum, UInt64),
+    llm_calls_no_tokens SimpleAggregateFunction(sum, UInt64)
 )
 ENGINE = AggregatingMergeTree
 PARTITION BY toMonday(minute)
@@ -36,8 +40,8 @@ ORDER BY (project_id, minute, model)
 TTL minute + INTERVAL 45 DAY
 SETTINGS ttl_only_drop_parts = 1;
 
--- The WHERE clause names the table because the bare names are this SELECT's
--- aggregate aliases.
+-- `spans.total_cost` and `spans.total_tokens` name the table because the bare
+-- names are this SELECT's aggregate aliases.
 CREATE MATERIALIZED VIEW IF NOT EXISTS span_metrics_1m_mv TO span_metrics_1m AS
 SELECT
     project_id,
@@ -47,7 +51,9 @@ SELECT
     sum(input_tokens) AS input_tokens,
     sum(output_tokens) AS output_tokens,
     sum(total_tokens) AS total_tokens,
-    countIf(span_type = 1) AS llm_calls
+    countIf(span_type = 1) AS llm_calls,
+    countIf(span_type = 1 AND spans.total_cost = 0) AS llm_calls_no_cost,
+    countIf(span_type = 1 AND spans.total_tokens = 0) AS llm_calls_no_tokens
 FROM spans
 WHERE spans.trace_type NOT IN (1, 3)
   AND (spans.span_type = 1 OR spans.total_cost != 0 OR spans.total_tokens != 0)
