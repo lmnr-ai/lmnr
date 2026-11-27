@@ -16,6 +16,7 @@ const Trace = ({ trace }: { trace: TraceViewTrace }) => {
       <div className="flex-none border-t" />
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <TraceView
+          urlState
           propsTrace={trace}
           onClose={() => {}}
           traceId={trace.id}

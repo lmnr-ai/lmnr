@@ -111,14 +111,12 @@ function DashboardContent() {
           </ScrollArea>
         </div>
       </div>
-      {traceId && (
-        <TraceViewSidePanel
-          traceId={traceId}
-          spanId={spanId ?? undefined}
-          initialSignalId={signalId ?? undefined}
-          onClose={closeTrace}
-        />
-      )}
+      <TraceViewSidePanel
+        traceId={traceId}
+        spanId={spanId ?? undefined}
+        initialSignalId={signalId ?? undefined}
+        onClose={closeTrace}
+      />
     </>
   );
 }

@@ -5,8 +5,6 @@ publicHoistPattern:
 # every entry false unless the package cannot work without its script; see
 # docs/internal/frontend-dependencies.md before flipping one to true.
 allowBuilds:
-  # Binary ships via @sentry/cli-<platform>; postinstall is only a CDN-download fallback.
-  "@sentry/cli": false
   # Prints a funding banner.
   core-js: false
   # Binary ships via @esbuild/<platform>; postinstall only verifies/hardlinks it.

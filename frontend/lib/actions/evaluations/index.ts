@@ -8,7 +8,7 @@ import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { evaluations } from "@/lib/db/migrations/schema";
+import { datasetsV2, evaluations } from "@/lib/db/migrations/schema";
 import { filtersToSql } from "@/lib/db/modifiers";
 import { paginatedGet } from "@/lib/db/utils";
 import { type Evaluation } from "@/lib/evaluation/types";
@@ -175,9 +175,19 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
 
     const countMap = new Map(datapointCounts.map((row) => [row.evaluation_id, row.count]));
 
+    const datasetNames = [...new Set(result.items.map((e: Evaluation) => e.datasetV2Id).filter(Boolean))] as string[];
+    const existingDatasets = datasetNames.length
+      ? await db
+          .select({ id: datasetsV2.id })
+          .from(datasetsV2)
+          .where(and(eq(datasetsV2.projectId, projectId), inArray(datasetsV2.id, datasetNames)))
+      : [];
+    const existing = new Set(existingDatasets.map((d) => d.id));
+
     itemsWithCounts = result.items.map((evaluation: Evaluation) => ({
       ...evaluation,
       dataPointsCount: countMap.get(evaluation.id) || 0,
+      datasetExists: !!evaluation.datasetV2Id && existing.has(evaluation.datasetV2Id),
     }));
   }
 
@@ -207,4 +217,11 @@ export async function deleteEvaluations(input: z.infer<typeof DeleteEvaluationsS
   } catch (error) {
     console.error("Failed to delete evaluation datapoints from ClickHouse:", error);
   }
+}
+
+export async function getGroupEvaluationsInfo(projectId: string, groupId: string) {
+  return db
+    .select({ id: evaluations.id, name: evaluations.name, metadata: evaluations.metadata })
+    .from(evaluations)
+    .where(and(eq(evaluations.projectId, projectId), eq(evaluations.groupId, groupId)));
 }

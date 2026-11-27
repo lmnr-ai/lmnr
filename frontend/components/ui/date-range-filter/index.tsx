@@ -2,7 +2,7 @@ import { formatDate, subDays, subYears } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, CalendarIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 
 import { Badge } from "@/components/ui/badge.tsx";
@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context.tsx";
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
@@ -21,15 +22,8 @@ import { QuickRangesList } from "./quick-ranges-list";
 import { DateRangeFilterProvider, useDateRangeFilterContext } from "./store";
 import { type DateRange, getTimeDifference } from "./utils.ts";
 
-const useIsMounted = () =>
-  useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-
 const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } }) => {
-  const isMounted = useIsMounted();
+  const isMounted = useIsHydrated();
 
   if (!isMounted) {
     return (

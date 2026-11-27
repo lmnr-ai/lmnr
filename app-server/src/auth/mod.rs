@@ -18,6 +18,7 @@ use crate::db::DB;
 use crate::db::project_api_keys::ProjectApiKey;
 
 pub mod cli_user;
+pub mod mcp_oauth;
 
 impl FromRequest for ProjectApiKey {
     type Error = Error;

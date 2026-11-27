@@ -74,6 +74,7 @@ export const filters: ColumnFilter[] = [
     key: "model",
     name: "Model",
     dataType: "string",
+    emptiable: true,
   },
 ];
 

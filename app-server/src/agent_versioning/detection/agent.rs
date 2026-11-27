@@ -33,6 +33,8 @@ pub struct UnlabelledPrompt {
     pub trace_id: Uuid,
     pub span_id: Uuid,
     pub system_prompt: String,
+    /// [`opening`](crate::agent_versioning::definition::opening) of `system_prompt`.
+    pub opening: String,
     /// The trace's start, ns.
     pub time: i64,
 }
@@ -46,11 +48,15 @@ pub struct KnownAgent {
 
 pub struct LatestPrompt {
     pub system_prompt: String,
+    /// [`opening`](crate::agent_versioning::definition::opening) of `system_prompt`.
+    pub opening: String,
     /// The span's start, ns.
     pub time: i64,
 }
 
-/// An accepted change. `Extend` carries the agent's full new definition.
+/// An accepted change. `Extend` carries only the added alternatives, merged
+/// into the definition as stored when saved, so rules users edit meanwhile are
+/// kept.
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Change {
@@ -60,7 +66,7 @@ pub enum Change {
     },
     Extend {
         agent_id: Uuid,
-        definition: Definition,
+        added: Definition,
     },
 }
 
@@ -195,6 +201,7 @@ impl<'a> DetectionAgent<'a> {
                     ..Default::default()
                 }),
                 service_tier: None,
+                affinity_key: None,
                 route: LlmRoute::feature(LlmFeature::AgentDetection, Some(self.project_id)),
             };
             let parts = self.generate(&request, step).await?;
@@ -379,7 +386,7 @@ impl<'a> DetectionAgent<'a> {
         self.validate_check(&added, Some(update.agent_id))?;
         Ok(Change::Extend {
             agent_id: known.agent.id,
-            definition: self.current_definition(known).extended(&added),
+            added,
         })
     }
 
@@ -408,7 +415,7 @@ impl<'a> DetectionAgent<'a> {
 
     fn matched_prompts(&self, definition: &Definition) -> Vec<usize> {
         numbered(&self.prompts)
-            .filter(|(_, prompt)| definition.matches(&prompt.system_prompt))
+            .filter(|(_, prompt)| definition.matches(&prompt.opening))
             .map(|(id, _)| id)
             .collect()
     }
@@ -420,7 +427,7 @@ impl<'a> DetectionAgent<'a> {
                 known
                     .latest
                     .as_ref()
-                    .is_some_and(|latest| definition.matches(&latest.system_prompt))
+                    .is_some_and(|latest| definition.matches(&latest.opening))
             })
             .map(|(id, _)| id)
             .collect()
@@ -430,21 +437,6 @@ impl<'a> DetectionAgent<'a> {
         self.changes.iter().any(|change| {
             matches!(change, Change::Create { definition: created, .. } if created == definition)
         })
-    }
-
-    /// The agent's definition with this run's accepted extensions.
-    fn current_definition(&self, known: &KnownAgent) -> Definition {
-        self.changes
-            .iter()
-            .rev()
-            .find_map(|change| match change {
-                Change::Extend {
-                    agent_id,
-                    definition,
-                } if *agent_id == known.agent.id => Some(definition.clone()),
-                _ => None,
-            })
-            .unwrap_or_else(|| known.agent.definition.0.clone())
     }
 }
 
@@ -479,9 +471,12 @@ mod tests {
     use sqlx::types::Json;
 
     use super::*;
-    use crate::llm::{
-        ProviderClient, ProviderFunctionCall,
-        mock::{MockProviderClient, function_call_response},
+    use crate::{
+        agent_versioning::definition,
+        llm::{
+            ProviderClient, ProviderFunctionCall,
+            mock::{MockProviderClient, function_call_response},
+        },
     };
 
     fn check(any_of: &[&[&str]]) -> Vec<Vec<String>> {
@@ -501,6 +496,7 @@ mod tests {
             },
             latest: Some(LatestPrompt {
                 system_prompt: latest_prompt.to_string(),
+                opening: definition::opening(latest_prompt),
                 time: 0,
             }),
         }
@@ -511,6 +507,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             span_id: Uuid::new_v4(),
             system_prompt: system_prompt.to_string(),
+            opening: definition::opening(system_prompt),
             time: 0,
         }
     }
@@ -629,8 +626,7 @@ mod tests {
             agent.changes,
             vec![Change::Extend {
                 agent_id,
-                definition: Definition::new(check(&[&["you are a sales bot"], &["gtm assistant"]]))
-                    .unwrap(),
+                added: Definition::new(check(&[&["gtm assistant"]])).unwrap(),
             }]
         );
     }

@@ -26,6 +26,7 @@ import {
 } from "@/components/evaluation/store";
 import { type EvaluationStatsPayload } from "@/components/evaluation/utils";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
+import { navigateTracePanel } from "@/components/traces/trace-view/trace-panel-url";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
@@ -133,12 +134,8 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const onClose = useCallback(() => {
     setTraceId(undefined);
     setTrialId(undefined);
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("traceId");
-    next.delete("trialId");
-    next.delete("spanId");
-    push(`${pathName}?${next}`);
-  }, [searchParams, pathName, push]);
+    navigateTracePanel({ type: "close" }, { trialId: null });
+  }, []);
 
   const taskRows = useMemo(() => (allTrials ? groupTrialsIntoTasks(allTrials) : undefined), [allTrials]);
 

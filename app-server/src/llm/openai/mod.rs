@@ -6,7 +6,8 @@ pub mod conversions;
 pub use client::OpenAIClient;
 
 use crate::env;
-use crate::llm::default_headers_from_env;
+use crate::llm::{default_headers_from_env, models::ProviderRequest};
+use reqwest::header::HeaderName;
 use serde_json::Value;
 use std::time::Duration;
 use thiserror::Error;
@@ -23,7 +24,35 @@ pub enum OpenAIError {
     ConfigError(String),
 
     #[error("OpenAI API error ({status_code}): {message}")]
-    ApiError { status_code: u16, message: String },
+    ApiError {
+        status_code: u16,
+        message: String,
+        /// The body's `error.code`, falling back to `error.type`.
+        code: Option<String>,
+    },
+}
+
+/// 429 codes for a spent balance or a hit spend/usage limit, which will not
+/// clear on retry (https://developers.openai.com/api/docs/guides/error-codes).
+const QUOTA_EXHAUSTED_CODES: &[&str] = &[
+    "insufficient_quota",
+    "credit_balance_exhausted",
+    "organization_spend_limit_exceeded",
+    "project_spend_limit_exceeded",
+    "organization_usage_limit_exceeded",
+];
+
+/// A 429 that is a quota or billing limit, not a rate limit. The message checks
+/// cover bodies that arrive without a code.
+fn is_quota_exhausted(status_code: u16, code: Option<&str>, message: &str) -> bool {
+    if status_code != 429 {
+        return false;
+    }
+    if code.is_some_and(|c| QUOTA_EXHAUSTED_CODES.contains(&c)) {
+        return true;
+    }
+    let message = message.to_ascii_lowercase();
+    message.contains("no credits remaining") || message.contains("exceeded your current quota")
 }
 
 impl OpenAIError {
@@ -43,8 +72,10 @@ impl From<OpenAIError> for super::ProviderError {
             OpenAIError::ApiError {
                 status_code,
                 message,
+                code,
             } => {
-                let retryable = status_code == 429 || status_code >= 500;
+                let retryable = (status_code == 429 || status_code >= 500)
+                    && !is_quota_exhausted(status_code, code.as_deref(), &message);
                 let resource_exhausted = status_code == 429;
                 super::ProviderError::ApiError {
                     status_code,
@@ -77,6 +108,7 @@ pub(super) struct OpenAIHttpConfig {
     pub api_base_url: String,
     pub api_version: Option<String>,
     pub flavor: OpenAIFlavor,
+    pub affinity_header: Option<HeaderName>,
 }
 
 pub(super) fn build_http_config(flavor: OpenAIFlavor) -> OpenAIResult<OpenAIHttpConfig> {
@@ -95,6 +127,7 @@ pub(super) fn build_http_config(flavor: OpenAIFlavor) -> OpenAIResult<OpenAIHttp
         ),
     };
     let default_headers = default_headers_from_env().map_err(OpenAIError::config)?;
+    let affinity_header = affinity_header_from_env()?;
 
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
@@ -109,6 +142,7 @@ pub(super) fn build_http_config(flavor: OpenAIFlavor) -> OpenAIResult<OpenAIHttp
         api_base_url,
         api_version,
         flavor,
+        affinity_header,
     })
 }
 
@@ -125,6 +159,7 @@ pub(crate) struct OpenAIExplicitConfig {
 pub(super) fn build_http_config_from(
     config: OpenAIExplicitConfig,
 ) -> OpenAIResult<OpenAIHttpConfig> {
+    let affinity_header = affinity_header_from_env()?;
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(env::llm::HTTP_TIMEOUT_SECS.get()))
@@ -142,7 +177,28 @@ pub(super) fn build_http_config_from(
         } else {
             OpenAIFlavor::OpenAI
         },
+        affinity_header,
     })
+}
+
+/// `LLM_AFFINITY_HEADER`, validated once per client.
+fn affinity_header_from_env() -> OpenAIResult<Option<HeaderName>> {
+    non_empty_env(env::llm::AFFINITY_HEADER)
+        .map(|name| {
+            HeaderName::from_bytes(name.as_bytes()).map_err(|e| {
+                OpenAIError::config(format!("Invalid {}: {e}", env::llm::AFFINITY_HEADER))
+            })
+        })
+        .transpose()
+}
+
+/// The affinity header for `request`: sent only when both the client's header
+/// name and the request's key are set.
+pub(super) fn affinity_for<'a>(
+    header: &'a Option<HeaderName>,
+    request: &'a ProviderRequest,
+) -> Option<(&'a HeaderName, &'a str)> {
+    header.as_ref().zip(request.affinity_key.as_deref())
 }
 
 fn non_empty_env(name: &str) -> Option<String> {
@@ -174,24 +230,29 @@ pub(super) async fn send_openai_request(
     api_key: &str,
     url: &str,
     body: &Value,
+    affinity: Option<(&HeaderName, &str)>,
 ) -> OpenAIResult<reqwest::Response> {
-    let response = post_openai_request(client, flavor, api_key, url, body).await?;
+    let response = post_openai_request(client, flavor, api_key, url, body, affinity).await?;
 
     let status = response.status();
     if !status.is_success() {
         let error_text = response.text().await.unwrap_or_default();
-        let message = serde_json::from_str::<Value>(&error_text)
+        let error = serde_json::from_str::<Value>(&error_text)
             .ok()
-            .and_then(|v| {
-                v.get("error")
-                    .and_then(|e| e.get("message"))
-                    .and_then(|m| m.as_str())
-                    .map(|s| s.to_string())
-            })
-            .unwrap_or(error_text);
+            .and_then(|mut v| v.get_mut("error").map(Value::take));
+        let field = |name: &str| {
+            error
+                .as_ref()
+                .and_then(|e| e.get(name))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        };
+        let code = field("code").or_else(|| field("type"));
+        let message = field("message").unwrap_or(error_text);
         return Err(OpenAIError::ApiError {
             status_code: status.as_u16(),
             message,
+            code,
         });
     }
 
@@ -206,13 +267,17 @@ pub(super) async fn post_openai_request(
     api_key: &str,
     url: &str,
     body: &Value,
+    affinity: Option<(&HeaderName, &str)>,
 ) -> Result<reqwest::Response, reqwest::Error> {
-    let request = match flavor {
+    let mut request = match flavor {
         OpenAIFlavor::OpenAI => client
             .post(url)
             .header("Authorization", format!("Bearer {api_key}")),
         OpenAIFlavor::Azure => client.post(url).header("api-key", api_key),
     };
+    if let Some((name, key)) = affinity {
+        request = request.header(name, key);
+    }
     request
         .header("Content-Type", "application/json")
         .json(body)
@@ -223,6 +288,43 @@ pub(super) async fn post_openai_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn provider_error(
+        status_code: u16,
+        message: &str,
+        code: Option<&str>,
+    ) -> super::super::ProviderError {
+        OpenAIError::ApiError {
+            status_code,
+            message: message.to_string(),
+            code: code.map(str::to_string),
+        }
+        .into()
+    }
+
+    #[test]
+    fn quota_and_spend_limit_429s_are_not_retryable() {
+        for code in QUOTA_EXHAUSTED_CODES {
+            assert!(
+                !provider_error(429, "anything", Some(code)).is_retryable(),
+                "{code} must not be retried"
+            );
+        }
+        let no_credits = "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/";
+        assert!(!provider_error(429, no_credits, None).is_retryable());
+        let over_quota = "You exceeded your current quota, please check your plan.";
+        assert!(!provider_error(429, over_quota, None).is_retryable());
+    }
+
+    #[test]
+    fn rate_limit_429_and_5xx_stay_retryable() {
+        let rate_limited = provider_error(429, "Rate limit reached", Some("rate_limit_exceeded"));
+        assert!(rate_limited.is_retryable());
+        assert!(provider_error(500, "server error", None).is_retryable());
+        // The quota codes only mean "spent" on a 429.
+        assert!(provider_error(503, "x", Some("insufficient_quota")).is_retryable());
+        assert!(!provider_error(400, "bad request", None).is_retryable());
+    }
 
     /// Every accepted endpoint form has to land on the one v1 route, whether the
     /// resource id or a pasted base URL is what's configured.

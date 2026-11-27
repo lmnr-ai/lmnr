@@ -27,25 +27,17 @@ pub async fn get_api_key_from_raw_value(
         ),
     };
 
-    // Lazy expiration: reject expired keys and purge them from cache + DB so a
-    // revoked credential can't linger. Checked before caching a freshly-read key
-    // so an expired key is never written to the cache only to be removed again.
-    // The cache is purged unconditionally (no-op when absent): if the DB path was
-    // taken because of a cache read error, a stale entry may still exist, and we
-    // don't want it lingering until TTL eviction.
-    if let Some(expires_at) = api_key.expires_at
-        && Utc::now() > expires_at
-    {
-        let _ = cache.remove(&cache_key).await;
-        let _ = db::project_api_keys::delete_api_key_by_hash(pool, &api_key_hash).await;
-        return Err(anyhow::anyhow!("project API key expired"));
-    }
-
-    // Cache only non-expired keys read from the DB.
     if !from_cache {
         let _ = cache
             .insert_with_ttl::<ProjectApiKey>(&cache_key, api_key.clone(), PROJECT_API_KEY_TTL)
             .await;
+    }
+
+    // Expired keys are kept in DB and cache; expiry is enforced on every call.
+    if let Some(expires_at) = api_key.expires_at
+        && Utc::now() > expires_at
+    {
+        return Err(anyhow::anyhow!("project API key expired"));
     }
 
     Ok(api_key)

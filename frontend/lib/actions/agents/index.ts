@@ -1,8 +1,13 @@
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { agentReleases, agents, agentVersionModels, agentVersions } from "@/lib/db/migrations/schema";
+
+import { type AgentDefinition, AgentDefinitionSchema } from "./definition";
+import { shownVersionIds } from "./deleted-versions";
+
+export type { AgentDefinition } from "./definition";
 
 const VERSIONS_LIMIT = 50;
 
@@ -32,7 +37,7 @@ export async function getAgents(input: z.infer<typeof GetAgentsSchema>): Promise
       versionCount: count(agentVersions.id),
     })
     .from(agents)
-    .leftJoin(agentVersions, eq(agentVersions.agentId, agents.id))
+    .leftJoin(agentVersions, and(eq(agentVersions.agentId, agents.id), isNull(agentVersions.deletedAt)))
     .where(eq(agents.projectId, projectId))
     .groupBy(agents.id)
     .orderBy(desc(count(agentVersions.id)), desc(agents.createdAt))
@@ -43,6 +48,18 @@ export const GetAgentVersionsSchema = z.object({
   projectId: z.guid(),
   agentId: z.guid(),
 });
+
+const AgentVersionSourceSchema = z.object({
+  status: z.enum(["verified", "unverified"]),
+  summary: z.string(),
+  /** Oldest first. */
+  changes: z.array(
+    z.object({ title: z.string(), url: z.string().startsWith("https://"), number: z.number().nullable() })
+  ),
+});
+
+/** Where a release-mode version's change came from, as judged against the GitHub code changes. */
+export type AgentVersionSource = z.infer<typeof AgentVersionSourceSchema>;
 
 export interface AgentVersionItem {
   id: string;
@@ -56,17 +73,35 @@ export interface AgentVersionItem {
   models: string[];
   /** SDK releases (git SHAs) grouped into this version, newest first; empty for inferred versions. */
   releases: string[];
+  /** `null` when it wasn't checked: inferred versions, or no connected repo has the release. */
+  source: AgentVersionSource | null;
   createdAt: string;
 }
 
 export interface AgentVersionTracesPoint {
   timestamp: string;
-  /** Trace count per version id. */
+  /** Trace count per version id, plus `UNVERSIONED_KEY` from `./types`. */
   [versionId: string]: number | string;
 }
 
+/** The repo with an agent's latest release commit, from the GitHub integration (absent in OSS). */
+export type AgentGithubRepo =
+  | { status: "not_connected" }
+  | { status: "no_release" }
+  | { status: "not_found" }
+  | { status: "linked"; repo: string };
+
 export interface AgentVersionsResult {
-  agent: { id: string; name: string | null; agentHash: string; createdAt: string };
+  agent: {
+    id: string;
+    name: string | null;
+    agentHash: string;
+    createdAt: string;
+    /** `null` for agents identified by the system prompt's first sentence. */
+    definition: AgentDefinition | null;
+    /** Versioned by SDK releases; set once most recent traces carry `LMNR_RELEASE`. */
+    releaseMode: boolean;
+  };
   versions: AgentVersionItem[];
 }
 
@@ -75,13 +110,28 @@ export async function getAgentVersions(
 ): Promise<AgentVersionsResult | null> {
   const { projectId, agentId } = GetAgentVersionsSchema.parse(input);
 
-  const [agent] = await db
-    .select({ id: agents.id, name: agents.name, agentHash: agents.agentHash, createdAt: agents.createdAt })
+  const [row] = await db
+    .select({
+      id: agents.id,
+      name: agents.name,
+      agentHash: agents.agentHash,
+      createdAt: agents.createdAt,
+      definition: agents.definition,
+      releaseMode: agents.releaseMode,
+    })
     .from(agents)
     .where(and(eq(agents.id, agentId), eq(agents.projectId, projectId)))
     .limit(1);
 
-  if (!agent) return null;
+  if (!row) return null;
+
+  const agent = { ...row, definition: AgentDefinitionSchema.safeParse(row.definition).data ?? null };
+
+  const versionRefs = await db
+    .select({ id: agentVersions.id, versionNumber: agentVersions.versionNumber, deletedAt: agentVersions.deletedAt })
+    .from(agentVersions)
+    .where(and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId)));
+  const shownAs = shownVersionIds(versionRefs);
 
   const versions = await db
     .select({
@@ -90,32 +140,42 @@ export async function getAgentVersions(
       versionNumber: agentVersions.versionNumber,
       systemPrompt: agentVersions.systemPrompt,
       toolDefinitions: agentVersions.toolDefinitions,
+      source: agentVersions.source,
       createdAt: agentVersions.createdAt,
     })
     .from(agentVersions)
-    .where(and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId)))
+    .where(
+      and(eq(agentVersions.agentId, agentId), eq(agentVersions.projectId, projectId), isNull(agentVersions.deletedAt))
+    )
     .orderBy(desc(agentVersions.versionNumber))
     .limit(VERSIONS_LIMIT);
 
   if (versions.length === 0) return { agent, versions: [] };
 
-  const versionIds = versions.map((v) => v.id);
+  // The listed versions and the deleted ones shown as them.
+  const listed = new Set(versions.map((v) => v.id));
+  const versionIds = versionRefs.filter((v) => listed.has(shownAs.get(v.id) ?? "")).map((v) => v.id);
   const [models, releases] = await Promise.all([
-    getVersionModels(projectId, versionIds),
-    getVersionReleases(projectId, versionIds),
+    getVersionModels(projectId, versionIds, shownAs),
+    getVersionReleases(projectId, versionIds, shownAs),
   ]);
 
   return {
     agent,
     versions: versions.map((version) => ({
       ...version,
+      source: AgentVersionSourceSchema.safeParse(version.source).data ?? null,
       models: models.get(version.id) ?? [],
       releases: releases.get(version.id) ?? [],
     })),
   };
 }
 
-async function getVersionModels(projectId: string, versionIds: string[]): Promise<Map<string, string[]>> {
+async function getVersionModels(
+  projectId: string,
+  versionIds: string[],
+  shownAs: Map<string, string>
+): Promise<Map<string, string[]>> {
   const rows = await db
     .select({ agentVersionId: agentVersionModels.agentVersionId, model: agentVersionModels.model })
     .from(agentVersionModels)
@@ -124,12 +184,18 @@ async function getVersionModels(projectId: string, versionIds: string[]): Promis
 
   const models = new Map<string, string[]>();
   for (const row of rows) {
-    models.set(row.agentVersionId, [...(models.get(row.agentVersionId) ?? []), row.model]);
+    const id = shownAs.get(row.agentVersionId) ?? row.agentVersionId;
+    const seen = models.get(id) ?? [];
+    if (!seen.includes(row.model)) models.set(id, [...seen, row.model]);
   }
   return models;
 }
 
-async function getVersionReleases(projectId: string, versionIds: string[]): Promise<Map<string, string[]>> {
+async function getVersionReleases(
+  projectId: string,
+  versionIds: string[],
+  shownAs: Map<string, string>
+): Promise<Map<string, string[]>> {
   const rows = await db
     .select({ versionId: agentReleases.versionId, release: agentReleases.release })
     .from(agentReleases)
@@ -139,7 +205,8 @@ async function getVersionReleases(projectId: string, versionIds: string[]): Prom
   const releases = new Map<string, string[]>();
   for (const row of rows) {
     if (!row.versionId) continue;
-    releases.set(row.versionId, [...(releases.get(row.versionId) ?? []), row.release]);
+    const id = shownAs.get(row.versionId) ?? row.versionId;
+    releases.set(id, [...(releases.get(id) ?? []), row.release]);
   }
   return releases;
 }

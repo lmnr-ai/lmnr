@@ -29,7 +29,7 @@ function EmbedFallback({ traceId, message }: { traceId: string; message: string 
         href={`${CLOUD_SHARED_PAGE}/${traceId}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-1 text-white hover:underline"
+        className="flex items-center gap-1 text-foreground dark:text-white hover:underline"
       >
         Open full trace <ArrowUpRight className="size-3" />
       </a>
@@ -66,7 +66,7 @@ export default function TraceTabsClient({ tabs }: { tabs: TraceTabData[] }) {
           href={`${CLOUD_SHARED_PAGE}/${tab.traceId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 self-end text-xs text-secondary-foreground hover:text-white"
+          className="flex items-center gap-1 self-end text-xs text-secondary-foreground hover:text-foreground dark:hover:text-white"
         >
           Open full trace <ArrowUpRight className="size-3" />
         </a>

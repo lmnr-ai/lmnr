@@ -87,6 +87,7 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
 
   return (
     <TraceViewStoreProvider
+      urlState
       storeKey="shared-eval-trace-view"
       initialTrace={trace}
       initialSpans={enrichSpansWithPending(spans)}

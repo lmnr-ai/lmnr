@@ -8,6 +8,7 @@
   "rules": {
     "arrow-body-style": ["warn", "as-needed"],
     "no-duplicate-imports": "error",
+    "import/no-cycle": ["error", { "ignoreTypes": false }],
     "no-console": "warn",
     "no-unused-vars": [
       "warn",

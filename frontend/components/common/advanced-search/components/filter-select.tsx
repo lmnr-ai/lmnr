@@ -15,13 +15,12 @@ import {
 
 import { cn } from "@/lib/utils.ts";
 
+import { type FocusableRef } from "../types";
+import { scrollOptionIntoView } from "../utils";
+
 export interface FilterSelectOption {
   value: string;
   label: string;
-}
-
-interface FocusableRef {
-  focus: () => void;
 }
 
 interface FilterSelectProps extends HTMLAttributes<HTMLDivElement> {
@@ -32,7 +31,6 @@ interface FilterSelectProps extends HTMLAttributes<HTMLDivElement> {
   onOpenChange: (open: boolean) => void;
   placeholder?: string;
   triggerClassName?: string;
-  contentClassName?: string;
   onNavigateLeft?: () => void;
   onNavigateRight?: () => void;
   ref?: Ref<FocusableRef>;
@@ -47,7 +45,6 @@ const FilterSelect = ({
   placeholder = "Select...",
   className,
   triggerClassName,
-  contentClassName,
   onNavigateLeft,
   onNavigateRight,
   ref,
@@ -74,28 +71,9 @@ const FilterSelect = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Scroll highlighted option into view
   useEffect(() => {
-    if (open && highlightedIndex >= 0 && highlightedIndex < optionRefs.current.length) {
-      const highlightedElement = optionRefs.current[highlightedIndex];
-      const viewport = scrollViewportRef.current;
-
-      if (highlightedElement && viewport) {
-        const optionTop = highlightedElement.offsetTop;
-        const optionBottom = optionTop + highlightedElement.offsetHeight;
-        const viewportTop = viewport.scrollTop;
-        const viewportBottom = viewportTop + viewport.clientHeight;
-
-        // Scroll if option is above viewport
-        if (optionTop < viewportTop) {
-          viewport.scrollTop = optionTop;
-        }
-        // Scroll if option is below viewport
-        else if (optionBottom > viewportBottom) {
-          viewport.scrollTop = optionBottom - viewport.clientHeight;
-        }
-      }
-    }
+    if (open && highlightedIndex >= 0)
+      scrollOptionIntoView(scrollViewportRef.current, optionRefs.current[highlightedIndex]);
   }, [open, highlightedIndex]);
 
   useEffect(() => {
@@ -218,8 +196,7 @@ const FilterSelect = ({
             "bg-surface-300 text-secondary-foreground",
             "rounded-md border shadow-md p-1",
             "overflow-y-auto no-scrollbar",
-            "animate-in fade-in-0 zoom-in-95",
-            contentClassName
+            "animate-in fade-in-0 zoom-in-95"
           )}
           onMouseDown={(e) => e.preventDefault()}
         >

@@ -235,6 +235,164 @@ export const signalNotes = pgTable(
   ]
 );
 
+// One row per time a cluster was marked resolved; reopening stamps reopened_at. A cluster
+// can be resolved many times, and is resolved now iff it has a row with reopened_at null.
+// cluster_id is a ClickHouse signal_event_clusters id (L1+, which are never deleted); no FK.
+export const signalClusterResolutions = pgTable(
+  "signal_cluster_resolutions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    resolvedBy: uuid("resolved_by"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    reopenedBy: uuid("reopened_by"),
+    reopenedAt: timestamp("reopened_at", { withTimezone: true, mode: "string" }),
+    resolvedAutomatically: boolean("resolved_automatically").default(false).notNull(),
+    reopenedAutomatically: boolean("reopened_automatically").default(false).notNull(),
+  },
+  (table) => [
+    index("signal_cluster_resolutions_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    uniqueIndex("signal_cluster_resolutions_one_open_idx")
+      .using("btree", table.clusterId.asc().nullsLast().op("uuid_ops"))
+      .where(sql`(reopened_at IS NULL)`),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_resolutions_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_resolutions_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.resolvedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_resolutions_resolved_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.reopenedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_resolutions_reopened_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+// Archived clusters: hidden from Active and Resolved and never get new reports. Unarchiving deletes the row.
+export const signalClusterArchives = pgTable(
+  "signal_cluster_archives",
+  {
+    clusterId: uuid("cluster_id").primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    archivedBy: uuid("archived_by"),
+    archivedAt: timestamp("archived_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_cluster_archives_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_archives_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_archives_signal_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.archivedBy],
+      foreignColumns: [users.id],
+      name: "signal_cluster_archives_archived_by_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+// When each user last opened each cluster's report. A cluster is unread for a user when it
+// has events newer than last_viewed_at, or no row at all.
+export const signalClusterViews = pgTable(
+  "signal_cluster_views",
+  {
+    userId: uuid("user_id").notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    lastViewedAt: timestamp("last_viewed_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.clusterId], name: "signal_cluster_views_pkey" }),
+    index("signal_cluster_views_user_project_idx").using(
+      "btree",
+      table.userId.asc().nullsLast().op("uuid_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "signal_cluster_views_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_views_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_views_signal_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+// The Laminar Agent's report on an L1 cluster: one per cluster, rewritten when regenerated.
+export const signalClusterReports = pgTable(
+  "signal_cluster_reports",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    clusterId: uuid("cluster_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    signalId: uuid("signal_id").notNull(),
+    status: text().notNull(),
+    content: text(),
+    error: text(),
+    sessionId: uuid("session_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_cluster_reports_project_signal_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.signalId.asc().nullsLast().op("uuid_ops")
+    ),
+    index("signal_cluster_reports_cluster_created_idx").using(
+      "btree",
+      table.clusterId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.desc().nullsFirst().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_cluster_reports_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_cluster_reports_signal_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const tracesAgentMessages = pgTable(
   "traces_agent_messages",
   {
@@ -308,14 +466,11 @@ export const githubIntegrations = pgTable(
 );
 
 // One per project: what the Laminar Agent's sandbox is set up with.
-// `ingest_api_key` is the AEAD blob ({nonce, value} hex, AAD = environment id) of an ingest-only project key.
 export const projectEnvironments = pgTable(
   "project_environments",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
-    ingestApiKeyId: uuid("ingest_api_key_id"),
-    ingestApiKey: jsonb("ingest_api_key"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
@@ -325,11 +480,6 @@ export const projectEnvironments = pgTable(
       foreignColumns: [projects.id],
       name: "project_environments_project_id_fkey",
     }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.ingestApiKeyId],
-      foreignColumns: [projectApiKeys.id],
-      name: "project_environments_ingest_api_key_id_fkey",
-    }).onDelete("set null"),
     unique("project_environments_project_id_key").on(table.projectId),
   ]
 );
@@ -489,6 +639,8 @@ export const agents = pgTable(
     currentVersionId: uuid("current_version_id"),
     releaseMode: boolean("release_mode").default(false).notNull(),
     definition: jsonb(),
+    githubRepoId: bigint("github_repo_id", { mode: "number" }),
+    githubRepoFullName: text("github_repo_full_name"),
   },
   (table) => [
     foreignKey({
@@ -511,7 +663,10 @@ export const agentVersions = pgTable(
     coreLines: bigint("core_lines", { mode: "number" }).array().notNull(),
     systemPrompt: text("system_prompt").default("").notNull(),
     toolDefinitions: text("tool_definitions").default("").notNull(),
+    source: jsonb(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
+    shownVersionHash: text("shown_version_hash"),
   },
   (table) => [
     foreignKey({
@@ -720,6 +875,75 @@ export const datasets = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ]
+);
+
+export const datasetsV2 = pgTable(
+  "datasets_v2",
+  {
+    projectId: uuid("project_id").notNull(),
+    id: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "datasets_v2_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    primaryKey({ columns: [table.projectId, table.id], name: "datasets_v2_pkey" }),
+  ]
+);
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    projectId: uuid("project_id").notNull(),
+    datasetId: text("dataset_id").notNull(),
+    id: text().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId, table.datasetId],
+      foreignColumns: [datasetsV2.projectId, datasetsV2.id],
+      name: "tasks_dataset_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    primaryKey({ columns: [table.projectId, table.datasetId, table.id], name: "tasks_pkey" }),
+  ]
+);
+
+export const taskVersions = pgTable(
+  "task_versions",
+  {
+    projectId: uuid("project_id").notNull(),
+    datasetId: text("dataset_id").notNull(),
+    taskId: text("task_id").notNull(),
+    hash: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId, table.datasetId, table.taskId],
+      foreignColumns: [tasks.projectId, tasks.datasetId, tasks.id],
+      name: "task_versions_task_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    primaryKey({
+      columns: [table.projectId, table.datasetId, table.taskId, table.hash],
+      name: "task_versions_pkey",
+    }),
+    index("task_versions_created_at_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.datasetId.asc().nullsLast().op("text_ops"),
+      table.taskId.asc().nullsLast().op("text_ops"),
+      table.createdAt.desc().nullsFirst().op("timestamptz_ops")
+    ),
   ]
 );
 
@@ -1102,6 +1326,8 @@ export const evaluations = pgTable(
     name: text().notNull(),
     groupId: text("group_id").default("default").notNull(),
     metadata: jsonb(),
+    hostedMetadata: jsonb("hosted_metadata"),
+    datasetV2Id: text("dataset_v2_id"),
   },
   (table) => [
     index("evaluations_project_id_hash_idx").using("hash", table.projectId.asc().nullsLast().op("uuid_ops")),
@@ -1833,6 +2059,237 @@ export const scimGroupMembers = pgTable(
   ]
 );
 
+export const oauthClients = pgTable(
+  "oauth_clients",
+  {
+    id: text().primaryKey().notNull(),
+    clientId: text("client_id").notNull(),
+    clientSecret: text("client_secret"),
+    clientDiscoveryId: text("client_discovery_id"),
+    disabled: boolean().default(false),
+    skipConsent: boolean("skip_consent"),
+    enableEndSession: boolean("enable_end_session"),
+    subjectType: text("subject_type"),
+    scopes: text().array(),
+    clientCredentialsScopes: text("client_credentials_scopes").array().default([]),
+    userId: uuid("user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }),
+    name: text(),
+    uri: text(),
+    icon: text(),
+    contacts: text().array(),
+    tos: text(),
+    policy: text(),
+    softwareId: text("software_id"),
+    softwareVersion: text("software_version"),
+    softwareStatement: text("software_statement"),
+    redirectUris: text("redirect_uris").array().notNull(),
+    postLogoutRedirectUris: text("post_logout_redirect_uris").array(),
+    backchannelLogoutUri: text("backchannel_logout_uri"),
+    backchannelLogoutSessionRequired: boolean("backchannel_logout_session_required"),
+    tokenEndpointAuthMethod: text("token_endpoint_auth_method"),
+    applicationType: text("application_type"),
+    jwks: text(),
+    jwksUri: text("jwks_uri"),
+    grantTypes: text("grant_types").array(),
+    responseTypes: text("response_types").array(),
+    requirePKCE: boolean("require_pkce"),
+    dpopBoundAccessTokens: boolean("dpop_bound_access_tokens").default(false),
+    referenceId: text("reference_id"),
+    metadata: jsonb(),
+  },
+  (table) => [
+    index("oauth_clients_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_clients_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("oauth_clients_client_id_key").on(table.clientId),
+  ]
+);
+
+export const oauthResources = pgTable(
+  "oauth_resources",
+  {
+    id: text().primaryKey().notNull(),
+    identifier: text().notNull(),
+    name: text().notNull(),
+    accessTokenTtl: integer("access_token_ttl"),
+    refreshTokenTtl: integer("refresh_token_ttl"),
+    signingAlgorithm: text("signing_algorithm"),
+    signingKeyId: text("signing_key_id"),
+    allowedScopes: text("allowed_scopes").array(),
+    customClaims: jsonb("custom_claims"),
+    dpopBoundAccessTokensRequired: boolean("dpop_bound_access_tokens_required").default(false),
+    disabled: boolean().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }),
+    policyVersion: integer("policy_version").default(1),
+    metadata: jsonb(),
+  },
+  (table) => [unique("oauth_resources_identifier_key").on(table.identifier)]
+);
+
+export const oauthClientResources = pgTable(
+  "oauth_client_resources",
+  {
+    id: text().primaryKey().notNull(),
+    clientId: text("client_id").notNull(),
+    resourceId: text("resource_id").notNull(),
+    metadata: jsonb(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    uniqueIndex("oauth_client_resources_client_id_resource_id_idx").using(
+      "btree",
+      table.clientId.asc().nullsLast(),
+      table.resourceId.asc().nullsLast()
+    ),
+    index("oauth_client_resources_resource_id_idx").using("btree", table.resourceId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.clientId],
+      foreignColumns: [oauthClients.clientId],
+      name: "oauth_client_resources_client_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.resourceId],
+      foreignColumns: [oauthResources.identifier],
+      name: "oauth_client_resources_resource_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const oauthRefreshTokens = pgTable(
+  "oauth_refresh_tokens",
+  {
+    id: text().primaryKey().notNull(),
+    token: text().notNull(),
+    clientId: text("client_id").notNull(),
+    sessionId: text("session_id"),
+    userId: uuid("user_id").notNull(),
+    referenceId: text("reference_id"),
+    authorizationCodeId: text("authorization_code_id"),
+    resources: text().array(),
+    requestedUserInfoClaims: text("requested_user_info_claims").array(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    revoked: timestamp({ withTimezone: true, mode: "date" }),
+    rotatedAt: timestamp("rotated_at", { withTimezone: true, mode: "date" }),
+    rotationReplayResponse: text("rotation_replay_response"),
+    rotationReplayExpiresAt: timestamp("rotation_replay_expires_at", { withTimezone: true, mode: "date" }),
+    authTime: timestamp("auth_time", { withTimezone: true, mode: "date" }),
+    confirmation: jsonb(),
+    scopes: text().array().notNull(),
+  },
+  (table) => [
+    index("oauth_refresh_tokens_client_id_idx").using("btree", table.clientId.asc().nullsLast()),
+    index("oauth_refresh_tokens_session_id_idx").using("btree", table.sessionId.asc().nullsLast()),
+    index("oauth_refresh_tokens_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    index("oauth_refresh_tokens_authorization_code_id_idx").using("btree", table.authorizationCodeId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.clientId],
+      foreignColumns: [oauthClients.clientId],
+      name: "oauth_refresh_tokens_client_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [sessions.id],
+      name: "oauth_refresh_tokens_session_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_refresh_tokens_user_id_fkey",
+    }).onDelete("cascade"),
+    unique("oauth_refresh_tokens_token_key").on(table.token),
+  ]
+);
+
+export const oauthAccessTokens = pgTable(
+  "oauth_access_tokens",
+  {
+    id: text().primaryKey().notNull(),
+    token: text(),
+    clientId: text("client_id").notNull(),
+    sessionId: text("session_id"),
+    userId: uuid("user_id"),
+    referenceId: text("reference_id"),
+    authorizationCodeId: text("authorization_code_id"),
+    resources: text().array(),
+    requestedUserInfoClaims: text("requested_user_info_claims").array(),
+    refreshId: text("refresh_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    revoked: timestamp({ withTimezone: true, mode: "date" }),
+    confirmation: jsonb(),
+    scopes: text().array().notNull(),
+  },
+  (table) => [
+    index("oauth_access_tokens_client_id_idx").using("btree", table.clientId.asc().nullsLast()),
+    index("oauth_access_tokens_session_id_idx").using("btree", table.sessionId.asc().nullsLast()),
+    index("oauth_access_tokens_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    index("oauth_access_tokens_authorization_code_id_idx").using("btree", table.authorizationCodeId.asc().nullsLast()),
+    index("oauth_access_tokens_refresh_id_idx").using("btree", table.refreshId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.clientId],
+      foreignColumns: [oauthClients.clientId],
+      name: "oauth_access_tokens_client_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [sessions.id],
+      name: "oauth_access_tokens_session_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_access_tokens_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.refreshId],
+      foreignColumns: [oauthRefreshTokens.id],
+      name: "oauth_access_tokens_refresh_id_fkey",
+    }).onDelete("cascade"),
+    unique("oauth_access_tokens_token_key").on(table.token),
+  ]
+);
+
+export const oauthConsents = pgTable(
+  "oauth_consents",
+  {
+    id: text().primaryKey().notNull(),
+    clientId: text("client_id").notNull(),
+    userId: uuid("user_id"),
+    referenceId: text("reference_id"),
+    resources: text().array(),
+    requestedUserInfoClaims: text("requested_user_info_claims").array(),
+    scopes: text().array().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    index("oauth_consents_client_id_idx").using("btree", table.clientId.asc().nullsLast()),
+    index("oauth_consents_user_id_idx").using("btree", table.userId.asc().nullsLast()),
+    foreignKey({
+      columns: [table.clientId],
+      foreignColumns: [oauthClients.clientId],
+      name: "oauth_consents_client_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_consents_user_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const oauthClientAssertions = pgTable("oauth_client_assertions", {
+  id: text().primaryKey().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+});
+
 export const debuggerSessions = pgTable(
   "debugger_sessions",
   {
@@ -2117,6 +2574,39 @@ export const traces = pgTable(
   ]
 );
 
+// A Laminar Agent sandbox: a Modal VM while running, its last filesystem snapshot while stopped. Project-wide, so
+// any of the project's sessions can open it.
+export const agentSandboxes = pgTable(
+  "agent_sandboxes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    // Null while stopped.
+    extSandboxId: text("ext_sandbox_id"),
+    // Modal's hard lifetime of the running VM; null while stopped.
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    extSnapshotId: text("ext_snapshot_id"),
+    extSnapshotExpiresAt: timestamp("ext_snapshot_expires_at", { withTimezone: true, mode: "string" }),
+    // Whether other chats can list and open it. False for sandboxes opened by surfaces without secrets (report): they
+    // read untrusted input, so they must stay reachable only from their own session.
+    openableById: boolean("openable_by_id").default(true).notNull(),
+    // The running VM's LMNR_PROJECT_API_KEY, revoked when it stops.
+    apiKeyId: uuid("api_key_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "agent_sandboxes_project_id_fkey",
+    }).onDelete("cascade"),
+    index("agent_sandboxes_project_id_idx").on(table.projectId, table.lastActiveAt.desc()),
+    uniqueIndex("agent_sandboxes_ext_sandbox_id_key").on(table.extSandboxId),
+  ]
+);
+
 export const agentSessions = pgTable(
   "agent_sessions",
   {
@@ -2127,6 +2617,8 @@ export const agentSessions = pgTable(
     name: text(),
     nextId: bigint("next_id", { mode: "number" }).default(2).notNull(),
     nextSeq: bigint("next_seq", { mode: "number" }).default(1).notNull(),
+    // The sandbox the session's tools work in; open_sandbox switches it.
+    sandboxId: uuid("sandbox_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
@@ -2139,32 +2631,19 @@ export const agentSessions = pgTable(
       foreignColumns: [projects.id],
       name: "agent_sessions_project_id_fkey",
     }).onDelete("cascade"),
-  ]
-);
-
-export const agentSessionSandboxes = pgTable(
-  "agent_session_sandboxes",
-  {
-    sessionId: uuid("session_id").primaryKey().notNull(),
-    sandboxId: text("sandbox_id").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
     foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessions.id],
-      name: "agent_session_sandboxes_session_id_fkey",
-    }).onDelete("cascade"),
+      columns: [table.sandboxId],
+      foreignColumns: [agentSandboxes.id],
+      name: "agent_sessions_sandbox_id_fkey",
+    }).onDelete("set null"),
   ]
 );
 
-// One row per cloned repo in a session's sandbox, with that repo's PR branch progress.
-export const agentSessionSandboxRepos = pgTable(
-  "agent_session_sandbox_repos",
+// One row per cloned repo in a sandbox, with that repo's PR branch progress.
+export const agentSandboxRepos = pgTable(
+  "agent_sandbox_repos",
   {
-    sessionId: uuid("session_id").notNull(),
+    sandboxId: uuid("sandbox_id").notNull(),
     repoId: bigint("repo_id", { mode: "number" }).notNull(),
     repoFullName: text("repo_full_name").notNull(),
     repoDir: text("repo_dir").notNull(),
@@ -2176,11 +2655,11 @@ export const agentSessionSandboxRepos = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.sessionId, table.repoId], name: "agent_session_sandbox_repos_pkey" }),
+    primaryKey({ columns: [table.sandboxId, table.repoId], name: "agent_sandbox_repos_pkey" }),
     foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessionSandboxes.sessionId],
-      name: "agent_session_sandbox_repos_session_id_fkey",
+      columns: [table.sandboxId],
+      foreignColumns: [agentSandboxes.id],
+      name: "agent_sandbox_repos_sandbox_id_fkey",
     }).onDelete("cascade"),
   ]
 );

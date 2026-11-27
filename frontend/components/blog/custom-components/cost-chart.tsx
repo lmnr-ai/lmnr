@@ -28,10 +28,15 @@ export function CostChart({ title, children }: { title?: string; children: React
   return (
     // Scrolls sideways on narrow screens like tables; on the card so the scroll area includes its padding.
     <figure className="not-typeset my-8 flex flex-col gap-3 overflow-x-auto rounded-lg border border-white/10 bg-white/[0.02] p-4">
-      {title && <figcaption className="text-sm font-medium text-white">{title}</figcaption>}
+      {title && <figcaption className="text-sm font-medium text-foreground dark:text-white">{title}</figcaption>}
       {bars.map((bar) => (
         <div key={bar.model} className="grid grid-cols-[120px_1fr] items-center gap-3 sm:grid-cols-[150px_1fr]">
-          <span className={cn("truncate text-sm", bar.isHighlight ? "font-medium text-primary-text" : "text-white")}>
+          <span
+            className={cn(
+              "truncate text-sm",
+              bar.isHighlight ? "font-medium text-primary-text" : "text-foreground dark:text-white"
+            )}
+          >
             {bar.model}
           </span>
           <div className="flex items-center gap-2">
@@ -39,7 +44,9 @@ export function CostChart({ title, children }: { title?: string; children: React
               className={cn("h-5 shrink-0 rounded-sm", bar.isHighlight ? "bg-primary" : "bg-white/25")}
               style={{ width: `max(3px, ${max ? (bar.value / max) * 55 : 0}%)` }}
             />
-            <span className="whitespace-nowrap font-mono text-xs text-white">{formatUsd(bar.value)}</span>
+            <span className="whitespace-nowrap font-mono text-xs text-foreground dark:text-white">
+              {formatUsd(bar.value)}
+            </span>
             {baseline && !bar.isHighlight && baseline.value > 0 && (
               <span className="whitespace-nowrap text-xs text-secondary-foreground">
                 {formatRatio(bar.value / baseline.value)} {baseline.model}

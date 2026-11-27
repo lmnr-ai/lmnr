@@ -4,6 +4,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 
+import SlackChannelSelect from "@/components/slack/slack-channel-select";
 import { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -54,11 +55,14 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
   const [projectId, setProjectId] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
-  const channels = channelsResult?.channels ?? [];
+  const channels = useMemo(() => channelsResult?.channels ?? [], [channelsResult]);
   const channelName = useMemo(() => channels.find((c) => c.id === channelId)?.name, [channels, channelId]);
   // Channels already bound — keep the picker to channels without a binding to avoid silent overwrites.
   const boundChannelIds = useMemo(() => new Set((bindings ?? []).map((b) => b.channelId)), [bindings]);
-  const availableChannels = channels.filter((c) => !boundChannelIds.has(c.id));
+  const availableChannels = useMemo(
+    () => channels.filter((c) => !boundChannelIds.has(c.id)),
+    [channels, boundChannelIds]
+  );
 
   if (!integration) return null;
 
@@ -120,18 +124,12 @@ export default function SlackChannelProjects({ workspaceId, className }: SlackCh
       <div className="flex items-end gap-2">
         <div className="flex flex-col gap-1 flex-1">
           <Label className="text-xs text-muted-foreground">Channel</Label>
-          <Select value={channelId} onValueChange={setChannelId} disabled={channelsLoading}>
-            <SelectTrigger className="h-8">
-              <SelectValue placeholder={channelsLoading ? "Loading channels…" : "Select a channel"} />
-            </SelectTrigger>
-            <SelectContent>
-              {availableChannels.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  #{c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SlackChannelSelect
+            channels={availableChannels}
+            isLoading={channelsLoading}
+            value={channelId}
+            onChange={setChannelId}
+          />
         </div>
         <div className="flex flex-col gap-1 flex-1">
           <Label className="text-xs text-muted-foreground">Project</Label>

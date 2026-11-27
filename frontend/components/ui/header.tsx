@@ -12,6 +12,8 @@ interface BreadcrumbSegment {
   name: string;
   href?: string;
   copyValue?: string;
+  /** On the segment's wrapper; give it `min-w-0` (or a max width) and the name truncates. */
+  className?: string;
 }
 
 interface HeaderProps {
@@ -45,18 +47,21 @@ export default function Header({
       <div className={cn("flex flex-1 min-w-0 items-center", childrenContainerClassName)}>
         {showSidebarTrigger && <SidebarTrigger className="hover:overlay-hover size-7" />}
         {segments.map((segment, index) => (
-          <div key={index} className="flex items-center">
+          <div key={index} className={cn("flex items-center", segment.className)}>
             {index > 0 && <div className="text-secondary-foreground/40">/</div>}
             {segment.href ? (
-              <Link href={segment.href} className="hover:overlay-hover rounded-lg px-2 p-0.5 text-secondary-foreground">
+              <Link
+                href={segment.href}
+                className="hover:overlay-hover min-w-0 truncate rounded-lg px-2 p-0.5 text-secondary-foreground"
+              >
                 {segment.name}
               </Link>
             ) : segment.copyValue !== undefined ? (
-              <CopyTooltip value={segment.copyValue}>
-                <div className="px-2">{segment.name}</div>
+              <CopyTooltip value={segment.copyValue} className="min-w-0">
+                <div className="min-w-0 truncate px-2">{segment.name}</div>
               </CopyTooltip>
             ) : (
-              <div className="px-2">{segment.name}</div>
+              <div className="min-w-0 truncate px-2">{segment.name}</div>
             )}
           </div>
         ))}

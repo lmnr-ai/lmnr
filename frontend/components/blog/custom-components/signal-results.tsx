@@ -27,7 +27,7 @@ export function ActualIssue({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5 border-l-2 border-l-emerald-400 bg-emerald-400/[0.07] px-4 py-3">
       <span className="text-xs font-medium text-emerald-300">Actual issue</span>
-      <div className="text-sm leading-relaxed text-white [&_p]:m-0">{children}</div>
+      <div className="text-sm leading-relaxed text-foreground dark:text-white [&_p]:m-0">{children}</div>
     </div>
   );
 }
@@ -55,7 +55,12 @@ export function SignalEvent({ model, grade, highlight, children }: SignalEventPr
             {gradeStyle.label}
           </span>
         )}
-        <span className={cn("text-sm font-medium", highlight === "true" ? "text-[#8fbbfe]" : "text-white")}>
+        <span
+          className={cn(
+            "text-sm font-medium",
+            highlight === "true" ? "text-[#8fbbfe]" : "text-foreground dark:text-white"
+          )}
+        >
           {model}
         </span>
       </div>

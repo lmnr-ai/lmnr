@@ -27,23 +27,8 @@ const GenericFileContentPart = ({ part }: { part: FilePart }) => {
   return null;
 };
 
-const GenericTextContentPart = ({
-  part,
-  presetKey,
-  messageIndex,
-  contentPartIndex,
-}: {
-  part: TextPart;
-  presetKey: string;
-  messageIndex?: number;
-  contentPartIndex?: number;
-}) => (
-  <TextContentPart
-    content={part.text}
-    presetKey={presetKey}
-    messageIndex={messageIndex}
-    contentPartIndex={contentPartIndex}
-  />
+const GenericTextContentPart = ({ part, presetKey }: { part: TextPart; presetKey: string }) => (
+  <TextContentPart content={part.text} presetKey={presetKey} />
 );
 
 // `ReasoningPart` is not re-exported from "ai" (only imported internally from
@@ -51,40 +36,17 @@ const GenericTextContentPart = ({
 const GenericReasoningContentPart = ({
   part,
   presetKey,
-  messageIndex,
-  contentPartIndex,
 }: {
   part: { type: "reasoning"; text: string };
   presetKey: string;
-  messageIndex?: number;
-  contentPartIndex?: number;
-}) => (
-  <ThinkingContentPart
-    content={part.text}
-    presetKey={presetKey}
-    messageIndex={messageIndex}
-    contentPartIndex={contentPartIndex}
-  />
-);
+}) => <ThinkingContentPart content={part.text} presetKey={presetKey} />;
 
-const GenericToolCallContentPart = ({
-  part,
-  presetKey,
-  messageIndex,
-  contentPartIndex,
-}: {
-  part: ToolCallPart;
-  presetKey: string;
-  messageIndex?: number;
-  contentPartIndex?: number;
-}) => (
+const GenericToolCallContentPart = ({ part, presetKey }: { part: ToolCallPart; presetKey: string }) => (
   <ToolCallContentPart
     toolName={part.toolName}
     toolCallId={part.toolCallId}
     content={omit(part, "type")}
     presetKey={presetKey}
-    messageIndex={messageIndex}
-    contentPartIndex={contentPartIndex}
   />
 );
 
@@ -100,23 +62,8 @@ const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPar
 // v7 broadened the ModelMessage union with parts that have no dedicated UI
 // (`custom`, `reasoning-file`, `tool-approval-request`, `tool-approval-response`).
 // Surface them as a labeled JSON block so nothing is silently dropped.
-const GenericUnknownContentPart = ({
-  part,
-  presetKey,
-  messageIndex,
-  contentPartIndex,
-}: {
-  part: { type?: string };
-  presetKey: string;
-  messageIndex?: number;
-  contentPartIndex?: number;
-}) => (
-  <TextContentPart
-    content={JSON.stringify(part, null, 2)}
-    presetKey={presetKey}
-    messageIndex={messageIndex}
-    contentPartIndex={contentPartIndex}
-  />
+const GenericUnknownContentPart = ({ part, presetKey }: { part: { type?: string }; presetKey: string }) => (
+  <TextContentPart content={JSON.stringify(part, null, 2)} presetKey={presetKey} />
 );
 
 const PureContentParts = ({
@@ -133,8 +80,6 @@ const PureContentParts = ({
       <GenericTextContentPart
         presetKey={`${parentIndex}-text-0-${presetKey}`}
         part={{ type: "text", text: message.content }}
-        messageIndex={parentIndex}
-        contentPartIndex={0}
       />
     );
   }
@@ -149,8 +94,6 @@ const PureContentParts = ({
             key={`${parentIndex}-text-${index}-${presetKey}`}
             part={part}
             presetKey={`${parentIndex}-${part.type}-${index}-${presetKey}`}
-            messageIndex={parentIndex}
-            contentPartIndex={index}
           />
         );
       case "reasoning":
@@ -159,8 +102,6 @@ const PureContentParts = ({
             key={`${parentIndex}-reasoning-${index}-${presetKey}`}
             part={part}
             presetKey={`${parentIndex}-${part.type}-${index}-${presetKey}`}
-            messageIndex={parentIndex}
-            contentPartIndex={index}
           />
         );
       case "tool-call":
@@ -169,8 +110,6 @@ const PureContentParts = ({
             key={`${part.type}-${index}`}
             part={part}
             presetKey={`${parentIndex}-${part.type}-${index}-${presetKey}`}
-            messageIndex={parentIndex}
-            contentPartIndex={index}
           />
         );
       case "tool-result":
@@ -190,8 +129,6 @@ const PureContentParts = ({
             key={`${unknownPart.type ?? "unknown"}-${index}`}
             part={unknownPart}
             presetKey={`${parentIndex}-${unknownPart.type ?? "unknown"}-${index}-${presetKey}`}
-            messageIndex={parentIndex}
-            contentPartIndex={index}
           />
         );
       }

@@ -3,7 +3,7 @@
 import useSWR from "swr";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { type AlertWithDetails } from "@/lib/actions/alerts/types";
+import { type AlertType, type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { type Signal, type SignalRow } from "@/lib/actions/signals";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
@@ -17,6 +17,8 @@ interface ManageAlertSheetProps {
   workspaceId: string;
   integrationId?: string | null;
   alert?: AlertWithDetails | null;
+  /** Preselected type when creating. */
+  defaultType?: AlertType;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
@@ -30,6 +32,7 @@ export default function ManageAlertSheet({
   workspaceId,
   integrationId,
   alert,
+  defaultType,
   open,
   onOpenChange,
   onSaved,
@@ -72,7 +75,7 @@ export default function ManageAlertSheet({
         </SheetHeader>
         {ready ? (
           <AlertForm
-            key={alert?.id ?? "new"}
+            key={alert?.id ?? `new-${defaultType}`}
             projectId={projectId}
             workspaceId={workspaceId}
             integrationId={integrationId}
@@ -86,6 +89,7 @@ export default function ManageAlertSheet({
             previousFilterIds={(existingFilters?.items ?? []).filter((t) => t.id).map((t) => t.id!)}
             defaultValues={buildDefaultValues({
               alert,
+              defaultType,
               fixedSignalId,
               signals: signalsData?.items ?? [],
               boundSignal,

@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { EvalFilterSchema } from "@/lib/actions/evaluation/query-builder";
-import { getSharedEvaluationStatistics } from "@/lib/actions/shared/evaluation";
+import { getSharedEvaluationStatistics, parseColumnIds } from "@/lib/actions/shared/evaluation";
 import { apiHandler } from "@/lib/api/api-handler";
 import { NotFoundError } from "@/lib/api/errors";
 
@@ -33,15 +33,14 @@ export const GET = apiHandler<{ evaluationId: string }>(async (req, ctx) => {
   const parseResult = parseUrlParams(req.nextUrl.searchParams, SharedEvaluationStatisticsSchema);
   if (!parseResult.success) throw parseResult.error;
 
-  const { filter, search, searchIn, columns: columnsJson } = parseResult.data;
-  const columns = columnsJson ? JSON.parse(columnsJson) : undefined;
+  const { filter, search, searchIn, columns } = parseResult.data;
 
   const result = await getSharedEvaluationStatistics({
     evaluationId,
     filters: filter ?? [],
     search,
     searchIn,
-    columns,
+    columnIds: parseColumnIds(columns),
   });
 
   if (!result) throw new NotFoundError("Evaluation not found or not public");

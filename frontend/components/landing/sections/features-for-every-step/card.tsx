@@ -9,8 +9,8 @@ import { ElevatedSurface } from "@/components/ui/surface";
 import CardHoverGlow from "../card-hover-glow";
 import { type CardDef } from "./cards";
 
-/** Card's resting rung on the elevation ladder (surface-450); hover takes it to 6. */
-const RESTING_ELEVATION = 5;
+/** Card's resting rung on the elevation ladder (surface-450); hover takes it to 10. */
+const RESTING_ELEVATION = 9;
 
 // Two masks intersected, so the mock dissolves on the two edges it overruns
 // instead of ending on a hard cut. Same idea as the app's scroll-fade

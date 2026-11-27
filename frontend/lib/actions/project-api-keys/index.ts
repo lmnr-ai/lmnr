@@ -6,9 +6,9 @@ import { cache, PROJECT_API_KEY_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import { projectApiKeys } from "@/lib/db/migrations/schema";
 
-// Short-lived per-run keys the app-server mints for hosted evals
-// (`RUN_KEY_NAME_PREFIX` in app-server/src/hosted_evals/mod.rs).
-const INTERNAL_EVALS_KEY_PREFIX = "lmnr-internal-evals-";
+// Keys Laminar mints for its own use, hidden from the API keys page: hosted eval run keys
+// (`lmnr-internal-evals-`, `RUN_KEY_NAME_PREFIX` in app-server/src/hosted_evals/mod.rs) and agent sandbox keys.
+export const INTERNAL_KEY_PREFIX = "lmnr-internal-";
 
 const CreateProjectApiKeySchema = z.object({
   projectId: z.guid(),
@@ -113,7 +113,7 @@ export async function getApiKeys(input: z.infer<typeof GetProjectApiKeysSchema>)
     .where(
       and(
         eq(projectApiKeys.projectId, projectId),
-        or(isNull(projectApiKeys.name), notLike(projectApiKeys.name, `${INTERNAL_EVALS_KEY_PREFIX}%`))
+        or(isNull(projectApiKeys.name), notLike(projectApiKeys.name, `${INTERNAL_KEY_PREFIX}%`))
       )
     );
 

@@ -37,10 +37,14 @@ pub(super) fn format_new_cluster_blocks(clusters: &[&NotificationKind]) -> serde
         "manage_alert",
     );
 
-    let header = if clusters.len() > 1 {
-        format!("`{}`: {} New Clusters", signal_name, clusters.len())
-    } else {
-        format!("`{}`: New Cluster", signal_name)
+    let all_reopened = clusters
+        .iter()
+        .all(|n| matches!(n, NotificationKind::NewCluster { reopened: true, .. }));
+    let header = match (all_reopened, clusters.len()) {
+        (true, 1) => format!("`{signal_name}`: New Events in a Resolved Cluster"),
+        (true, n) => format!("`{signal_name}`: New Events in {n} Resolved Clusters"),
+        (false, 1) => format!("`{signal_name}`: New Cluster"),
+        (false, n) => format!("`{signal_name}`: {n} New Clusters"),
     };
     let mut blocks = vec![json!({
         "type": "section",

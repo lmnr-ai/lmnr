@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  type ChangeEvent,
+  type FocusEvent,
   type KeyboardEvent,
   type Ref,
   useCallback,
@@ -13,8 +13,9 @@ import {
 import { useSizeInput } from "@/hooks/use-size-input.tsx";
 import { cn } from "@/lib/utils";
 
-import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import { type FocusableRef, type FocusMode } from "../types";
+import { isCaretAtEnd, isCaretAtStart } from "../utils";
+import { useValueInput } from "./use-value-input";
 
 interface JsonValueInputProps {
   tagId: string;
@@ -24,29 +25,15 @@ interface JsonValueInputProps {
 
 const inputClassName = cn(
   "h-6 px-2 py-0 text-xs bg-transparent text-primary-text outline-none",
-  "placeholder:text-primary-text font-medium"
+  "placeholder:text-primary-text font-medium text-ellipsis"
 );
 
 const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
-  const tags = useAdvancedSearchContext((state) => state.tags);
-
-  const { updateTagValue, submit } = useAdvancedSearchContext((state) => ({
-    updateTagValue: state.updateTagValue,
-    submit: state.submit,
-  }));
-
-  const { mainInputRef } = useAdvancedSearchRefsContext();
-
-  const { navigateWithinTag } = useAdvancedSearchNavigation();
-
-  const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
+  const { tag, setValue, complete, commitOnBlur, navigateLeft, navigateRight } = useValueInput(tagId, mode);
 
   const keyInputRef = useRef<HTMLInputElement>(null);
   const valueInputRef = useRef<HTMLInputElement>(null);
-
-  useImperativeHandle(ref, () => ({
-    focus: () => keyInputRef.current?.focus(),
-  }));
+  useImperativeHandle(ref, () => ({ focus: () => keyInputRef.current?.focus() }));
 
   const [jsonKey, jsonValue] = useMemo(() => {
     if (!tag) return ["", ""];
@@ -74,107 +61,61 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
     [valueAutosizeRef]
   );
 
-  const handleKeyChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      updateTagValue(tagId, `${e.target.value}=${jsonValue}`);
+  // Commit when focus leaves the key/value pair, not when moving between them.
+  const handleBlur = useCallback(
+    (e: FocusEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) commitOnBlur();
     },
-    [tagId, updateTagValue, jsonValue]
+    [commitOnBlur]
   );
-
-  const handleValueChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      updateTagValue(tagId, `${jsonKey}=${e.target.value}`);
-    },
-    [tagId, updateTagValue, jsonKey]
-  );
-
-  const handleComplete = useCallback(() => {
-    submit();
-    mainInputRef.current?.focus();
-  }, [submit, mainInputRef]);
-
-  const handleBlur = useCallback(() => {
-    if (mode === "edit") {
-      queueMicrotask(() => {
-        submit();
-      });
-    }
-  }, [submit, mode]);
 
   const handleKeyKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (mode === "edit") {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          handleComplete();
-          return;
-        }
-
-        const input = e.target as HTMLInputElement;
-
-        if (e.key === "ArrowLeft") {
-          if (input.selectionStart === null || input.selectionStart === 0) {
-            e.preventDefault();
-            e.stopPropagation();
-            navigateWithinTag(tagId, "left");
-          }
-          return;
-        }
-
-        if (e.key === "ArrowRight") {
-          if (input.selectionStart === null || input.selectionStart === input.value.length) {
-            e.preventDefault();
-            valueInputRef.current?.focus();
-            valueInputRef.current?.setSelectionRange(0, 0);
-          }
-          return;
-        }
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (mode !== "edit") return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        complete();
+      } else if (e.key === "ArrowLeft" && isCaretAtStart(e.currentTarget)) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateLeft();
+      } else if (e.key === "ArrowRight" && isCaretAtEnd(e.currentTarget)) {
+        e.preventDefault();
+        valueInputRef.current?.focus();
+        valueInputRef.current?.setSelectionRange(0, 0);
       }
     },
-    [mode, handleComplete, tagId, navigateWithinTag]
+    [mode, complete, navigateLeft]
   );
 
   const handleValueKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (mode === "edit") {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          handleComplete();
-          return;
-        }
-
-        const input = e.target as HTMLInputElement;
-
-        if (e.key === "ArrowLeft") {
-          if (input.selectionStart === null || input.selectionStart === 0) {
-            keyInputRef.current?.focus();
-            keyInputRef.current?.setSelectionRange(jsonKey.length, jsonKey.length);
-          }
-          return;
-        }
-
-        if (e.key === "ArrowRight") {
-          if (input.selectionStart === null || input.selectionStart === input.value.length) {
-            navigateWithinTag(tagId, "right");
-          }
-          return;
-        }
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (mode !== "edit") return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        complete();
+      } else if (e.key === "ArrowLeft" && isCaretAtStart(e.currentTarget)) {
+        keyInputRef.current?.focus();
+        keyInputRef.current?.setSelectionRange(jsonKey.length, jsonKey.length);
+      } else if (e.key === "ArrowRight" && isCaretAtEnd(e.currentTarget)) {
+        navigateRight();
       }
     },
-    [mode, handleComplete, jsonKey.length, tagId, navigateWithinTag]
+    [mode, complete, jsonKey.length, navigateRight]
   );
 
   if (!tag) return null;
 
   return (
-    <div className="flex items-center divide-x divide-primary/20">
+    <div className="flex items-center divide-x divide-primary/20" onBlur={handleBlur}>
       <input
         ref={combinedKeyRef}
         type="text"
         value={jsonKey}
-        onChange={handleKeyChange}
+        onChange={(e) => setValue(`${e.target.value}=${jsonValue}`)}
         onKeyDown={handleKeyKeyDown}
         placeholder="key"
+        title={jsonKey}
         style={{ minWidth: "40px", maxWidth: "128px" }}
         className={inputClassName}
         tabIndex={mode === "edit" ? 0 : -1}
@@ -183,10 +124,10 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
         ref={combinedValueRef}
         type="text"
         value={jsonValue}
-        onChange={handleValueChange}
+        onChange={(e) => setValue(`${jsonKey}=${e.target.value}`)}
         onKeyDown={handleValueKeyDown}
-        onBlur={handleBlur}
         placeholder="value"
+        title={jsonValue}
         style={{ minWidth: "40px", maxWidth: "128px" }}
         className={inputClassName}
         tabIndex={mode === "edit" ? 0 : -1}

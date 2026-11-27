@@ -2,8 +2,8 @@ import { cache } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { acquireBackfillLock } from "@/lib/clickhouse/scripts/backfill-lock";
 // Copies events_to_clusters → signal_event_summaries, stamps
-// traces_agg.signal_events / cluster_ids, then retires the legacy table
-// (LAM-2207 package C).
+// traces_agg.cluster_ids, then retires the legacy table (LAM-2207 package C).
+// Trace-level signal events need no step: the traces views join `signal_events`.
 // Fire-and-forget on frontend boot. Silent once the status record is `completed`.
 //
 // The cluster hierarchy needs no step here: it stays as `parent_id` on
@@ -11,9 +11,9 @@ import { acquireBackfillLock } from "@/lib/clickhouse/scripts/backfill-lock";
 // materialized anywhere.
 //
 // Cloud: do NOT rely on this. After the new app-server is live, a human runs
-// the same three INSERT bodies as fillSummaries / fillTraceEvents /
-// fillTraceClusters below, without the project_id predicate (or per large
-// project if the session times out), then drops the legacy table by hand.
+// the same two INSERT bodies as fillSummaries / fillTraceClusters below,
+// without the project_id predicate (or per large project if the session times
+// out), then drops the legacy table by hand.
 // Source tables are < 2 GB.
 
 const LOG = "[signal-clusters-backfill]";
@@ -22,9 +22,8 @@ const STATUS_KEY = "signal_clusters_backfill_status";
 
 // Every step has to be replay-safe on its own, because the status record that
 // skips finished ones is best-effort: `summaries` writes ReplacingMergeTree rows
-// under stable keys, and `trace_events` / `trace_clusters` carry the
-// `stampedTraces` anti-join.
-const STEPS = ["summaries", "trace_events", "trace_clusters", "retire"] as const;
+// under stable keys, and `trace_clusters` carries the `stampedTraces` anti-join.
+const STEPS = ["summaries", "trace_clusters", "retire"] as const;
 type Step = (typeof STEPS)[number];
 
 const LEGACY_TABLE = "events_to_clusters";
@@ -109,49 +108,24 @@ const fillSummaries = async (projectId: string): Promise<{ inserted: number; sou
   return { inserted, source: Number(sourceRows[0]?.c ?? 0) };
 };
 
-// Traces this project has already been stamped on. `traces_agg` folds both
-// array columns with `groupArrayArray` — CONCATENATION, not replacement — and
-// self-hosted MergeTree has no insert dedup, so a second pass over a trace
-// appends another full copy of its events rather than rewriting them.
+// Traces this project has already been stamped on. `cluster_ids` folds as a
+// set, so a replay cannot corrupt a trace, but self-hosted MergeTree has no
+// insert dedup and every replay would write another partial for every trace.
 //
 // A second pass is the NORMAL case, not an edge: the step status below lives in
 // `cache`, which is per-process memory when REDIS_URL is unset, so every boot
-// walks all four steps again, and a crash mid-step restarts that step's project
-// loop from the top. So the two non-idempotent steps carry their own anti-join
-// and the status stays an optimization — the same split as `antiJoin` vs the
-// status record in backfill-traces-agg.ts. Keep the anti-join when running these
-// bodies by hand on Cloud, where a timeout mid-statement is the same replay.
+// walks every step again, and a crash mid-step restarts that step's project
+// loop from the top. So the stamping step carries its own anti-join and the
+// status stays an optimization — the same split as `antiJoin` vs the status
+// record in backfill-traces-agg.ts. Keep the anti-join when running the body by
+// hand on Cloud, where a timeout mid-statement is the same replay.
 //
-// `notEmpty` reads only the array's size stream, never the payloads (measured
-// over 500k traces at 1 KB payloads: 11.4 MiB against 265 MiB for a read that
-// touches `payload`), so it is cheap enough to pay on every boot.
-const stampedTraces = (column: "signal_events" | "cluster_ids"): string => `
+// `notEmpty` reads only the array's size stream, so it is cheap enough to pay
+// on every boot.
+const stampedTraces = `
         SELECT id FROM traces_agg
-        WHERE project_id = {projectId:UUID} AND notEmpty(${column})
+        WHERE project_id = {projectId:UUID} AND notEmpty(cluster_ids)
       `;
-
-const fillTraceEvents = async (projectId: string): Promise<number> =>
-  exec(
-    `
-    INSERT INTO traces_agg (project_id, id, start_time, signal_events)
-    SELECT
-      e.project_id,
-      e.trace_id,
-      t.start_time,
-      groupArray((e.id, e.signal_id, e.severity, e.payload))
-    FROM signal_events AS e FINAL
-    INNER JOIN (
-      SELECT project_id, id, min(start_time) AS start_time
-      FROM traces_agg
-      WHERE project_id = {projectId:UUID}
-      GROUP BY project_id, id
-    ) AS t ON t.project_id = e.project_id AND t.id = e.trace_id
-    WHERE e.project_id = {projectId:UUID}
-      AND e.trace_id NOT IN (${stampedTraces("signal_events")})
-    GROUP BY e.project_id, e.trace_id, t.start_time
-  `,
-    { projectId }
-  );
 
 const fillTraceClusters = async (projectId: string): Promise<number> =>
   exec(
@@ -166,7 +140,7 @@ const fillTraceClusters = async (projectId: string): Promise<number> =>
     INNER JOIN signal_event_clusters AS c FINAL
       ON c.project_id = s.project_id AND c.id = s.cluster_id AND c.level = 1
     WHERE s.project_id = {projectId:UUID}
-      AND s.trace_id NOT IN (${stampedTraces("cluster_ids")})
+      AND s.trace_id NOT IN (${stampedTraces})
     GROUP BY s.project_id, s.trace_id
   `,
     { projectId }
@@ -230,17 +204,6 @@ const runBackfill = async (alreadyDone: Step[], lostLease: () => boolean): Promi
     if (stop) return stop;
   }
 
-  if (!done.has("trace_events")) {
-    let n = 0;
-    for (const projectId of projects) {
-      if (lostLease()) return { state: "surrendered" };
-      n += await fillTraceEvents(projectId);
-    }
-    console.log(`${LOG} stamped signal_events onto ${n} traces_agg partials`);
-    const stop = await persist("trace_events");
-    if (stop) return stop;
-  }
-
   if (!done.has("trace_clusters")) {
     let n = 0;
     for (const projectId of projects) {
@@ -274,7 +237,7 @@ export const startSignalClustersBackfill = async (tracesAggComplete: boolean): P
   const status = await readStatus();
   if (status?.state === "completed") return;
 
-  // fillSummaries / fillTraceEvents resolve each trace's start_time from
+  // fillSummaries resolves each trace's start_time from
   // traces_agg with an INNER JOIN, so a trace not migrated there yet loses its
   // memberships silently. Defer rather than record a `completed` that never retries.
   if (!tracesAggComplete) {

@@ -1,6 +1,14 @@
 import { z } from "zod/v4";
 
-import { ARRAY_OPERATORS, BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, STRING_OPERATORS } from "./operators";
+import {
+  ARRAY_OPERATORS,
+  BOOLEAN_OPERATORS,
+  EMPTINESS_VALUES,
+  JSON_OPERATORS,
+  NUMBER_OPERATORS,
+  Operator,
+  STRING_OPERATORS,
+} from "./operators";
 
 export type FilterDataType = "string" | "number" | "boolean" | "json" | "array";
 
@@ -48,12 +56,20 @@ const ArrayFilterSchemaRelaxed = z.object({
   operator: z.enum(ARRAY_OPERATORS),
 });
 
+const IsFilterSchema = z.object({
+  dataType: FilterDataTypeSchema.optional(),
+  column: z.string(),
+  operator: z.literal(Operator.Is),
+  value: z.enum(EMPTINESS_VALUES),
+});
+
 export const FilterSchema = z.union([
   StringFilterSchema,
   NumberFilterSchema,
   BooleanFilterSchema,
   JsonFilterSchema,
   ArrayFilterSchema,
+  IsFilterSchema,
 ]);
 
 export const FilterSchemaRelaxed = z.union([
@@ -62,6 +78,7 @@ export const FilterSchemaRelaxed = z.union([
   BaseFilterSchemaRelaxed.extend({ operator: z.enum(BOOLEAN_OPERATORS) }),
   BaseFilterSchemaRelaxed.extend({ operator: z.enum(JSON_OPERATORS) }),
   ArrayFilterSchemaRelaxed,
+  IsFilterSchema,
 ]);
 
 export type Filter = z.infer<typeof FilterSchema>;

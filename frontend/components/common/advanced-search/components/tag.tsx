@@ -6,10 +6,8 @@ import {
   type KeyboardEvent,
   memo,
   type MouseEvent,
-  type Ref,
   useCallback,
   useEffect,
-  useImperativeHandle,
   useMemo,
   useRef,
 } from "react";
@@ -20,12 +18,16 @@ import { AUTOCOMPLETE_FIELDS } from "@/lib/actions/autocomplete/fields";
 import { cn } from "@/lib/utils";
 
 import ValueInput from "../inputs";
-import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import {
+  useAdvancedSearchContext,
+  useAdvancedSearchNavigation,
+  useAdvancedSearchRefsContext,
+  useTagFocus,
+} from "../store";
 import {
   type AdvancedSearchResource,
   type ColumnFilter,
   type FilterTag as FilterTagType,
-  type FilterTagRef,
   type FocusableRef,
   getColumnFilter,
   type TagFocusPosition,
@@ -37,31 +39,29 @@ interface FilterTagProps {
   tag: FilterTagType;
   resource?: AdvancedSearchResource;
   isSelected?: boolean;
-  ref?: Ref<FilterTagRef>;
 }
 
-const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: FilterTagProps) => {
+const FilterTag = ({ tag, resource = "traces", isSelected = false }: FilterTagProps) => {
   const filters = useAdvancedSearchContext((state) => state.filters);
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
 
-  const { removeTag, setTagFocusState, getTagFocusState, selectAllTags } = useAdvancedSearchContext((state) => ({
+  const { removeTag, setFocus, clearFocus, selectAllTags } = useAdvancedSearchContext((state) => ({
     removeTag: state.removeTag,
-    setTagFocusState: state.setTagFocusState,
-    getTagFocusState: state.getTagFocusState,
+    setFocus: state.setFocus,
+    clearFocus: state.clearFocus,
     selectAllTags: state.selectAllTags,
   }));
+  const focus = useTagFocus(tag.id);
 
   const { mainInputRef } = useAdvancedSearchRefsContext();
 
-  const { navigateWithinTag } = useAdvancedSearchNavigation();
+  const { navigateWithinTag, registerTagHandle } = useAdvancedSearchNavigation();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldSelectRef = useRef<FocusableRef>(null);
   const operatorSelectRef = useRef<FocusableRef>(null);
   const valueInputRef = useRef<FocusableRef>(null);
   const removeRef = useRef<HTMLButtonElement>(null);
-
-  const focusState = getTagFocusState(tag.id);
 
   // A filter coming from a shared URL may reference a column the current user
   // hasn't configured (e.g. someone else's `custom:*` column). Synthesize a
@@ -83,18 +83,21 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
 
   const focusMainInput = useCallback(() => {
     mainInputRef.current?.focus();
-    setTagFocusState(tag.id, { type: "idle" });
-  }, [mainInputRef, tag.id, setTagFocusState]);
+    clearFocus(tag.id);
+  }, [mainInputRef, tag.id, clearFocus]);
 
-  useImperativeHandle(ref, () => ({
-    focusPosition: (position: TagFocusPosition) => {
+  const focusPosition = useCallback(
+    (position: TagFocusPosition) => {
       containerRef.current?.focus();
-      setTagFocusState(tag.id, {
-        type: position,
-        mode: "nav",
-      });
+      setFocus({ tagId: tag.id, position, mode: "nav" });
     },
-  }));
+    [tag.id, setFocus]
+  );
+
+  useEffect(() => {
+    registerTagHandle(tag.id, { focusPosition });
+    return () => registerTagHandle(tag.id, null);
+  }, [tag.id, focusPosition, registerTagHandle]);
 
   const filteredValueSuggestions = useMemo(() => {
     if ((dataType !== "string" && dataType !== "array") || !AUTOCOMPLETE_FIELDS[resource]?.includes(tag.field))
@@ -116,24 +119,16 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
   }, [dataType, resource, tag.field, tag.value, autocompleteData]);
 
   useEffect(() => {
-    if (focusState.type !== "idle" && "mode" in focusState && focusState.mode === "edit") {
-      const refMap = {
-        field: fieldSelectRef,
-        operator: operatorSelectRef,
-        value: valueInputRef,
-        remove: removeRef,
-      };
-      refMap[focusState.type]?.current?.focus();
-    }
-  }, [focusState]);
+    if (focus?.mode !== "edit") return;
+    const partRefs = { field: fieldSelectRef, operator: operatorSelectRef, value: valueInputRef, remove: removeRef };
+    partRefs[focus.position].current?.focus();
+  }, [focus]);
 
   const handleBlur = useCallback(
     (e: FocusEvent) => {
-      if (!containerRef.current?.contains(e.relatedTarget as Node)) {
-        setTagFocusState(tag.id, { type: "idle" });
-      }
+      if (!containerRef.current?.contains(e.relatedTarget as Node)) clearFocus(tag.id);
     },
-    [tag.id, setTagFocusState]
+    [tag.id, clearFocus]
   );
 
   const handleRemove = useCallback(
@@ -146,42 +141,18 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     [removeTag, tag.id, focusMainInput]
   );
 
-  const handleEnterKey = useCallback(
-    (e: KeyboardEvent) => {
-      if (focusState.type === "idle") return;
-
-      setTagFocusState(tag.id, { type: focusState.type, mode: "edit" });
-
-      // Focus the appropriate ref
-      const refMap = {
-        field: fieldSelectRef,
-        operator: operatorSelectRef,
-        value: valueInputRef,
-        remove: removeRef,
-      };
-
-      if (focusState.type === "remove") {
-        handleRemove(e);
-      } else {
-        refMap[focusState.type]?.current?.focus();
-      }
-    },
-    [focusState.type, tag.id, setTagFocusState, handleRemove]
-  );
-
   const handleEscapeKey = useCallback(() => {
-    if ("mode" in focusState && focusState.mode === "edit") {
-      setTagFocusState(tag.id, { ...focusState, mode: "nav", isOpen: false } as any);
+    if (focus?.mode === "edit") {
+      setFocus({ ...focus, mode: "nav" });
       containerRef.current?.focus();
     } else {
-      setTagFocusState(tag.id, { type: "idle" });
       focusMainInput();
     }
-  }, [focusState, tag.id, setTagFocusState, focusMainInput]);
+  }, [focus, setFocus, focusMainInput]);
 
   const handleContainerKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
-      if (focusState.type === "idle") return;
+      if (!focus) return;
 
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         e.preventDefault();
@@ -190,17 +161,11 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         return;
       }
 
-      if (e.key === "Enter") {
-        if (focusState.type === "remove") {
-          e.preventDefault();
-          handleRemove(e);
-          return;
-        }
-        if ("mode" in focusState && focusState.mode === "nav") {
-          e.preventDefault();
-          handleEnterKey(e);
-          return;
-        }
+      if (e.key === "Enter" && (focus.position === "remove" || focus.mode === "nav")) {
+        e.preventDefault();
+        if (focus.position === "remove") handleRemove(e);
+        else setFocus({ ...focus, mode: "edit" });
+        return;
       }
 
       if (e.key === "Escape") {
@@ -209,7 +174,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         return;
       }
 
-      if ("mode" in focusState && focusState.mode === "nav") {
+      if (focus.mode === "nav") {
         if (e.key === "ArrowRight") {
           e.preventDefault();
           navigateWithinTag(tag.id, "right");
@@ -223,27 +188,18 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         }
       }
     },
-    [
-      focusMainInput,
-      focusState,
-      handleEnterKey,
-      handleEscapeKey,
-      handleRemove,
-      navigateWithinTag,
-      selectAllTags,
-      tag.id,
-    ]
+    [focus, focusMainInput, handleEscapeKey, handleRemove, navigateWithinTag, selectAllTags, setFocus, tag.id]
   );
 
   const removeButtonClassName = cn(
     "h-5.5 w-6 p-0 rounded-l-none rounded-r-[0.29rem] transition-colors outline-none border-0",
-    focusState.type === "remove" && "bg-primary/35"
+    focus?.position === "remove" && "bg-primary/35"
   );
 
   return (
     <div
       ref={containerRef}
-      tabIndex={focusState.type !== "idle" && focusState.mode === "nav" ? 0 : -1}
+      tabIndex={focus?.mode === "nav" ? 0 : -1}
       className={cn(
         "inline-flex items-center rounded-md border bg-background h-6",
         "divide-x transition-all outline-none",
@@ -261,9 +217,9 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
         tagId={tag.id}
         columnFilter={columnFilter}
         suggestions={filteredValueSuggestions}
-        focused={focusState.type === "value" && "mode" in focusState && focusState.mode === "edit"}
+        focused={focus?.position === "value" && focus.mode === "edit"}
         ref={valueInputRef}
-        mode={focusState.type === "idle" ? "nav" : focusState.mode}
+        mode={focus?.mode ?? "nav"}
       />
 
       <Button

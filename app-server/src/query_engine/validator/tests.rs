@@ -58,6 +58,9 @@ fn test_default_tables_registered() {
     assert!(reg.is_table_allowed("alerts"));
     assert!(reg.is_table_allowed("alert_targets"));
     assert!(reg.is_table_allowed("alert_filters"));
+    assert!(reg.is_table_allowed("table_views"));
+    assert!(reg.is_table_allowed("agents"));
+    assert!(reg.is_table_allowed("agent_versions"));
     // The PostgreSQL engine mirrors the whole schema — never allowlist it.
     assert!(!reg.is_table_allowed("pg"));
     assert!(!reg.is_table_allowed("users"));
@@ -262,6 +265,7 @@ fn rewrite_under_both_eval_names(query: &str) -> (String, String) {
 fn test_evaluation_trials_alias_rewrites_like_evaluation_datapoints() {
     for query in [
         "SELECT id, task_id FROM {t}",
+        "SELECT {t}.task_version_hash FROM {t}",
         "SELECT {t}.task_id, count() FROM {t} \
          WHERE evaluation_id = {evalId: UUID} AND start_time > '2024-01-01' GROUP BY {t}.task_id",
         "SELECT e.id FROM {t} AS e WHERE e.evaluation_id IN ('0195b6e0-0000-7000-8000-000000000001')",
@@ -1424,6 +1428,31 @@ fn test_array_join_column_not_rewritten() {
         "got: {result}"
     );
     assert!(!result.contains("clusters_v0"), "got: {result}");
+}
+
+#[test]
+fn test_agent_versions_column_and_table_in_one_query() {
+    // `traces.agent_versions` (the ARRAY JOIN column) shares its name with the
+    // `agent_versions` table; only the joined table is rewritten.
+    let query = r#"
+        SELECT av.shown_version_hash, uniqExact(t.id)
+        FROM traces t
+        ARRAY JOIN agent_versions AS v
+        JOIN agent_versions av ON av.version_hash = tupleElement(v, 'version_hash')
+        GROUP BY av.shown_version_hash
+    "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(
+            &result,
+            &format!("JOIN agent_versions_v0(project_id = '{SAMPLE_PROJECT_ID}') AS av")
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "ARRAY JOIN agent_versions AS v"),
+        "got: {result}"
+    );
 }
 
 #[test]

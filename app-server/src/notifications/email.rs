@@ -9,11 +9,12 @@ use std::{collections::HashMap, ops::Range};
 
 use uuid::Uuid;
 
-use super::NotificationKind;
+use super::email_markdown::markdown_to_email_html;
 use super::utils::{
     build_report_data_from_batch, frontend_url_email, inject_utm_into_links,
     md_links_to_html_escaped, with_utm,
 };
+use super::{NotificationKind, new_cluster_wording};
 use crate::reports::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
@@ -262,11 +263,7 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 .iter()
                 .filter(|n| matches!(n, NotificationKind::NewCluster { .. }))
                 .collect();
-            let wording = if clusters.len() > 1 {
-                format!("{} new clusters detected", clusters.len())
-            } else {
-                "New cluster detected".to_string()
-            };
+            let wording = new_cluster_wording(&clusters);
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
                 subject: signal_notification_subject(project_name, signal_name, &wording),
@@ -312,29 +309,18 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             usage_label,
             formatted_limit,
             usage_item,
-            one_time_credit_exhausted,
-            trialing,
         } => EmailContent {
             from: USAGE_WARNING_FROM_EMAIL.to_string(),
-            subject: if *trialing {
-                format!(
-                    "You've used your Starter trial allowance \u{2013} {}",
-                    workspace_name
-                )
-            } else {
-                format!(
-                    "Usage limit reached: {} \u{2013} {}",
-                    usage_label, workspace_name
-                )
-            },
+            subject: format!(
+                "Usage limit reached: {} \u{2013} {}",
+                usage_label, workspace_name
+            ),
             body: EmailBody::Html(render_usage_hard_limit_email(
                 workspace_name,
                 *workspace_id,
                 usage_item,
                 formatted_limit,
                 usage_label,
-                *one_time_credit_exhausted,
-                *trialing,
             )),
         },
         NotificationKind::SignalEmptyTrace {
@@ -538,6 +524,7 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
         last_seen,
         severity_counts,
         activity_buckets,
+        report,
         ..
     } = kind
     else {
@@ -552,6 +539,25 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
         "new_cluster_alert",
         "view_cluster",
     );
+    let accent = CLUSTER_PALETTE[cluster_color_index(&cluster_id.to_string())];
+    let events = format!(
+        r#"<div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;font-weight:500;color:{text}">Events</p><div style="font-size:28px;font-weight:500;color:{text};line-height:1">{num_signal_events}</div><div style="margin:12px 0 20px">{chart}</div></div>"#,
+        text = TEXT,
+        chart = cluster_activity_chart(
+            activity_buckets,
+            first_seen.as_deref(),
+            last_seen.as_deref(),
+            accent
+        ),
+    );
+    if let Some(report) = report {
+        return format!(
+            r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}{}{events}<div>{}</div></div>"#,
+            breadcrumb(&[project_name, signal_name], &cluster_link),
+            cluster_title(cluster_name, accent),
+            markdown_to_email_html(report),
+        );
+    }
     let rows = vec![
         (
             "Critical".to_string(),
@@ -575,23 +581,12 @@ fn render_new_cluster_section(kind: &NotificationKind, base: &str) -> String {
                 .unwrap_or_else(|| "Not available".to_string()),
         ),
     ];
-    let accent = CLUSTER_PALETTE[cluster_color_index(&cluster_id.to_string())];
     let severity_rows = data_rows(&rows[..3]);
     let event_time_rows = data_rows(&rows[3..]);
     format!(
-        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}{}<div style="margin-top:24px"><p style="margin:0 0 4px;font-size:14px;font-weight:500;color:{text}">Events</p><div style="font-size:28px;font-weight:500;color:{text};line-height:1">{num_signal_events}</div><div style="margin:12px 0 20px">{chart}</div></div>{severity_rows}<div style="height:8px;line-height:8px;font-size:0">&nbsp;</div>{event_time_rows}</div>"#,
+        r#"<div style="background:#fff;border-radius:8px;padding:20px;margin-bottom:12px">{}{}{events}{severity_rows}<div style="height:8px;line-height:8px;font-size:0">&nbsp;</div>{event_time_rows}</div>"#,
         breadcrumb(&[project_name, signal_name], &cluster_link),
         cluster_title(cluster_name, accent),
-        text = TEXT,
-        num_signal_events = num_signal_events,
-        chart = cluster_activity_chart(
-            activity_buckets,
-            first_seen.as_deref(),
-            last_seen.as_deref(),
-            accent
-        ),
-        severity_rows = severity_rows,
-        event_time_rows = event_time_rows
     )
 }
 
@@ -617,11 +612,7 @@ fn render_new_cluster_email(clusters: &[&NotificationKind]) -> String {
         "new_cluster_alert",
         "manage_preferences",
     );
-    let title = if clusters.len() == 1 {
-        "New cluster detected".to_string()
-    } else {
-        format!("{} new clusters detected", clusters.len())
-    };
+    let title = new_cluster_wording(clusters);
     let body = format!(
         "{}{}{}",
         banner(project_name, &title, None),
@@ -705,67 +696,28 @@ fn render_usage_hard_limit_email(
     usage_item: &str,
     formatted_limit: &str,
     usage_label: &str,
-    one_time_credit_exhausted: bool,
-    trialing: bool,
 ) -> String {
     let (blocked, meter) = match usage_item {
         "bytes" => ("Data ingestion", "data ingested"),
-        "signal_cost" | "signal_credit" => ("Signal runs", "signals cost"),
+        "signal_cost" => ("Signal runs", "signals cost"),
         _ => ("Usage", "usage"),
-    };
-    // Trials stay capped even with a card on file, so the trial CTA points at
-    // billing, where the owner adds a card and starts the subscription.
-    let (tab, campaign, cta, footer_cta, title, limit_label) = if trialing {
-        (
-            "billing",
-            "start_subscription",
-            "Start subscription",
-            "Manage billing",
-            "Trial allowance used up",
-            "Trial allowance",
-        )
-    } else {
-        (
-            "usage",
-            "manage_limits",
-            "Manage limit",
-            "Manage usage limits",
-            "Usage limit reached",
-            "Hard limit",
-        )
     };
     let link = with_utm(
         &format!(
-            "{}/workspace/{}?tab={}",
+            "{}/workspace/{}?tab=usage",
             frontend_url_email(),
-            workspace_id,
-            tab
+            workspace_id
         ),
         "email",
         "usage_hard_limit",
-        campaign,
+        "manage_limits",
     );
-    let copy = if trialing {
-        let allowance = if usage_item == "bytes" {
-            "data"
-        } else {
-            "Signals credit"
-        };
-        format!(
-            "Your workspace has used all {} included in the Starter trial. Add a payment method and start your Starter subscription to continue.",
-            allowance
-        )
-    } else if one_time_credit_exhausted {
-        "Your workspace has used its one-time Signals credit. Upgrade to continue running Signals."
-            .to_string()
-    } else {
-        format!(
-            "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
-            meter
-        )
-    };
+    let copy = format!(
+        "Your workspace reached its hard limit. New {} will stop until the billing cycle resets or the limit is changed.",
+        meter
+    );
     let rows = vec![
-        (limit_label.to_string(), html_escape(formatted_limit)),
+        ("Hard limit".to_string(), html_escape(formatted_limit)),
         ("Usage".to_string(), html_escape(usage_label)),
         ("Status".to_string(), "Paused".to_string()),
     ];
@@ -774,17 +726,17 @@ fn render_usage_hard_limit_email(
         TEXT,
         html_escape(&copy),
         data_rows(&rows),
-        action(&link, cta)
+        action(&link, "Manage limit")
     );
-    let subtitle = (!trialing).then(|| format!("{} has paused", blocked));
+    let subtitle = format!("{} has paused", blocked);
     let body = format!(
         "{}{}{}",
-        banner(workspace_name, title, subtitle.as_deref()),
+        banner(workspace_name, "Usage limit reached", Some(&subtitle)),
         card,
         footer(
             "This notification was generated automatically by Laminar.",
             &link,
-            footer_cta
+            "Manage usage limits"
         )
     );
     email_document(
@@ -1029,7 +981,7 @@ fn cluster_tint_rgba(color: &str) -> String {
     )
 }
 
-fn html_escape(s: &str) -> String {
+pub(super) fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -1040,6 +992,7 @@ fn html_escape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::projects::WorkspaceTierName;
     use crate::reports::{
         ProjectReportData, ReportChartBucket, ReportClusterData, ReportData, SignalReportData,
     };
@@ -1184,6 +1137,8 @@ mod tests {
             severity_counts: [0, 0, 1],
             activity_buckets: vec![1],
             example_events: vec![],
+            reopened: false,
+            report: None,
         };
 
         assert_eq!(
@@ -1262,12 +1217,33 @@ mod tests {
             severity_counts: [0, 0, 1],
             activity_buckets: vec![1],
             example_events: vec![],
+            reopened: false,
+            report: None,
         };
         let cluster_html = render_new_cluster_email(&[&cluster]);
 
         assert!(!event_html.contains(EMAIL_PRIMARY_50));
         assert!(!event_html.contains("View trace"));
         assert!(!cluster_html.contains(EMAIL_PRIMARY_50));
+    }
+
+    #[test]
+    fn usage_warning_names_tiers_by_display_name() {
+        let render = |tier: WorkspaceTierName| {
+            render_usage_warning_email(
+                "Workspace",
+                Uuid::nil(),
+                "bytes",
+                "3 GiB",
+                "3 GiB",
+                true,
+                tier.display_name(),
+                true,
+            )
+        };
+
+        assert!(render(WorkspaceTierName::Hobby).contains("included in the Pro plan"));
+        assert!(render(WorkspaceTierName::Pro).contains("included in the Scale plan"));
     }
 
     #[test]
@@ -1282,15 +1258,8 @@ mod tests {
             "Free",
             false,
         );
-        let hard_limit_html = render_usage_hard_limit_email(
-            "Workspace",
-            Uuid::nil(),
-            "bytes",
-            "3 GiB",
-            "3 GiB",
-            false,
-            false,
-        );
+        let hard_limit_html =
+            render_usage_hard_limit_email("Workspace", Uuid::nil(), "bytes", "3 GiB", "3 GiB");
 
         assert!(warning_html.contains(EMAIL_PRIMARY_50));
         assert!(warning_html.contains("View usage"));
@@ -1299,41 +1268,20 @@ mod tests {
     }
 
     #[test]
-    fn trial_hard_limit_asks_to_start_subscription() {
-        let html = render_usage_hard_limit_email(
+    fn signals_allowance_warning_names_the_scale_plan() {
+        let html = render_usage_warning_email(
             "Workspace",
             Uuid::nil(),
-            "bytes",
-            "10 GiB",
-            "10 GiB",
-            false,
+            "signal_cost",
+            "$50.00",
+            "Signals cost",
+            true,
+            "Scale",
             true,
         );
 
-        assert!(html.contains("Trial allowance used up"));
-        assert!(!html.contains("has paused"));
-        assert!(html.contains("included in the Starter trial"));
-        assert!(html.contains("Start subscription"));
-        assert!(html.contains("tab=billing"));
-        assert!(!html.contains("billing cycle resets"));
-    }
-
-    #[test]
-    fn signals_credit_exhaustion_does_not_promise_a_monthly_reset() {
-        let html = render_usage_hard_limit_email(
-            "Workspace",
-            Uuid::nil(),
-            "signal_credit",
-            "$5.00",
-            "$5.00",
-            true,
-            false,
-        );
-
-        assert!(html.contains("Signal runs has paused"));
-        assert!(html.contains("used its one-time Signals credit"));
-        assert!(html.contains("Upgrade to continue"));
-        assert!(!html.contains("billing cycle resets"));
+        assert!(html.contains("used all Signals usage included in the Scale plan"));
+        assert!(html.contains("billed at the overage rate"));
     }
 
     #[test]
@@ -1404,6 +1352,8 @@ mod tests {
             severity_counts: [4, 11, 19],
             activity_buckets: vec![1, 0, 3, 0, 0, 5, 0, 2, 0, 0, 4, 19],
             example_events: vec![],
+            reopened: false,
+            report: None,
         }]);
 
         assert!(html.contains("New cluster detected"));
@@ -1423,6 +1373,8 @@ mod tests {
                     severity_counts: [1, 0, 0],
                     activity_buckets: vec![1],
                     example_events: vec![],
+                    reopened: false,
+                    report: None,
                 },
                 &NotificationKind::NewCluster {
                     project_id: Uuid::nil(),
@@ -1438,6 +1390,8 @@ mod tests {
                     severity_counts: [1, 0, 0],
                     activity_buckets: vec![1],
                     example_events: vec![],
+                    reopened: false,
+                    report: None,
                 },
             ])
             .contains("2 new clusters detected")
@@ -1459,6 +1413,90 @@ mod tests {
                 .count(),
             12
         );
+    }
+
+    #[test]
+    fn new_cluster_with_report_keeps_the_event_chart_and_replaces_the_stats() {
+        let cluster_id = Uuid::from_u128(42);
+        let html = render_new_cluster_email(&[&NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            project_name: "Project".into(),
+            signal_id: Uuid::from_u128(1),
+            signal_name: "Signal".into(),
+            cluster_id,
+            cluster_name: "Tool call loops".into(),
+            num_signal_events: 34,
+            alert_name: "Alert".into(),
+            first_seen: Some("Mar 1".into()),
+            last_seen: Some("Mar 4".into()),
+            severity_counts: [4, 11, 19],
+            activity_buckets: vec![1, 0, 3],
+            example_events: vec![],
+            reopened: false,
+            report: Some("## Overview\nThe agent **loops** on `search`.\n\n<img src=x>".into()),
+        }]);
+
+        assert!(html.contains("New cluster detected"));
+        assert!(html.contains("Tool call loops"));
+        assert!(html.contains(&format!("clusterId={cluster_id}")));
+        assert!(html.contains(">Overview</h2>"));
+        assert!(html.contains(r#"<strong style="font-weight:600">loops</strong>"#));
+        assert!(html.contains("&lt;img src=x&gt;"));
+        assert!(html.contains(">34</div>"));
+        assert!(html.contains(r#"<td valign="bottom""#));
+        assert!(!html.contains("First event"));
+        assert!(!html.contains("Critical"));
+    }
+
+    #[test]
+    fn reopened_cluster_email_says_new_events_in_a_resolved_cluster() {
+        let reopened = NotificationKind::NewCluster {
+            project_id: Uuid::nil(),
+            project_name: "Project".into(),
+            signal_id: Uuid::from_u128(1),
+            signal_name: "Signal".into(),
+            cluster_id: Uuid::from_u128(42),
+            cluster_name: "Tool call loops".into(),
+            num_signal_events: 34,
+            alert_name: "Alert".into(),
+            first_seen: None,
+            last_seen: None,
+            severity_counts: [0; 3],
+            activity_buckets: vec![],
+            example_events: vec![],
+            reopened: true,
+            report: None,
+        };
+        let email = format_email_batch(&[reopened], &Uuid::nil());
+        assert_eq!(
+            email.subject,
+            "Project / Signal - New events detected in a resolved cluster"
+        );
+        let EmailBody::Html(html) = email.body else {
+            panic!("expected HTML");
+        };
+        assert!(html.contains("New events detected in a resolved cluster"));
+        assert!(!html.contains("New cluster detected"));
+    }
+
+    #[test]
+    fn queued_new_cluster_without_report_field_still_deserializes() {
+        let json = serde_json::json!({
+            "NewCluster": {
+                "project_id": Uuid::nil(),
+                "signal_id": Uuid::nil(),
+                "signal_name": "Signal",
+                "cluster_id": Uuid::nil(),
+                "cluster_name": "Cluster",
+                "num_signal_events": 1,
+                "alert_name": "Alert",
+            }
+        });
+        let kind: NotificationKind = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            kind,
+            NotificationKind::NewCluster { report: None, .. }
+        ));
     }
 
     #[test]

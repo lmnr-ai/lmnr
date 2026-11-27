@@ -6,6 +6,7 @@ import { stripBlankSpanNames } from "@/components/signals/trigger-filter-field";
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
 import { type useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
+import { readSignalSettings } from "@/lib/signals/settings";
 
 import { type ManageSignalForm, type TriggerFormItem } from "./types";
 
@@ -58,6 +59,7 @@ export default function useSubmitHandler({
           structuredOutput,
           sampleRate: data.sampleRate ?? null,
           disabled: data.disabled ?? false,
+          ...readSignalSettings(data),
           ...(hasProfile ? { llmProfileId: data.llmProfileId, llmModel: data.llmModel } : {}),
           triggers: data.triggers.map((trigger) => ({
             id: trigger.id,

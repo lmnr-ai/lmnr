@@ -4,6 +4,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { memo } from "react";
 
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
+import EvalDatasetLink from "@/components/evaluation/evaluation-header/eval-dataset-link";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
 import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,12 @@ interface EvaluationHeader {
   name?: string;
   urlKey: string;
   datasets: LinkedDataset[];
+  evalDataset: string | null;
 }
 
 const DOWNLOAD_FORMATS = ["csv", "json"] as const;
 
-const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHeader) => {
+const EvaluationHeader = ({ evaluations, name, urlKey, datasets, evalDataset }: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
@@ -123,6 +125,9 @@ const EvaluationHeader = ({ evaluations, name, urlKey, datasets }: EvaluationHea
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {evalDataset && typeof projectId === "string" && (
+          <EvalDatasetLink projectId={projectId} dataset={evalDataset} />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button aria-label="More options" variant="secondary" className="h-7 w-7 p-0">

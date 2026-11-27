@@ -88,11 +88,10 @@ interface SpanItemProps {
   output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
   isSelected: boolean;
-  inGroup?: boolean;
   className?: string;
 }
 
-function SpanItemInner({ span, output, onSpanSelect, isSelected, inGroup = false, className }: SpanItemProps) {
+function SpanItemInner({ span, output, onSpanSelect, isSelected, className }: SpanItemProps) {
   // Replayed spans are tagged CACHED by the SDK (shared spec §9).
   const isCached = span.spanType === "CACHED";
 
@@ -106,8 +105,7 @@ function SpanItemInner({ span, output, onSpanSelect, isSelected, inGroup = false
   return (
     <div
       className={cn(
-        "flex group/message cursor-pointer transition-all border-l-2",
-        inGroup ? "bg-emphasis-1 hover:bg-emphasis-2" : "hover:bg-emphasis-1",
+        "flex group/message cursor-pointer transition-all border-l-2 hover:bg-emphasis-1",
         isSelected ? "bg-primary/15 border-l-primary hover:bg-primary/20" : "border-l-transparent",
         { "opacity-60": isCached },
         className
@@ -179,7 +177,6 @@ function areSpanItemPropsEqual(prev: SpanItemProps, next: SpanItemProps) {
     prev.span === next.span &&
     prev.output === next.output &&
     prev.isSelected === next.isSelected &&
-    prev.inGroup === next.inGroup &&
     prev.className === next.className &&
     prev.onSpanSelect === next.onSpanSelect
   );

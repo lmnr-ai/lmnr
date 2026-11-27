@@ -137,6 +137,7 @@ mod clustering;
 mod dashboards;
 mod data_plane;
 mod datasets;
+mod datasets_v2;
 mod db;
 mod debugger;
 mod env;
@@ -167,6 +168,7 @@ mod search;
 mod signals;
 mod sql;
 mod storage;
+mod table_views;
 mod traces;
 mod utils;
 mod worker;
@@ -794,8 +796,20 @@ fn main() -> anyhow::Result<()> {
                 cache: cache.clone(),
                 clickhouse: clickhouse.clone(),
                 llm_client: llm_provider_client.clone(),
+                http_client: http_client.clone(),
             };
             runtime_handle.spawn(job.run());
+        }
+
+        #[cfg(feature = "signals")]
+        {
+            // Does nothing until a signal turns auto-resolving on.
+            log::info!("Starting cluster auto-resolve job");
+            runtime_handle.spawn(clustering::private::auto_resolve::run(
+                db.clone(),
+                clickhouse.clone(),
+                cache.clone(),
+            ));
         }
 
         let worker_pool = Arc::new(WorkerPool::new(
@@ -1739,6 +1753,8 @@ fn main() -> anyhow::Result<()> {
                     let jwks_cache = web::Data::new(Arc::new(auth::cli_user::JwksCache::from_env(
                         http_client_for_http.clone(),
                     )));
+                    let mcp_oauth_config =
+                        web::Data::new(auth::mcp_oauth::McpOAuthConfig::from_env());
 
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
@@ -1827,7 +1843,8 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(pubsub.clone()))
                             .app_data(web::Data::new(http_client_for_http.clone()))
                             .app_data(web::Data::new(llm_provider_client_for_http.clone()))
-                            .app_data(jwks_cache.clone());
+                            .app_data(jwks_cache.clone())
+                            .app_data(mcp_oauth_config.clone());
 
                         if let Some(ref limiter) = rate_limiter {
                             app = app.app_data(limiter.clone());
@@ -1852,11 +1869,18 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::datasets::get_dataset)
                             .service(api::v1::cli::datasets::update_dataset)
                             .service(api::v1::cli::datasets::delete_dataset)
+                            .service(api::v1::cli::datasets_v2::missing_versions)
+                            .service(api::v1::cli::datasets_v2::upload_version)
+                            .service(api::v1::cli::datasets_v2::upload_version_index)
+                            .service(api::v1::cli::datasets_v2::download_version)
                             .service(api::v1::cli::hosted_evals::missing_layers)
                             .service(api::v1::cli::hosted_evals::upload_layer)
                             .service(api::v1::cli::hosted_evals::create_image)
                             .service(api::v1::cli::hosted_evals::create_upload)
+                            .service(api::v1::cli::hosted_evals::upload_index)
                             .service(api::v1::cli::hosted_evals::start_run)
+                            .service(api::v1::cli::hosted_evals::get_run_logs)
+                            .service(api::v1::cli::hosted_evals::get_sandbox)
                             .service(api::v1::cli::rollouts::update_name)
                             .service(api::v1::cli::rollouts::register_session)
                             .service(api::v1::cli::rollouts::list_blocks)
@@ -1882,7 +1906,10 @@ fn main() -> anyhow::Result<()> {
                             .service(api::v1::cli::dashboards::rename_dashboard)
                             .service(api::v1::cli::dashboards::delete_dashboard)
                             .service(api::v1::cli::dashboards::upsert_charts)
-                            .service(api::v1::cli::dashboards::delete_charts);
+                            .service(api::v1::cli::dashboards::delete_charts)
+                            .service(api::v1::cli::table_views::create_view)
+                            .service(api::v1::cli::table_views::update_view)
+                            .service(api::v1::cli::table_views::delete_view);
                         #[cfg(feature = "signals")]
                         let cli_scope = cli_scope
                             .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
@@ -1932,9 +1959,16 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(project_auth.clone())
                                     .service(api::v1::tag::tag_trace),
                             )
+                            // Public, so registered before the authenticated `/v1/mcp` scope.
+                            .route(
+                                "/v1/mcp/server-card",
+                                web::get().to(api::v1::mcp::server_card),
+                            )
                             .service(
                                 web::scope("/v1/mcp")
-                                    .wrap(project_auth.clone())
+                                    .wrap(actix_web::middleware::from_fn(
+                                        auth::mcp_oauth::mcp_auth,
+                                    ))
                                     .app_data(mcp_state.clone())
                                     .service(api::v1::mcp::mcp_handler)
                                     .default_service(
@@ -1945,6 +1979,13 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/sql")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
+                            )
+                            // Trial-token auth (`hosted_evals::rystic`), so outside the
+                            // project-key `/v1` scope below.
+                            .service(
+                                web::scope("/v1/hosted-evals/rystic")
+                                    .service(api::v1::rystic::download)
+                                    .service(api::v1::rystic::license_check),
                             );
                         // Must precede the catch-all `/v1` scope, which would capture `/v1/chat/*`.
                         #[cfg(feature = "signals")]
@@ -1978,6 +2019,10 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval)
                                     .service(api::v1::evals::save_eval_trials)
                                     .service(api::v1::evals::update_eval_trial)
+                                    .service(api::v1::datasets_v2::missing_versions)
+                                    .service(api::v1::datasets_v2::upload_version)
+                                    .service(api::v1::datasets_v2::upload_version_index)
+                                    .service(api::v1::datasets_v2::download_version)
                                     .service(api::v1::hosted_evals::missing_layers)
                                     .service(api::v1::hosted_evals::upload_layer)
                                     .service(api::v1::hosted_evals::ensure_snapshot)
@@ -1991,8 +2036,13 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::hosted_evals::download_file)
                                     .service(api::v1::hosted_evals::create_upload)
                                     .service(api::v1::hosted_evals::download_upload)
-                                    .service(api::v1::hosted_evals::delete_upload)
+                                    .service(api::v1::hosted_evals::upload_index)
+                                    .service(api::v1::hosted_evals::upload_job)
+                                    .service(api::v1::hosted_evals::upload_job_index)
                                     .service(api::v1::hosted_evals::start_run)
+                                    .service(api::v1::hosted_evals::append_run_logs)
+                                    .service(api::v1::hosted_evals::end_run_logs)
+                                    .service(api::v1::hosted_evals::get_run_logs)
                                     .service(api::v1::signals::create_signal)
                                     .service(api::v1::signals::list_signals)
                                     .service(api::v1::signals::list_signal_versions)
@@ -2026,6 +2076,9 @@ fn main() -> anyhow::Result<()> {
                                     .service(crate::signals::private::routes::test_signal)
                                     .service(crate::signals::private::routes::eval_signal)
                                     .service(crate::signals::private::routes::eval_signal_prewarm)
+                                    .service(
+                                        crate::clustering::private::routes::send_new_cluster_notification,
+                                    )
                                     .service(crate::agent::toolkit_routes::get_agent_toolkit)
                                     .service(crate::agent::toolkit_routes::call_agent_tool);
                                 scope
@@ -2045,8 +2098,16 @@ fn main() -> anyhow::Result<()> {
                                 .service(routes::llm_profiles::update_llm_profile)
                                 .service(routes::llm_profiles::delete_llm_profile),
                         );
-                        app.service(routes::probes::check_health)
-                            .service(routes::probes::check_ready)
+                        app.route(
+                            "/.well-known/oauth-protected-resource",
+                            web::get().to(auth::mcp_oauth::protected_resource_metadata),
+                        )
+                        .route(
+                            "/.well-known/oauth-protected-resource/v1/mcp",
+                            web::get().to(auth::mcp_oauth::protected_resource_metadata),
+                        )
+                        .service(routes::probes::check_health)
+                        .service(routes::probes::check_ready)
                     })
                     .bind(("0.0.0.0", port))?
                     .shutdown_signal(shutdown_for_http.cancelled_owned())

@@ -1,23 +1,14 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import useSWR from "swr";
-
-import { swrFetcher } from "@/lib/api/fetch-api";
-
 import TagsCell from "./tags-cell";
+import { useTraceTagNames } from "./use-trace-tag-names";
 
 interface TraceTagsCellProps {
   traceId: string;
 }
 
 const TraceTagsCell = ({ traceId }: TraceTagsCellProps) => {
-  const { projectId } = useParams();
-  const { data: tags = [] } = useSWR<string[]>(
-    traceId ? `/api/projects/${projectId}/traces/${traceId}/tags` : null,
-    swrFetcher,
-    { revalidateIfStale: false }
-  );
+  const { data: tags = [] } = useTraceTagNames(traceId);
 
   if (tags.length === 0) return "-";
 

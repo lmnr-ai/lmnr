@@ -4,6 +4,7 @@ import { parseAsArrayOf, parseAsString, useQueryStates } from "nuqs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filter-schemas";
 import { swrFetcher } from "@/lib/api/fetch-api";
 
@@ -107,12 +108,16 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
   const [hasMadeEdit, setHasMadeEdit] = useState(false);
 
   const setLastViewId = useLastViewStore((s) => s.setLastViewId);
-  const lastViewId = useLastViewStore((s) => s.ids[`${projectId}:${resource}`] ?? null);
-  // One-shot — reactive `lastViewId` would re-arm the gate on mid-session clears.
-  const [hadLastViewIdAtMount] = useState<boolean>(() => lastViewId !== null);
+  const lastViewId = useLastViewStore((s) => s.ids[`${projectId}:${resource}`]);
+  // One-shot — reactive `lastViewId` would re-arm the gate on mid-session clears. Only an
+  // explicit pick of the built-in view rules out a saved view (last-picked or team default).
+  const [lastViewPickedAtMount] = useState<boolean>(() => lastViewId !== null);
+  // The server has no localStorage, so it always gates; match that until hydration completes.
+  const isHydrated = useIsHydrated();
+  const mayResolveViewAtMount = !isHydrated || lastViewPickedAtMount;
 
   const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
-  const { data: views } = useSWR<View[]>(listKey, swrFetcher);
+  const { data: views, error: viewsError } = useSWR<View[]>(listKey, swrFetcher);
 
   // A link that carries filter/search/sort params but no explicit `v` is a
   // standalone/shared link — adopting our local last-view there would stamp our
@@ -122,11 +127,9 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
 
   const resolvedViewId = useMemo<string | null>(() => {
     if (form.v) return form.v;
-    if (urlHasFormParams) return null;
-    if (lastViewId && views && views.some((v) => v.id === lastViewId)) {
-      return lastViewId;
-    }
-    return null;
+    if (urlHasFormParams || lastViewId === null || !views) return null;
+    if (lastViewId && views.some((v) => v.id === lastViewId)) return lastViewId;
+    return views.find((v) => v.config.isDefault)?.id ?? null;
   }, [form.v, urlHasFormParams, lastViewId, views]);
 
   const view = useMemo<View | null>(() => {
@@ -156,7 +159,7 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
   );
   const isFormDirty = !paramsEqual(effective, baseline);
 
-  const isLoading = views === undefined && (form.v !== null || hadLastViewIdAtMount);
+  const isLoading = views === undefined && !viewsError && (form.v !== null || mayResolveViewAtMount);
 
   // Functional update so back-to-back setters compose before nuqs commits.
   const writePartial = useCallback(

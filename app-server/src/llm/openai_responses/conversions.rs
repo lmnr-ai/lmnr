@@ -318,7 +318,11 @@ fn responses_failed_error(value: &Value) -> OpenAIError {
         .or_else(|| error.and_then(|e| e.as_str()))
         .unwrap_or("Responses API returned status \"failed\"")
         .to_string();
-    let status_code = match error.and_then(|e| e.get("code")).and_then(|c| c.as_str()) {
+    let code = error
+        .and_then(|e| e.get("code"))
+        .and_then(|c| c.as_str())
+        .map(str::to_string);
+    let status_code = match code.as_deref() {
         Some("rate_limit_exceeded") => 429,
         Some("server_error") => 500,
         _ => 400,
@@ -326,6 +330,7 @@ fn responses_failed_error(value: &Value) -> OpenAIError {
     OpenAIError::ApiError {
         status_code,
         message,
+        code,
     }
 }
 
@@ -443,6 +448,7 @@ mod tests {
             tools: None,
             generation_config: None,
             service_tier: None,
+            affinity_key: None,
             route: LlmRoute::default(),
         }
     }
@@ -637,6 +643,7 @@ mod tests {
             OpenAIError::ApiError {
                 status_code,
                 message,
+                ..
             } => {
                 assert_eq!(status_code, 500);
                 assert_eq!(message, "the model failed");

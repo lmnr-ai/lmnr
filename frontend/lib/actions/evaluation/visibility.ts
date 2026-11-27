@@ -25,8 +25,9 @@ export async function updateEvaluationVisibility({
 
   // Get all trace IDs for this evaluation from ClickHouse
   const result = await clickhouseClient.query({
-    query: `SELECT DISTINCT trace_id FROM evaluation_datapoints WHERE evaluation_id = {evaluationId: UUID}`,
-    query_params: { evaluationId },
+    query: `SELECT DISTINCT trace_id FROM evaluation_datapoints
+      WHERE project_id = {projectId: UUID} AND evaluation_id = {evaluationId: UUID}`,
+    query_params: { projectId, evaluationId },
   });
 
   const traceIds = ((await result.json()).data as { trace_id: string }[]).map((r) => r.trace_id);
@@ -44,9 +45,11 @@ export async function updateEvaluationVisibility({
     });
   } else {
     await db.transaction(async (tx) => {
-      await tx.delete(sharedEvals).where(eq(sharedEvals.id, evaluationId));
+      await tx.delete(sharedEvals).where(and(eq(sharedEvals.id, evaluationId), eq(sharedEvals.projectId, projectId)));
       if (traceIds.length > 0) {
-        await tx.delete(sharedTraces).where(inArray(sharedTraces.id, traceIds));
+        await tx
+          .delete(sharedTraces)
+          .where(and(inArray(sharedTraces.id, traceIds), eq(sharedTraces.projectId, projectId)));
       }
     });
   }

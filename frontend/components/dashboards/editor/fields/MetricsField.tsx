@@ -1,12 +1,14 @@
 import { useCallback, useMemo } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 
+import { ChartType } from "@/components/chart-builder/types";
 import {
   createMetricFromOption,
   getMetricAlias,
   getMetricFunctionValue,
   METRIC_FUNCTION_OPTIONS,
 } from "@/components/dashboards/editor/constants";
+import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import { getAvailableColumns } from "@/components/dashboards/editor/table-schemas";
 import SQLEditor from "@/components/sql/sql-editor";
 import type { SQLSchemaConfig } from "@/components/sql/utils";
@@ -156,12 +158,20 @@ const MetricsField = () => {
   const table = useWatch({ control, name: "table" });
   const metrics = useWatch({ control, name: "metrics" });
 
+  const isValueChart = useDashboardEditorStoreContext((state) => state.chart.settings.config.type === ChartType.Value);
+
   const isRaw = metrics?.[0]?.fn === "raw";
 
   return (
     <div className="grid gap-2">
       <Label className="font-semibold text-xs">Metric</Label>
       {isRaw ? <RawSqlMetricRow index={0} table={table} /> : <StandardMetricRow index={0} table={table} />}
+      {isValueChart && (
+        <p className="text-xs text-muted-foreground">
+          Shows one value for the selected time range. For text, use Custom SQL, e.g.{" "}
+          <span className="font-mono">argMax(model, start_time)</span> for the latest model.
+        </p>
+      )}
     </div>
   );
 };

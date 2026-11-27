@@ -3,6 +3,7 @@ export enum ChartType {
   BarChart = "bar",
   HorizontalBarChart = "horizontalBar",
   Table = "table",
+  Value = "value",
 }
 
 export type DisplayMode = "total" | "average" | "none";
@@ -31,7 +32,12 @@ interface TableChartConfig extends BaseChartConfig {
   tableColumnConfig?: TableColumnConfig;
 }
 
-export type ChartConfig = AxisChartConfig | TableChartConfig;
+/** One cell of the first row, number or text. `y` names its column; unset means the first visible column. */
+interface ValueChartConfig extends BaseChartConfig {
+  type: ChartType.Value;
+}
+
+export type ChartConfig = AxisChartConfig | TableChartConfig | ValueChartConfig;
 
 /** Resolve displayMode from config, with backward compatibility for `total: true`. */
 export const resolveDisplayMode = (config: ChartConfig): DisplayMode => {

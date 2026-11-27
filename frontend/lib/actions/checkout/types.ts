@@ -5,8 +5,8 @@ export type TierConfigEntry = {
   overageMegabytesLookupKey: string;
   overageSignalCostLookupKey: string;
   includedBytes: number;
-  // Recurring Signals allowance in micro-USD. Self-serve tiers have no monthly
-  // allowance; the separate workspace sign-up credit is consumed only once.
+  // Signals usage included every billing period, in micro-USD. Must match
+  // `subscription_tiers.signal_cost_included_micro_usd` and `TIERS[*].includedSignalCostUsd`.
   includedSignalCostMicroUsd: number;
 };
 
@@ -22,8 +22,8 @@ export const TIER_CONFIG = {
     lookupKey: "pro_monthly_2026_02",
     overageMegabytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
     overageSignalCostLookupKey: "pro_monthly_2026_06_overage_signal_cost",
-    includedBytes: 10 * 1024 ** 3,
-    includedSignalCostMicroUsd: 0,
+    includedBytes: 100 * 1024 ** 3,
+    includedSignalCostMicroUsd: 50_000_000,
   },
 } as const;
 
@@ -71,13 +71,14 @@ export const METER_EVENT_NAMES = {
 } as const;
 
 export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
-  // Base tiers. "Starter" is the display name of the internal "hobby" tier;
-  // the Stripe lookup keys are immutable identifiers and keep the old name.
-  hobby_monthly_2026_02: "Starter plan",
-  pro_monthly_2026_02: "Pro plan",
-  hobby_monthly_2025_04: "Starter plan",
-  hobby_monthly_2026_02_legacy: "Starter plan",
-  pro_monthly_2025_04: "Pro plan",
+  // Base tiers. "Pro" is the display name of the internal "hobby" tier and
+  // "Scale" of the internal "pro" tier; the Stripe lookup keys are immutable
+  // identifiers and keep the old names.
+  hobby_monthly_2026_02: "Pro plan",
+  pro_monthly_2026_02: "Scale plan",
+  hobby_monthly_2025_04: "Pro plan",
+  hobby_monthly_2026_02_legacy: "Pro plan",
+  pro_monthly_2025_04: "Scale plan",
   // Overage - bytes
   hobby_monthly_2026_03_overage_megabytes: "Data overage",
   pro_monthly_2026_03_overage_megabytes: "Data overage",
@@ -106,7 +107,7 @@ export interface SubscriptionDetails {
   currentPeriodEnd: number;
   cancelAtPeriodEnd: boolean;
   stripeCustomerId: string;
-  // Set only while the subscription is a Starter trial (unix seconds).
+  // Set only while the subscription is a trial (unix seconds).
   trialEnd: number | null;
   hasPaymentMethod: boolean;
 }

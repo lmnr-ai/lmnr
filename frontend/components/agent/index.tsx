@@ -3,12 +3,17 @@
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
+import { type SignalCluster } from "@/lib/actions/signal-clusters/types";
+
 // Stub barrel of the Laminar Agent — the agent UI is not part of the open-source distribution.
 // In `lmnr-private` this same path re-exports the real implementation from `./private`; shared
 // surfaces (project layout, headers, trace view, dataset/evaluation pages) import from
 // `@/components/agent`, so those files stay byte-identical across distributions while this barrel
 // swaps between the real agent and these no-ops. Only the panel open/collapse state is kept;
 // context registration and name reporting are no-ops.
+
+/** Features the agent writes (cluster reports) hide in this distribution. */
+export const LAMINAR_AGENT_AVAILABLE = false;
 
 type AgentViewMode = "collapsed" | "open";
 
@@ -38,6 +43,10 @@ export function RouteAgentContext() {
 }
 
 export function TraceAgentContext(_props: { traceId: string }) {
+  return null;
+}
+
+export function ClusterFixButton(_props: { cluster: SignalCluster }) {
   return null;
 }
 

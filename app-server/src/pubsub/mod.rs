@@ -26,7 +26,8 @@ impl SseChannel {
 
     /// Parse channel string into SseChannel
     pub fn from_str(channel: &str) -> Result<Self, String> {
-        let parts: Vec<&str> = channel.split(':').collect();
+        // Keys can hold ':' (session ids are user-supplied); the project id is a UUID and never does.
+        let parts: Vec<&str> = channel.splitn(3, ':').collect();
         if parts.len() != 3 || parts[0] != "sse" {
             return Err(format!("Invalid SSE channel format: {}", channel));
         }
@@ -71,4 +72,29 @@ pub trait PubSubTrait {
     async fn subscribe<F>(&self, pattern: &str, callback: F) -> Result<(), PubSubError>
     where
         F: FnMut(String, String) + Send + 'static;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn channel_round_trips_keys_with_colons() {
+        let project_id = Uuid::new_v4();
+        for key in [
+            "traces",
+            "session_worker:upkeep",
+            "session_linear:abc::c:def",
+        ] {
+            let channel = SseChannel::new(project_id, key);
+            assert_eq!(SseChannel::from_str(&channel.to_string()), Ok(channel));
+        }
+    }
+
+    #[test]
+    fn rejects_malformed_channels() {
+        assert!(SseChannel::from_str("sse:traces").is_err());
+        assert!(SseChannel::from_str("foo:00000000-0000-0000-0000-000000000000:traces").is_err());
+        assert!(SseChannel::from_str("sse:not-a-uuid:session_a:b").is_err());
+    }
 }

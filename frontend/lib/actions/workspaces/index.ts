@@ -17,6 +17,7 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { readSignalSettings } from "@/lib/signals/settings";
 import { insertWorkspace } from "@/lib/workspaces/insert";
 import { SSO_MANAGED_WORKSPACE_CREATION_MESSAGE, type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
@@ -34,7 +35,7 @@ type CreateWorkspaceResult = {
 };
 
 // Onboarding extras that belong to an account's very FIRST project: the default
-// Failure Detector signal and email targets on the workspace's default reports.
+// Issues signal and email targets on the workspace's default reports.
 // Split out of createWorkspace because a first project doesn't always arrive with
 // a fresh workspace — createWorkspace isn't transactional, so a create that fails
 // after the workspace insert leaves a workspace with no project behind, and the
@@ -48,7 +49,7 @@ export const seedFirstProject = async ({
   projectId: string;
   userEmail?: string | null;
 }): Promise<void> => {
-  // Route through createSignal so the default Failure Detector signal gets
+  // Route through createSignal so the default Issues signal gets
   // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
   // With subscriptions a new workspace starts on Free, which has no Signals: paid
   // onboarding creates them in its Signals step instead.
@@ -59,6 +60,7 @@ export const seedFirstProject = async ({
         name: DEFAULT_SIGNAL.name,
         prompt: DEFAULT_SIGNAL.prompt,
         structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
+        ...readSignalSettings(DEFAULT_SIGNAL),
         subscriberEmail: userEmail ?? undefined,
       },
       { requireLlmProfile: false }

@@ -7,14 +7,16 @@
 pub mod images;
 pub mod provider;
 pub mod registry;
+pub mod rystic;
 pub mod sandboxes;
 
 use std::collections::HashMap;
 
+use actix_web::http::header::HeaderMap;
 use anyhow::Result;
 use aws_config::SdkConfig;
 use chrono::{Duration, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -35,22 +37,8 @@ use sandboxes::CreateError;
 /// Name prefix of the per-run project API keys. The frontend hides keys with it
 /// from the project's key list (`frontend/lib/actions/project-api-keys`).
 pub const RUN_KEY_NAME_PREFIX: &str = "lmnr-internal-evals-";
-// Downloads the archive with the run key, runs the CLI, then deletes the
-// archive and the sandbox through the app-server however the run ended. Runs
-// under `sh`, with stderr folded into stdout so the provider's command log has
-// everything.
-const ORCHESTRATOR_COMMAND: &str = concat!(
-    r#"exec 2>&1; "#,
-    r#"mkdir -p "$HOME/evals" && cd "$HOME/evals" && "#,
-    r#"curl -fsS -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID" -o /tmp/evals.tar.gz && "#,
-    r#"tar -xzf /tmp/evals.tar.gz && rm /tmp/evals.tar.gz && "#,
-    r#"npx -y --package="$LMNR_CLI_PACKAGE" lmnr-cli eval orchestrate; "#,
-    r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/uploads/$LMNR_EVAL_UPLOAD_ID"; "#,
-    r#"curl -fsS -X DELETE -H "Authorization: Bearer $LMNR_PROJECT_API_KEY" "#,
-    r#""$LMNR_BASE_URL/v1/hosted-evals/sandboxes/$LMNR_SANDBOX_ID""#,
-);
+/// Runs in the orchestrator sandbox; what it does is commented in the file.
+const ORCHESTRATOR_SCRIPT: &str = include_str!("orchestrator.sh");
 
 /// The sandbox provider and the registry trial images are pushed to. `None`
 /// (hosted evals disabled) unless `DAYTONA_API_KEY` is set.
@@ -82,6 +70,10 @@ pub struct RunRequest {
     pub upload_id: Uuid,
     pub cli_version: String,
     pub spec: Value,
+    /// Variables whose values come in `x-lmnr-env-<name>` headers rather than the spec, set on the
+    /// orchestrator's env (see [`secret_env`]).
+    #[serde(default)]
+    pub secret_env: Vec<String>,
 }
 
 pub enum RunError {
@@ -97,7 +89,119 @@ impl From<anyhow::Error> for RunError {
 }
 
 pub fn archive_key(project_id: &Uuid, upload_id: &Uuid) -> String {
-    format!("hosted-evals/{project_id}/{upload_id}.tar.gz")
+    format!("{project_id}/{upload_id}.tar.gz")
+}
+
+pub fn index_key(project_id: &Uuid, upload_id: &Uuid) -> String {
+    format!("{project_id}/{upload_id}.index.json")
+}
+
+/// One suite's Harbor job output (its trial dirs), packed like the run's archive.
+/// `suite` must pass [`is_suite_name`].
+pub fn job_archive_key(project_id: &Uuid, upload_id: &Uuid, suite: &str) -> String {
+    format!("{project_id}/{upload_id}/jobs/{suite}.tar.gz")
+}
+
+pub fn job_index_key(project_id: &Uuid, upload_id: &Uuid, suite: &str) -> String {
+    format!("{project_id}/{upload_id}/jobs/{suite}.index.json")
+}
+
+/// A suite is a directory directly inside the evals folder, so its name is one
+/// path segment. It goes into S3 keys, hence no separators or dot segments.
+pub fn is_suite_name(suite: &str) -> bool {
+    !suite.is_empty()
+        && suite.len() <= 255
+        && suite != "."
+        && suite != ".."
+        && !suite
+            .chars()
+            .any(|c| c == '/' || c == '\\' || c.is_control())
+}
+
+/// Where each file sits in an uploaded archive (written by lmnr-cli's
+/// `pack.ts`), so the frontend reads one file with a ranged GET instead of the
+/// whole archive. Parsed here only to reject a malformed index; it is stored as
+/// sent and read by the frontend (`lib/hosted-evals`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveIndex {
+    #[allow(dead_code)]
+    files: Vec<IndexedFile>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+struct IndexedFile {
+    /// POSIX path relative to the archive root.
+    path: String,
+    size: u64,
+    /// Byte range of the gzip member holding the file.
+    offset: u64,
+    length: u64,
+    /// Where the file's content starts in the decompressed member.
+    data_offset: u64,
+}
+
+/// What links an evaluation to the remote run that produced it
+/// (`evaluations.hosted_metadata`), set by the Laminar Harbor plugin.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HostedMetadata {
+    pub upload_id: Uuid,
+    /// The suite dir, relative to the archive root.
+    pub suite_path: String,
+}
+
+const MAX_SECRET_ENV: usize = 64;
+/// What a secret variable reads as in a Laminar agent sandbox: its outbound proxy fills in the
+/// headers that carry the real value, so a header still holding this one was never filled in.
+const SANDBOX_PROXY_PLACEHOLDER: &str = "injected-by-laminar-sandbox-proxy";
+
+/// `x-lmnr-env-<name>`, lowercase with `-` for `_`: proxies such as nginx drop header names with
+/// underscores by default.
+fn secret_env_header(name: &str) -> String {
+    format!("x-lmnr-env-{}", name.to_ascii_lowercase().replace('_', "-"))
+}
+
+/// A run's `secretEnv`, read from the request's `x-lmnr-env-<name>` headers. They travel as headers
+/// so an agent sandbox's outbound proxy can put in values the sandbox itself only holds as
+/// placeholders. Harbor inherits the orchestrator's env, so the values reach `${VAR}`s in the
+/// run's configs like spec values do. `Err` is the 400 message.
+pub fn secret_env(
+    headers: &HeaderMap,
+    names: &[String],
+) -> Result<HashMap<String, String>, String> {
+    if names.len() > MAX_SECRET_ENV {
+        return Err(format!("At most {MAX_SECRET_ENV} secretEnv variables"));
+    }
+    let mut env = HashMap::new();
+    for name in names {
+        let valid = !name.is_empty()
+            && !name.starts_with(|c: char| c.is_ascii_digit())
+            && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
+        if !valid {
+            return Err(format!("Invalid secretEnv name {name:?}"));
+        }
+        // The orchestrator's own variables (run key, API URL, spec).
+        if name.to_ascii_uppercase().starts_with("LMNR_") {
+            return Err(format!("secretEnv can't set {name}"));
+        }
+        let header = secret_env_header(name);
+        let value = match headers.get(&header).map(|v| v.to_str()) {
+            Some(Ok(value)) => value,
+            Some(Err(_)) => return Err(format!("{header} is not visible ASCII")),
+            None => return Err(format!("secretEnv {name} has no {header} header")),
+        };
+        if value == SANDBOX_PROXY_PLACEHOLDER {
+            return Err(format!(
+                "{name} is still the sandbox proxy's placeholder: its outbound proxy has no \
+                 rule filling in {header} for this Laminar URL"
+            ));
+        }
+        env.insert(name.clone(), value.to_string());
+    }
+    Ok(env)
 }
 
 /// POSIX single-quoting, safe for sh, bash and zsh.
@@ -113,6 +217,7 @@ pub async fn start_run(
     cache: &Cache,
     project_id: &Uuid,
     request: &RunRequest,
+    secret_env: HashMap<String, String>,
 ) -> Result<String, RunError> {
     let cli_package = cli_package(&request.cli_version).ok_or(RunError::InvalidCliVersion)?;
 
@@ -131,23 +236,26 @@ pub async fn start_run(
     )
     .await?;
 
+    // `secret_env` names never start with `LMNR_`, so they can't replace these.
+    let mut sandbox_env = secret_env;
+    sandbox_env.extend([
+        ("LMNR_PROJECT_API_KEY".to_string(), run_key.value.clone()),
+        (
+            "LMNR_BASE_URL".to_string(),
+            env::hosted_evals::LMNR_BASE_URL.get(),
+        ),
+        (
+            "LMNR_EVAL_UPLOAD_ID".to_string(),
+            request.upload_id.to_string(),
+        ),
+        ("LMNR_EVAL_RUN".to_string(), request.spec.to_string()),
+        ("LMNR_CLI_PACKAGE".to_string(), cli_package),
+    ]);
     let spec = SandboxSpec {
         project_id: *project_id,
         role: SandboxRole::Orchestrator,
         image: SandboxImage::Default,
-        env: HashMap::from([
-            ("LMNR_PROJECT_API_KEY".to_string(), run_key.value.clone()),
-            (
-                "LMNR_BASE_URL".to_string(),
-                env::hosted_evals::LMNR_BASE_URL.get(),
-            ),
-            (
-                "LMNR_EVAL_UPLOAD_ID".to_string(),
-                request.upload_id.to_string(),
-            ),
-            ("LMNR_EVAL_RUN".to_string(), request.spec.to_string()),
-            ("LMNR_CLI_PACKAGE".to_string(), cli_package),
-        ]),
+        env: sandbox_env,
         ttl_minutes: max_run_minutes,
     };
     let result = launch_orchestrator(provider, cache, spec).await;
@@ -185,7 +293,7 @@ async fn launch_orchestrator(
     let started = async {
         sandboxes::wait_until_started(provider, &sandbox.id).await?;
         let command = format!(
-            "export LMNR_SANDBOX_ID={}; {ORCHESTRATOR_COMMAND}",
+            "export LMNR_SANDBOX_ID={}\n{ORCHESTRATOR_SCRIPT}",
             shell_quote(&sandbox.id)
         );
         provider.start_command(&sandbox, &command).await
@@ -205,6 +313,8 @@ async fn launch_orchestrator(
 
 #[cfg(test)]
 mod tests {
+    use actix_web::http::header::{HeaderName, HeaderValue};
+
     use super::*;
 
     #[test]
@@ -217,6 +327,88 @@ mod tests {
         for bad in ["", "0.5.3; rm -rf /", "$(id)", "1 2", "a/b"] {
             assert!(cli_package(bad).is_none(), "{bad}");
         }
+    }
+
+    #[test]
+    fn suite_names_are_one_path_segment() {
+        for good in ["support", "my suite", "évals-2", ".hidden"] {
+            assert!(is_suite_name(good), "{good}");
+        }
+        let long = "a".repeat(256);
+        for bad in ["", ".", "..", "a/b", "a\\b", "a\nb", long.as_str()] {
+            assert!(!is_suite_name(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn orchestrator_script_parses_as_posix_sh() {
+        for shell in ["sh", "dash"] {
+            let Ok(status) = std::process::Command::new(shell)
+                .args(["-n", "-c", ORCHESTRATOR_SCRIPT])
+                .status()
+            else {
+                continue;
+            };
+            assert!(status.success(), "{shell} -n rejects orchestrator.sh");
+        }
+    }
+
+    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
+        let mut map = HeaderMap::new();
+        for (name, value) in pairs {
+            map.insert(
+                HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                HeaderValue::from_str(value).unwrap(),
+            );
+        }
+        map
+    }
+
+    fn names(names: &[&str]) -> Vec<String> {
+        names.iter().map(|n| n.to_string()).collect()
+    }
+
+    #[test]
+    fn secret_env_reads_each_named_header() {
+        let map = headers(&[
+            ("x-lmnr-env-anthropic-api-key", "sk-ant-real"),
+            ("x-lmnr-env-custom-llm-ab12-header-0", "h0"),
+            ("x-lmnr-env-unrequested", "ignored"),
+        ]);
+        let env = secret_env(
+            &map,
+            &names(&["ANTHROPIC_API_KEY", "CUSTOM_LLM_AB12_HEADER_0"]),
+        )
+        .unwrap();
+        assert_eq!(
+            env,
+            HashMap::from([
+                ("ANTHROPIC_API_KEY".to_string(), "sk-ant-real".to_string()),
+                ("CUSTOM_LLM_AB12_HEADER_0".to_string(), "h0".to_string()),
+            ])
+        );
+        assert!(secret_env(&map, &[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn secret_env_rejects_missing_placeholder_and_reserved() {
+        let map = headers(&[
+            ("x-lmnr-env-openai-api-key", SANDBOX_PROXY_PLACEHOLDER),
+            ("x-lmnr-env-lmnr-project-api-key", "key"),
+        ]);
+        for bad in [
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "LMNR_PROJECT_API_KEY",
+            "lmnr_base_url",
+            "1KEY",
+            "A-B",
+            "",
+        ] {
+            assert!(secret_env(&map, &names(&[bad])).is_err(), "{bad}");
+        }
+        let many: Vec<String> = (0..=MAX_SECRET_ENV).map(|i| format!("K{i}")).collect();
+        assert!(secret_env(&map, &many).is_err());
     }
 
     #[test]

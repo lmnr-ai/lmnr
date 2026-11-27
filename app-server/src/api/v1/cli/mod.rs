@@ -8,11 +8,13 @@ pub mod agent;
 pub mod alerts;
 pub mod dashboards;
 pub mod datasets;
+pub mod datasets_v2;
 pub mod hosted_evals;
 pub mod llm_profiles;
 pub mod rollouts;
 pub mod signals;
 pub mod sql;
+pub mod table_views;
 pub mod tag;
 
 use actix_web::{HttpResponse, get, post, web};

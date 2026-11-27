@@ -1,12 +1,12 @@
 "use client";
 
-import { X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   getAnnouncementCtaHref,
@@ -21,9 +21,15 @@ import { useAnnouncementsStore } from "./store";
 // Mounted by the project layout rather than by the sidebar card: the card's
 // subtree unmounts when the sidebar collapses, which would tear down an open
 // dialog with it.
-const AnnouncementDetailsDialog = () => {
+interface AnnouncementDetailsDialogProps {
+  /** Server-rendered MDX bodies (blog renderer) keyed by announcement id. */
+  bodies: Record<string, ReactNode>;
+}
+
+const AnnouncementDetailsDialog = ({ bodies }: AnnouncementDetailsDialogProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const announcement = useAnnouncementsStore((state) => state.detailsAnnouncement);
+  const body = announcement ? bodies[announcement.id] : undefined;
   const setDetailsAnnouncement = useAnnouncementsStore((state) => state.setDetailsAnnouncement);
   const close = () => setDetailsAnnouncement(null);
   const ctaLink = announcement?.cta_link;
@@ -35,33 +41,30 @@ const AnnouncementDetailsDialog = () => {
       <DialogContent className="max-w-[640px] gap-0 overflow-hidden p-0">
         {announcement && (
           <>
-            <DialogClose asChild>
-              <button
-                type="button"
-                aria-label="Close announcement"
-                className="absolute right-3 top-3 z-10 flex size-7 items-center justify-center rounded-full bg-surface-600 text-secondary-foreground shadow-sm backdrop-blur-sm transition-colors hover:overlay-hover hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
-            </DialogClose>
             <DialogTitle className="sr-only">{announcement.title}</DialogTitle>
             <DialogDescription className="sr-only">{announcement.description}</DialogDescription>
-            {announcement.details_image_src && (
-              <Image
-                src={announcement.details_image_src}
-                alt=""
-                width={1200}
-                height={630}
-                className="max-h-[320px] w-full object-cover object-top"
-              />
-            )}
+            {/* Image scrolls with the body so a short viewport never pushes the dialog off-screen. */}
             <ScrollArea
-              className="max-h-[50vh]"
-              viewportClassName="max-h-[50vh] scroll-fade-b scroll-fade-b-20 [&>div]:block! [&>div]:w-full!"
+              className="max-h-[85vh]"
+              viewportClassName="max-h-[85vh] scroll-fade-b scroll-fade-b-20 [&>div]:block! [&>div]:w-full!"
             >
+              {announcement.details_image_src && (
+                <Image
+                  src={announcement.details_image_src}
+                  alt=""
+                  width={1200}
+                  height={630}
+                  className="max-h-[320px] w-full object-cover object-top"
+                />
+              )}
               <div className={cn("px-6 pt-6", hasCta ? "pb-[100px]" : "pb-6")}>
-                {announcement.long_description && (
-                  <AnnouncementMarkdown>{announcement.long_description}</AnnouncementMarkdown>
+                {body ? (
+                  // Same wrapper classes as the blog's <article>: typeset flow + `.blog-article` table rules.
+                  <article className="blog-article typeset typeset-docs [&>*:first-child]:mt-0">{body}</article>
+                ) : (
+                  announcement.long_description && (
+                    <AnnouncementMarkdown>{announcement.long_description}</AnnouncementMarkdown>
+                  )
                 )}
               </div>
             </ScrollArea>

@@ -11,7 +11,9 @@ import { type ChartConfig } from "../../ui/chart";
 import { Skeleton } from "../../ui/skeleton";
 import CombinedChart from "./combined-chart";
 import CombinedLegend from "./combined-legend";
-import { type ProgressionPoint } from "./shared";
+import GroupedView from "./grouped-view";
+import { type ProgressionView } from "./shared";
+import { useProgressionPoints } from "./use-progression-points";
 
 interface ProgressionChartProps {
   className?: string;
@@ -27,6 +29,9 @@ interface ProgressionChartProps {
   onPointClick?: (evaluationId: string) => void;
   /** When on, every score stretches to its own min/max (fills full height). */
   fillHeight?: boolean;
+  /** Metadata key (dot path) to split runs into series by; baseline is ignored while grouped. */
+  groupBy?: string | null;
+  view?: ProgressionView;
 }
 
 const EMPTY_IDS: string[] = [];
@@ -41,14 +46,17 @@ export default function ProgressionChart({
   hoveredEvaluationId,
   onPointClick,
   fillHeight,
+  groupBy,
+  view = "trend",
 }: ProgressionChartProps) {
   const [groupId] = useQueryState("groupId");
   const params = useParams();
+  const prefsKey = `${params?.projectId}:${groupId ?? ""}`;
   const [hoveredScore, setHoveredScore] = useState<string | null>(null);
 
   // Persist deselected scores (not selected) so newly-appearing scores default to visible.
   const [hiddenScores, setHiddenScores] = useLocalStorage<string[]>(
-    `evaluations-chart-hidden-scores:${params?.projectId}:${groupId ?? ""}`,
+    `evaluations-chart-hidden-scores:${prefsKey}`,
     EMPTY_IDS
   );
 
@@ -58,49 +66,14 @@ export default function ProgressionChart({
 
   const scores = useMemo(() => scoreKeys.filter((key) => !hiddenScores.includes(key)), [scoreKeys, hiddenScores]);
 
-  const points: ProgressionPoint[] = useMemo(() => {
-    const nameById: Record<string, string> = evaluations.reduce((acc, curr) => ({ ...acc, [curr.id]: curr.name }), {});
-    const raw =
-      data?.map(({ timestamp, evaluationId, names, values }) => {
-        const valueMap: Record<string, number | null> = {};
-        for (const score of scoreKeys) {
-          const idx = names.indexOf(score);
-          if (idx === -1) {
-            valueMap[score] = null;
-          } else {
-            const v = Number(values[idx]);
-            valueMap[score] = isNaN(v) ? null : v;
-          }
-        }
-        return {
-          timestamp,
-          evaluationId,
-          name: nameById[evaluationId] || "-",
-          values: valueMap,
-        };
-      }) ?? [];
-
-    if (!baselineEvaluationId) return raw;
-    const baselinePoint = raw.find((p) => p.evaluationId === baselineEvaluationId);
-    if (!baselinePoint) return raw;
-    // Subtract baseline per-score; null baseline or null value → null (no relative signal).
-    return raw.map((p) => {
-      const rel: Record<string, number | null> = {};
-      for (const score of scoreKeys) {
-        const v = p.values[score];
-        const b = baselinePoint.values[score];
-        rel[score] = v === null || b === null ? null : v - b;
-      }
-      return { ...p, values: rel };
-    });
-  }, [data, evaluations, scoreKeys, baselineEvaluationId]);
-
-  // Baseline subtraction above runs over the full group (so a hidden baseline
-  // still zeroes the others); hidden runs are dropped only from what's drawn.
-  const visiblePoints = useMemo(
-    () => points.filter((p) => !hiddenEvaluationIds.includes(p.evaluationId)),
-    [points, hiddenEvaluationIds]
-  );
+  const { visiblePoints } = useProgressionPoints({
+    data,
+    evaluations,
+    scoreKeys,
+    hiddenEvaluationIds,
+    baselineEvaluationId,
+    groupBy,
+  });
 
   const chartConfig = useMemo<ChartConfig>(() => {
     const colors = spacedPalette(scoreKeys.length);
@@ -122,6 +95,24 @@ export default function ProgressionChart({
     );
   }
 
+  if (groupBy) {
+    return (
+      <div className={cn("flex flex-col", className)}>
+        <GroupedView
+          points={visiblePoints}
+          groupBy={groupBy}
+          view={view}
+          scoreKeys={scoreKeys}
+          visibleScores={scores}
+          onToggleScore={toggleScore}
+          prefsKey={prefsKey}
+          hoveredEvaluationId={hoveredEvaluationId}
+          onPointClick={onPointClick}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={cn("flex flex-col", className)}>
       <div className="flex flex-1 gap-3 min-h-0 min-w-0 rounded-[4px] border border-border bg-secondary px-4 py-3">
@@ -131,7 +122,7 @@ export default function ProgressionChart({
           chartConfig={chartConfig}
           onToggle={toggleScore}
           onHoverScore={setHoveredScore}
-          className="w-32 shrink-0 overflow-y-auto"
+          className="w-40 shrink-0 overflow-y-auto"
         />
         <div className="min-w-0 flex-1">
           <CombinedChart

@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 
+import { mcp } from "@better-auth/mcp";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -39,6 +40,14 @@ const AUTH_URL = process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL;
 // auth-client.ts `baseURL`) and OAuth callback URIs (prefixedCallbackUri below, which
 // rebuilds the prefixed `/api/auth/callback/<id>` from AUTH_ORIGIN + BASE_PATH).
 const AUTH_ORIGIN = AUTH_URL ? new URL(AUTH_URL).origin : undefined;
+
+// Public URL of the app-server MCP endpoint (e.g. https://api.lmnr.ai/v1/mcp). When set,
+// this app also acts as the OAuth 2.1 authorization server for MCP clients.
+export const MCP_RESOURCE_URL = process.env.MCP_RESOURCE_URL || undefined;
+
+// Identity scopes only: an MCP token acts as the user, scoped by workspace membership on
+// the app-server. Anonymous dynamically-registered clients can't ask for anything else.
+const MCP_OAUTH_SCOPES = ["openid", "profile", "email", "offline_access"];
 
 /**
  * Process any pending workspace invitations for the given user.
@@ -190,6 +199,30 @@ const getGenericOAuthConfig = () => {
   return config;
 };
 
+// OAuth 2.1 authorization server for MCP clients (Claude Code, Cursor, Codex), which
+// discover it from the app-server's RFC 9728 metadata and register themselves (RFC 7591).
+// Access tokens are `at+jwt` JWTs signed by the jwt plugin with `aud` = MCP_RESOURCE_URL.
+const getMcpPlugins = () => {
+  if (!MCP_RESOURCE_URL) return [];
+  return [
+    mcp({
+      resource: MCP_RESOURCE_URL,
+      // The plugin redirects to these verbatim and baseURL is origin-only, so prefix them.
+      loginPage: `${BASE_PATH}/sign-in`,
+      consentPage: `${BASE_PATH}/oauth/consent`,
+      scopes: MCP_OAUTH_SCOPES,
+      clientRegistrationDefaultScopes: MCP_OAUTH_SCOPES,
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      // Native MCP clients register loopback / custom-scheme redirect URIs without an
+      // application_type; "infer" treats those as native instead of rejecting them.
+      clientRegistrationDefaultApplicationType: "infer",
+      // No client_credentials: every token must act for a signed-in user.
+      grantTypes: ["authorization_code", "refresh_token"],
+    }),
+  ];
+};
+
 const getOktaPlugins = () => {
   if (!isFeatureEnabled(Feature.OKTA_AUTH)) return [];
   const scimEnabled = isFeatureEnabled(Feature.SSO_MANAGED_MEMBERSHIP);
@@ -255,6 +288,8 @@ export const auth = betterAuth({
           modelName: "jwk",
         },
       },
+      // Nothing reads the `set-auth-jwt` header; /api/auth/token stays for lmnr-cli.
+      disableSettingJwtHeader: true,
       jwt: {
         definePayload: ({ user }) => ({
           userId: user.id,
@@ -288,6 +323,7 @@ export const auth = betterAuth({
     // Passwordless local-email sign-in (self-hosted convenience); only mounted
     // when no real IdP is configured, matching the legacy Credentials provider.
     ...(isFeatureEnabled(Feature.EMAIL_AUTH) ? [localEmail()] : []),
+    ...getMcpPlugins(),
     // Keep Set-Cookie working from Next.js server actions / route handlers.
     nextCookies(),
   ],

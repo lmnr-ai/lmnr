@@ -9,7 +9,7 @@ import {
 import { type Operator } from "@/lib/actions/common/operators.ts";
 import { cn } from "@/lib/utils";
 
-import { useAdvancedSearchContext, useAdvancedSearchNavigation } from "../store";
+import { useAdvancedSearchContext, useAdvancedSearchNavigation, useTag, useTagFocus } from "../store";
 import { type FocusableRef, getColumnFilter, getOperationsForField } from "../types";
 
 interface FilterSelectProps {
@@ -20,21 +20,18 @@ interface FilterSelectProps {
 
 const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
   const filters = useAdvancedSearchContext((state) => state.filters);
-  const tags = useAdvancedSearchContext((state) => state.tags);
 
-  const { updateTagField, updateTagOperator, updateTagValue, getTagFocusState, setTagFocusState } =
-    useAdvancedSearchContext((state) => ({
-      updateTagField: state.updateTagField,
-      updateTagOperator: state.updateTagOperator,
-      updateTagValue: state.updateTagValue,
-      getTagFocusState: state.getTagFocusState,
-      setTagFocusState: state.setTagFocusState,
-    }));
+  const { updateTagField, updateTagOperator, updateTagValue, setFocus } = useAdvancedSearchContext((state) => ({
+    updateTagField: state.updateTagField,
+    updateTagOperator: state.updateTagOperator,
+    updateTagValue: state.updateTagValue,
+    setFocus: state.setFocus,
+  }));
+  const focus = useTagFocus(tagId);
 
   const { navigateWithinTag } = useAdvancedSearchNavigation();
 
-  const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
-  const focusState = getTagFocusState(tagId);
+  const tag = useTag(tagId);
 
   const options: FilterSelectOption[] = useMemo(() => {
     if (selectType === "field") {
@@ -60,11 +57,11 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
   }, [tag, selectType]);
 
   const handleClick = useCallback(() => {
-    setTagFocusState(tagId, { type: selectType, mode: "edit" });
+    setFocus({ tagId, position: selectType, mode: "edit" });
     if (ref && typeof ref !== "function" && ref.current) {
       ref.current.focus();
     }
-  }, [tagId, setTagFocusState, selectType, ref]);
+  }, [tagId, setFocus, selectType, ref]);
 
   const handleChange = useCallback(
     (newValue: string) => {
@@ -80,13 +77,13 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
         // Array columns take a list of values, and a single-operator column has
         // a static operator label with nothing to focus — skip straight to it.
         updateTagValue(tag.id, getColumnFilter(filters, newValue)?.dataType === "array" ? [] : "");
-        setTagFocusState(tagId, { type: operations.length <= 1 ? "value" : "operator", mode: "edit" });
+        setFocus({ tagId, position: operations.length <= 1 ? "value" : "operator", mode: "edit" });
       } else {
         updateTagOperator(tag.id, newValue as Operator);
-        setTagFocusState(tagId, { type: "value", mode: "edit" });
+        setFocus({ tagId, position: "value", mode: "edit" });
       }
     },
-    [tag, selectType, filters, updateTagField, updateTagOperator, updateTagValue, setTagFocusState, tagId]
+    [tag, selectType, filters, updateTagField, updateTagOperator, updateTagValue, setFocus, tagId]
   );
 
   if (!tag) return null;
@@ -95,7 +92,7 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
   // highlight nor a click handler.
   const isStatic = options.length <= 1;
 
-  const wrapperClassName = cn(focusState.type === selectType && !isStatic && "bg-primary/35", {
+  const wrapperClassName = cn(focus?.position === selectType && !isStatic && "bg-primary/35", {
     "rounded-l-[0.29rem]": selectType === "field",
   });
 
@@ -108,7 +105,7 @@ const FilterSelect = ({ tagId, selectType, ref }: FilterSelectProps) => {
       value={value}
       options={options}
       onValueChange={handleChange}
-      open={focusState.type === selectType && focusState.mode === "edit"}
+      open={focus?.position === selectType && focus.mode === "edit"}
       onOpenChange={() => {}}
       onNavigateLeft={() => navigateWithinTag(tagId, "left")}
       onNavigateRight={() => navigateWithinTag(tagId, "right")}

@@ -34,15 +34,15 @@ export default function TrialEndingEmail({
   return (
     <TrialEmailLayout
       workspaceName={workspaceName}
-      heading="Your Starter trial ends soon"
-      preview={`Your Starter trial for ${workspaceName} ends on ${endsOn}`}
+      heading="Your Pro trial ends soon"
+      preview={`Your Pro trial for ${workspaceName} ends on ${endsOn}`}
     >
       <Text style={intro}>
-        Your Starter trial for {workspaceName} ends on {endsOn}.
+        Your Pro trial for {workspaceName} ends on {endsOn}.
       </Text>
       <Text style={paragraph}>After that, it moves to the Free plan. Here{"'"}s what changes:</Text>
       <ChangesList changes={STARTER_TO_FREE_CHANGES} />
-      <Text style={paragraph}>Should you keep Starter?</Text>
+      <Text style={paragraph}>Should you keep Pro?</Text>
       <table role="presentation" cellPadding="0" cellSpacing="0" style={questions}>
         <tbody>
           <tr>
@@ -53,14 +53,14 @@ export default function TrialEndingEmail({
           {QUESTIONS.map((question) => (
             <tr key={question}>
               <td style={{ ...cell, width: "56%" }}>{question}</td>
-              <td style={{ ...cell, fontWeight: 600 }}>Keep Starter</td>
+              <td style={{ ...cell, fontWeight: 600 }}>Keep Pro</td>
               <td style={{ ...cell, color: muted }}>Free is fine</td>
             </tr>
           ))}
         </tbody>
       </table>
       <Link style={action} href={addPaymentUrl} target="_blank">
-        Keep Starter features
+        Keep Pro features
       </Link>
       <Text style={footnote}>
         <Link href={PRICING_URL} style={footnoteLink} target="_blank">

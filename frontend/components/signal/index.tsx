@@ -3,17 +3,15 @@
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 
-import EventsTable from "@/components/signal/events-table";
-import { signalTabSearch } from "@/components/signal/hooks/signal-tab-search";
+import SignalClusters from "@/components/signal-clusters";
 import { useSignalTraceParams } from "@/components/signal/hooks/use-signal-trace-params";
-import SignalRunsTable from "@/components/signal/runs-table";
+import SignalPageTabs from "@/components/signal/signal-page-tabs";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
-import DateRangeFilter from "@/components/ui/date-range-filter";
+import { navigateTracePanel } from "@/components/traces/trace-view/trace-panel-url";
 import Header from "@/components/ui/header.tsx";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { track } from "@/lib/posthog";
+import { readSignalSettings } from "@/lib/signals/settings";
 
 interface SignalProps {
   slackClientId?: string;
@@ -24,20 +22,21 @@ interface SignalProps {
 export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEnabled }: SignalProps) {
   const pathName = usePathname();
   const params = useParams<{ projectId: string }>();
-  const { push, replace } = useRouter();
+  const { replace } = useRouter();
   const searchParams = useSearchParams();
-  const [{ traceId, spanId }, setTraceParams] = useSignalTraceParams();
+  const [{ traceId, spanId }] = useSignalTraceParams();
 
-  // Old bookmarks: ?tab=settings&section=activity, then ?tab=activity.
+  // Old bookmarks: ?tab=runs, ?tab=activity and ?tab=settings&section=activity open Overview → Runs.
   const tabParam = searchParams.get("tab");
-  const isLegacyRunsTab = tabParam === "activity" || searchParams.get("section") === "activity";
-  const activeTab = isLegacyRunsTab ? "runs" : tabParam || "events";
+  const isLegacyRunsTab = tabParam === "runs" || tabParam === "activity" || searchParams.get("section") === "activity";
+  // Clusters are the default view and replace Events; old ?tab=events links land on them.
+  const showOverview = isLegacyRunsTab || tabParam === "settings";
 
   useEffect(() => {
     if (!isLegacyRunsTab) return;
     const next = new URLSearchParams(searchParams.toString());
-    next.set("tab", "runs");
-    next.delete("section");
+    next.set("tab", "settings");
+    next.set("section", "runs");
     replace(`${pathName}?${next.toString()}`);
   }, [isLegacyRunsTab, searchParams, pathName, replace]);
 
@@ -59,78 +58,59 @@ export default function Signal({ slackClientId, slackRedirectUri, slackBrokerEna
         disabled: form.disabled,
         llmProfileId: form.llmProfileId,
         llmModel: form.llmModel,
+        ...readSignalSettings(form),
       });
     },
     [signal, setSignal]
   );
 
-  const handleTabChange = useCallback(
-    (tab: string) => {
-      track("signals", "tab_viewed", { signalId: signal.id, tab });
-      push(`${pathName}?${signalTabSearch(searchParams.toString(), tab).toString()}`);
-    },
-    [pathName, push, searchParams, signal.id]
+  const tracePanel = traceId && (
+    <TraceViewSidePanel
+      urlState
+      spanId={spanId || undefined}
+      key={traceId}
+      onClose={() => {
+        navigateTracePanel({ type: "close" }, { eventId: null });
+      }}
+      traceId={traceId}
+      initialSignalId={signal.id}
+    />
   );
+
+  // Rendering now would show Settings for a frame before the redirect above lands on Runs.
+  if (isLegacyRunsTab) return null;
+
+  if (!showOverview) {
+    return (
+      <>
+        <SignalClusters
+          projectId={params.projectId}
+          signalId={signal.id}
+          header={<Header path={[{ name: "signals" }, { name: signal.name }]} className="h-auto pt-[10px]" />}
+          tabs={<SignalPageTabs signalId={signal.id} active="clusters" />}
+          onOpenTrace={(id) => navigateTracePanel({ type: "open", traceId: id }, { eventId: null })}
+        />
+        {tracePanel}
+      </>
+    );
+  }
 
   return (
     <>
-      <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-6 overflow-hidden">
-        {/* The time range sits up here, beside the tabs, because it is the one
-            control on this page with PAGE scope — it moves the cluster strip,
-            the chart and the table together. Everything else (filters, columns,
-            views, search, refresh) only touches the table, and lives directly
-            above it. Position is the only thing telling a reader which is which. */}
-        <div className="flex items-center justify-start gap-2 px-4">
-          <TabsList className="h-8">
-            <TabsTrigger className="text-xs" value="events">
-              Events
-            </TabsTrigger>
-            <TabsTrigger className="text-xs" value="runs">
-              Runs
-            </TabsTrigger>
-            <TabsTrigger className="text-xs" value="settings">
-              Settings
-            </TabsTrigger>
-          </TabsList>
-          {/* Purely URL-driven (`useSearchParams`), so it needs nothing from the
-              table's provider and can live outside it. Settings has no time
-              axis, so it does not get one. */}
-          {activeTab !== "settings" && <DateRangeFilter />}
-        </div>
-
-        {/* `min-h-0 flex-1` so the page-level scroller inside gets a bounded
-            height to scroll against — without the `min-h-0` a flex child refuses
-            to shrink below its content and the page grows instead of scrolling. */}
-        <TabsContent value="events" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <EventsTable />
-        </TabsContent>
-        <TabsContent value="runs" className="flex flex-col overflow-hidden">
-          <SignalRunsTable />
-        </TabsContent>
-        <TabsContent value="settings" className="flex flex-col overflow-hidden">
-          <ManageSignalPanel
-            key={signal.id}
-            defaultValues={signal}
-            onSuccess={handleSuccess}
-            slackClientId={slackClientId}
-            slackRedirectUri={slackRedirectUri}
-            slackBrokerEnabled={slackBrokerEnabled}
-          />
-        </TabsContent>
-      </Tabs>
-
-      {traceId && (
-        <TraceViewSidePanel
-          spanId={spanId || undefined}
-          key={traceId}
-          onClose={() => {
-            void setTraceParams({ traceId: null, spanId: null, eventId: null });
-          }}
-          traceId={traceId}
-          initialSignalId={signal.id}
+      <Header path={[{ name: "signals" }, { name: signal.name }]} className="h-auto pt-[10px]" />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <ManageSignalPanel
+          key={signal.id}
+          defaultValues={signal}
+          onSuccess={handleSuccess}
+          slackClientId={slackClientId}
+          slackRedirectUri={slackRedirectUri}
+          slackBrokerEnabled={slackBrokerEnabled}
+          sidebarHeader={<SignalPageTabs signalId={signal.id} active="settings" />}
+          contentClassName="pt-10"
         />
-      )}
+      </div>
+      {tracePanel}
     </>
   );
 }

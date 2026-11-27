@@ -142,7 +142,7 @@ Comments are welcome when they add a WHY that names cannot: a constraint, invari
 
 ## Pre-commit Hooks
 
-Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, and `tsc --noEmit` run on staged files. Config lives in `frontend/.oxfmtrc.json` and `frontend/.oxlintrc.json`. `✖ Task failed to spawn: oxfmt … ENOENT` means `frontend/node_modules` is partial, and the commit was NOT made: run `pnpm install --frozen-lockfile` in `frontend/` and commit again. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
+Frontend uses Husky with lint-staged: oxfmt, oxlint, and `tsc --noEmit` run on staged files. Circular imports are caught by oxlint's `import/no-cycle` rule (type-only imports included). Config lives in `frontend/.oxfmtrc.json` and `frontend/.oxlintrc.json`. `✖ Task failed to spawn: oxfmt … ENOENT` means `frontend/node_modules` is partial, and the commit was NOT made: run `pnpm install --frozen-lockfile` in `frontend/` and commit again. If type-check fails on pre-existing SVG/PNG asset-import errors, verify your own files are clean (`npx tsc --noEmit 2>&1 | grep "your-file"`) before using `--no-verify`.
 
 ## Detailed topic notes (read on demand)
 
@@ -153,16 +153,16 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/rust-best-practices.md` | Any app-server change — reuse, layering, db/cache scoping, named types, error retryability |
 | `docs/internal/database.md` | Postgres migrations, `POSTGRES_SCHEMA`, name-sort collation |
 | `docs/internal/sql-query-engine.md` | `query_engine/` validator (a security boundary), SQL editor schema/autocomplete, `/v1/sql/query` guards, rate limiting |
-| `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
+| `docs/internal/clickhouse-traces.md` | `traces_agg`/`traces_static`/`traces_v0`, `spans_large_io` (large non-LLM payloads, `*_preview` columns), spans query scoping, trace aggregation, async-insert tuning, traces-table filters, project data deletion |
 | `docs/internal/dedup-search.md` | `unique_content` group-scoped dedup (`traces/dedup/`), `spans_v0` reconstruction, Quickwit indexing/search |
 | `docs/internal/ingestion.md` | OTLP `/v1/traces`, GenAI semconv parsing, trace metadata patches, input/output extraction, system-prompt extraction, system-prompt / user-template versioning, agent versioning (`agent_versioning/`), 413s |
-| `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling |
+| `docs/internal/observability.md` | App-server self-tracing, Sentry layers/sampling, frontend `@sentry/nextjs` config and its OTel coexistence with Laminar |
 | `docs/internal/mq-redis.md` | RabbitMQ queues + streams transport, Redis resilient connections, readiness probes |
 | `docs/internal/audit.md` | Workspace audit log (`audit_events`), `handlerWithAudit`/`handlerNoAudit` route wrappers, `/v1` audit middleware, `sql.query` events, `SqlQuerySource` |
-| `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, project API keys |
+| `docs/internal/auth.md` | Better Auth, OAuth providers, CLI device-flow auth, MCP OAuth (frontend as authorization server), project API keys |
 | `docs/internal/rbac.md` | `piiMode` (off/redact/dual), PII masks (`*_masks`, `pii_checked`, redactor contract), `spans_v1`/`traces_v1` policy param, `AccessPolicy` (`maskPii`, `traceFilters`), `trace_access_policy_dict`, SQL route `actor`, role-based PII masking |
-| `docs/internal/billing.md` | Tiers, Starter free trial, usage warnings/hard limits, signal cost metering, custom model costs |
-| `docs/internal/signals.md` | Signals, alerts, signal events, CLI CRUD (`trigger`/`filters`/`mode`) |
+| `docs/internal/billing.md` | Tiers (display names vs internal keys), free trial, usage warnings/hard limits, signal cost metering, custom model costs |
+| `docs/internal/llm-profiles.md` | Workspace LLM profiles: CRUD surfaces, encrypted secrets, wire shapes, runtime resolution, pinning a profile on a signal |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
 | `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |
@@ -173,7 +173,8 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, a circular-import check, an
 | `docs/internal/frontend-app.md` | Settings pages, onboarding, base-path serving, render templates, SSE proxy routes, landing page, agent stubs |
 | `docs/internal/frontend-best-practices.md` | Any new frontend component/table/store work |
 | `docs/internal/frontend-dependencies.md` | Adding/bumping frontend deps, `pnpm-workspace.yaml` `allowBuilds` (build-script policy) |
-| `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs, TLS/crypto-backend deps |
-| `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator |
+| `docs/internal/app-server.md` | App-server env vars, local dev env quirks, signals-feature build stubs, TLS/crypto-backend deps, MCP server (`/v1/mcp` auth, tools, project scoping) |
+| `docs/internal/hosted-evals.md` | Hosted Harbor evals (`/v1/hosted-evals/*`, `src/hosted_evals/`): sandbox provider abstraction (Daytona), image push to ECR, remote-run orchestrator, uploaded evals folder + file view (`evaluations.hosted_metadata`), Rystic simulator proxy (`/v1/hosted-evals/rystic/*`) |
+| `docs/internal/eval-datasets.md` | Eval datasets (`/v1/eval-datasets/*`, `src/datasets_v2/`): independent task versions (no latest), `evaluations.dataset_v2_id`, `evaluation_datapoints.task_version_hash` |
 | `docs/internal/oss-release.md` | `.github/workflows/build-push.yml` (GHCR images, attestations, release-source gate) |
 | `docs/internal/backend-ci.md` | `.github/workflows/backend-build-and-test.yml`, `app-server/Dockerfile` (branch-scoped Actions cache, cargo-chef cook layers, CI timing baseline) |

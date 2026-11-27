@@ -132,12 +132,14 @@ pub fn publish_trace_metadata_patch(
 /// [`SPAN_TRACE_INPUT`] with no predefined key: the processor stores it
 /// directly in the `trace_agent_input` supplementary table. The metadata
 /// key is added only on the deprecated `traces_replacing` merge path.
-/// `rollout_session_id`, when set, is stamped for debugger-channel routing.
+/// `rollout_session_id` and `session_id`, when set, are stamped for debugger- and
+/// session-channel routing.
 pub async fn publish_trace_input_update(
     trace_id: Uuid,
     project_id: Uuid,
     value: Value,
     rollout_session_id: Option<String>,
+    session_id: Option<String>,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -150,6 +152,12 @@ pub async fn publish_trace_input_update(
     if let Some(session_id) = rollout_session_id {
         attributes.insert(
             format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.rollout.session_id"),
+            Value::String(session_id),
+        );
+    }
+    if let Some(session_id) = session_id {
+        attributes.insert(
+            format!("{ASSOCIATION_PROPERTIES_PREFIX}.session_id"),
             Value::String(session_id),
         );
     }

@@ -213,4 +213,6 @@ export type SessionRow = {
   totalCost: number;
 
   userId?: string;
+  /** Extracted (stringified JSON) input of the session's first trace. */
+  firstInput?: string;
 };

@@ -1,6 +1,7 @@
 import {
   ALERT_TARGET_TYPE,
   ALERT_TYPE,
+  type AlertType,
   type AlertWithDetails,
   SEVERITY_LEVEL,
   type SignalEventAlertMetadata,
@@ -14,6 +15,7 @@ import { type AlertFormValues, DEFAULT_VALUES } from "./types";
 // Initial form values, computed synchronously from already-loaded data.
 export function buildDefaultValues({
   alert,
+  defaultType,
   fixedSignalId,
   signals,
   boundSignal,
@@ -21,6 +23,7 @@ export function buildDefaultValues({
   userEmail,
 }: {
   alert?: AlertWithDetails | null;
+  defaultType?: AlertType;
   fixedSignalId?: string;
   signals: SignalRow[];
   boundSignal?: Signal;
@@ -29,7 +32,7 @@ export function buildDefaultValues({
 }): AlertFormValues {
   if (!alert) {
     const fixedSignal = fixedSignalId ? (signals.find((s) => s.id === fixedSignalId) ?? boundSignal) : undefined;
-    return { ...DEFAULT_VALUES, signalName: fixedSignal?.name ?? "" };
+    return { ...DEFAULT_VALUES, type: defaultType ?? DEFAULT_VALUES.type, signalName: fixedSignal?.name ?? "" };
   }
 
   const signal = signals.find((s) => s.id === alert.sourceId) ?? boundSignal;

@@ -21,7 +21,7 @@ function InputItemInner({ text, inGroup, className, startTime }: InputItemProps)
         className={cn(
           "flex flex-col flex-1 min-w-0 py-2 pr-2 border-l-4 border-l-transparent gap-1 bg-blue-400/5",
           {
-            "bg-muted/60": inGroup,
+            "bg-transparent": inGroup,
           },
           "pl-1",
           className

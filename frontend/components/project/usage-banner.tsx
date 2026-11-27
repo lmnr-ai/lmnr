@@ -6,8 +6,17 @@ import Link from "next/link";
 import { useProjectContext } from "@/contexts/project-context";
 import { type ProjectDetails } from "@/lib/actions/project";
 
-export default function ProjectUsageBanner({ details: { gbUsedThisMonth, gbLimit } }: { details: ProjectDetails }) {
+interface ProjectUsageBannerProps {
+  details: ProjectDetails;
+  /** Server-side gate (subscription feature + free tier + near limit). */
+  visible: boolean;
+}
+
+export default function ProjectUsageBanner({ details, visible }: ProjectUsageBannerProps) {
   const { settingsHref } = useProjectContext();
+  if (!visible) return null;
+
+  const { gbUsedThisMonth, gbLimit } = details;
   const dataPercentage = gbLimit > 0 ? (gbUsedThisMonth / gbLimit) * 100 : 0;
 
   const messageContent =

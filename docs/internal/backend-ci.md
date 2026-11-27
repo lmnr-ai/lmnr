@@ -1,6 +1,6 @@
 # Backend PR CI (`.github/workflows/backend-build-and-test.yml`)
 
-Builds the `builder` stage of `app-server/Dockerfile` on `ubuntu-24.04-arm` (native arm64, no QEMU) and runs `cargo test --release` inside it. `lmnr-private` does **not** carry this workflow — it has no Rust build/test CI at all, so a `signals`-feature break is not caught by CI anywhere.
+Builds the `builder` stage of `app-server/Dockerfile` on `ubuntu-24.04-arm` (native arm64, no QEMU) and runs `cargo test --release` inside it.
 
 ## Where the time goes
 

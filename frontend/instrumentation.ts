@@ -4,6 +4,8 @@
 import * as Sentry from "@sentry/nextjs";
 
 export async function register() {
+  // Sentry must init before Laminar below: OTel's global context manager is first-registration-wins, Sentry needs its
+  // own for scope isolation, and Laminar reuses any working one instead of registering.
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./sentry.server.config.ts");
   }
@@ -150,6 +152,16 @@ export async function register() {
           source: { table: "deduped_content" },
           layout: "cache",
         },
+        // Large non-LLM span input/output (migration 88), keyed by the span
+        // row's own ids. DIRECT: values average ~700 KB, so a cache would
+        // pin GBs per replica for payloads that are rarely read twice.
+        {
+          name: "spans_large_io_dict",
+          keyColumns: ["project_id UUID", "trace_id UUID", "span_id UUID", "is_output Bool"],
+          attrColumns: ["content String", "content_masks Array(Tuple(UInt32, UInt32, String))", "pii_checked Bool"],
+          source: { table: "spans_large_io" },
+          layout: "direct",
+        },
         // Trace scope for `spans_v1`'s `traceFilters` (migration 66): the
         // trace's `user_id` / `metadata`, `''` when unset. DIRECT so a fresh
         // trace is filterable as soon as `traces_static` has it; the view
@@ -285,11 +297,11 @@ export async function register() {
           const migrationsHome = join(process.cwd(), "lib/clickhouse/migrations");
 
           const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
-          const { ensureClickhousePostgresDatabase, ensureClickhouseReadonlyGrants, ensurePgEntityDicts } =
+          const { ensureClickhousePostgresDatabase, ensureClickhouseReadonlyGrants } =
             await import("@/lib/clickhouse/postgres-engine.ts");
 
-          // Ordered before migration 73 so a healthy boot has `pg` ready for the
-          // views over it; warn-only, so a broken one still starts.
+          // Ordered before migration 73 so a healthy boot has `pg` and the entity
+          // dicts ready for the views over them; warn-only, so a broken one still starts.
           await ensureClickhousePostgresDatabase(clickhouseClient);
 
           await migration(
@@ -305,7 +317,6 @@ export async function register() {
 
           await ensureContentDicts();
           await ensureClustersDict();
-          await ensurePgEntityDicts(clickhouseClient);
           await ensureClickhouseReadonlyGrants(clickhouseClient);
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);

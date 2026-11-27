@@ -19,7 +19,7 @@ export function useRealtime({ key, projectId, eventHandlers, enabled = true, onC
       return;
     }
 
-    const eventSource = new EventSource(`/api/projects/${projectId}/realtime?key=${key}`);
+    const eventSource = new EventSource(`/api/projects/${projectId}/realtime?key=${encodeURIComponent(key)}`);
     eventSourceRef.current = eventSource;
 
     eventSource.addEventListener("open", () => {

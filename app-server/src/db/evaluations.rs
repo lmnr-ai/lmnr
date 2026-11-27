@@ -2,10 +2,10 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::{PgPool, prelude::FromRow};
+use sqlx::{PgPool, prelude::FromRow, types::Json};
 use uuid::Uuid;
 
-use crate::evaluations::DEFAULT_GROUP_NAME;
+use crate::{evaluations::DEFAULT_GROUP_NAME, hosted_evals::HostedMetadata};
 
 #[derive(Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +19,9 @@ pub struct Evaluation {
     /// Conceptually, evaluations with different group ids are used to test different features.
     pub group_id: String,
     pub metadata: Option<Value>,
+    /// The eval dataset the run is of (`datasets_v2`); no FK, so a local run of
+    /// an unpushed dataset still records its name.
+    pub dataset_v2_id: Option<String>,
 }
 
 #[derive(FromRow)]
@@ -32,22 +35,27 @@ pub async fn create_evaluation(
     project_id: Uuid,
     group_id: &str,
     metadata: &Option<Value>,
+    hosted_metadata: Option<&HostedMetadata>,
+    dataset_v2_id: Option<&str>,
 ) -> Result<Evaluation> {
     let evaluation = sqlx::query_as::<_, Evaluation>(
-        "INSERT INTO evaluations (name, project_id, group_id, metadata)
-        VALUES ($1, $2, $3, $4)
+        "INSERT INTO evaluations (name, project_id, group_id, metadata, hosted_metadata, dataset_v2_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING
             id,
             created_at,
             name,
             project_id,
             group_id,
-            metadata",
+            metadata,
+            dataset_v2_id",
     )
     .bind(name)
     .bind(project_id)
     .bind(group_id)
     .bind(metadata)
+    .bind(hosted_metadata.map(Json))
+    .bind(dataset_v2_id)
     .fetch_one(pool)
     .await?;
 
@@ -76,7 +84,8 @@ pub async fn update_evaluation(
             name,
             project_id,
             group_id,
-            metadata",
+            metadata,
+            dataset_v2_id",
     )
     .bind(evaluation_id)
     .bind(project_id)

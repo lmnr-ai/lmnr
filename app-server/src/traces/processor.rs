@@ -15,6 +15,7 @@ use crate::{
         ClickhouseTrait,
         agent_prompts::{CHAgentPrompt, insert_agent_prompts},
         spans::CHSpan,
+        spans_large_io::CHSpanLargeIo,
         traces::TraceAggregation,
         traces_agg::{CHTraceAgg, PATCH_START_TIME_OFFSET_NS},
         traces_static::CHTraceStatic,
@@ -41,11 +42,12 @@ use crate::{
             messages::{MessageBatch, MessageDedup},
             tools::{ToolDedup, resolve_tool_dedup},
         },
+        large_io::{self, LargeIoLimits},
         metadata::TraceMetadataPatch,
         provider::convert_span_to_provider_format,
         realtime::{
-            RealtimeTrace, TraceChannel, channels_for_aggregation, send_agent_input_update,
-            send_span_updates, send_trace_updates,
+            RealtimeTrace, channels_for_aggregation, send_agent_input_update, send_span_updates,
+            send_trace_updates,
         },
         span_attributes::{SPAN_TRACE_INPUT, SPAN_TRACE_OUTPUT_HASHES},
         spans::SpanUsage,
@@ -137,6 +139,9 @@ struct RawTraceIo {
     /// Stamped by the extraction façade; routes the agent_input event to the
     /// debugger channel.
     rollout_session_id: Option<String>,
+    /// Stamped by the extraction façade; routes the agent_input event to the
+    /// session channel.
+    session_id: Option<String>,
 }
 
 /// Metadata-only virtual spans split off before the regular pipeline: they
@@ -301,9 +306,6 @@ pub async fn process_span_messages(
     )
     .await?;
 
-    // Live agent_input — the stat delta can't carry it (extraction is async).
-    dispatch_input_realtime_updates(&raw_trace_io, &pii_modes, cache.clone(), &pubsub).await;
-
     let pii_outcome = redact_pii(
         &mut batch.spans,
         &recordable_indices,
@@ -313,13 +315,19 @@ pub async fn process_span_messages(
     )
     .await;
     let original_sizes = charge_span_sizes(&mut batch, &recordable_indices, &dedup);
-    let ch_spans = build_ch_spans(
+    let mut ch_spans = build_ch_spans(
         &batch,
         &recordable_indices,
         &dedup,
         &pii_outcome,
         &original_sizes,
     );
+    // Data planes have no `spans_large_io` table or dictionary to read it back.
+    let large_io_rows = if config.is_none() {
+        offload_large_io(&mut ch_spans, &batch, &recordable_indices, &pii_outcome)
+    } else {
+        Vec::new()
+    };
 
     let recordable_refs: Vec<&Span> = recordable_indices
         .iter()
@@ -334,6 +342,9 @@ pub async fn process_span_messages(
             debugger_session_blocks::upsert_blocks_for_traces(&db.pool, &trace_aggregations).await;
             dispatch_trace_realtime_updates(&trace_aggregations, cache.clone(), &pubsub).await;
         }
+        // After the trace deltas, so live views already have the row the input belongs to. Raw (pre-redaction) I/O
+        // with the PII modes resolved above; the stat delta can't carry it because extraction is async.
+        dispatch_input_realtime_updates(&raw_trace_io, &pii_modes, cache.clone(), &pubsub).await;
         write_trace_tables(
             &ch,
             config,
@@ -347,6 +358,7 @@ pub async fn process_span_messages(
         &ch,
         config,
         &dedup.shared_content,
+        &large_io_rows,
         &ch_spans,
         &seen_marks,
         &cache,
@@ -477,6 +489,7 @@ fn parse_raw_trace_io(span: &Span) -> Option<RawTraceIo> {
         input,
         output_hashes,
         rollout_session_id,
+        session_id: span.attributes.session_id(),
     })
 }
 
@@ -807,6 +820,30 @@ fn build_ch_span(
     ch_span
 }
 
+/// Moves oversized non-LLM `input` / `output` out of the `spans` rows, leaving
+/// previews (`traces::large_io`). After billing, so `size_bytes` is unchanged.
+fn offload_large_io(
+    ch_spans: &mut [CHSpan],
+    batch: &SpanBatch,
+    recordable_indices: &[usize],
+    pii_outcome: &PiiOutcome,
+) -> Vec<CHSpanLargeIo> {
+    let limits = LargeIoLimits::from_env();
+    ch_spans
+        .iter_mut()
+        .zip(recordable_indices)
+        .enumerate()
+        .flat_map(|(dedup_idx, (ch_span, &span_idx))| {
+            large_io::offload(
+                ch_span,
+                &batch.spans[span_idx],
+                pii_outcome.verdict(dedup_idx),
+                limits,
+            )
+        })
+        .collect()
+}
+
 /// Storage marks for content presence, trace-new marks for the search "first
 /// occurrence per trace" semantic; stamped ONLY after both inserts (see
 /// `write_span_tables`). Rows whose redaction failed get no storage mark, so
@@ -945,18 +982,20 @@ fn build_traces_static_rows(
     rows
 }
 
-/// Strict order: unique_content -> spans -> stamp. `spans` is plain MergeTree,
-/// so a retry after a successful spans insert + failed content insert would
-/// duplicate every span row. Stamping runs LAST because the two key axes are
-/// backed by different tables: `s2:` by `unique_content`, `tn:` by
-/// `spans.*_new_message_indices` — a `tn:` key stamped before a
-/// permanently-dropped spans insert made later spans ship empty
+/// Strict order: unique_content -> spans_large_io -> spans -> stamp. `spans`
+/// is plain MergeTree, so a retry after a successful spans insert + failed
+/// content insert would duplicate every span row; an offloaded `spans` row
+/// also needs its `spans_large_io` row to exist first.
+/// Stamping runs LAST because the two key axes are backed by different tables:
+/// `s2:` by `unique_content`, `tn:` by `spans.*_new_message_indices` — a `tn:`
+/// key stamped before a permanently-dropped spans insert made later spans ship empty
 /// `*_new_message_indices`, so no span recorded the first occurrence. See
 /// `docs/internal/dedup-search.md` "Ingest order".
 async fn write_span_tables(
     ch: &impl ClickhouseTrait,
     config: Option<&WorkspaceDeployment>,
     shared_content: &SharedContentBatch,
+    large_io_rows: &[CHSpanLargeIo],
     ch_spans: &[CHSpan],
     seen_marks: &SeenMarks,
     cache: &Cache,
@@ -971,6 +1010,20 @@ async fn write_span_tables(
         );
         return Err(HandlerError::transient(anyhow::anyhow!(
             "Failed to insert unique_content to Clickhouse: {:?}",
+            e
+        )));
+    }
+
+    if !large_io_rows.is_empty()
+        && let Err(e) = ch.insert_batch(large_io_rows, config).await
+    {
+        log::error!(
+            "Failed to insert {} spans_large_io rows to ClickHouse: {:?}",
+            large_io_rows.len(),
+            e
+        );
+        return Err(HandlerError::transient(anyhow::anyhow!(
+            "Failed to insert spans_large_io to Clickhouse: {:?}",
             e
         )));
     }
@@ -1158,44 +1211,18 @@ async fn dispatch_trace_realtime_updates(
         return;
     }
 
-    let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
-    let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
-    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeTrace>> = HashMap::new();
-
+    // One batch per (project, channel key) so each subscriber gets a single message.
+    let mut buckets: HashMap<(Uuid, String), Vec<RealtimeTrace>> = HashMap::new();
     for agg in aggregations {
         for channel in channels_for_aggregation(agg, cache.as_ref()).await {
-            match channel {
-                TraceChannel::Project => {
-                    project_buckets
-                        .entry(agg.project_id)
-                        .or_default()
-                        .push(RealtimeTrace::from_aggregation(agg));
-                }
-                TraceChannel::Evaluation(evaluation_id) => {
-                    evaluation_buckets
-                        .entry((agg.project_id, evaluation_id))
-                        .or_default()
-                        .push(RealtimeTrace::from_aggregation(agg));
-                }
-                TraceChannel::RolloutDebugger(rollout_session_id) => {
-                    debugger_buckets
-                        .entry((agg.project_id, rollout_session_id))
-                        .or_default()
-                        .push(RealtimeTrace::from_aggregation(agg));
-                }
-            }
+            buckets
+                .entry((agg.project_id, channel.key()))
+                .or_default()
+                .push(RealtimeTrace::from_aggregation(agg));
         }
     }
 
-    for (project_id, traces_data) in project_buckets {
-        send_trace_updates(&project_id, "traces", &traces_data, pubsub).await;
-    }
-    for ((project_id, evaluation_id), traces_data) in evaluation_buckets {
-        let key = format!("evaluation_{}", evaluation_id);
-        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
-    }
-    for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
-        let key = format!("rollout_session_{}", rollout_session_id);
+    for ((project_id, key), traces_data) in buckets {
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
     }
 }
@@ -1223,6 +1250,7 @@ async fn dispatch_input_realtime_updates(
                 entry.trace_id,
                 value,
                 entry.rollout_session_id.as_deref(),
+                entry.session_id.as_deref(),
             )
             .await;
         }
@@ -1321,6 +1349,7 @@ mod tests {
                 input: Some(json!("the task")),
                 output_hashes: None,
                 rollout_session_id: None,
+                session_id: None,
             }],
             &resolved,
             999,
@@ -1336,6 +1365,7 @@ mod tests {
                 input: Some(json!("the task")),
                 output_hashes: None,
                 rollout_session_id: None,
+                session_id: None,
             }],
             &HashMap::new(),
             999,
@@ -1358,6 +1388,7 @@ mod tests {
                     input: Some(input),
                     output_hashes: None,
                     rollout_session_id: None,
+                    session_id: None,
                 }],
                 &HashMap::new(),
                 0,

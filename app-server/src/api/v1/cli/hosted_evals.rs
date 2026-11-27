@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
 use actix_web::{
-    HttpRequest, post, put,
+    HttpRequest, get, post, put,
     web::{self, Json},
 };
+use uuid::Uuid;
 
 use crate::{
     api::v1::hosted_evals::{
-        CreateImageRequest, HostedEvalsData, LayersRequest, handle_create_image,
-        handle_create_upload, handle_missing_layers, handle_start_run, handle_upload_layer,
+        CreateImageRequest, HostedEvalsData, LayersRequest, LogsFrom, handle_create_image,
+        handle_create_upload, handle_get_run_logs, handle_get_sandbox, handle_missing_layers,
+        handle_start_run, handle_upload_index, handle_upload_layer,
     },
     auth::cli_user::CliProjectAuth,
     cache::Cache,
@@ -19,8 +21,8 @@ use crate::{
 };
 
 // CLI user-token twins of the `/v1/hosted-evals` routes the CLI itself calls;
-// only the auth extractor (`CliProjectAuth`) differs. The sandbox routes are
-// key-only: Harbor's environment class authenticates with a project key.
+// only the auth extractor (`CliProjectAuth`) differs. The other sandbox routes
+// are key-only: Harbor's environment class authenticates with a project key.
 
 #[post("/hosted-evals/images/layers/missing")]
 pub async fn missing_layers(
@@ -63,6 +65,17 @@ pub async fn create_upload(
     handle_create_upload(auth.project_id, payload, &hosted, &storage).await
 }
 
+#[put("/hosted-evals/uploads/{upload_id}/index")]
+pub async fn upload_index(
+    path: web::Path<Uuid>,
+    auth: CliProjectAuth,
+    payload: web::Payload,
+    hosted: HostedEvalsData,
+    storage: web::Data<Arc<Storage>>,
+) -> ResponseResult {
+    handle_upload_index(auth.project_id, &path, payload, &hosted, &storage).await
+}
+
 #[post("/hosted-evals/runs")]
 pub async fn start_run(
     req: HttpRequest,
@@ -83,4 +96,27 @@ pub async fn start_run(
         &storage,
     )
     .await
+}
+
+/// The run's log, followed by `lmnr-cli eval run --remote`.
+#[get("/hosted-evals/runs/{upload_id}/logs")]
+pub async fn get_run_logs(
+    path: web::Path<Uuid>,
+    query: web::Query<LogsFrom>,
+    auth: CliProjectAuth,
+    hosted: HostedEvalsData,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
+    handle_get_run_logs(&auth.project_id, &path, query.from, &hosted, &clickhouse).await
+}
+
+/// The run's orchestrator, which the CLI checks on while following its log.
+#[get("/hosted-evals/sandboxes/{sandbox_id}")]
+pub async fn get_sandbox(
+    path: web::Path<String>,
+    auth: CliProjectAuth,
+    hosted: HostedEvalsData,
+    cache: web::Data<Cache>,
+) -> ResponseResult {
+    handle_get_sandbox(&auth.project_id, &path, &hosted, &cache).await
 }

@@ -1,6 +1,7 @@
 pub mod browser_sessions;
 pub mod cli;
 pub mod datasets;
+pub mod datasets_v2;
 pub mod debugger;
 pub mod evals;
 pub mod hosted_evals;
@@ -9,8 +10,10 @@ pub mod llm_profiles;
 pub mod logs;
 pub mod mcp;
 pub mod metrics;
+pub mod payload;
 pub mod projects;
 pub mod rollouts;
+pub mod rystic;
 pub mod signals;
 pub mod spans;
 pub mod sql;

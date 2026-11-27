@@ -39,7 +39,7 @@ export default function MDHeading({ props, level }: MDHeadingProps) {
 
 function HeadingContent({ props, level, anchor }: { props: HeadingProps; level: Level; anchor: React.ReactNode }) {
   const { children, ...rest } = props;
-  const className = cn("group font-medium font-sans-landing text-white", props.className);
+  const className = cn("group font-medium font-sans-landing text-foreground dark:text-white", props.className);
   const body = (
     <>
       {children}

@@ -73,6 +73,7 @@ it("checkAxes requires x and y except for tables", () => {
   assert.ok(checkAxes(config("line", "time")));
   assert.ok(checkAxes(config("horizontalBar", undefined, "name")));
   assert.equal(checkAxes(config("table")), undefined);
+  assert.equal(checkAxes(config("value")), undefined);
 });
 
 it("checkBreakdown flags grouped rows without a breakdown", () => {
@@ -125,6 +126,25 @@ describe("checkCharts", () => {
         e instanceof DashboardError &&
         e.status === 400 &&
         e.message === "charts[0]: query failed when run over the last 24h: Query validation failed: unknown table"
+    );
+  });
+
+  it("warns when a value chart returns more than one row", async () => {
+    const query =
+      "SELECT model, count() AS n FROM spans WHERE start_time >= {start_time:DateTime64} AND start_time <= {end_time:DateTime64} GROUP BY model";
+    const twoRows = rows([
+      { model: "a", n: 1 },
+      { model: "b", n: 2 },
+    ]);
+    const { upserts, warnings } = await checkCharts(
+      [{ name: "Models", query, config: config("value", undefined, "n") }],
+      twoRows
+    );
+    assert.equal(upserts[0].query, query);
+    assert.match(warnings[0], /^charts\[0\]: a value chart shows only the first row/);
+    await assert.rejects(
+      checkCharts([{ name: "Models", query, config: config("value", undefined, "missing") }], twoRows),
+      /returns only: model, n/
     );
   });
 

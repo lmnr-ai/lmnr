@@ -1,13 +1,22 @@
 import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { createSignal, deleteSignals, getSignals, GetSignalsSchema, setTemplateSignals } from "@/lib/actions/signals";
+import {
+  createSignal,
+  deleteSignals,
+  getSidebarSignals,
+  getSignals,
+  GetSignalsSchema,
+  setTemplateSignals,
+} from "@/lib/actions/signals";
 import { apiHandler } from "@/lib/api/api-handler";
 import { handlerWithAudit } from "@/lib/audit";
 import { getServerSession } from "@/lib/auth-session";
 
 export const GET = apiHandler<{ projectId: string }>(async (request, ctx) => {
   const { projectId } = await ctx.params;
+  if (request.nextUrl.searchParams.get("view") === "sidebar")
+    return Response.json(await getSidebarSignals({ projectId }));
 
   const parseResult = parseUrlParams(request.nextUrl.searchParams, GetSignalsSchema.omit({ projectId: true }));
 

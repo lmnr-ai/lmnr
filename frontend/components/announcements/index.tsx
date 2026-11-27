@@ -3,8 +3,11 @@
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { useCallback, useMemo } from "react";
 
+import AnnouncementAction from "@/components/announcements/announcement-action";
+import { buildOpenSourceSlide } from "@/components/announcements/open-source-slide";
+import { type CarouselSlide } from "@/components/announcements/slide-card";
 import { useSidebar } from "@/components/ui/sidebar";
-import { type Announcement, getVisibleAnnouncements } from "@/lib/announcements/types";
+import { type Announcement, getVisibleAnnouncements, OPEN_SOURCE_SLIDE_ID } from "@/lib/announcements/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { withBasePath } from "@/lib/utils";
 
@@ -14,6 +17,8 @@ import FigmaCarousel from "./variants/figma-carousel";
 interface AnnouncementsProps {
   announcements: Announcement[];
   initialDismissedIds: string[];
+  /** Prepends the "Laminar is open-source" slide (cloud only). */
+  showOpenSource: boolean;
 }
 
 const wrapperVariants: Variants = {
@@ -23,16 +28,18 @@ const wrapperVariants: Variants = {
           height: 0,
           opacity: 0,
           y: 120,
+          // Clip only while collapsing; at rest the carousel dots hang below the li.
+          overflow: "hidden",
           transition: {
             height: { duration: 0.35, ease: "easeInOut" },
             opacity: { duration: 0.2 },
             y: { type: "spring", visualDuration: 0.35, bounce: 0.15 },
           },
         }
-      : { height: 0, opacity: 0, transition: { duration: 0 } },
+      : { height: 0, opacity: 0, overflow: "hidden", transition: { duration: 0 } },
 };
 
-const Announcements = ({ announcements, initialDismissedIds }: AnnouncementsProps) => {
+const Announcements = ({ announcements, initialDismissedIds, showOpenSource }: AnnouncementsProps) => {
   const { open, openMobile } = useSidebar();
   const { toast } = useToast();
   const sessionDismissedIds = useAnnouncementsStore((state) => state.dismissedIds);
@@ -41,9 +48,13 @@ const Announcements = ({ announcements, initialDismissedIds }: AnnouncementsProp
   const setDetailsAnnouncement = useAnnouncementsStore((state) => state.setDetailsAnnouncement);
   // Unioned during render rather than hydrated into the store, so a card the
   // server already knows is dismissed never flashes before being filtered out.
+  const dismissedIds = useMemo(
+    () => new Set([...initialDismissedIds, ...sessionDismissedIds]),
+    [initialDismissedIds, sessionDismissedIds]
+  );
   const visibleAnnouncements = useMemo(
-    () => getVisibleAnnouncements(announcements, new Set([...initialDismissedIds, ...sessionDismissedIds])),
-    [announcements, initialDismissedIds, sessionDismissedIds]
+    () => getVisibleAnnouncements(announcements, dismissedIds),
+    [announcements, dismissedIds]
   );
   const sidebarOpen = open || openMobile;
 
@@ -78,13 +89,29 @@ const Announcements = ({ announcements, initialDismissedIds }: AnnouncementsProp
     [markDismissed, undoDismiss, toast]
   );
 
+  // Known on the server (user preferences), so the first render already has the final slides.
+  const showOpenSourceSlide = showOpenSource && !dismissedIds.has(OPEN_SOURCE_SLIDE_ID);
+  const slides = useMemo<CarouselSlide[]>(
+    () => [
+      ...(showOpenSourceSlide ? [buildOpenSourceSlide(OPEN_SOURCE_SLIDE_ID, () => dismiss(OPEN_SOURCE_SLIDE_ID))] : []),
+      ...visibleAnnouncements.map((announcement) => ({
+        id: announcement.id,
+        title: announcement.title,
+        description: announcement.description,
+        action: <AnnouncementAction announcement={announcement} onOpenDetails={openDetails} />,
+        onDismiss: () => dismiss(announcement.id),
+      })),
+    ],
+    [showOpenSourceSlide, visibleAnnouncements, openDetails, dismiss]
+  );
+
   // The details dialog is mounted by the project layout, outside this
   // collapse-gated subtree, so an open dialog survives a sidebar collapse.
   return (
-    <AnimatePresence initial={false} custom={visibleAnnouncements.length === 0 ? "dismissed" : "hidden"}>
-      {sidebarOpen && visibleAnnouncements.length > 0 && (
-        <motion.li key="announcements" variants={wrapperVariants} exit="exit" className="relative overflow-hidden">
-          <FigmaCarousel announcements={visibleAnnouncements} onDismiss={dismiss} onOpenDetails={openDetails} />
+    <AnimatePresence initial={false} custom={slides.length === 0 ? "dismissed" : "hidden"}>
+      {sidebarOpen && slides.length > 0 && (
+        <motion.li key="announcements" variants={wrapperVariants} exit="exit" className="relative">
+          <FigmaCarousel slides={slides} />
         </motion.li>
       )}
     </AnimatePresence>

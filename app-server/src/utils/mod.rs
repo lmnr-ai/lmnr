@@ -2,10 +2,41 @@ pub mod limits;
 pub mod retry;
 pub mod text_cleaning;
 
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 #[cfg(feature = "signals")]
 use crate::env::private::signals;
+
+/// `null` deserializes like an absent field, to `T::default()`. Use it on `#[serde(default)]`
+/// fields of tool inputs: schema-driven MCP clients send `null` for every optional field they
+/// leave unset, and plain `serde(default)` rejects that.
+pub fn null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Option::<T>::deserialize(deserializer).map(Option::unwrap_or_default)
+}
+
+/// schemars transform for a `#[serde(tag = "type")]` enum: gives each variant's `type` tag the
+/// variant's doc comment, since serde's tag field has no doc of its own to advertise.
+pub fn describe_type_tags(schema: &mut schemars::Schema) {
+    let Some(variants) = schema.get_mut("oneOf").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for variant in variants {
+        let Some(description) = variant.get("description").cloned() else {
+            continue;
+        };
+        if let Some(tag) = variant
+            .pointer_mut("/properties/type")
+            .and_then(Value::as_object_mut)
+        {
+            tag.insert("description".to_string(), description);
+        }
+    }
+}
 
 /// Cost in micro-USD (1e-6 USD) of the given signal token spend (see
 /// `env::private::signals`).

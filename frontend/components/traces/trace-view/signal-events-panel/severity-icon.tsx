@@ -19,11 +19,12 @@ interface Props {
   /** Skip the tooltip. Inside a tab it would nest interactive elements and
    *  compete for the click, and the tab's own label already names the signal. */
   bare?: boolean;
+  iconClassName?: string;
 }
 
 /** Severity beside the signal name. A word there would be a second title, so the
  *  label lives in a tooltip — a colour and a shape have to be learnable. */
-export default function SeverityIcon({ severity, bare }: Props) {
+export default function SeverityIcon({ severity, bare, iconClassName = "size-3" }: Props) {
   const Icon = ICONS[severity as keyof typeof ICONS] ?? Info;
   const label = SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Info";
 
@@ -31,7 +32,7 @@ export default function SeverityIcon({ severity, bare }: Props) {
   // `TabsTrigger`'s `[&_svg:not([class*='size-'])]:size-4`.
   const glyph = (
     <span className={cn("shrink-0", COLORS[severity] ?? COLORS[0], bare && "pointer-events-none")} aria-label={label}>
-      <Icon className="size-3" />
+      <Icon className={iconClassName} />
     </span>
   );
 

@@ -21,7 +21,7 @@ export default function Callout({ kind = "info", title, children }: CalloutProps
     <aside className={cn("not-typeset my-6 flex gap-3 rounded-lg border px-4 py-3", className)}>
       <Icon className="mt-1 size-4 shrink-0" />
       <div className="flex flex-col gap-1 text-secondary-foreground [&_p]:m-0">
-        {title && <span className="font-medium text-white">{title}</span>}
+        {title && <span className="font-medium text-foreground dark:text-white">{title}</span>}
         {children}
       </div>
     </aside>

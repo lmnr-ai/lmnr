@@ -12,7 +12,9 @@ export const PATCH = handlerWithAudit<Params>({ resource: "view", action: "updat
     viewId,
     name: body.name,
     config: body.config,
+    isDefault: body.isDefault,
   });
+  if (typeof body.isDefault === "boolean") audit.set({ metadata: { isDefault: body.isDefault } });
   await audit.target(viewId);
 
   return Response.json(result);

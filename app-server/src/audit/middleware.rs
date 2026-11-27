@@ -78,7 +78,7 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
         // The handler adds the query text and tables.
         ("POST", "/sql/query") => log_write(Sql, Query),
         // One route serves every tool; the SQL tool logs its own `sql.query`.
-        (_, "/mcp") => Skip,
+        (_, "/mcp" | "/mcp/server-card") => Skip,
         // Discovery and schema reads carry no data.
         ("GET", "/project" | "/projects" | "/sql/schema") | ("POST", "/project") => Skip,
 
@@ -104,6 +104,10 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
         ("PATCH", "/alerts/{alert_id}") => log_write(Alert, Update),
         ("DELETE", "/alerts/{alert_id}") => log_write(Alert, Delete),
 
+        ("POST", "/views") => log_write(AuditResource::View, Create),
+        ("PATCH", "/views/{view_id}") => log_write(AuditResource::View, Update),
+        ("DELETE", "/views/{view_id}") => log_write(AuditResource::View, Delete),
+
         ("POST", "/dashboards") => log_write(Dashboard, Create),
         ("PATCH", "/dashboards/{dashboard_id}") => log_write(Dashboard, Update),
         ("DELETE", "/dashboards/{dashboard_id}") => log_write(Dashboard, Delete),
@@ -120,6 +124,9 @@ pub(super) fn classify(method: &Method, path: &str) -> Option<Classification> {
             | "/evals/{eval_id}/datapoints/{trial_id}",
         ) => Skip,
         ("POST", "/hosted-evals/runs") => log_write(Evaluation, Run),
+        // Version uploads and downloads are per-task traffic of a CLI push or
+        // pull; which versions a dataset uses lives in its dataset.toml in git.
+        (_, p) if p.starts_with("/eval-datasets/") => Skip,
         (_, p) if p.starts_with("/hosted-evals/") => Skip,
 
         ("POST", "/rollouts/{session_id}") => log_write(DebuggerSession, Create),
@@ -299,6 +306,19 @@ mod tests {
             (Method::POST, "/evals/{eval_id}/datapoints"),
             (Method::POST, "/rollouts/{session_id}/blocks"),
             (Method::PUT, "/hosted-evals/images/layers/{diff_id}"),
+            (
+                Method::PUT,
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}",
+            ),
+            (
+                Method::PUT,
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}/index",
+            ),
+            (
+                Method::GET,
+                "/eval-datasets/{org}/{name}/tasks/{task_org}/{task_name}/versions/{hash}",
+            ),
+            (Method::POST, "/eval-datasets/{org}/{name}/versions/missing"),
             (Method::POST, "/mcp"),
         ] {
             assert_eq!(

@@ -5,6 +5,7 @@ import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatabl
 import { type Filter } from "@/lib/actions/common/filters";
 import {
   backtickEscape,
+  buildColumnFilters,
   buildSelectQuery,
   type ColumnFilterConfig,
   type ColumnFilterProcessor,
@@ -37,6 +38,7 @@ const createAgentIoFilter = (column: "agent_input"): ColumnFilterProcessor =>
   );
 
 const tracesColumnFilterConfig: ColumnFilterConfig = {
+  anyOfColumns: new Set(["id"]),
   processors: new Map([
     ["id", createStringFilter],
     ["session_id", createStringFilter],
@@ -216,7 +218,7 @@ const buildFilterConfigWithCustomColumns = (customColumns?: CustomColumn[]): Col
     processors.set(col.id, processor);
   }
 
-  return { processors };
+  return { ...tracesColumnFilterConfig, processors };
 };
 
 export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): QueryResult => {
@@ -420,21 +422,12 @@ export const buildTracesStatsWhereConditions = (options: {
     params.traceIds = options.traceIds;
   }
 
-  const columnFilterConfig = buildFilterConfigWithCustomColumns(options.customColumns);
-
-  options.filters.forEach((filter, index) => {
-    const safeColumn = filter.column.replace(/[^a-zA-Z0-9_]/g, "_");
-    const paramKey = `${safeColumn}_${index}`;
-    const processor = columnFilterConfig.processors.get(filter.column);
-
-    if (processor) {
-      const result = processor(filter, paramKey);
-      if (result.condition) {
-        conditions.push(result.condition);
-        Object.assign(params, result.params);
-      }
-    }
-  });
+  // Same builder as the table query, so the chart and the rows agree (incl. `anyOfColumns` grouping).
+  const filterResult = buildColumnFilters(options.filters, buildFilterConfigWithCustomColumns(options.customColumns));
+  if (filterResult.condition) {
+    conditions.push(filterResult.condition);
+    Object.assign(params, filterResult.params);
+  }
 
   return { conditions, params };
 };

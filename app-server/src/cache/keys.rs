@@ -17,6 +17,15 @@ pub const HOSTED_EVALS_RECENT_SANDBOXES_CACHE_KEY: &str = "hosted_evals_recent_s
 /// `hosted_evals_layer:{project_id}:{diff_id}` → the registry blob (digest, size)
 /// holding that image layer, gzip-compressed.
 pub const HOSTED_EVALS_LAYER_CACHE_KEY: &str = "hosted_evals_layer";
+/// `hosted_evals_rystic_token:{token hash}` → the project a trial's Rystic token
+/// belongs to. Expires with the trial's TTL; removed when the trial is deleted.
+pub const HOSTED_EVALS_RYSTIC_TOKEN_CACHE_KEY: &str = "hosted_evals_rystic_token";
+/// `hosted_evals_rystic_sandbox:{project_id}:{sandbox_id}` → the hash of the
+/// trial's Rystic token, so deleting the trial can revoke it.
+pub const HOSTED_EVALS_RYSTIC_SANDBOX_CACHE_KEY: &str = "hosted_evals_rystic_sandbox";
+/// `hosted_evals_rystic_registrations:{token hash}` → simulator starts made with
+/// the token (counter).
+pub const HOSTED_EVALS_RYSTIC_REGISTRATIONS_CACHE_KEY: &str = "hosted_evals_rystic_registrations";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 /// `license_state` → the instance's license inputs (`license::Inputs`). Written on
@@ -25,6 +34,10 @@ pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 pub const LICENSE_STATE_CACHE_KEY: &str = "license_state";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
+/// `signal_name:{project_id}:{signal_id}` → the signal's current name. Signal
+/// renames and deletes remove it, here (`signals::service`) and in the
+/// frontend signal actions.
+pub const SIGNAL_NAME_CACHE_KEY: &str = "signal_name";
 /// `llm_profile:{workspace_id}:{profile_id}` → full profile row (encrypted secrets included).
 /// `llm::profiles::service` removes the key on every profile write.
 pub const LLM_PROFILE_CACHE_KEY: &str = "llm_profile";
@@ -276,7 +289,8 @@ pub const DEDUP_STORAGE_SEEN_CACHE_KEY: &str = "s2";
 /// in the trace (`spans.*_new_message_indices`).
 pub const DEDUP_TRACE_NEW_CACHE_KEY: &str = "tn";
 /// `trace_session:{project}:{trace} → session_id` — lets an LLM span without
-/// its own session join the trace's session group. Written by the ingest
+/// its own session join the trace's session group, and lets realtime route a
+/// batch without a session id to the session channel. Written by the ingest
 /// producer, the one producer-side Redis write in the dedup path.
 pub const TRACE_SESSION_HINT_CACHE_KEY: &str = "trace_session";
 

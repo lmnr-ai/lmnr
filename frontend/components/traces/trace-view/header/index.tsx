@@ -2,19 +2,20 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronsRight, Layers, Maximize, Radio, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { createSerializer, parseAsArrayOf, parseAsString } from "nuqs";
 import { memo, useCallback, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
+import SessionPreview from "@/components/traces/session-preview";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { useTraceSignals } from "@/components/traces/trace-view/use-trace-signals";
+import { useTraceViewTab } from "@/components/traces/trace-view/use-trace-view-tab";
+import UserPreview from "@/components/traces/user-preview";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -24,18 +25,9 @@ import { HeaderIconButton } from "./header-icon-button";
 import { HeaderLinkButton } from "./header-link-button";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
+import { userTracesUrl } from "./user-traces-url";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
-
-const FREE_TIER_RETENTION_DAYS = 7;
-
-// The traces table reads `filter` through nuqs `parseAsArrayOf(parseAsString)`, which
-// splits on unescaped commas — so hand-built `URLSearchParams` shred the filter JSON.
-// Serialize with nuqs so the escaping matches the reader.
-const serializeTracesFilterQuery = createSerializer({
-  filter: parseAsArrayOf(parseAsString),
-  pastHours: parseAsString,
-});
 
 interface HeaderProps {
   // Undefined ⇒ the close button is hidden (always-open panel).
@@ -52,9 +44,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const { project } = useProjectContext();
   const [isSearchAnimating, setIsSearchAnimating] = useState(false);
 
+  const [tab] = useTraceViewTab();
   const {
     trace,
-    tab,
     condensedTimelineEnabled,
     setCondensedTimelineEnabled,
     signalsPanelOpen,
@@ -64,7 +56,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
-      tab: state.tab,
       condensedTimelineEnabled: state.condensedTimelineEnabled,
       setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
       signalsPanelOpen: state.signalsPanelOpen,
@@ -105,12 +96,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenUserTraces = useCallback(() => {
     if (!hasUser) return;
-    const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
-    const query = serializeTracesFilterQuery({
-      filter: [JSON.stringify({ column: "user_id", operator: Operator.Eq, value: userId, dataType: "string" })],
-      pastHours: String(retentionDays * 24),
-    });
-    window.open(`/project/${projectId}/traces${query}`, "_blank");
+    window.open(userTracesUrl(projectId, userId, project?.logRetentionDays), "_blank");
   }, [hasUser, userId, projectId, project?.logRetentionDays]);
 
   return (
@@ -173,24 +159,26 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         <div className="flex flex-wrap items-center gap-1 mt-1.5">
           {hasSession && (
             <span className={HEADER_ITEM_CLS}>
-              <HeaderLinkButton
-                icon={<Layers size={14} className="flex-shrink-0" />}
-                label={sessionId}
-                tooltip="Open session in a new tab"
-                onClick={handleOpenSession}
-                className="max-w-56"
-              />
+              <SessionPreview projectId={projectId} sessionId={sessionId} currentTraceId={traceId}>
+                <HeaderLinkButton
+                  icon={<Layers size={14} className="flex-shrink-0" />}
+                  label={sessionId}
+                  onClick={handleOpenSession}
+                  className="max-w-56"
+                />
+              </SessionPreview>
             </span>
           )}
           {hasUser && (
             <span className={HEADER_ITEM_CLS}>
-              <HeaderLinkButton
-                icon={<User size={14} className="flex-shrink-0" />}
-                label={userId}
-                tooltip="See user traces in a new tab"
-                onClick={handleOpenUserTraces}
-                className="max-w-40"
-              />
+              <UserPreview projectId={projectId} userId={userId}>
+                <HeaderLinkButton
+                  icon={<User size={14} className="flex-shrink-0" />}
+                  label={userId}
+                  onClick={handleOpenUserTraces}
+                  className="max-w-40"
+                />
+              </UserPreview>
             </span>
           )}
           <TraceTagsPills traceId={traceId} />

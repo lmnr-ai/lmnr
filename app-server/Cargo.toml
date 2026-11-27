@@ -51,6 +51,7 @@ opentelemetry = {version = "0.32.0", features = ["trace"]}
 opentelemetry_sdk = {version = "0.32", features = ["trace"]}
 ort = {version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-28"], optional = true}
 prost = "0.14"
+pulldown-cmark = { version = "0.13.0", default-features = false }
 # `serde` unlocks `Environment::from_client_option`, the only public way to
 # reach `max_frame_size` (the EnvironmentBuilder doesn't expose it). We pass 0 =
 # defer to the broker's `stream.frame_max`; without this the client's 1 MiB

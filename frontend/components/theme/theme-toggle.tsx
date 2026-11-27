@@ -2,9 +2,9 @@
 
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { type ThemePreference } from "@/lib/app-theme";
 import { cn } from "@/lib/utils";
 
@@ -14,16 +14,10 @@ const options = [
   { value: "dark", label: "Dark", icon: Moon },
 ] satisfies { value: ThemePreference; label: string; icon: typeof Sun }[];
 
-const noopSubscribe = () => () => {};
-
 export function ThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
   // The stored theme is only known on the client; render no selection until then.
-  const mounted = useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false
-  );
+  const mounted = useIsHydrated();
   const selectedIndex = mounted ? options.findIndex((o) => o.value === theme) : -1;
 
   const select = (value: ThemePreference) => {

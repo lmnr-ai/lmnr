@@ -1,5 +1,5 @@
 //! Static SQL schema, the single source of truth surfaced to BOTH the Platform Agent (its prompt's
-//! table index and `describe_tables` tool) and the MCP `query_laminar_sql` tool description
+//! table index and `describe_tables` tool) and the MCP `get_sql_schema` tool
 //! (`api::v1::mcp`).
 //! Lives here next to the validator allowlist (`validator::TableRegistry`) it must mirror — drift
 //! between this list, the validator, and frontend `sql/utils.ts` (`tableSchemas`/`enumValues`) breaks
@@ -31,7 +31,7 @@ pub struct EnumDef {
 
 /// Wire shape of `GET /v1/sql/schema` (and its `/v1/cli` twin). Serialized
 /// straight from the `TABLES` / `ENUMS` consts below, so the endpoint, the MCP
-/// tool description, and the agent prompt cannot disagree.
+/// `get_sql_schema` tool, and the agent prompt cannot disagree.
 #[derive(serde::Serialize)]
 pub struct SqlSchema {
     pub tables: &'static [Table],
@@ -106,6 +106,16 @@ const TABLES: &[Table] = &[
                 "output",
                 "String",
                 "Span output as stringified JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "input_preview",
+                "String",
+                "Same as input, except that a large input of a non-LLM span is a truncated JSON preview; cheap to read across many spans — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+            ),
+            col(
+                "output_preview",
+                "String",
+                "Same as output, except that a large output of a non-LLM span is a truncated JSON preview; cheap to read across many spans — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col("request_model", "String", "LLM model requested"),
             col("response_model", "String", "LLM model in the response"),
@@ -231,8 +241,8 @@ const TABLES: &[Table] = &[
             ),
             col(
                 "signal_events",
-                "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))",
-                "Signal events that fired on this trace. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Filtering on this column reads every tuple element including payload, so narrow by time first. The event's time is the trace's own end_time; signal names live in the signals table, join on signal_id. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+                "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String, timestamp DateTime64(9, 'UTC'), updated_at DateTime64(9, 'UTC')))",
+                "Signal events that fired on this trace, read from signal_events when the query runs, so discarded events and those of deleted signals are excluded. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Reading this column scans the project's signal events created since the query's earliest start_time, so narrow by time first. e.timestamp is when the event fired, e.updated_at when it last changed; signal names live in the signals table, join on signal_id. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
             ),
             col(
                 "clusters",
@@ -242,7 +252,7 @@ const TABLES: &[Table] = &[
             col(
                 "agent_versions",
                 "Array(Tuple(agent_hash String, version_hash String, model String))",
-                "Agent versions that ran in this trace, one element per (agent, version, model) seen; model is '' when unknown. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models, counting traces with uniqExact(id), not count(), since a trace repeats once per model. Beta: shape may change. Traces are not tagged instantly, so recent traces may be empty",
+                "Agent versions that ran in this trace, one element per (agent, version, model) seen; model is '' when unknown. ARRAY JOIN agent_versions AS v to compare error rates or signal events across versions and models, counting traces with uniqExact(id), not count(), since a trace repeats once per model. Join the agent_versions table on version_hash for version numbers and shown_version_hash (deleted versions). Beta: shape may change. Traces are not tagged instantly, so recent traces may be empty",
             ),
             col(
                 "release",
@@ -308,6 +318,11 @@ const TABLES: &[Table] = &[
                 "task_id",
                 "String",
                 "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+            ),
+            col(
+                "task_version_hash",
+                "String",
+                "Content hash of the eval dataset task version the trial ran ('' if unknown); the task's name is metadata.dataset_task",
             ),
             col("group_id", "String", "Group id of the evaluation run"),
             col(
@@ -762,6 +777,86 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "table_views",
+        description: "Saved views of the UI's data tables, stored in Postgres and shared by the project. A view is its table's column layout plus filters, search and sort.",
+        columns: &[
+            col("id", "UUID", "Unique id of the view"),
+            col(
+                "resource",
+                "String",
+                "Table the view belongs to: traces, spans, sessions, evaluations, evaluation-v1.1 (an evaluation's datapoints), datasets, dataset (a dataset's datapoints), eval-datasets, eval-dataset (an eval dataset's tasks), queues, playgrounds, debugger-sessions, signal-runs, or signal-events:<signal id>",
+            ),
+            col("name", "String", "View name, unique per resource"),
+            col(
+                "config",
+                "String",
+                "View as a JSON object: columnOrder (column ids), columnVisibility ({id: bool}, every column), columnSizing ({id: px}), customColumns ([{name, sql, dataType}]), filters ([{column, operator, value}]), search, sortBy, sortDirection (asc/desc), and isDefault (true on the one view per resource teammates land on). Custom column ids are custom:<name>",
+            ),
+            col("created_at", "DateTime64(6)", "When the view was created"),
+            col(
+                "updated_at",
+                "DateTime64(6)",
+                "When the view was last saved",
+            ),
+        ],
+    },
+    Table {
+        name: "agents",
+        description: "Agents detected by agent versioning, stored in Postgres. Join to agent_versions on agents.id = agent_id, or to traces.agent_versions on agent_hash.",
+        columns: &[
+            col("id", "UUID", "Unique id of the agent"),
+            col(
+                "name",
+                "Nullable(String)",
+                "Name set in the UI; NULL until renamed",
+            ),
+            col(
+                "agent_hash",
+                "String",
+                "Agent identity, the agent_hash in traces.agent_versions",
+            ),
+            col(
+                "release_mode",
+                "UInt8",
+                "1 once the agent's versions are decided per release instead of inferred from traces",
+            ),
+            col("created_at", "DateTime64(6)", "When the agent was detected"),
+        ],
+    },
+    Table {
+        name: "agent_versions",
+        description: "Versions of each agent, stored in Postgres. Join to traces with FROM traces t ARRAY JOIN agent_versions AS v JOIN agent_versions av ON av.version_hash = tupleElement(v, 'version_hash'), and group by av.shown_version_hash to count a version deleted in the UI under the version it is shown as, like the UI does.",
+        columns: &[
+            col("id", "UUID", "Unique id of the version"),
+            col("agent_id", "UUID", "Agent the version belongs to"),
+            col(
+                "version_number",
+                "Int32",
+                "Version number within the agent, from 1, as shown in the UI (v1, v2, ...)",
+            ),
+            col(
+                "version_hash",
+                "String",
+                "Version identity, the version_hash in traces.agent_versions",
+            ),
+            col(
+                "shown_version_hash",
+                "String",
+                "For a deleted version, the version_hash of the nearest earlier version still shown; otherwise its own version_hash",
+            ),
+            col(
+                "deleted_at",
+                "Nullable(DateTime64(6))",
+                "When the version was deleted in the UI; NULL if not deleted",
+            ),
+            col(
+                "created_at",
+                "DateTime64(6)",
+                "When the version was created",
+            ),
+        ],
+    },
+    Table {
         name: "labeling_queue_items",
         description: "Per-item rows of labeling queues.",
         columns: &[
@@ -804,7 +899,7 @@ pub fn schema_payload() -> SqlSchema {
 }
 
 /// Render the full schema block (`<tables>…</tables><enums>…</enums>`). Compact, one line per column.
-/// Embedded verbatim in the MCP tool description.
+/// Returned verbatim by the MCP `get_sql_schema` tool.
 pub fn build_schema_prompt() -> String {
     let mut out = String::new();
     out.push_str("<tables>\n");
@@ -851,6 +946,9 @@ mod tests {
             "alerts",
             "alert_targets",
             "alert_filters",
+            "table_views",
+            "agents",
+            "agent_versions",
         ] {
             assert!(
                 p.contains(&format!("TABLE {table} ")),
@@ -907,7 +1005,7 @@ mod tests {
             .flat_map(|t| t.columns.iter())
             .filter(|c| c.description.contains("LARGE"))
             .collect();
-        assert_eq!(annotated.len(), 25, "payload column count changed");
+        assert_eq!(annotated.len(), 27, "payload column count changed");
         for c in annotated {
             assert!(
                 c.description.ends_with(NOTE),

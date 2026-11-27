@@ -83,6 +83,16 @@ const tableSchemas: Record<string, TableSchema> = {
       { name: "duration", type: "Float64", description: "Duration in seconds (end_time - start_time)" },
       { name: "input", type: "String", description: "Input data for the span as a stringified JSON" },
       { name: "output", type: "String", description: "Output data from the span as a stringified JSON" },
+      {
+        name: "input_preview",
+        type: "String",
+        description: "Same as input, except that a large input of a non-LLM span is a truncated JSON preview",
+      },
+      {
+        name: "output_preview",
+        type: "String",
+        description: "Same as output, except that a large output of a non-LLM span is a truncated JSON preview",
+      },
       { name: "request_model", type: "String", description: "LLM model specified in the request" },
       { name: "response_model", type: "String", description: "LLM model returned in the response" },
       {
@@ -202,9 +212,9 @@ const tableSchemas: Record<string, TableSchema> = {
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
       {
         name: "signal_events",
-        type: "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String))",
+        type: "Array(Tuple(event_id UUID, signal_id UUID, severity UInt8, payload String, timestamp DateTime64(9, 'UTC'), updated_at DateTime64(9, 'UTC')))",
         description:
-          "Signal events that fired on this trace. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Filtering on this column reads every tuple element including payload, so narrow by time first. The event's time is the trace's own end_time; signal names live in the signals table, join on signal_id. Empty until backfilled for older traces. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
+          "Signal events that fired on this trace, read from signal_events when the query runs, so discarded events and those of deleted signals are excluded. ARRAY JOIN signal_events AS e to unnest, then read e.payload. Reading this column scans the project's signal events created since the query's earliest start_time, so narrow by time first. e.timestamp is when the event fired, e.updated_at when it last changed; signal names live in the signals table, join on signal_id. e.payload is the full event JSON — LARGE: select as substring(col, 1, 2000), never raw, or the row is dropped",
       },
       {
         name: "clusters",
@@ -299,6 +309,12 @@ const tableSchemas: Record<string, TableSchema> = {
         name: "task_id",
         type: "String",
         description: "Task (test case) id; rows sharing a task_id within an evaluation are repeated trials of one task",
+      },
+      {
+        name: "task_version_hash",
+        type: "String",
+        description:
+          "Content hash of the eval dataset task version the trial ran ('' if unknown); the task's name is metadata.dataset_task",
       },
       { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
       {
@@ -523,6 +539,65 @@ const tableSchemas: Record<string, TableSchema> = {
       { name: "alert_id", type: "UUID", description: "Id of the alert" },
       { name: "value", type: "String", description: "JSON array of conditions {column, operator, value}" },
       { name: "created_at", type: "DateTime64(6)", description: "When the filter group was added" },
+    ],
+  },
+  table_views: {
+    description:
+      "Saved views of the app's data tables, stored in Postgres and shared by the project: column layout plus filters, search and sort",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the view" },
+      {
+        name: "resource",
+        type: "String",
+        description:
+          "Table the view belongs to: traces, spans, sessions, evaluations, datasets, … or signal-events:<signal id>",
+      },
+      { name: "name", type: "String", description: "View name, unique per table" },
+      {
+        name: "config",
+        type: "String",
+        description:
+          "View as a JSON object: columnOrder, columnVisibility, columnSizing, customColumns, filters, search, sortBy, sortDirection, isDefault",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the view was created" },
+      { name: "updated_at", type: "DateTime64(6)", description: "When the view was last saved" },
+    ],
+  },
+  agents: {
+    description:
+      "Agents detected by agent versioning, stored in Postgres. Join to agent_versions on agents.id = agent_id",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the agent" },
+      { name: "name", type: "Nullable(String)", description: "Name set in the UI; NULL until renamed" },
+      { name: "agent_hash", type: "String", description: "Agent identity, the agent_hash in traces.agent_versions" },
+      { name: "release_mode", type: "UInt8", description: "1 once versions are decided per release" },
+      { name: "created_at", type: "DateTime64(6)", description: "When the agent was detected" },
+    ],
+  },
+  agent_versions: {
+    description:
+      "Versions of each agent, stored in Postgres. Join to traces.agent_versions on version_hash; group by shown_version_hash to count deleted versions under the version they are shown as",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the version" },
+      { name: "agent_id", type: "UUID", description: "Id of the agent" },
+      { name: "version_number", type: "Int32", description: "Version number shown in the UI (v1, v2, …)" },
+      {
+        name: "version_hash",
+        type: "String",
+        description: "Version identity, the version_hash in traces.agent_versions",
+      },
+      {
+        name: "shown_version_hash",
+        type: "String",
+        description:
+          "For a deleted version, the version_hash of the nearest earlier version still shown; otherwise its own",
+      },
+      {
+        name: "deleted_at",
+        type: "Nullable(DateTime64(6))",
+        description: "When the version was deleted in the UI; NULL if not deleted",
+      },
+      { name: "created_at", type: "DateTime64(6)", description: "When the version was created" },
     ],
   },
   clusters: {

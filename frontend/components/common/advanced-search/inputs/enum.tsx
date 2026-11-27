@@ -1,56 +1,34 @@
 "use client";
 
-import { type Ref, useCallback, useMemo } from "react";
+import { type Ref, useCallback } from "react";
 
 import FilterSelect, {
   type FilterSelectOption,
 } from "@/components/common/advanced-search/components/filter-select.tsx";
 
-import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import { useTagFocus } from "../store";
 import { type FocusableRef } from "../types";
-
-interface EnumOption {
-  value: string;
-  label: string;
-}
+import { useValueInput } from "./use-value-input";
 
 interface EnumValueInputProps {
   tagId: string;
-  options: EnumOption[];
+  options: FilterSelectOption[];
   ref?: Ref<FocusableRef>;
 }
 
-const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-xs text-primary-text";
+const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-40 px-2 bg-transparent text-xs text-primary-text";
 
 const EnumValueInput = ({ tagId, options, ref }: EnumValueInputProps) => {
-  const tags = useAdvancedSearchContext((state) => state.tags);
-  const getTagFocusState = useAdvancedSearchContext((state) => state.getTagFocusState);
-
-  const { updateTagValue, submit } = useAdvancedSearchContext((state) => ({
-    updateTagValue: state.updateTagValue,
-    submit: state.submit,
-  }));
-
-  const { mainInputRef } = useAdvancedSearchRefsContext();
-  const { navigateWithinTag } = useAdvancedSearchNavigation();
-
-  const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
-
-  const focusState = getTagFocusState(tagId);
+  const { tag, setValue, complete, navigateLeft, navigateRight } = useValueInput(tagId);
+  const focus = useTagFocus(tagId);
 
   const handleChange = useCallback(
-    (newValue: string) => {
-      updateTagValue(tagId, newValue);
-      submit();
-      mainInputRef.current?.focus();
+    (value: string) => {
+      setValue(value);
+      complete();
     },
-    [updateTagValue, tagId, submit, mainInputRef]
+    [setValue, complete]
   );
-
-  const selectOptions: FilterSelectOption[] = options.map((opt) => ({
-    value: opt.value,
-    label: opt.label,
-  }));
 
   if (!tag) return null;
 
@@ -58,11 +36,11 @@ const EnumValueInput = ({ tagId, options, ref }: EnumValueInputProps) => {
     <FilterSelect
       ref={ref}
       value={Array.isArray(tag.value) ? (tag.value[0] ?? "") : tag.value}
-      options={selectOptions}
+      options={options}
       onValueChange={handleChange}
-      open={focusState.type === "value" && focusState.mode === "edit"}
-      onNavigateLeft={() => navigateWithinTag(tagId, "left")}
-      onNavigateRight={() => navigateWithinTag(tagId, "right")}
+      open={focus?.position === "value" && focus.mode === "edit"}
+      onNavigateLeft={navigateLeft}
+      onNavigateRight={navigateRight}
       onOpenChange={() => {}}
       placeholder="select ..."
       triggerClassName={selectTriggerClassName}

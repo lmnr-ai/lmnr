@@ -24,3 +24,15 @@ pub const INSERT_TIMEOUT_SECS: NumEnv<u64> = NumEnv::new("CLICKHOUSE_INSERT_TIME
 /// Whether browser-event inserts wait for the async insert to complete.
 pub const BROWSER_EVENTS_WAIT_FOR_ASYNC_INSERT: BoolEnv =
     BoolEnv::new("BROWSER_EVENTS_CH_WAIT_FOR_ASYNC_INSERT", true);
+
+/// A DEFAULT / TOOL / EXECUTOR / EVALUATOR / EVALUATION span's stored `input`
+/// or `output` longer than this many bytes moves to `spans_large_io`, leaving
+/// a preview in `spans` (`traces::large_io`). Matches the table's
+/// `index_granularity_bytes` (migration 88), which keeps one row per granule.
+pub const LARGE_PAYLOAD_THRESHOLD_BYTES: NumEnv<usize> =
+    NumEnv::new("LARGE_PAYLOAD_THRESHOLD_BYTES", 102_400);
+
+/// Upper bound, in bytes, on the JSON preview left in `spans` for an
+/// offloaded field. Whole-trace readers (signals, the agent) see only this.
+pub const LARGE_PAYLOAD_PREVIEW_BYTES: NumEnv<usize> =
+    NumEnv::new("LARGE_PAYLOAD_PREVIEW_BYTES", 16_384);

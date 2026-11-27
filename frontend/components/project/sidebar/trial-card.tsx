@@ -2,18 +2,17 @@
 
 import { differenceInCalendarDays } from "date-fns";
 import { ChevronRight } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 
 import TrialPopoverContent from "@/components/project/sidebar/trial-popover-content.tsx";
 import { useTrialIntro } from "@/components/project/sidebar/use-trial-intro.ts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { SidebarMenuItem } from "@/components/ui/sidebar.tsx";
+import { useIsHydrated } from "@/hooks/use-is-hydrated";
 import { swrFetcher } from "@/lib/api/fetch-api";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
-
-const subscribeNone = () => () => {};
 
 const daysLeftLabel = (daysLeft: number) => {
   if (daysLeft <= 0) return "Ends today";
@@ -35,11 +34,7 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
   const { intro, dismissIntro } = useTrialIntro(workspaceId);
   const [open, setOpen] = useState(intro);
   // Calendar days need the viewer's timezone, which the server render doesn't have.
-  const hydrated = useSyncExternalStore(
-    subscribeNone,
-    () => true,
-    () => false
-  );
+  const hydrated = useIsHydrated();
   if (!hydrated) return null;
 
   const endsAt = new Date(trialEndsAt);
@@ -62,7 +57,7 @@ export default function TrialCard({ workspaceId, trialEndsAt }: TrialCardProps) 
               urgent ? "bg-primary/10 hover:bg-primary/15" : "bg-surface-400 hover:overlay-hover"
             )}
           >
-            <span className={cn("flex-1", urgent ? "text-foreground" : "text-muted-foreground")}>Starter trial</span>
+            <span className={cn("flex-1", urgent ? "text-foreground" : "text-muted-foreground")}>Pro trial</span>
             <span className="font-medium text-primary-300">{daysLeftLabel(daysLeft)}</span>
             <ChevronRight className="size-3.5 text-primary-300 transition-transform group-hover:translate-x-0.5" />
           </button>

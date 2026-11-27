@@ -6,6 +6,7 @@ pub mod data_plane;
 pub mod datapoints;
 pub mod unique_content;
 pub mod evaluation_datapoints;
+pub mod evaluation_logs;
 pub mod labeling_queue_items;
 pub mod limits;
 pub mod logs;
@@ -16,6 +17,7 @@ pub mod private;
 pub mod service;
 pub mod signal_events;
 pub mod spans;
+pub mod spans_large_io;
 pub mod system_prompt_versions;
 pub mod trace_tags;
 pub mod traces;
@@ -36,8 +38,8 @@ use serde::Serialize;
 use crate::db::workspaces::WorkspaceDeployment;
 
 /// Cap for CH's adaptive `async_insert_busy_timeout` on the hot ingest tables
-/// (`spans`, `traces_agg`, `traces_static`, `unique_content`). Read once from
-/// `SPANS_CH_WAIT_FOR_ASYNC_INSERT_MS`, defaults to 400 ms when unset OR set to
+/// (`spans`, `traces_agg`, `traces_static`, `unique_content`,
+/// `spans_large_io`). Read once from `SPANS_CH_WAIT_FOR_ASYNC_INSERT_MS`, defaults to 400 ms when unset OR set to
 /// an empty string (common with k8s ConfigMap keys whose values aren't filled in).
 pub static SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: LazyLock<String> =
     LazyLock::new(|| crate::env::clickhouse::ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.get());
@@ -68,6 +70,7 @@ pub enum Table {
     NotificationDeliveries,
     Notifications,
     UniqueContent,
+    SpansLargeIo,
 }
 
 impl Table {
@@ -79,6 +82,7 @@ impl Table {
             Table::NotificationDeliveries => "notification_deliveries",
             Table::Notifications => "notifications",
             Table::UniqueContent => "unique_content",
+            Table::SpansLargeIo => "spans_large_io",
         }
     }
 }
