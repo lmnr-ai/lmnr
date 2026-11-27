@@ -299,3 +299,11 @@ pub const TRACE_SESSION_HINT_CACHE_KEY: &str = "trace_session";
 pub const DEBUGGER_CACHE_KEY: &str = "debugger_replay_cache";
 pub const DEBUGGER_CACHE_READY_KEY: &str = "debugger_replay_ready";
 pub const DEBUGGER_CACHE_LOCK_KEY: &str = "debugger_replay_lock";
+pub const METRIC_ALERTS_SCHEDULER_LOCK_CACHE_KEY: &str = "metric_alerts_scheduler_lock";
+/// Last window end the scheduler evaluated, in unix minutes.
+pub const METRIC_ALERTS_LAST_MINUTE_CACHE_KEY: &str = "metric_alerts_last_minute";
+/// Sorted set of the span consumer processes that have a batch in flight.
+pub const SPANS_IN_FLIGHT_PROCESSES_CACHE_KEY: &str = "spans_in_flight_processes";
+/// Per process: the intake time of its oldest batch in flight, in unix
+/// milliseconds.
+pub const SPANS_IN_FLIGHT_CACHE_KEY: &str = "spans_in_flight";

@@ -77,6 +77,7 @@ pub async fn create_span(
         output_dedup: None,
         tool_dedup: None,
         agent_prompt: None,
+        accepted_at_ms: None,
     };
     let mq_message = serde_json::to_vec(&vec![rabbitmq_span_message]).unwrap();
 

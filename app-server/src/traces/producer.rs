@@ -12,6 +12,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use chrono::Utc;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -229,6 +230,10 @@ pub async fn publish_span_messages(
         }
     }
 
+    let accepted_at_ms = Utc::now().timestamp_millis();
+    if let Some(first) = messages.first_mut() {
+        first.accepted_at_ms = Some(accepted_at_ms);
+    }
     let mq_message = serde_json::to_vec(&messages).unwrap();
 
     if mq_message.len() >= mq_max_payload() {
@@ -365,6 +370,7 @@ pub async fn push_spans_to_queue(
                                 output_dedup: None,
                                 tool_dedup: None,
                                 agent_prompt: None,
+                                accepted_at_ms: None,
                             })
                         } else {
                             None

@@ -150,6 +150,7 @@ mod language_model;
 mod license;
 mod llm;
 mod logs;
+mod metric_alerts;
 mod mq;
 mod names;
 mod next_api;
@@ -788,6 +789,18 @@ fn main() -> anyhow::Result<()> {
         } else {
             log::info!("Reports feature disabled - skipping reports scheduler");
         }
+
+        let pool_for_metric_alerts = db.pool.clone();
+        let clickhouse_for_metric_alerts = clickhouse.clone();
+        let cache_for_metric_alerts = cache.clone();
+        runtime_handle.spawn(async move {
+            metric_alerts::scheduler::run_metric_alerts_scheduler(
+                pool_for_metric_alerts,
+                clickhouse_for_metric_alerts,
+                cache_for_metric_alerts,
+            )
+            .await;
+        });
 
         if agent_versioning::is_enabled() {
             log::info!("Agent versioning enabled - starting agent versioning job");
@@ -2062,6 +2075,7 @@ fn main() -> anyhow::Result<()> {
                                 // auth on path projects/{project_id} is handled by middleware on Next.js
                                 let scope = web::scope("/api/v1/projects/{project_id}")
                                     .service(routes::spans::create_span)
+                                    .service(routes::metric_alerts::preview_metric_alert)
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query)
                                     .service(routes::sql::sql_to_json)

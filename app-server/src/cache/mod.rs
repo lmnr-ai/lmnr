@@ -133,6 +133,12 @@ pub trait CacheTrait {
     /// Uses pipelining for Redis, sequential for InMemory
     async fn pipe_zadd(&self, key: &str, members: &[String]) -> Result<(), CacheError>;
 
+    /// Every member of a sorted set. Empty when the set does not exist.
+    async fn zrange(&self, key: &str) -> Result<Vec<String>, CacheError>;
+
+    /// Remove a member from a sorted set
+    async fn zrem(&self, key: &str, member: &str) -> Result<(), CacheError>;
+
     /// Check if a key exists in the cache
     async fn exists(&self, key: &str) -> Result<bool, CacheError>;
 
