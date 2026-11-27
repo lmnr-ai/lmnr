@@ -5,7 +5,6 @@ use std::{collections::HashMap, future::Future, sync::Arc, time::Duration};
 
 use chrono::Utc;
 use futures_util::{StreamExt, stream};
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tokio::time::{self, MissedTickBehavior};
 use uuid::Uuid;
@@ -13,10 +12,7 @@ use uuid::Uuid;
 use crate::{
     cache::{
         Cache, CacheTrait,
-        keys::{
-            METRIC_ALERT_TRACE_COST_P99_CACHE_KEY, METRIC_ALERTS_LAST_MINUTE_CACHE_KEY,
-            METRIC_ALERTS_SCHEDULER_LOCK_CACHE_KEY,
-        },
+        keys::{METRIC_ALERTS_LAST_MINUTE_CACHE_KEY, METRIC_ALERTS_SCHEDULER_LOCK_CACHE_KEY},
     },
     db::metric_alerts::{MetricAlertRow, get_all_metric_alerts},
     env::metric_alerts::METRIC_ALERTS_SETTLE_MINUTES,
@@ -32,9 +28,9 @@ use super::{
     engine::{State, Transition, evaluate},
     ingestion,
     message::{self, Event, Subject},
-    query::{RuleChecks, fetch_series, get_trace_cost_p99},
-    rule::{Condition, GroupBy, Rule},
-    series::{Context, Minutes, Series, observe, ranges_of, window_of},
+    query::fetch_series,
+    rule::{GroupBy, Rule},
+    series::{Context, Series, observe, ranges_of, window_of},
     store::{self, StateKey},
 };
 
@@ -44,10 +40,6 @@ const LOCK_TTL_SECONDS: u64 = 300;
 /// Minutes a late tick goes back to check. Older minutes are dropped.
 const MAX_CATCH_UP_MINUTES: i64 = 10;
 const PROJECT_CONCURRENCY: usize = 8;
-const P99_RANGE_MINUTES: i64 = 7 * 24 * 60;
-const P99_TTL_SECONDS: u64 = 24 * 60 * 60;
-// A project with no baseline yet is asked again soon, so its first traces count.
-const EMPTY_P99_TTL_SECONDS: u64 = 10 * 60;
 
 struct MetricAlert {
     row: MetricAlertRow,
@@ -56,16 +48,10 @@ struct MetricAlert {
     interval_minutes: i64,
 }
 
-#[derive(Serialize, Deserialize)]
-struct CachedP99 {
-    value: Option<f64>,
-}
-
 struct Tick<'a> {
     pool: &'a PgPool,
     clickhouse: &'a clickhouse::Client,
     queue: &'a Arc<MessageQueue>,
-    cache: &'a Cache,
     ingestion_behind: bool,
 }
 
@@ -168,7 +154,6 @@ async fn run_tick(
         pool,
         clickhouse,
         queue,
-        cache,
         ingestion_behind: !alerts.is_empty() && ingestion::is_behind(cache).await,
     };
 
@@ -193,14 +178,11 @@ async fn run_tick(
 }
 
 async fn check_project(tick: &Tick<'_>, project_id: Uuid, alerts: Vec<&MetricAlert>, minute: i64) {
-    let checks: Vec<RuleChecks> = alerts
+    let ranges = alerts
         .iter()
-        .map(|alert| RuleChecks {
-            rule: &alert.rule,
-            ranges: ranges_of(&alert.rule, minute),
-        })
+        .flat_map(|alert| ranges_of(&alert.rule, minute))
         .collect();
-    let series = match fetch_series(tick.clickhouse, &project_id, &checks).await {
+    let series = match fetch_series(tick.clickhouse, &project_id, ranges).await {
         Ok(series) => series,
         Err(e) => {
             log::error!(
@@ -212,8 +194,8 @@ async fn check_project(tick: &Tick<'_>, project_id: Uuid, alerts: Vec<&MetricAle
         }
     };
 
-    for (alert, series) in alerts.iter().zip(&series) {
-        if let Err(e) = check_alert(tick, alert, series, minute).await {
+    for alert in alerts {
+        if let Err(e) = check_alert(tick, alert, &series, minute).await {
             log::error!(
                 "[Metric alerts] Failed to check rule {}: {:?}",
                 alert.row.id,
@@ -221,44 +203,6 @@ async fn check_project(tick: &Tick<'_>, project_id: Uuid, alerts: Vec<&MetricAle
             );
         }
     }
-}
-
-/// The p99 trace cost a `trace_p99` rule compares against, refreshed daily.
-async fn trace_cost_p99(
-    tick: &Tick<'_>,
-    alert: &MetricAlert,
-    minute: i64,
-) -> anyhow::Result<Option<f64>> {
-    if alert.rule.condition != Condition::TraceP99 {
-        return Ok(None);
-    }
-    let key = format!(
-        "{METRIC_ALERT_TRACE_COST_P99_CACHE_KEY}:{}:{}:{}",
-        alert.row.project_id, alert.row.id, alert.fingerprint
-    );
-    if let Ok(Some(cached)) = tick.cache.get::<CachedP99>(&key).await {
-        return Ok(cached.value);
-    }
-
-    let range = Minutes {
-        start: minute - P99_RANGE_MINUTES,
-        end: minute,
-    };
-    let value =
-        get_trace_cost_p99(tick.clickhouse, &alert.row.project_id, &alert.rule, range).await?;
-    let ttl = match value {
-        Some(_) => P99_TTL_SECONDS,
-        None => EMPTY_P99_TTL_SECONDS,
-    };
-    if let Err(e) = tick
-        .cache
-        .insert_with_ttl(&key, CachedP99 { value }, ttl)
-        .await
-    {
-        log::warn!("[Metric alerts] Failed to cache p99 trace cost: {:?}", e);
-    }
-
-    Ok(value)
 }
 
 /// The groups to check: the whole project, or the top models of the window
@@ -298,7 +242,6 @@ async fn check_alert(
     let mut states =
         store::load_states(tick.pool, &project_id, &alert.row.id, &alert.fingerprint).await?;
     let context = Context {
-        trace_cost_p99: trace_cost_p99(tick, alert, minute).await?,
         ingestion_behind: tick.ingestion_behind,
     };
 

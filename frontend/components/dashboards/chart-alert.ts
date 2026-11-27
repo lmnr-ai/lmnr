@@ -8,7 +8,6 @@ const ALERTABLE_PRESETS: Record<string, Omit<MetricAlertPreset, "name">> = {
   "Total cost": { metric: "total_cost" },
   "Total tokens": { metric: "total_tokens" },
   "Tokens by model": { metric: "total_tokens", splitByModel: true },
-  "New traces": { metric: "trace_count" },
 };
 
 // Formatting that differs between a preset and the same chart seeded into a new project.

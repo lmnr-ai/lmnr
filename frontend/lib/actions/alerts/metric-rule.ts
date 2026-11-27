@@ -7,52 +7,31 @@ import { type AlertTarget } from "./types";
 export const METRIC_ALERT_TYPE = "METRIC";
 
 export const METRICS = [
+  "span_count",
   "total_cost",
-  "cost_per_trace",
-  "trace_cost",
   "input_tokens",
   "output_tokens",
   "total_tokens",
-  "tokens_per_trace",
-  "trace_count",
-  "error_traces",
-  "error_rate",
-  "no_cost_rate",
-  "no_tokens_rate",
+  "llm_calls",
+  "llm_errors",
+  "llm_error_rate",
   "llm_no_cost_rate",
   "llm_no_tokens_rate",
-  "latency_p50",
-  "latency_p95",
+  "llm_latency_p50",
+  "llm_latency_p95",
 ] as const;
 export type Metric = (typeof METRICS)[number];
 
 export const WINDOW_MINUTES = [5, 15, 30, 60, 1440] as const;
 export const COMPARE_TO = ["5m", "15m", "30m", "1h", "1d", "1w", "30d"] as const;
 export type CompareTo = (typeof COMPARE_TO)[number];
-/** Where a spending limit warns, as a share of the limit. */
-export const DEFAULT_WARN_AT_PERCENT = 80;
 
-const WindowSchema = z.union([
-  z.object({ minutes: z.number().int().positive() }).strict(),
-  z.object({ monthToDate: z.literal(true) }).strict(),
-]);
+const WindowSchema = z.object({ minutes: z.number().int().positive() }).strict();
 
 const ConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("value") }),
   z.object({ type: z.literal("change"), compareTo: z.enum(COMPARE_TO) }),
-  z.object({
-    type: z.literal("spending_limit"),
-    limit: z.number("A spending limit needs a limit").positive("The limit must be above 0"),
-    warnAtPercent: z.number().default(DEFAULT_WARN_AT_PERCENT),
-  }),
-  z.object({ type: z.literal("trace_p99") }),
 ]);
-
-const RuleFilterSchema = z.object({
-  column: z.string().min(1),
-  operator: z.string().min(1),
-  value: z.union([z.string(), z.number(), z.array(z.string())]),
-});
 
 /**
  * Shape of a metric rule in `alerts.metadata`. Mirrors `Rule` in
@@ -61,7 +40,6 @@ const RuleFilterSchema = z.object({
  */
 export const MetricRuleSchema = z.object({
   metric: z.enum(METRICS),
-  filters: z.array(RuleFilterSchema).default([]),
   groupBy: z.enum(["model"]).nullish(),
   window: WindowSchema,
   condition: ConditionSchema,
@@ -71,10 +49,10 @@ export const MetricRuleSchema = z.object({
   resolve: z.number().nullish(),
   minChange: z.number().nullish(),
   checksInARow: z.number().int("Checks in a row must be a whole number").default(3),
-  minTraces: z
+  minCalls: z
     .number()
-    .int("Minimum traces must be a whole number")
-    .min(0, "Minimum traces cannot be negative")
+    .int("Minimum LLM calls must be a whole number")
+    .min(0, "Minimum LLM calls cannot be negative")
     .default(50),
   onNoData: z.enum(["skip", "zero", "alert"]).nullish(),
   snoozedUntil: z.iso.datetime({ offset: true }).nullish(),
@@ -83,7 +61,7 @@ export const MetricRuleSchema = z.object({
 
 export type MetricRule = z.infer<typeof MetricRuleSchema>;
 
-const COUNT_FIELDS: PropertyKey[] = ["checksInARow", "minTraces"];
+const COUNT_FIELDS: PropertyKey[] = ["checksInARow", "minCalls"];
 
 /** The message for a count that is not a whole number, which the engine would refuse less plainly. */
 export const wholeNumberError = (error: z.ZodError): string | undefined =>
@@ -94,8 +72,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * A stored rule with a partial one laid over it. Keys replace stored keys, and
- * `condition` is merged one level down, so `{ condition: { limit: 3000 } }`
- * changes a spending limit and keeps its type.
+ * `condition` is merged one level down, so `{ condition: { compareTo: "1d" } }`
+ * changes what a change rule compares with and keeps its type.
  */
 export const mergeRulePatch = (
   stored: Record<string, unknown>,

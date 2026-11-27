@@ -168,10 +168,7 @@ async function createCliMetricAlert(ctx: CliAlertContext, body: CreateAlertBody)
 
 function rejectSignalFields(body: UpdateAlertBody) {
   if (body.severities || body.skipSimilar != null || body.filters) {
-    throw new AlertApiError(
-      "severities, skipSimilar and filters only apply to SIGNAL_EVENT alerts. A METRIC alert filters traces with rule.filters.",
-      400
-    );
+    throw new AlertApiError("severities, skipSimilar and filters only apply to SIGNAL_EVENT alerts.", 400);
   }
 }
 

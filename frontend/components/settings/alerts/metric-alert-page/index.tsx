@@ -70,7 +70,7 @@ export default function MetricAlertPage({ projectId, alertId }: { projectId: str
                   tracesHref={
                     openIncident
                       ? incidentTracesHref(projectId, alert.rule, openIncident, cadence)
-                      : currentTracesHref(projectId, alert.rule)
+                      : currentTracesHref(projectId)
                   }
                   isPending={pendingIds.has(alert.id)}
                   onSnooze={(until) => snooze(alert, until)}

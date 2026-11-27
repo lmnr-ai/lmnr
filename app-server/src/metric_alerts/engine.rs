@@ -84,11 +84,9 @@ pub struct Observation {
     pub at: DateTime<Utc>,
     /// `None` when nothing matched in the window.
     pub value: Option<f64>,
-    /// What a relative condition divides by: the past window for `change`,
-    /// the project's p99 trace cost for `trace_p99`.
+    /// What a `change` condition divides by: the past window.
     pub baseline: Option<f64>,
-    /// What `min_traces` is compared to: the traces in the window, or the LLM
-    /// calls for a share of LLM calls.
+    /// LLM calls in the window, which `min_calls` is compared to.
     pub volume: u64,
     /// Our own ingestion is behind, so recent windows are under-counted.
     pub ingestion_behind: bool,
@@ -139,7 +137,7 @@ struct Reading {
 }
 
 fn highest_level(rule: &Rule) -> Level {
-    if rule.critical_threshold().is_some() {
+    if rule.critical.is_some() {
         Level::Critical
     } else {
         Level::Warning
@@ -154,26 +152,16 @@ fn past(rule: &Rule, compared: f64, threshold: f64) -> f64 {
     }
 }
 
-/// A threshold is breached by passing it. A spending limit is breached by
-/// reaching it.
-fn breaches(rule: &Rule, compared: f64, threshold: f64) -> bool {
-    let past = past(rule, compared, threshold);
-    past > 0.0 || (rule.is_spending_limit() && past == 0.0)
-}
-
 /// The level a single number asks for. While firing, only the resolve
 /// threshold leads back to OK.
 fn threshold_level(rule: &Rule, current: Level, compared: f64) -> Level {
-    let warning = rule.warning_threshold();
-    if rule
-        .critical_threshold()
-        .is_some_and(|t| breaches(rule, compared, t))
-    {
+    let breaches = |threshold: f64| past(rule, compared, threshold) > 0.0;
+    if rule.critical.is_some_and(breaches) {
         Level::Critical
-    } else if warning.is_some_and(|t| breaches(rule, compared, t)) {
+    } else if rule.warning.is_some_and(breaches) {
         Level::Warning
     } else if current != Level::Ok && past(rule, compared, rule.resolve_threshold()) > 0.0 {
-        match warning {
+        match rule.warning {
             Some(_) => Level::Warning,
             None => current,
         }
@@ -198,15 +186,13 @@ fn read(rule: &Rule, current: Level, observation: &Observation) -> Option<Readin
         }
     };
     let has_data = observation.value.is_some();
-    if has_data && rule.metric.needs_min_traces() && observation.volume < rule.min_traces {
+    if has_data && rule.metric.needs_min_calls() && observation.volume < rule.min_calls {
         return None;
     }
 
     let (level, compared) = match rule.condition {
-        Condition::Value | Condition::SpendingLimit { .. } => {
-            (threshold_level(rule, current, value), value)
-        }
-        Condition::Change { .. } | Condition::TraceP99 => {
+        Condition::Value => (threshold_level(rule, current, value), value),
+        Condition::Change { .. } => {
             let baseline = observation.baseline.filter(|b| *b > 0.0)?;
             let percent = value / baseline * 100.0;
             let too_small = rule

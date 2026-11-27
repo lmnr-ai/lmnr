@@ -10,13 +10,12 @@ use crate::env::metric_alerts::METRIC_ALERTS_SETTLE_MINUTES;
 use super::{
     cadence::{check_interval_minutes, is_due},
     engine::{Level, Observation, State, TransitionKind, compared_value, evaluate},
-    query::{RuleChecks, fetch_series, get_trace_cost_p99},
-    rule::{Condition, Direction, GroupBy, Rule},
-    series::{Context, Minutes, Series, merge_ranges, observe, ranges_of, window_of},
+    query::fetch_series,
+    rule::{Direction, GroupBy, Rule},
+    series::{Context, Minutes, Series, observe, ranges_of, window_of},
 };
 
 pub const MAX_PREVIEW_HOURS: i64 = 7 * 24;
-const P99_RANGE_MINUTES: i64 = 7 * 24 * 60;
 /// Points returned per group. Longer replays keep the most extreme value of
 /// each stretch, so a spike stays visible, and always the newest point.
 const MAX_POINTS: usize = 600;
@@ -204,30 +203,9 @@ pub async fn preview(
     };
 
     let plotted = minutes.iter().chain([&newest]);
-    let ranges = merge_ranges(plotted.flat_map(|m| ranges_of(&rule, *m)).collect());
-    let checks = [RuleChecks {
-        rule: &rule,
-        ranges,
-    }];
-    let series = fetch_series(clickhouse, project_id, &checks)
-        .await?
-        .pop()
-        .unwrap_or_default();
-
-    let trace_cost_p99 = match rule.condition {
-        Condition::TraceP99 => {
-            let range = Minutes {
-                start: newest - P99_RANGE_MINUTES,
-                end: newest,
-            };
-            get_trace_cost_p99(clickhouse, project_id, &rule, range).await?
-        }
-        _ => None,
-    };
-    let context = Context {
-        trace_cost_p99,
-        ingestion_behind: false,
-    };
+    let ranges = plotted.flat_map(|m| ranges_of(&rule, *m)).collect();
+    let series = fetch_series(clickhouse, project_id, ranges).await?;
+    let context = Context::default();
 
     let groups: Vec<GroupPreview> = match rule.group_by {
         None => vec![replay(&rule, &series, None, &minutes, newest, context)],

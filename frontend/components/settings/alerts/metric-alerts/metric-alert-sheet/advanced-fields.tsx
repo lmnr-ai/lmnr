@@ -22,8 +22,7 @@ export default function AdvancedFields() {
   ]);
   const back = direction === "above" ? "at or below" : "at or above";
   const first = warning.trim() === "" && critical.trim() !== "" ? "critical" : "warning";
-  const { needsMinTraces, perLlmCall } = METRIC_META[metric];
-  const counted = perLlmCall ? "LLM calls" : "traces";
+  const { needsMinCalls } = METRIC_META[metric];
 
   return (
     // Open when the rule has its own resolve threshold, so a set value is never hidden.
@@ -33,27 +32,25 @@ export default function AdvancedFields() {
         Advanced
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-4 border-t p-3">
-        {conditionType !== "spending_limit" && (
-          <Field
-            label="Resolve"
-            hint={`The incident closes once the value is back ${back} this. Leave empty to follow the ${first} threshold.`}
-          >
-            <NumberInput
-              unit={thresholdUnit(metric, conditionType)}
-              placeholder={warning || critical}
-              {...register("resolve")}
-            />
-          </Field>
-        )}
+        <Field
+          label="Resolve"
+          hint={`The incident closes once the value is back ${back} this. Leave empty to follow the ${first} threshold.`}
+        >
+          <NumberInput
+            unit={thresholdUnit(metric, conditionType)}
+            placeholder={warning || critical}
+            {...register("resolve")}
+          />
+        </Field>
         <Field label="Checks in a row" hint="How many checks in a row must agree before the level changes.">
           <NumberInput min={1} max={10} step={1} {...register("checksInARow")} />
         </Field>
-        {needsMinTraces && (
+        {needsMinCalls && (
           <Field
-            label={`Minimum ${counted}`}
-            hint={`A window with fewer ${counted} is skipped, so a few ${counted} cannot alert.`}
+            label="Minimum LLM calls"
+            hint="A window with fewer LLM calls is skipped, so a few LLM calls cannot alert."
           >
-            <NumberInput min={0} step={1} unit={counted} {...register("minTraces")} />
+            <NumberInput min={0} step={1} unit="LLM calls" {...register("minCalls")} />
           </Field>
         )}
         <Field label="When there is no data">

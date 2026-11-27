@@ -1,4 +1,4 @@
-import { DEFAULT_WARN_AT_PERCENT, type MetricRuleInput, type PreviewGroup } from "@/lib/actions/alerts/metric-rule";
+import { type MetricRuleInput, type PreviewGroup } from "@/lib/actions/alerts/metric-rule";
 
 import { formatRuleValue } from "../utils";
 
@@ -31,25 +31,13 @@ export const LEVEL_COLORS = {
 export const toRows = (group: PreviewGroup): ChartRow[] =>
   group.points.map((point) => ({ at: new Date(point.at).getTime(), value: point.value }));
 
-/** The lines a rule draws across its chart. A spending limit is critical at the limit and warns below it. */
+/** The lines a rule draws across its chart. */
 export const thresholdLines = (rule: ChartRule): ThresholdLine[] => {
-  const { condition } = rule;
-  const limit = condition.type === "spending_limit" && condition.limit > 0 ? condition.limit : null;
-  const warnAt =
-    condition.type === "spending_limit" && limit != null
-      ? (limit * (condition.warnAtPercent ?? DEFAULT_WARN_AT_PERCENT)) / 100
-      : null;
-  const lines: [ThresholdLine["key"], string, number | null | undefined][] =
-    condition.type === "spending_limit"
-      ? [
-          ["critical", "Limit", limit],
-          ["warning", "Warn at", warnAt],
-        ]
-      : [
-          ["critical", "Critical", rule.critical],
-          ["warning", "Warning", rule.warning],
-          ["resolve", "Resolve", rule.resolve],
-        ];
+  const lines: [ThresholdLine["key"], string, number | null | undefined][] = [
+    ["critical", "Critical", rule.critical],
+    ["warning", "Warning", rule.warning],
+    ["resolve", "Resolve", rule.resolve],
+  ];
   return lines.flatMap(([key, name, value]) =>
     value == null ? [] : [{ key, value, label: `${name} ${formatRuleValue(rule, value)}` }]
   );

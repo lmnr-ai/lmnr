@@ -10,7 +10,7 @@ use crate::notifications::{MetricAlertDetail, MetricAlertNotification};
 use super::{
     engine::{Incident, Level, Transition, TransitionKind},
     rule::{CompareTo, Condition, Direction, Metric, Rule, Window},
-    series::{Contributor, reads_spans, time_of, window_of},
+    series::{Contributor, time_of, window_of},
 };
 
 /// The rule a message is about.
@@ -82,23 +82,17 @@ fn plural(count: f64, noun: &str) -> String {
 
 fn metric_value(metric: Metric, value: f64) -> String {
     match metric {
-        Metric::TotalCost | Metric::CostPerTrace | Metric::TraceCost => money(value),
+        Metric::SpanCount => plural(value.round(), "span"),
+        Metric::TotalCost => money(value),
         Metric::InputTokens | Metric::OutputTokens | Metric::TotalTokens => {
             plural(value.round(), "token")
         }
-        Metric::TokensPerTrace if value < 100.0 => format!("{} tokens", number(value, 1)),
-        Metric::TokensPerTrace => plural(value.round(), "token"),
-        Metric::TraceCount => plural(value.round(), "trace"),
-        Metric::ErrorTraces => number(value.round(), 0),
-        Metric::ErrorRate
-        | Metric::NoCostRate
-        | Metric::NoTokensRate
-        | Metric::LlmNoCostRate
-        | Metric::LlmNoTokensRate => percent(value),
-        Metric::LatencyP50 | Metric::LatencyP95 if value < 1.0 => {
+        Metric::LlmCalls | Metric::LlmErrors => number(value.round(), 0),
+        Metric::LlmErrorRate | Metric::LlmNoCostRate | Metric::LlmNoTokensRate => percent(value),
+        Metric::LlmLatencyP50 | Metric::LlmLatencyP95 if value < 1.0 => {
             format!("{} ms", number(value * 1000.0, 0))
         }
-        Metric::LatencyP50 | Metric::LatencyP95 => format!("{} s", number(value, 2)),
+        Metric::LlmLatencyP50 | Metric::LlmLatencyP95 => format!("{} s", number(value, 2)),
     }
 }
 
@@ -114,22 +108,18 @@ fn compared_value(rule: &Rule, value: f64) -> String {
 
 fn metric_label(metric: Metric) -> &'static str {
     match metric {
+        Metric::SpanCount => "Span count",
         Metric::TotalCost => "Total cost",
-        Metric::CostPerTrace => "Cost per trace",
-        Metric::TraceCost => "Highest trace cost",
         Metric::InputTokens => "Input tokens",
         Metric::OutputTokens => "Output tokens",
         Metric::TotalTokens => "Total tokens",
-        Metric::TokensPerTrace => "Tokens per trace",
-        Metric::TraceCount => "Trace count",
-        Metric::ErrorTraces => "Errored traces",
-        Metric::ErrorRate => "Error rate",
-        Metric::NoCostRate => "Traces with no cost",
-        Metric::NoTokensRate => "Traces with no tokens",
+        Metric::LlmCalls => "LLM calls",
+        Metric::LlmErrors => "Failed LLM calls",
+        Metric::LlmErrorRate => "LLM error rate",
         Metric::LlmNoCostRate => "LLM calls with no cost",
         Metric::LlmNoTokensRate => "LLM calls with no tokens",
-        Metric::LatencyP50 => "Latency p50",
-        Metric::LatencyP95 => "Latency p95",
+        Metric::LlmLatencyP50 => "p50 LLM latency",
+        Metric::LlmLatencyP95 => "p95 LLM latency",
     }
 }
 
@@ -142,11 +132,10 @@ fn span_of_minutes(minutes: i64) -> String {
 }
 
 fn window_label(window: Window) -> String {
-    match window {
-        Window::Minutes { minutes: 60 } => "the last hour".to_string(),
-        Window::Minutes { minutes: 1440 } => "the last day".to_string(),
-        Window::Minutes { minutes } => format!("the last {}", span_of_minutes(minutes as i64)),
-        Window::MonthToDate { .. } => "this month".to_string(),
+    match window.minutes {
+        60 => "the last hour".to_string(),
+        1440 => "the last day".to_string(),
+        minutes => format!("the last {}", span_of_minutes(minutes as i64)),
     }
 }
 
@@ -177,22 +166,15 @@ fn level_label(level: Level) -> &'static str {
     }
 }
 
-fn headline(rule: &Rule, transition: &Transition) -> String {
+fn headline(transition: &Transition) -> String {
     let level = level_label(transition.to);
-    let at_limit = transition.to == Level::Critical;
-    match (transition.kind, rule.is_spending_limit()) {
-        (TransitionKind::Resolved, _) => "Resolved".to_string(),
-        (TransitionKind::Opened | TransitionKind::Escalated, true) if at_limit => {
-            "Spending limit reached".to_string()
-        }
-        (TransitionKind::Opened, true) => "Approaching spending limit".to_string(),
-        (TransitionKind::Reminder, true) if at_limit => "Still at spending limit".to_string(),
-        (TransitionKind::Reminder, true) => "Still approaching spending limit".to_string(),
-        (TransitionKind::Opened, _) => level.to_string(),
-        (TransitionKind::Escalated, _) => format!("Escalated to {level}"),
-        (TransitionKind::Deescalated, _) => format!("Down to {level}"),
-        (TransitionKind::Reopened, _) => format!("Reopened at {level}"),
-        (TransitionKind::Reminder, _) => format!("Still {level}"),
+    match transition.kind {
+        TransitionKind::Resolved => "Resolved".to_string(),
+        TransitionKind::Opened => level.to_string(),
+        TransitionKind::Escalated => format!("Escalated to {level}"),
+        TransitionKind::Deescalated => format!("Down to {level}"),
+        TransitionKind::Reopened => format!("Reopened at {level}"),
+        TransitionKind::Reminder => format!("Still {level}"),
     }
 }
 
@@ -234,22 +216,13 @@ fn measured_what(subject: &Subject) -> String {
     }
 }
 
-/// "Spend this month" or "Spend over the last day"
-fn spend_label(window: Window) -> String {
-    match window {
-        Window::MonthToDate { .. } => "Spend this month".to_string(),
-        window => format!("Spend over {}", window_label(window)),
-    }
-}
-
-/// The sentence that holds the value against the baseline or the limit.
+/// The sentence that holds the value against the baseline.
 fn measurement(subject: &Subject, transition: &Transition) -> String {
     let rule = subject.rule;
     let Some(value) = transition.value else {
         return format!("No data in {}.", window_label(rule.window));
     };
     let what = measured_what(subject);
-    let measured = value;
     let value = metric_value(rule.metric, value);
     let relative = transition.compared.zip(transition.baseline);
 
@@ -260,33 +233,13 @@ fn measurement(subject: &Subject, transition: &Transition) -> String {
             shift_label(compare_to),
             metric_value(rule.metric, baseline),
         ),
-        (Condition::TraceP99, Some((compared, baseline))) => format!(
-            "{what} is {value}, {} of the p99 trace cost of the last 7 days ({}).",
-            percent(compared),
-            money(baseline),
-        ),
-        (Condition::SpendingLimit { limit, .. }, _) if transition.to == Level::Critical => {
-            format!(
-                "{} is {value} and has reached the spending limit of {}.",
-                spend_label(rule.window),
-                money(limit)
-            )
-        }
-        (Condition::SpendingLimit { limit, .. }, _) => format!(
-            "{} is {value}, {} of the spending limit of {}.",
-            spend_label(rule.window),
-            percent((measured / limit * 100.0).floor()),
-            money(limit)
-        ),
         _ => format!("{what} is {value}."),
     }
 }
 
 /// How the compared number stands against the threshold that matters now.
 fn standing(rule: &Rule, transition: &Transition) -> Option<String> {
-    if rule.is_spending_limit() || transition.value.is_none() {
-        return None;
-    }
+    transition.value?;
     let sides = sides(rule.direction);
     let level = level_label(transition.to).to_lowercase();
     let resolve = compared_value(rule, rule.resolve_threshold());
@@ -377,27 +330,19 @@ fn details(subject: &Subject, event: &Event) -> Vec<MetricAlertDetail> {
     let value = transition.value.map(|v| metric_value(rule.metric, v));
     rows.push(detail("Value", value.unwrap_or("No data".to_string())));
 
-    match (rule.condition, transition.baseline) {
-        (Condition::Change { compare_to }, Some(baseline)) => rows.push(detail(
+    if let (Condition::Change { compare_to }, Some(baseline)) =
+        (rule.condition, transition.baseline)
+    {
+        rows.push(detail(
             &format!("{} earlier", shift_label(compare_to)),
             metric_value(rule.metric, baseline),
-        )),
-        (Condition::TraceP99, Some(baseline)) => {
-            rows.push(detail("p99 trace cost", money(baseline)))
-        }
-        _ => {}
+        ));
     }
     if let (true, Some(compared)) = (rule.is_relative(), transition.compared) {
         rows.push(detail("Compared", percent(compared)));
     }
 
-    if let Condition::SpendingLimit {
-        limit,
-        warn_at_percent,
-    } = rule.condition
-    {
-        rows.push(detail("Spending limit", money(limit)));
-        rows.push(detail("Warn at", percent(warn_at_percent)));
+    if resolved {
     } else if resolved {
         rows.push(detail(
             "Resolve threshold",
@@ -447,11 +392,12 @@ pub fn names_top_model(rule: &Rule, transition: &Transition) -> bool {
         && transition.value.is_some()
         && rule.group_by.is_none()
         && rule.direction == Direction::Above
-        && reads_spans(rule)
+        && rule.metric.is_sum()
+        && rule.metric.can_split_by_model()
 }
 
-/// The traces behind the incident: the rule's filters over the time from the
-/// first breaching window to this check, most expensive first.
+/// The traces behind the incident: from the first breaching window to this
+/// check, most expensive first.
 fn traces_path(subject: &Subject, event: &Event) -> String {
     let rule = subject.rule;
     let lead = (rule.checks_in_a_row as i64 - 1) * subject.interval_minutes;
@@ -470,17 +416,6 @@ fn traces_path(subject: &Subject, event: &Event) -> String {
             .at
             .to_rfc3339_opts(SecondsFormat::Secs, true),
     );
-    // The traces table reads `filter` as one comma-separated list, with the
-    // commas inside each filter escaped.
-    let filters: Vec<String> = rule
-        .filters
-        .iter()
-        .filter_map(|filter| serde_json::to_string(filter).ok())
-        .map(|filter| filter.replace(',', "%2C"))
-        .collect();
-    if !filters.is_empty() {
-        query.append_pair("filter", &filters.join(","));
-    }
     query.append_pair("sortBy", "cost");
     query.append_pair("sortDirection", "desc");
 
@@ -505,7 +440,7 @@ pub fn build(subject: &Subject, event: &Event) -> Option<MetricAlertNotification
         transition: transition.kind,
         level: transition.to,
         group: (!subject.group.is_empty()).then(|| subject.group.to_string()),
-        headline: headline(subject.rule, transition),
+        headline: headline(transition),
         summary: summary(subject, event),
         details: details(subject, event),
         traces_path: traces_path(subject, event),
@@ -519,7 +454,7 @@ mod tests {
     use chrono::TimeZone;
     use serde_json::json;
 
-    use super::{super::rule::Filter, *};
+    use super::*;
 
     fn at(hour: u32, minute: u32) -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 11, 25, hour, minute, 0).unwrap()
@@ -604,11 +539,11 @@ mod tests {
             metric_value(Metric::TotalTokens, 1_250_000.0),
             "1,250,000 tokens"
         );
-        assert_eq!(metric_value(Metric::TraceCount, 1.0), "1 trace");
-        assert_eq!(metric_value(Metric::ErrorTraces, 12.0), "12");
-        assert_eq!(metric_value(Metric::NoCostRate, 62.5), "62.5%");
-        assert_eq!(metric_value(Metric::LatencyP95, 0.34), "340 ms");
-        assert_eq!(metric_value(Metric::LatencyP95, 2.314), "2.31 s");
+        assert_eq!(metric_value(Metric::SpanCount, 1.0), "1 span");
+        assert_eq!(metric_value(Metric::LlmErrors, 12.0), "12");
+        assert_eq!(metric_value(Metric::LlmNoCostRate, 62.5), "62.5%");
+        assert_eq!(metric_value(Metric::LlmLatencyP95, 0.34), "340 ms");
+        assert_eq!(metric_value(Metric::LlmLatencyP95, 2.314), "2.31 s");
         assert_eq!(duration_label(Duration::minutes(23)), "23 min");
         assert_eq!(duration_label(Duration::minutes(125)), "2 h 5 min");
         assert_eq!(duration_label(Duration::minutes(1500)), "1 d 1 h");
@@ -636,8 +571,7 @@ mod tests {
 
     #[test]
     fn each_transition_has_its_own_headline() {
-        let rule = cost_rule();
-        let headline_of = |kind, to| headline(&rule, &transition(kind, to, 3.0));
+        let headline_of = |kind, to| headline(&transition(kind, to, 3.0));
 
         assert_eq!(
             headline_of(TransitionKind::Escalated, Level::Critical),
@@ -697,7 +631,7 @@ mod tests {
     #[test]
     fn change_shows_the_past_value() {
         let rule = rule(json!({
-            "metric": "cost_per_trace",
+            "metric": "total_cost",
             "groupBy": "model",
             "window": { "minutes": 60 },
             "condition": { "type": "change", "compareTo": "1w" },
@@ -711,7 +645,7 @@ mod tests {
 
         assert_eq!(
             message.summary,
-            "Cost per trace for gpt-4o over the last hour is $0.40, 160% of the same window 1 week earlier ($0.25). The warning threshold is 130%."
+            "Total cost for gpt-4o over the last hour is $0.40, 160% of the same window 1 week earlier ($0.25). The warning threshold is 130%."
         );
         assert_eq!(message.subject(), "Cost spike (gpt-4o)");
         assert!(
@@ -727,48 +661,9 @@ mod tests {
     }
 
     #[test]
-    fn a_spending_limit_speaks_of_spend_and_the_limit() {
-        let monthly = rule(json!({
-            "metric": "total_cost",
-            "window": { "monthToDate": true },
-            "condition": { "type": "spending_limit", "limit": 2000 },
-        }));
-        let near = transition(TransitionKind::Opened, Level::Warning, 1650.0);
-        let approaching = message(&monthly, "", &near, &incident());
-        assert_eq!(approaching.headline, "Approaching spending limit");
-        assert_eq!(
-            approaching.summary,
-            "Spend this month is $1,650.00, 82% of the spending limit of $2,000.00."
-        );
-        assert!(
-            approaching
-                .details
-                .contains(&detail("Spending limit", "$2,000.00".to_string()))
-        );
-        assert!(
-            approaching
-                .details
-                .contains(&detail("Warn at", "80%".to_string()))
-        );
-
-        let daily = rule(json!({
-            "metric": "total_cost",
-            "window": { "minutes": 1440 },
-            "condition": { "type": "spending_limit", "limit": 50, "warnAtPercent": 90 },
-        }));
-        let over = transition(TransitionKind::Escalated, Level::Critical, 50.0);
-        let reached = message(&daily, "", &over, &incident());
-        assert_eq!(reached.headline, "Spending limit reached");
-        assert_eq!(
-            reached.summary,
-            "Spend over the last day is $50.00 and has reached the spending limit of $50.00."
-        );
-    }
-
-    #[test]
-    fn errored_traces_are_a_plain_count() {
+    fn failed_llm_calls_are_a_plain_count() {
         let rule = rule(json!({
-            "metric": "error_traces",
+            "metric": "llm_errors",
             "window": { "minutes": 30 },
             "condition": { "type": "value" },
             "warning": 5,
@@ -776,7 +671,7 @@ mod tests {
         let opened = transition(TransitionKind::Opened, Level::Warning, 12.0);
         assert_eq!(
             message(&rule, "", &opened, &incident()).summary,
-            "Errored traces over the last 30 minutes is 12. That is above the warning threshold of 5."
+            "Failed LLM calls over the last 30 minutes is 12. That is above the warning threshold of 5."
         );
     }
 
@@ -816,20 +711,8 @@ mod tests {
     }
 
     #[test]
-    fn traces_link_covers_the_incident_with_the_rule_filters() {
-        let mut rule = cost_rule();
-        rule.filters = vec![
-            Filter {
-                column: "user_id".to_string(),
-                operator: "eq".to_string(),
-                value: json!("user 1"),
-            },
-            Filter {
-                column: "status".to_string(),
-                operator: "eq".to_string(),
-                value: json!("error"),
-            },
-        ];
+    fn traces_link_covers_the_incident() {
+        let rule = cost_rule();
         let opened = transition(TransitionKind::Opened, Level::Warning, 2.41);
         let message = message(&rule, "", &opened, &incident());
 
@@ -838,8 +721,6 @@ mod tests {
             message.traces_path,
             "/project/00000000-0000-0000-0000-000000000001/traces?\
              startDate=2026-11-25T19%3A05%3A00Z&endDate=2026-11-25T19%3A35%3A00Z\
-             &filter=%7B%22column%22%3A%22user_id%22%252C%22operator%22%3A%22eq%22%252C%22value%22%3A%22user+1%22%7D\
-             %2C%7B%22column%22%3A%22status%22%252C%22operator%22%3A%22eq%22%252C%22value%22%3A%22error%22%7D\
              &sortBy=cost&sortDirection=desc"
         );
         assert_eq!(
