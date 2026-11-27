@@ -567,6 +567,29 @@ mod tests {
     }
 
     #[test]
+    fn only_a_count_or_sum_of_llm_calls_names_a_top_model() {
+        let opened = transition(TransitionKind::Opened, Level::Warning, 2.41);
+        let names = |metric: &str| {
+            let rule = rule(json!({
+                "metric": metric,
+                "window": { "minutes": 5 },
+                "condition": { "type": "value" },
+                "warning": 2.0,
+            }));
+            names_top_model(&rule, &opened)
+        };
+
+        assert!(names("total_cost"));
+        assert!(names("llm_errors"));
+        // A model's share of a rate or a latency explains nothing.
+        assert!(!names("llm_error_rate"));
+        assert!(!names("llm_no_cost_rate"));
+        assert!(!names("llm_no_tokens_rate"));
+        assert!(!names("llm_latency_p95"));
+        assert!(!names("span_count"));
+    }
+
+    #[test]
     fn numbers_read_like_their_unit() {
         assert_eq!(money(1234.5), "$1,234.50");
         assert_eq!(money(0.4), "$0.40");
