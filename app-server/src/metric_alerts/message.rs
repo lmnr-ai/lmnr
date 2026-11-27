@@ -30,7 +30,12 @@ pub struct Event<'a> {
     pub transition: &'a Transition,
     pub incident: &'a Incident,
     pub top_model: Option<Contributor>,
+    /// When the message is built. A check runs late after an ingestion backlog.
+    pub sent_at: DateTime<Utc>,
 }
+
+/// A check this far behind the clock says that it was delayed.
+const DELAYED_AFTER_MINUTES: i64 = 5;
 
 fn separated(digits: &str) -> String {
     let mut out = String::with_capacity(digits.len() + digits.len() / 3);
@@ -302,11 +307,23 @@ fn closing(subject: &Subject, event: &Event) -> Option<String> {
     }
 }
 
+fn delay_note(event: &Event) -> Option<String> {
+    let late = event.sent_at - event.transition.at;
+    (late.num_minutes() >= DELAYED_AFTER_MINUTES).then(|| {
+        format!(
+            "This check covers the window ending {} and was sent {} late.",
+            timestamp(event.transition.at),
+            duration_label(late)
+        )
+    })
+}
+
 fn summary(subject: &Subject, event: &Event) -> String {
     [
         Some(measurement(subject, event.transition)),
         standing(subject.rule, event.transition),
         closing(subject, event),
+        delay_note(event),
     ]
     .into_iter()
     .flatten()
@@ -521,8 +538,33 @@ mod tests {
             transition,
             incident,
             top_model: None,
+            sent_at: transition.at + Duration::minutes(3),
         };
         build(&subject, &event).unwrap()
+    }
+
+    #[test]
+    fn a_late_check_says_it_was_delayed() {
+        let transition = transition(TransitionKind::Opened, Level::Warning, 2.41);
+        let incident = incident();
+        let sent = |minutes: i64| {
+            let event = Event {
+                transition: &transition,
+                incident: &incident,
+                top_model: None,
+                sent_at: transition.at + Duration::minutes(minutes),
+            };
+            delay_note(&event)
+        };
+
+        assert_eq!(sent(4), None);
+        assert_eq!(
+            sent(47).as_deref(),
+            Some(
+                "This check covers the window ending Nov 25, 2026 at 7:35 PM UTC \
+                 and was sent 47 min late."
+            )
+        );
     }
 
     #[test]
@@ -748,6 +790,7 @@ mod tests {
             transition: &opened,
             incident: &unstored,
             top_model: None,
+            sent_at: opened.at,
         };
         assert!(build(&subject, &event).is_none());
     }

@@ -11,7 +11,7 @@ use super::{
     engine::{Incident, Level, Observation, State, TransitionKind, evaluate},
     preview::replay,
     rule::Rule,
-    series::{Context, Series, observe, time_of},
+    series::{Series, observe, time_of},
     store::{StateKey, to_state, to_state_row},
 };
 
@@ -68,7 +68,6 @@ struct Check {
     value: Option<f64>,
     baseline: Option<f64>,
     llm_calls: u64,
-    behind: bool,
 }
 
 fn check(minute: i64, value: f64) -> Check {
@@ -77,7 +76,6 @@ fn check(minute: i64, value: f64) -> Check {
         value: Some(value),
         baseline: None,
         llm_calls: 1000,
-        behind: false,
     }
 }
 
@@ -112,13 +110,6 @@ fn with_llm_calls(checks: Vec<Check>, llm_calls: u64) -> Vec<Check> {
         .collect()
 }
 
-fn behind(checks: Vec<Check>) -> Vec<Check> {
-    checks
-        .into_iter()
-        .map(|c| Check { behind: true, ..c })
-        .collect()
-}
-
 /// Moves checks so the first one lands on `minute`.
 fn starting_at(minute: i64, checks: Vec<Check>) -> Vec<Check> {
     checks
@@ -136,7 +127,6 @@ fn observation(check: &Check) -> Observation {
         value: check.value,
         baseline: check.baseline,
         volume: check.llm_calls,
-        ingestion_behind: check.behind,
     }
 }
 
@@ -405,35 +395,6 @@ fn transitions() {
             rule: change_rule(json!({ "minChange": 1.0 })),
             checks: with_baseline(each_minute(&[4., 4., 4.]), Some(1.0)),
             expected: vec![(2, Opened, Critical)],
-        },
-        Case {
-            name: "ingestion behind: below rules are not checked",
-            rule: below_rule(json!({})),
-            checks: behind(each_minute(&[5., 5., 5., 5., 5.])),
-            expected: vec![],
-        },
-        Case {
-            name: "ingestion behind: missing data is not checked",
-            rule: rule(json!({ "onNoData": "alert" })),
-            checks: behind((0..5).map(no_data).collect()),
-            expected: vec![],
-        },
-        Case {
-            name: "ingestion behind: a low reading does not resolve",
-            rule: rule(json!({})),
-            checks: [
-                each_minute(&[150., 150., 150.]),
-                behind(starting_at(3, each_minute(&[50., 50., 50.]))),
-                starting_at(6, each_minute(&[50., 50., 50.])),
-            ]
-            .concat(),
-            expected: vec![(2, Opened, Warning), (8, Resolved, Okay)],
-        },
-        Case {
-            name: "ingestion behind: a breach still fires",
-            rule: rule(json!({})),
-            checks: behind(each_minute(&[150., 150., 150.])),
-            expected: vec![(2, Opened, Warning)],
         },
         Case {
             name: "duplicate and older timestamps are ignored",
@@ -708,7 +669,7 @@ fn run_like_the_scheduler(rule: &Rule, series: &Series, minutes: &[i64]) -> Vec<
             Some((row, incident)) => to_state(row, Option::as_ref(incident)),
             None => State::default(),
         };
-        let observation = observe(rule, series, None, *minute, Context::default());
+        let observation = observe(rule, series, None, *minute);
         if let Some(transition) = evaluate(rule, &mut state, &observation) {
             seen.push((*minute, transition.kind, transition.to));
         }
@@ -735,7 +696,7 @@ fn preview_and_scheduler_agree_on_a_recorded_series() {
         .into_iter()
         .filter(|(_, kind, _)| *kind != Reminder)
         .collect();
-    let preview = replay(&rule, &series, None, &minutes, 299, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 299);
     let previewed: Vec<Seen> = preview
         .incidents
         .iter()
@@ -771,7 +732,7 @@ fn the_preview_plots_empty_windows_as_zero() {
     let series = Series::default();
     let minutes: Vec<i64> = (10..20).collect();
 
-    let preview = replay(&rule, &series, None, &minutes, 19, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 19);
     assert_eq!(preview.points.len(), 10);
     assert!(preview.points.iter().all(|point| point.value == Some(0.0)));
     // The rule itself skips those checks: an error rate over nothing says nothing.
@@ -779,7 +740,7 @@ fn the_preview_plots_empty_windows_as_zero() {
 
     // A relative rule with nothing to compare to has no number to plot.
     let change = change_rule(json!({ "resolve": null }));
-    let preview = replay(&change, &series, None, &minutes, 19, Context::default());
+    let preview = replay(&change, &series, None, &minutes, 19);
     assert!(preview.points.iter().all(|point| point.value.is_none()));
 }
 
@@ -790,12 +751,12 @@ fn the_preview_ends_at_the_newest_minute() {
 
     // Checked every 15 minutes: the last check is at 285, the data goes on.
     let minutes: Vec<i64> = (15..=285).step_by(15).collect();
-    let preview = replay(&rule, &series, None, &minutes, 297, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 297);
     assert_eq!(preview.points.len(), minutes.len() + 1);
     assert_eq!(preview.points.last().map(|p| p.at), Some(time_of(297)));
 
     // The extra point is plotted, not evaluated.
-    let on_grid = replay(&rule, &series, None, &minutes, 285, Context::default());
+    let on_grid = replay(&rule, &series, None, &minutes, 285);
     assert_eq!(on_grid.points.len(), minutes.len());
     assert_eq!(on_grid.incidents, preview.incidents);
 }
@@ -829,7 +790,7 @@ fn a_long_preview_keeps_spikes_and_the_newest_point() {
     series.add_rows(&rows);
     let minutes: Vec<i64> = (5..=3000).collect();
 
-    let preview = replay(&rule, &series, None, &minutes, 3000, Context::default());
+    let preview = replay(&rule, &series, None, &minutes, 3000);
     assert!(preview.points.len() <= 600, "{}", preview.points.len());
     let peak = preview
         .points

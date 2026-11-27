@@ -12,7 +12,7 @@ use super::{
     engine::{Level, Observation, State, TransitionKind, compared_value, evaluate},
     query::fetch_series,
     rule::{Direction, GroupBy, Rule},
-    series::{Context, Minutes, Series, observe, ranges_of, window_of},
+    series::{Minutes, Series, observe, ranges_of, window_of},
 };
 
 pub const MAX_PREVIEW_HOURS: i64 = 7 * 24;
@@ -123,14 +123,13 @@ pub fn replay(
     group: Option<&str>,
     minutes: &[i64],
     newest: i64,
-    context: Context,
 ) -> GroupPreview {
     let mut state = State::default();
     let mut points = Vec::with_capacity(minutes.len());
     let mut incidents: Vec<IncidentPreview> = Vec::new();
 
     for minute in minutes {
-        let observation = observe(rule, series, group, *minute, context);
+        let observation = observe(rule, series, group, *minute);
         let transition = evaluate(rule, &mut state, &observation);
         points.push(point_of(rule, &observation));
 
@@ -162,7 +161,7 @@ pub fn replay(
         }
     }
     if minutes.last().is_some_and(|last| *last < newest) {
-        let observation = observe(rule, series, group, newest, context);
+        let observation = observe(rule, series, group, newest);
         points.push(point_of(rule, &observation));
     }
 
@@ -205,10 +204,9 @@ pub async fn preview(
     let plotted = minutes.iter().chain([&newest]);
     let ranges = plotted.flat_map(|m| ranges_of(&rule, *m)).collect();
     let series = fetch_series(clickhouse, project_id, ranges).await?;
-    let context = Context::default();
 
     let groups: Vec<GroupPreview> = match rule.group_by {
-        None => vec![replay(&rule, &series, None, &minutes, newest, context)],
+        None => vec![replay(&rule, &series, None, &minutes, newest)],
         Some(GroupBy::Model) => {
             let whole_range = Minutes {
                 start: window_of(&rule, first).start,
@@ -217,7 +215,7 @@ pub async fn preview(
             series
                 .top_models(&rule, whole_range)
                 .iter()
-                .map(|model| replay(&rule, &series, Some(model), &minutes, newest, context))
+                .map(|model| replay(&rule, &series, Some(model), &minutes, newest))
                 .collect()
         }
     };

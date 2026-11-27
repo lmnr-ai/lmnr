@@ -88,8 +88,6 @@ pub struct Observation {
     pub baseline: Option<f64>,
     /// LLM calls in the window, which `min_calls` is compared to.
     pub volume: u64,
-    /// Our own ingestion is behind, so recent windows are under-counted.
-    pub ingestion_behind: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -174,7 +172,6 @@ fn threshold_level(rule: &Rule, current: Level, compared: f64) -> Level {
 fn read(rule: &Rule, current: Level, observation: &Observation) -> Option<Reading> {
     let value = match (observation.value, rule.no_data_mode()) {
         (Some(value), _) => value,
-        (None, _) if observation.ingestion_behind => return None,
         (None, OnNoData::Skip) => return None,
         (None, OnNoData::Zero) => 0.0,
         (None, OnNoData::Alert) => {
@@ -206,12 +203,6 @@ fn read(rule: &Rule, current: Level, observation: &Observation) -> Option<Readin
             (level, percent)
         }
     };
-
-    // A lagging pipeline can only under-count, so a low reading proves nothing.
-    let low_reading = rule.direction == Direction::Below || level < current;
-    if observation.ingestion_behind && low_reading {
-        return None;
-    }
 
     Some(Reading {
         level,

@@ -240,20 +240,8 @@ pub fn merge_ranges(mut ranges: Vec<Minutes>) -> Vec<Minutes> {
     merged
 }
 
-/// What the scheduler knows beyond the series.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Context {
-    pub ingestion_behind: bool,
-}
-
 /// Builds the check of one rule and group for the window ending at `end`.
-pub fn observe(
-    rule: &Rule,
-    series: &Series,
-    group: Option<&str>,
-    end: i64,
-    context: Context,
-) -> Observation {
+pub fn observe(rule: &Rule, series: &Series, group: Option<&str>, end: i64) -> Observation {
     let window = window_of(rule, end);
     let measured = measure(rule, series, group, window);
 
@@ -274,7 +262,6 @@ pub fn observe(
         value: measured.value,
         baseline,
         volume: measured.llm_calls,
-        ingestion_behind: context.ingestion_behind,
     }
 }
 
@@ -321,7 +308,7 @@ mod tests {
     }
 
     fn observed(series: &Series, fields: Value, group: Option<&str>, end: i64) -> Observation {
-        observe(&rule(fields), series, group, end, Context::default())
+        observe(&rule(fields), series, group, end)
     }
 
     #[test]
