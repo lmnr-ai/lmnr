@@ -92,8 +92,11 @@ fn metric_value(metric: Metric, value: f64) -> String {
         Metric::InputTokens | Metric::OutputTokens | Metric::TotalTokens => {
             plural(value.round(), "token")
         }
-        Metric::LlmCalls | Metric::LlmErrors => number(value.round(), 0),
-        Metric::LlmErrorRate | Metric::LlmNoCostRate | Metric::LlmNoTokensRate => percent(value),
+        Metric::SpanErrors | Metric::LlmCalls | Metric::LlmErrors => number(value.round(), 0),
+        Metric::SpanErrorRate
+        | Metric::LlmErrorRate
+        | Metric::LlmNoCostRate
+        | Metric::LlmNoTokensRate => percent(value),
         Metric::LlmLatencyP50 | Metric::LlmLatencyP95 if value < 1.0 => {
             format!("{} ms", number(value * 1000.0, 0))
         }
@@ -114,6 +117,8 @@ fn compared_value(rule: &Rule, value: f64) -> String {
 fn metric_label(metric: Metric) -> &'static str {
     match metric {
         Metric::SpanCount => "Span count",
+        Metric::SpanErrors => "Failed spans",
+        Metric::SpanErrorRate => "Span error rate",
         Metric::TotalCost => "Total cost",
         Metric::InputTokens => "Input tokens",
         Metric::OutputTokens => "Output tokens",
