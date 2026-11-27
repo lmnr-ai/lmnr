@@ -14,6 +14,10 @@ pub struct SpanMetricsMinute {
     pub output_tokens: i64,
     pub total_tokens: i64,
     pub llm_calls: u64,
+    /// LLM calls with zero cost.
+    pub llm_calls_no_cost: u64,
+    /// LLM calls with zero tokens.
+    pub llm_calls_no_tokens: u64,
 }
 
 /// Half-open range of minutes, unix seconds.
@@ -45,7 +49,9 @@ pub async fn get_span_metrics(
                 sum(input_tokens) AS input_tokens,
                 sum(output_tokens) AS output_tokens,
                 sum(total_tokens) AS total_tokens,
-                sum(llm_calls) AS llm_calls
+                sum(llm_calls) AS llm_calls,
+                sum(llm_calls_no_cost) AS llm_calls_no_cost,
+                sum(llm_calls_no_tokens) AS llm_calls_no_tokens
          FROM span_metrics_1m
          WHERE project_id = ? AND ({range_predicates})
          GROUP BY minute, model
