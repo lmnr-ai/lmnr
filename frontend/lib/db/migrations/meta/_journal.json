@@ -981,6 +981,13 @@
       "when": 1795705014039,
       "tag": "0139_agent_version_shown_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1795705015039,
+      "tag": "0140_metric_alerts",
+      "breakpoints": true
     }
   ]
 }

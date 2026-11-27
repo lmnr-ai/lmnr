@@ -15,6 +15,7 @@ pub mod events;
 pub mod labeling_queues;
 pub mod llm_feature_routes;
 pub mod llm_profiles;
+pub mod metric_alerts;
 pub mod model_costs;
 pub mod project_api_keys;
 pub mod projects;

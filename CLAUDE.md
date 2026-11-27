@@ -164,6 +164,7 @@ Frontend uses Husky with lint-staged: oxfmt, oxlint, and `tsc --noEmit` run on s
 | `docs/internal/billing.md` | Tiers (display names vs internal keys), free trial, usage warnings/hard limits, signal cost metering, custom model costs |
 | `docs/internal/llm-profiles.md` | Workspace LLM profiles: CRUD surfaces, encrypted secrets, wire shapes, runtime resolution, pinning a profile on a signal |
 | `docs/internal/slack.md` | Slack OAuth broker + brokered self-hosted integration |
+| `docs/internal/metric-alerts.md` | Metric alerts (`METRIC` rules in `alerts`), `span_metrics_1m` rollup, `metric_alert_states` / `metric_alert_incidents` |
 | `docs/internal/ai-features.md` | `getLanguageModel`, LLM provider config, `llm_feature_routes` (per-feature model routing), Vercel AI SDK v7 |
 | `docs/internal/analytics.md` | PostHog, Loops sync, self-hosted telemetry heartbeat |
 | `docs/internal/labeling-queues.md` | Labeling queues (ClickHouse RMT items, dirty-state, push-to-dataset) |

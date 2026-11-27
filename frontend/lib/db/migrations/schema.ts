@@ -1458,6 +1458,79 @@ export const alertTargets = pgTable(
   ]
 );
 
+export const metricAlertIncidents = pgTable(
+  "metric_alert_incidents",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    alertId: uuid("alert_id").notNull(),
+    groupKey: text("group_key").default("").notNull(),
+    level: text().notNull(),
+    peakLevel: text("peak_level").notNull(),
+    peakValue: doublePrecision("peak_value").notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true, mode: "string" }).notNull(),
+    escalatedAt: timestamp("escalated_at", { withTimezone: true, mode: "string" }),
+    reopenedAt: timestamp("reopened_at", { withTimezone: true, mode: "string" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" }),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true, mode: "string" }),
+    slackThreads: jsonb("slack_threads").default({}).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("metric_alert_incidents_alert_group_opened_idx").using(
+      "btree",
+      table.alertId.asc().nullsLast().op("uuid_ops"),
+      table.groupKey.asc().nullsLast().op("text_ops"),
+      table.openedAt.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.alertId],
+      foreignColumns: [alerts.id],
+      name: "metric_alert_incidents_alert_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "metric_alert_incidents_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const metricAlertStates = pgTable(
+  "metric_alert_states",
+  {
+    alertId: uuid("alert_id").notNull(),
+    groupKey: text("group_key").default("").notNull(),
+    projectId: uuid("project_id").notNull(),
+    level: text().default("ok").notNull(),
+    streakLevel: text("streak_level").default("ok").notNull(),
+    streakCount: integer("streak_count").default(0).notNull(),
+    lastProcessedAt: timestamp("last_processed_at", { withTimezone: true, mode: "string" }),
+    lastValue: doublePrecision("last_value"),
+    currentIncidentId: uuid("current_incident_id"),
+    ruleFingerprint: text("rule_fingerprint").default("").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.alertId, table.groupKey], name: "metric_alert_states_pkey" }),
+    foreignKey({
+      columns: [table.alertId],
+      foreignColumns: [alerts.id],
+      name: "metric_alert_states_alert_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "metric_alert_states_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.currentIncidentId],
+      foreignColumns: [metricAlertIncidents.id],
+      name: "metric_alert_states_current_incident_id_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
 export const sqlTemplates = pgTable(
   "sql_templates",
   {
