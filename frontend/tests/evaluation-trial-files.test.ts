@@ -17,6 +17,7 @@ import {
   listTrialFiles,
   nameToPath,
   resolveTrialPath,
+  runnerModuleFiles,
   type TrialFiles,
   type TrialFileSources,
   taskVersionHref,
@@ -118,6 +119,29 @@ describe("trial file sources", () => {
     assert.equal(resolveTrialPath({ task: sources.task }, "logs/trial.log"), null);
   });
 
+  it("shows the runner's shared modules, and only those, under runner/", () => {
+    const withShared = [...upload, ...archive("_shared/support.py", "_shared/secret-notes.md", "other/agent/eval.py")];
+    const runnerFiles = runnerModuleFiles(
+      withShared,
+      // describe's modules: the suite's own agent/ is shown already; a module missing from the upload is skipped.
+      ["_shared/support.py", "ds/agent/agent.py", "_shared/gone.py", "./_shared/support.py"],
+      "ds"
+    );
+    assert.deepEqual(runnerFiles, archive("_shared/support.py"));
+    const withRunner: TrialFileSources = { ...sources, runner: { archive: run, dir: "", files: runnerFiles } };
+    assert.deepEqual(
+      listTrialFiles(withRunner).filter((f) => f.path.startsWith("runner/")),
+      archive("runner/_shared/support.py")
+    );
+    assert.deepEqual(resolveTrialPath(withRunner, "runner/_shared/support.py"), {
+      archive: run,
+      path: "_shared/support.py",
+    });
+    // Other files of the upload, even next to a module, never resolve through runner/.
+    assert.equal(resolveTrialPath(withRunner, "runner/_shared/secret-notes.md"), null);
+    assert.equal(resolveTrialPath(withRunner, "runner/ds/harbor.yaml"), null);
+  });
+
   it("keys a task version by its dataset's and task's org/name", () => {
     assert.equal(version.prefix, "p/acme/ds/acme/refund/h");
   });
@@ -134,8 +158,8 @@ describe("trial tree", () => {
 
   it("puts the roots in panel order", () => {
     assert.deepEqual(
-      buildTrialTree(listing).map((n) => n.path),
-      ["task", "agent", "logs"]
+      buildTrialTree([...listing, ...archive("runner/_shared/support.py")]).map((n) => n.path),
+      ["task", "agent", "runner", "logs"]
     );
   });
 

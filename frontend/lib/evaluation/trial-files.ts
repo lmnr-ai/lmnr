@@ -5,7 +5,7 @@
  */
 
 /** The panel's top-level folders, in display order. */
-export const TRIAL_FILE_ROOTS = ["task", "agent", "logs"] as const;
+export const TRIAL_FILE_ROOTS = ["task", "agent", "runner", "logs"] as const;
 export type TrialFileRoot = (typeof TRIAL_FILE_ROOTS)[number];
 
 export interface ArchiveFile {
@@ -78,6 +78,17 @@ export const filesUnder = (files: ArchiveFile[], dir: string): ArchiveFile[] => 
   return files
     .filter((f) => f.path.startsWith(prefix))
     .map(({ path, size }) => ({ path: path.slice(prefix.length), size }));
+};
+
+/**
+ * `runner/`'s files: the eval runner's modules outside the suite's `agent/`
+ * (shared code such as `_shared/support.py`, `hostedMetadata.runnerModules`),
+ * as an archive-root source holding only those files, so nothing else resolves.
+ */
+export const runnerModuleFiles = (files: ArchiveFile[], modules: string[], suitePath: string): ArchiveFile[] => {
+  const agentDir = `${joinArchivePath(suitePath, "agent")}/`;
+  const wanted = new Set(modules.map((m) => joinArchivePath(m)).filter((m) => m && !m.startsWith(agentDir)));
+  return files.filter((f) => wanted.has(f.path));
 };
 
 /** The listing the panel shows: each source's files under its root folder; a source with no files is left out. */

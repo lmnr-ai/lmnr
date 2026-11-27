@@ -151,6 +151,40 @@ pub struct HostedMetadata {
     pub upload_id: Uuid,
     /// The suite dir, relative to the archive root.
     pub suite_path: String,
+    /// The eval runner's module files outside the suite's `agent/` (shared
+    /// code such as `_shared/support.py`), relative to the archive root. The
+    /// trial Files view shows them in a `runner/` folder.
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "deserialize_runner_modules"
+    )]
+    pub runner_modules: Vec<String>,
+}
+
+/// At most this many runner modules are kept.
+const MAX_RUNNER_MODULES: usize = 500;
+
+/// Keeps relative paths inside the archive (no leading `/`, no `..` or empty
+/// segments, no backslashes), so a listing can only name archive files.
+fn deserialize_runner_modules<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<String>, D::Error> {
+    let modules = Vec::<String>::deserialize(deserializer)?;
+    Ok(modules
+        .into_iter()
+        .filter(|module| is_archive_relative_path(module))
+        .take(MAX_RUNNER_MODULES)
+        .collect())
+}
+
+fn is_archive_relative_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.len() <= 1024
+        && !path.contains('\\')
+        && path
+            .split('/')
+            .all(|segment| !segment.is_empty() && segment != "." && segment != "..")
 }
 
 const MAX_SECRET_ENV: usize = 64;
@@ -316,6 +350,33 @@ mod tests {
     use actix_web::http::header::{HeaderName, HeaderValue};
 
     use super::*;
+
+  
+    #[test]
+    fn hosted_metadata_keeps_only_archive_relative_runner_modules() {
+        let metadata: super::HostedMetadata = serde_json::from_value(serde_json::json!({
+            "uploadId": "00000000-0000-0000-0000-000000000001",
+            "suitePath": "refunds",
+            "runnerModules": ["_shared/support.py", "../x.py", "/abs.py", "a//b.py", "a\\b.py"],
+        }))
+        .unwrap();
+        assert_eq!(metadata.runner_modules, vec!["_shared/support.py"]);
+
+        // Older plugins send no runnerModules, and an empty list isn't stored.
+        let metadata: super::HostedMetadata = serde_json::from_value(serde_json::json!({
+            "uploadId": "00000000-0000-0000-0000-000000000001",
+            "suitePath": "refunds",
+        }))
+        .unwrap();
+        assert!(metadata.runner_modules.is_empty());
+        assert_eq!(
+            serde_json::to_value(&metadata).unwrap(),
+            serde_json::json!({
+                "uploadId": "00000000-0000-0000-0000-000000000001",
+                "suitePath": "refunds",
+            })
+        );
+    }
 
     #[test]
     fn cli_package_accepts_semver_only() {

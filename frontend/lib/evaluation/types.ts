@@ -8,7 +8,7 @@ export type Evaluation = {
   projectId: string;
   metadata: Record<string, unknown> | null;
   /** Set for evaluations from a remote run (`lmnr-cli eval run --remote`), whose evals folder can be browsed. */
-  hostedMetadata?: { uploadId: string; suitePath: string } | null;
+  hostedMetadata?: { uploadId: string; suitePath: string; runnerModules?: string[] } | null;
   /** The eval dataset (`lmnr-cli eval dataset`) the run used, by name; its trials carry `taskVersionHash`. */
   datasetV2Id?: string | null;
   /** Whether `datasetV2Id` names a pushed dataset (runs can name one that was never pushed). */

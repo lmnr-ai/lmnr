@@ -13,6 +13,7 @@ import {
   joinArchivePath,
   listTrialFiles,
   resolveTrialPath,
+  runnerModuleFiles,
   TASK_HASH_RE,
   type TrialFiles,
   type TrialFileSources,
@@ -30,6 +31,7 @@ import { datasetsBucket, hostedEvalsBucket } from "@/lib/s3";
 const HostedMetadataSchema = z.object({
   uploadId: z.guid(),
   suitePath: z.string(),
+  runnerModules: z.array(z.string()).optional(),
 });
 
 const metadataString = (metadata: unknown, key: string): string | null => {
@@ -130,6 +132,10 @@ const resolveSources = async (projectId: string, trial: Trial) => {
   if (run && upload && hosted) {
     // Only the dataset's `agent/`: the rest of its dir (harbor.yaml, tasks/) is run config.
     sources.agent = { archive: run, dir: joinArchivePath(hosted.suitePath, "agent"), files: upload.files };
+    const runnerFiles = runnerModuleFiles(upload.files, hosted.runnerModules ?? [], hosted.suitePath);
+    if (runnerFiles.length > 0) {
+      sources.runner = { archive: run, dir: "", files: runnerFiles };
+    }
   }
   if (jobArchive && job && trial.trialName) {
     sources.logs = { archive: jobArchive, dir: joinArchivePath(trial.trialName), files: job.files };
@@ -146,7 +152,7 @@ export const getTrialFiles = async (projectId: string, evaluationId: string, tri
   return { trialId, files, task: hasTask ? task : null, logsPending };
 };
 
-/** Streams one file of the trial's listing, `path` a tree path (`task/…`, `agent/…`, `logs/…`). */
+/** Streams one file of the trial's listing, `path` a tree path (`task/…`, `agent/…`, `runner/…`, `logs/…`). */
 export const readTrialFile = async (projectId: string, evaluationId: string, trialId: string, path: string) => {
   const trial = await getTrial(projectId, evaluationId, trialId);
   const { sources } = await resolveSources(projectId, trial);

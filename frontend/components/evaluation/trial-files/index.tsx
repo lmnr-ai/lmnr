@@ -19,8 +19,8 @@ import { buildTrialTree, defaultTrialFile } from "./utils";
 
 const LOGS_PENDING = "Logs arrive once the evaluation run finishes.";
 
-/** The task is what a trial is read for; the run's agent/ and logs/ start collapsed. */
-const INITIALLY_COLLAPSED = ["agent", "logs"];
+/** The task is what a trial is read for; the run's agent/, runner/ and logs/ start collapsed. */
+const INITIALLY_COLLAPSED = ["agent", "runner", "logs"];
 
 const taskHint = (task: TrialTaskSource | null): string => {
   if (!task) return "No task folder";
@@ -56,9 +56,10 @@ interface TrialFilesProps {
 
 /**
  * The trial's files in one tree: `task/` (its task version, else the copy its
- * remote run uploaded), and for remote runs `agent/` and `logs/` (its Harbor
- * trial dir). The open file is `?file=`, so it stays open across trials that
- * have it (and in links); other trials open their best default.
+ * remote run uploaded), and for remote runs `agent/`, `runner/` (shared
+ * modules its eval runner imports) and `logs/` (its Harbor trial dir). The
+ * open file is `?file=`, so it stays open across trials that have it (and in
+ * links); other trials open their best default.
  */
 export default function TrialFiles({ projectId, evaluationId, trialId, listing, error, title }: TrialFilesProps) {
   const tree = useMemo(() => (listing ? buildTrialTree(listing.files) : []), [listing]);
