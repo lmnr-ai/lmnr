@@ -1,0 +1,13 @@
+agents:
+  - import_path: agent.agent:DetectionReplayAgent
+    model_name: azure/gpt-5.6-terra
+    env:
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+datasets:
+  - path: tasks
+n_concurrent_trials: 1
+images:
+  lmnr-agent-detection-evals:
+    dockerfile: agent/Dockerfile
+    context: ../..

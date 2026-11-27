@@ -1,0 +1,15 @@
+[dataset]
+name = "lmnr/agent-detection-minimum"
+description = "Trace-derived check update minimum coverage, with a recurring prompt control"
+
+[[tasks]]
+name = "lmnr/one-off-batch"
+digest = "sha256:020617a2241db1c28188d68c13e82ca642435d8f13937b253dce35ca330f2d6e"
+
+[[tasks]]
+name = "lmnr/recurring-meetings"
+digest = "sha256:d88c7ba9e70f39f12d8f2809177e85daa98069b96215aaddc7979b18ee120887"
+
+[[tasks]]
+name = "lmnr/singletons-and-pair"
+digest = "sha256:c34297122921be32e30b75b623a2d8e1f886eac7976a846893d9effc4c5ec7ef"

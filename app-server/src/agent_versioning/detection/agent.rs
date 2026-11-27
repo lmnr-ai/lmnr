@@ -229,7 +229,22 @@ impl<'a> DetectionAgent<'a> {
                 .input(&json!({ "name": call.name, "args": args }))
                 .step(step)
                 .build();
+                #[cfg(test)]
+                let logged_args = args.clone();
                 let result = span.in_scope(|| self.call_tool(&call.name, args));
+                #[cfg(test)]
+                if let Ok(path) = std::env::var("DETECTION_EVAL_TOOL_LOG") {
+                    use std::io::Write;
+                    let mut file = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(path)?;
+                    writeln!(
+                        file,
+                        "{}",
+                        json!({ "step": step, "name": call.name, "args": logged_args, "response": result.response })
+                    )?;
+                }
                 spans::set_output(&span, &result.response);
                 finished |= result.finished;
                 responses.push(ProviderPart {
@@ -319,8 +334,11 @@ impl<'a> DetectionAgent<'a> {
         let Some(definition) = Definition::new(args.any_of) else {
             return json!({ "error": "The check has no non-empty substring." });
         };
+        let matched_prompts = self.matched_prompts(&definition);
         json!({
-            "matched_prompts": self.matched_prompts(&definition),
+            "eligible": matched_prompts.len() >= self.min_matches,
+            "min_matches": self.min_matches,
+            "matched_prompts": matched_prompts,
             "matched_agents": self.matched_agents(&definition, None),
         })
     }
@@ -539,6 +557,58 @@ mod tests {
         agent.call_tool(SUBMIT_TOOL, args).response
     }
 
+    /// Harbor drives the actual detection loop with a real model and case data.
+    /// This is deliberately test-only: production scheduling/DB ingestion are not replayed.
+    #[tokio::test]
+    async fn harbor_replay_detection_case() {
+        let path = match std::env::var("DETECTION_EVAL_CASE") {
+            Ok(path) => path,
+            Err(_) => return,
+        };
+        let data: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let client = LlmClient::from_provider(
+            "azure_chat_completions",
+            ProviderClient::OpenAI(crate::llm::openai::OpenAIClient::azure().unwrap()),
+        );
+        let prompts = data["prompts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| unlabelled(p.as_str().unwrap()))
+            .collect();
+        let agents = data["agents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| KnownAgent {
+                agent: DefinedAgent {
+                    id: Uuid::new_v4(),
+                    agent_hash: Uuid::new_v4().simple().to_string(),
+                    name: Some(a["name"].as_str().unwrap().to_string()),
+                    definition: Json(
+                        Definition::new(serde_json::from_value(a["any_of"].clone()).unwrap())
+                            .unwrap(),
+                    ),
+                },
+                latest: Some(LatestPrompt {
+                    system_prompt: a["latest"].as_str().unwrap().to_string(),
+                    opening: definition::opening(a["latest"].as_str().unwrap()),
+                    time: 0,
+                }),
+            })
+            .collect();
+        let mut detector = agent(&client, prompts, agents);
+        detector
+            .converse()
+            .await
+            .expect("live detection loop failed");
+        std::fs::write(
+            std::env::var("DETECTION_EVAL_RESULT").unwrap(),
+            json!({ "changes": detector.changes }).to_string(),
+        )
+        .unwrap();
+    }
+
     #[test]
     fn test_check_reports_matching_prompts_and_agents() {
         let client = mock_client();
@@ -553,6 +623,73 @@ mod tests {
             .response;
         assert_eq!(result["matched_prompts"], json!([1, 2]));
         assert_eq!(result["matched_agents"], json!([1]));
+        assert_eq!(result["eligible"], json!(false));
+        assert_eq!(result["min_matches"], json!(3));
+    }
+
+    #[test]
+    fn update_probe_requires_three_unlabelled_prompts_even_for_known_agent() {
+        let client = mock_client();
+        let prompts = vec![
+            unlabelled("You are Meetings, an agent that Swan runs for this organization."),
+            unlabelled("You are ABM, an agent that Swan runs for this organization."),
+            unlabelled("You are Outreach copy, an agent that Swan runs for this organization."),
+        ];
+        let agents = vec![known("ABM", &[&["old abm role"]], "old abm role")];
+        let mut agent = agent(&client, prompts, agents);
+        let probe = agent
+            .call_tool(
+                TEST_CHECK_TOOL,
+                json!({ "any_of": [["You are ABM, an agent"]] }),
+            )
+            .response;
+        assert_eq!(probe["matched_prompts"], json!([2]));
+        assert_eq!(probe["eligible"], json!(false));
+        let submission = agent
+            .call_tool(
+                SUBMIT_TOOL,
+                json!({ "updates": [{ "agent_id": 1, "add_any_of": [["You are ABM, an agent"]] }] }),
+            )
+            .response;
+        assert_eq!(submission["accepted"], json!(0));
+        assert_eq!(
+            submission["rejected"][0]["reason"],
+            "Matches 1 prompts; at least 3 are needed."
+        );
+    }
+
+    #[test]
+    fn update_probe_allows_recurring_prompt_change() {
+        let client = mock_client();
+        let prompts = vec![
+            unlabelled(
+                "You are Meetings, an agent that Swan runs for this organization. Team: one",
+            ),
+            unlabelled(
+                "You are Meetings, an agent that Swan runs for this organization. Team: two",
+            ),
+            unlabelled(
+                "You are Meetings, an agent that Swan runs for this organization. Team: three",
+            ),
+        ];
+        let agents = vec![known(
+            "Meetings",
+            &[&["old meetings role"]],
+            "old meetings role",
+        )];
+        let mut agent = agent(&client, prompts, agents);
+        let check = json!({ "any_of": [["You are Meetings, an agent"]] });
+        let probe = agent.call_tool(TEST_CHECK_TOOL, check).response;
+        assert_eq!(probe["matched_prompts"], json!([1, 2, 3]));
+        assert_eq!(probe["eligible"], json!(true));
+        let submission = agent
+            .call_tool(
+                SUBMIT_TOOL,
+                json!({ "updates": [{ "agent_id": 1, "add_any_of": [["You are Meetings, an agent"]] }] }),
+            )
+            .response;
+        assert_eq!(submission["accepted"], json!(1));
+        assert!(submission["rejected"].as_array().unwrap().is_empty());
     }
 
     #[test]
