@@ -9,8 +9,6 @@ import Field from "./field";
 import NumberInput from "./number-input";
 import RuleSentence from "./rule-sentence";
 import SpendingLimitFields from "./spending-limit-fields";
-import SuggestionHint from "./suggestion-hint";
-import { type Suggestion } from "./suggestions";
 import ThresholdFields from "./threshold-fields";
 import { type MetricAlertFormValues } from "./types";
 import WindowFields from "./window-fields";
@@ -18,10 +16,9 @@ import WindowFields from "./window-fields";
 interface ConditionStepProps {
   /** The rule the form describes so far. */
   rule: MetricRuleInput;
-  suggestion?: Suggestion;
 }
 
-export default function ConditionStep({ rule, suggestion }: ConditionStepProps) {
+export default function ConditionStep({ rule }: ConditionStepProps) {
   const { register, watch } = useFormContext<MetricAlertFormValues>();
   const [metric, conditionType] = watch(["metric", "conditionType"]);
 
@@ -44,7 +41,6 @@ export default function ConditionStep({ rule, suggestion }: ConditionStepProps) 
           )}
         </>
       )}
-      <SuggestionHint suggestion={suggestion} />
       <RuleSentence rule={rule} />
       <AdvancedFields />
     </div>

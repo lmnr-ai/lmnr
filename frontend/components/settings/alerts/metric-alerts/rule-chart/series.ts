@@ -21,7 +21,7 @@ export interface IncidentBand {
   critical: boolean;
 }
 
-export const SERIES_COLOR = "hsl(var(--chart-1))";
+export const SERIES_COLOR = "hsl(var(--chart-10))";
 export const LEVEL_COLORS = {
   warning: "hsl(var(--chart-5))",
   critical: "hsl(var(--chart-4))",

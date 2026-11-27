@@ -15,7 +15,6 @@ import { toRule } from "./form-rule";
 import NotifyStep from "./notify-step";
 import PreviewStep from "./preview-step";
 import StepNav from "./step-nav";
-import { suggestionFor } from "./suggestions";
 import TemplateStep from "./template-step";
 import { type FormTemplate } from "./templates";
 import { type MetricAlertFormValues, type Step, STEPS } from "./types";
@@ -58,12 +57,10 @@ export default function SheetForm({ alert, defaultValues, skipTemplate, onSaved,
   const error = (parsed.success ? undefined : wholeNumberError(parsed.error)) ?? check.error;
   const save = useSaveMetricAlert({ projectId, userEmail, integrationId, alert, onSaved });
 
-  const [template, setTemplate] = useState<FormTemplate>();
   const suggestions = useTemplateSuggestions(projectId, !skipTemplate);
 
   const pickTemplate = (picked: FormTemplate) => {
     form.reset({ ...defaultValues, ...picked.values, ...suggestions[picked.id] });
-    setTemplate(picked);
     setStep("watch");
   };
 
@@ -90,9 +87,7 @@ export default function SheetForm({ alert, defaultValues, skipTemplate, onSaved,
           <div className="p-4 pb-24">
             {step === "template" && <TemplateStep suggestions={suggestions} onPick={pickTemplate} />}
             {step === "watch" && <WatchStep />}
-            {step === "condition" && (
-              <ConditionStep rule={rule} suggestion={suggestionFor(template, values, suggestions)} />
-            )}
+            {step === "condition" && <ConditionStep rule={rule} />}
             {step === "preview" && <PreviewStep projectId={projectId} rule={rule} alertId={alert?.id} />}
             {step === "notify" && (
               <NotifyStep

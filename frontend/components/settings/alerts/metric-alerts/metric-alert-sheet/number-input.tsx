@@ -7,7 +7,13 @@ import { cn } from "@/lib/utils";
 export default function NumberInput({ unit, className, ...props }: ComponentProps<typeof Input> & { unit?: string }) {
   return (
     <div className="relative">
-      <Input type="number" inputMode="decimal" step="any" className={cn(unit && "pr-16", className)} {...props} />
+      <Input
+        type="number"
+        inputMode="decimal"
+        step="any"
+        className={cn("hide-arrow", unit && "pr-16", className)}
+        {...props}
+      />
       {unit && (
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
           {unit}

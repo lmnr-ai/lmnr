@@ -20,7 +20,7 @@ export const DEFAULT_FORM_VALUES: MetricAlertFormValues = {
   splitByModel: false,
   window: "60",
   conditionType: "value",
-  compareTo: "1w",
+  compareTo: "15m",
   spendingLimit: "",
   warnAtPercent: String(DEFAULT_WARN_AT_PERCENT),
   direction: "above",

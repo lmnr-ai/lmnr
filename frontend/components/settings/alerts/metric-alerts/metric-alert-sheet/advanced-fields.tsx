@@ -22,6 +22,8 @@ export default function AdvancedFields() {
   ]);
   const back = direction === "above" ? "at or below" : "at or above";
   const first = warning.trim() === "" && critical.trim() !== "" ? "critical" : "warning";
+  const { needsMinTraces, perLlmCall } = METRIC_META[metric];
+  const counted = perLlmCall ? "LLM calls" : "traces";
 
   return (
     // Open when the rule has its own resolve threshold, so a set value is never hidden.
@@ -46,9 +48,12 @@ export default function AdvancedFields() {
         <Field label="Checks in a row" hint="How many checks in a row must agree before the level changes.">
           <NumberInput min={1} max={10} step={1} {...register("checksInARow")} />
         </Field>
-        {METRIC_META[metric].needsMinTraces && (
-          <Field label="Minimum traces" hint="A window with fewer traces is skipped, so a few traces cannot alert.">
-            <NumberInput min={0} step={1} unit="traces" {...register("minTraces")} />
+        {needsMinTraces && (
+          <Field
+            label={`Minimum ${counted}`}
+            hint={`A window with fewer ${counted} is skipped, so a few ${counted} cannot alert.`}
+          >
+            <NumberInput min={0} step={1} unit={counted} {...register("minTraces")} />
           </Field>
         )}
         <Field label="When there is no data">

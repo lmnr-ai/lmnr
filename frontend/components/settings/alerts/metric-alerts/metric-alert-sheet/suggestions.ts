@@ -58,14 +58,3 @@ export const suggestValues = (template: FormTemplate, peak: number | null): Sugg
     ...(suggest.limit != null && { spendingLimit: above(suggest.limit) }),
   };
 };
-
-/** The suggestion for the picked template, while the form still describes that template's rule. */
-export const suggestionFor = (
-  template: FormTemplate | undefined,
-  values: Pick<MetricAlertFormValues, "metric" | "conditionType" | "window">,
-  suggestions: Record<string, Suggestion>
-): Suggestion | undefined => {
-  if (!template) return undefined;
-  const same = (["metric", "conditionType", "window"] as const).every((key) => template.values[key] === values[key]);
-  return same ? suggestions[template.id] : undefined;
-};

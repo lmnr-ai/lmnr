@@ -9,6 +9,8 @@ interface MetricMeta {
   splittable: boolean;
   /** Ratios and percentiles, which mean little on a handful of traces. */
   needsMinTraces: boolean;
+  /** Counted per LLM call, not per trace: no trace filters, and the minimum is in LLM calls. */
+  perLlmCall?: boolean;
 }
 
 export const METRIC_META: Record<Metric, MetricMeta> = {
@@ -24,16 +26,37 @@ export const METRIC_META: Record<Metric, MetricMeta> = {
   error_rate: { label: "Error rate", unit: "percent", splittable: false, needsMinTraces: true },
   no_cost_rate: { label: "Traces with no cost", unit: "percent", splittable: false, needsMinTraces: true },
   no_tokens_rate: { label: "Traces with no tokens", unit: "percent", splittable: false, needsMinTraces: true },
+  llm_no_cost_rate: {
+    label: "LLM calls with no cost",
+    unit: "percent",
+    splittable: true,
+    needsMinTraces: true,
+    perLlmCall: true,
+  },
+  llm_no_tokens_rate: {
+    label: "LLM calls with no tokens",
+    unit: "percent",
+    splittable: true,
+    needsMinTraces: true,
+    perLlmCall: true,
+  },
   latency_p50: { label: "p50 latency", unit: "seconds", splittable: false, needsMinTraces: true },
   latency_p95: { label: "p95 latency", unit: "seconds", splittable: false, needsMinTraces: true },
 };
 
 /** The metric picker's sections. */
 export const METRIC_GROUPS: { label: string; metrics: Metric[] }[] = [
-  { label: "Cost", metrics: ["total_cost", "cost_per_trace", "trace_cost", "no_cost_rate"] },
+  { label: "Cost", metrics: ["total_cost", "cost_per_trace", "trace_cost", "llm_no_cost_rate", "no_cost_rate"] },
   {
     label: "Tokens",
-    metrics: ["input_tokens", "output_tokens", "total_tokens", "tokens_per_trace", "no_tokens_rate"],
+    metrics: [
+      "input_tokens",
+      "output_tokens",
+      "total_tokens",
+      "tokens_per_trace",
+      "llm_no_tokens_rate",
+      "no_tokens_rate",
+    ],
   },
   { label: "Traffic and errors", metrics: ["trace_count", "error_traces", "error_rate"] },
   { label: "Latency", metrics: ["latency_p50", "latency_p95"] },

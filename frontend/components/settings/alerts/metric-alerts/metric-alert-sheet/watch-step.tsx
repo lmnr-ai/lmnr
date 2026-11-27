@@ -23,7 +23,7 @@ import { type MetricAlertFormValues } from "./types";
 export default function WatchStep() {
   const { control, register, watch, setValue, getValues } = useFormContext<MetricAlertFormValues>();
   const [metric, filters, conditionType] = watch(["metric", "filters", "conditionType"]);
-  const splittable = METRIC_META[metric].splittable;
+  const { splittable, perLlmCall } = METRIC_META[metric];
   const canSplit = splittable && filters.length === 0 && conditionType !== "spending_limit";
   const splitHint = canSplit
     ? "Each model is checked on its own and opens its own incident. Covers the 20 largest models."
@@ -47,6 +47,7 @@ export default function WatchStep() {
     }
     if (next === "trace_cost") setValue("direction", "above");
     if (!METRIC_META[next].splittable) setValue("splitByModel", false);
+    if (METRIC_META[next].perLlmCall) setValue("filters", []);
   };
 
   return (
@@ -75,12 +76,19 @@ export default function WatchStep() {
           </SelectContent>
         </Select>
       </Field>
-      <Field
-        label="Filters"
-        hint="Only traces that match are counted. Evaluation and playground traces are left out unless you filter on trace type."
-      >
-        <FiltersField />
-      </Field>
+      {perLlmCall ? (
+        <Field
+          label="Filters"
+          hint={'Not available for this metric, which counts LLM calls. The "Traces with no ..." metrics take filters.'}
+        />
+      ) : (
+        <Field
+          label="Filters"
+          hint="Only traces that match are counted. Evaluation and playground traces are left out unless you filter on trace type."
+        >
+          <FiltersField />
+        </Field>
+      )}
       <Controller
         name="splitByModel"
         control={control}

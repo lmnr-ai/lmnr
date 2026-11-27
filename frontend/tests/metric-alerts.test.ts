@@ -19,7 +19,6 @@ import {
 import {
   niceCeil,
   probeRule,
-  suggestionFor,
   suggestValues,
   usualPeak,
 } from "@/components/settings/alerts/metric-alerts/metric-alert-sheet/suggestions";
@@ -121,15 +120,6 @@ describe("metric alert suggestions", () => {
     assert.equal(probeRule(formTemplate("error-spike")).critical, null);
   });
 
-  it("drops the suggestion once the form no longer describes the template", () => {
-    const picked = formTemplate("cost-spike");
-    const suggestions = { "cost-spike": { warning: "4", critical: "8" } };
-    assert.deepEqual(suggestionFor(picked, form(picked.values), suggestions), suggestions["cost-spike"]);
-    assert.equal(suggestionFor(picked, form({ ...picked.values, window: "15" }), suggestions), undefined);
-    assert.equal(suggestionFor(picked, form({ ...picked.values, metric: "total_tokens" }), suggestions), undefined);
-    assert.equal(suggestionFor(undefined, form(picked.values), suggestions), undefined);
-  });
-
   it("names the thresholds a template would set", () => {
     assert.equal(thresholdsLine(form(template("error-rate"))), "Warning above 5% · Critical above 20%");
     assert.equal(thresholdsLine(form(template("traffic-stopped"))), "Warning below 1");
@@ -188,6 +178,19 @@ describe("metric alert form", () => {
     const stopped = toRule(form(template("traffic-stopped")));
     assert.equal(stopped.warning, 1);
     assert.equal(stopped.critical, null);
+  });
+
+  it("compares a change with 15 minutes earlier unless told otherwise", () => {
+    assert.deepEqual(rule({ conditionType: "change", warning: "150" }).condition, { type: "change", compareTo: "15m" });
+    assert.equal(template("cost-vs-last-week").compareTo, "1w");
+  });
+
+  it("points the missing cost and token templates at LLM calls, which can be split by model", () => {
+    assert.equal(template("cost-tracking-stopped").metric, "llm_no_cost_rate");
+    assert.equal(template("token-usage-missing").metric, "llm_no_tokens_rate");
+    const split = rule({ ...template("cost-tracking-stopped"), splitByModel: true });
+    assert.equal(split.groupBy, "model");
+    assert.equal(split.minTraces, 20);
   });
 
   it("accepts the new metrics, the 30 minute window and the 30 minutes earlier comparison", () => {
