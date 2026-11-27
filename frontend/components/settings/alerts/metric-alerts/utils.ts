@@ -74,7 +74,8 @@ export const alertsWhen = (rule: MetricRuleInput): string | null => {
   const thresholds = levels.join(" or ");
   const direction = rule.direction ?? "above";
 
-  const subject = `${lowerFirst(METRIC_META[rule.metric].label)} over ${windowName(rule)}`;
+  const perModel = rule.groupBy === "model" ? " of a model" : "";
+  const subject = `${lowerFirst(METRIC_META[rule.metric].label)}${perModel} over ${windowName(rule)}`;
   const against =
     rule.condition.type === "change" ? ` of the same window ${COMPARE_TO_LABELS[rule.condition.compareTo]}` : "";
   return `Alerts when ${subject} is ${direction} ${thresholds}${against}.`;

@@ -230,6 +230,10 @@ describe("metric alert summaries", () => {
       alertsWhen(toRule(form(template("slow-llm-calls")))),
       "Alerts when p95 LLM latency over the last 15 minutes is above 10 s (warning) or 30 s (critical)."
     );
+    assert.equal(
+      alertsWhen(toRule(form({ ...template("slow-llm-calls"), splitByModel: true }))),
+      "Alerts when p95 LLM latency of a model over the last 15 minutes is above 10 s (warning) or 30 s (critical)."
+    );
   });
 
   it("has no sentence until a threshold is set", () => {
