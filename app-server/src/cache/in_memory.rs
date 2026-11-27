@@ -184,6 +184,26 @@ impl CacheTrait for InMemoryCache {
         Ok(())
     }
 
+    async fn zrange(&self, key: &str) -> Result<Vec<String>, CacheError> {
+        let sets = self.sorted_sets.read().await;
+        Ok(sets
+            .get(key)
+            .map(|members| members.iter().cloned().collect())
+            .unwrap_or_default())
+    }
+
+    async fn zrem(&self, key: &str, member: &str) -> Result<(), CacheError> {
+        let mut sets = self.sorted_sets.write().await;
+        if let Some(members) = sets.get_mut(key) {
+            members.remove(member);
+            // Redis drops a sorted set with its last member.
+            if members.is_empty() {
+                sets.remove(key);
+            }
+        }
+        Ok(())
+    }
+
     async fn exists(&self, key: &str) -> Result<bool, CacheError> {
         // Check both regular cache and sorted sets
         let in_cache = self.cache.get(key).await.is_some();

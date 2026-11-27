@@ -2,26 +2,20 @@
 
 use uuid::Uuid;
 
-use super::rule::{Condition, Rule, Window};
-
-const MONTH_TO_DATE_INTERVAL_MINUTES: i64 = 60;
+use super::rule::{Condition, Rule};
 
 /// Minutes between two checks of a rule.
 pub fn check_interval_minutes(rule: &Rule) -> i64 {
-    let base = match rule.window {
-        Window::MonthToDate { .. } => MONTH_TO_DATE_INTERVAL_MINUTES,
-        Window::Minutes { minutes } => match minutes {
-            0..30 => 1,
-            30..60 => 2,
-            60..240 => 3,
-            240..1440 => 5,
-            _ => 15,
-        },
+    let base = match rule.window.minutes {
+        0..30 => 1,
+        30..60 => 2,
+        60..1440 => 3,
+        _ => 15,
     };
     // A change rule reads two windows per check, so it runs half as often.
     match rule.condition {
         Condition::Change { .. } => base * 2,
-        _ => base,
+        Condition::Value => base,
     }
 }
 
@@ -53,25 +47,11 @@ mod tests {
     #[test]
     fn follows_the_window() {
         let value = json!({ "type": "value" });
-        let cases = [
-            (5, 1),
-            (15, 1),
-            (30, 2),
-            (60, 3),
-            (120, 3),
-            (240, 5),
-            (720, 5),
-            (1440, 15),
-        ];
+        let cases = [(5, 1), (15, 1), (30, 2), (60, 3), (1440, 15)];
         for (minutes, expected) in cases {
             let rule = rule(json!({ "minutes": minutes }), value.clone());
             assert_eq!(check_interval_minutes(&rule), expected, "{minutes} min");
         }
-        let spending_limit = rule(
-            json!({ "monthToDate": true }),
-            json!({ "type": "spending_limit", "limit": 10 }),
-        );
-        assert_eq!(check_interval_minutes(&spending_limit), 60);
     }
 
     #[test]

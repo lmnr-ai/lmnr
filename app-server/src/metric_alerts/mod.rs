@@ -1,9 +1,9 @@
-//! Threshold and percent-change alerts on a project's cost, tokens, traffic,
-//! error rate and latency. See `docs/internal/metric-alerts.md`.
+//! Threshold and percent-change alerts on a project's traffic, cost, tokens and
+//! LLM calls, read from the per-minute span rollup. See
+//! `docs/internal/metric-alerts.md`.
 
 pub mod cadence;
 pub mod engine;
-pub mod filters;
 pub mod ingestion;
 pub mod preview;
 pub mod query;

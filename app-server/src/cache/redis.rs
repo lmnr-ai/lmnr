@@ -287,6 +287,23 @@ impl CacheTrait for RedisCache {
         Ok(())
     }
 
+    async fn zrange(&self, key: &str) -> Result<Vec<String>, CacheError> {
+        let result: RedisResult<Vec<String>> =
+            self.connection.current_clone().zrange(key, 0, -1).await;
+        result.map_err(|e| {
+            self.on_error("zrange", &e);
+            CacheError::InternalError(anyhow::Error::from(e))
+        })
+    }
+
+    async fn zrem(&self, key: &str, member: &str) -> Result<(), CacheError> {
+        let result: RedisResult<()> = self.connection.current_clone().zrem(key, member).await;
+        result.map_err(|e| {
+            self.on_error("zrem", &e);
+            CacheError::InternalError(anyhow::Error::from(e))
+        })
+    }
+
     async fn exists(&self, key: &str) -> Result<bool, CacheError> {
         let result: RedisResult<bool> = self.connection.current_clone().exists(key).await;
         result.map_err(|e| {
