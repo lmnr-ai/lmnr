@@ -17,7 +17,7 @@ const load = async (projectId: string): Promise<Record<string, Suggestion>> => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rule: probeRule(template), hours: PREVIEW_HOURS }),
       });
-      // A template without a suggestion still works: its thresholds are typed in.
+      // A template without a suggestion still works: it keeps its own thresholds.
       const suggestion = data ? suggestValues(template, usualPeak(data.groups[0]?.points ?? [])) : null;
       return suggestion ? [[template.id, suggestion] as const] : [];
     })
@@ -25,7 +25,7 @@ const load = async (projectId: string): Promise<Record<string, Suggestion>> => {
   return Object.fromEntries(entries.flat());
 };
 
-/** Thresholds for the templates that leave them open, by template id, from the last 7 days. */
+/** Thresholds proposed from the last 7 days, by template id. */
 export const useTemplateSuggestions = (projectId: string, enabled: boolean): Record<string, Suggestion> => {
   const { data } = useSWR(enabled ? ["metric-alert-template-suggestions", projectId] : null, () => load(projectId), {
     revalidateOnFocus: false,

@@ -10,17 +10,11 @@ const UNREACHABLE = "1e15";
 const NICE_STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
 
 /** The numbers a template leaves open, proposed from the project's own data. */
-export type Suggestion = Partial<Pick<MetricAlertFormValues, "warning" | "critical" | "spendingLimit">>;
+export type Suggestion = Partial<Pick<MetricAlertFormValues, "warning" | "critical">>;
 
 /** A template's rule with thresholds no value reaches, to read its series without firing. */
 export const probeRule = (template: FormTemplate): MetricRuleInput =>
-  toRule({
-    ...DEFAULT_FORM_VALUES,
-    ...template.values,
-    warning: UNREACHABLE,
-    critical: "",
-    spendingLimit: UNREACHABLE,
-  });
+  toRule({ ...DEFAULT_FORM_VALUES, ...template.values, warning: UNREACHABLE, critical: "" });
 
 /** The usual daily peak: the median of each day's highest value, over days that had any. */
 export const usualPeak = (points: PreviewPoint[]): number | null => {
@@ -50,11 +44,10 @@ export const suggestValues = (template: FormTemplate, peak: number | null): Sugg
   const { suggest, values } = template;
   if (!suggest || peak == null) return null;
   const unit = METRIC_META[values.metric ?? DEFAULT_FORM_VALUES.metric].unit;
-  const whole = unit === "count" || unit === "tokens";
+  const whole = unit === "tokens" || unit === "spans" || unit === "calls";
   const above = (multiple: number, floor = "") => String(Math.max(niceCeil(peak * multiple, whole), Number(floor)));
   return {
     ...(suggest.warning != null && { warning: above(suggest.warning, values.warning) }),
     ...(suggest.critical != null && { critical: above(suggest.critical, values.critical) }),
-    ...(suggest.limit != null && { spendingLimit: above(suggest.limit) }),
   };
 };

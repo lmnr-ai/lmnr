@@ -1,6 +1,5 @@
 import { type SlackChannelSelection } from "@/components/settings/alerts/slack-channel-picker";
 import { type CompareTo, type Metric, type MetricRuleCondition } from "@/lib/actions/alerts/metric-rule";
-import { type Filter } from "@/lib/actions/common/filters";
 
 export type ConditionType = MetricRuleCondition["type"];
 
@@ -8,15 +7,11 @@ export type ConditionType = MetricRuleCondition["type"];
 export interface MetricAlertFormValues {
   name: string;
   metric: Metric;
-  filters: Filter[];
   splitByModel: boolean;
-  /** Minutes as text, or `MONTH_TO_DATE`. */
+  /** Minutes as text. */
   window: string;
   conditionType: ConditionType;
   compareTo: CompareTo;
-  spendingLimit: string;
-  /** Where a spending limit warns, as a percent of the limit. */
-  warnAtPercent: string;
   direction: "above" | "below";
   warning: string;
   critical: string;
@@ -24,7 +19,7 @@ export interface MetricAlertFormValues {
   resolve: string;
   minChange: string;
   checksInARow: string;
-  minTraces: string;
+  minCalls: string;
   /** `default` leaves the choice to the metric. */
   onNoData: "default" | "skip" | "zero" | "alert";
   slackChannels: SlackChannelSelection[];

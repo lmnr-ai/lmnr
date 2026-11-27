@@ -2,32 +2,23 @@ import { useFormContext } from "react-hook-form";
 
 import { cn } from "@/lib/utils";
 
-import { MONTH_TO_DATE } from "../constants";
-import { CONDITION_LABELS, conditionOptions } from "./condition-options";
-import { DAY_WINDOW, DEFAULT_FORM_VALUES } from "./form-rule";
+import { CONDITION_LABELS, CONDITION_TYPES } from "./condition-options";
 import { type ConditionType, type MetricAlertFormValues } from "./types";
 
 export default function ConditionTypeField() {
-  const { watch, setValue, getValues } = useFormContext<MetricAlertFormValues>();
-  const [metric, conditionType] = watch(["metric", "conditionType"]);
+  const { watch, setValue } = useFormContext<MetricAlertFormValues>();
+  const conditionType = watch("conditionType");
 
   const change = (next: ConditionType) => {
     if (next === conditionType) return;
     setValue("conditionType", next, { shouldDirty: true });
     // A percentage of a baseline and a plain value are different numbers, so thresholds start over.
     for (const field of ["warning", "critical", "resolve"] as const) setValue(field, "");
-    if (next === "spending_limit") {
-      setValue("direction", "above");
-      setValue("splitByModel", false);
-      setValue("window", DAY_WINDOW);
-    } else if (getValues("window") === MONTH_TO_DATE) {
-      setValue("window", DEFAULT_FORM_VALUES.window);
-    }
   };
 
   return (
-    <div role="radiogroup" aria-label="Condition" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-      {conditionOptions(metric).map((option) => (
+    <div role="radiogroup" aria-label="Condition" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {CONDITION_TYPES.map((option) => (
         <button
           key={option}
           type="button"
