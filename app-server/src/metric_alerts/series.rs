@@ -31,6 +31,10 @@ pub struct SpanSums {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
+    /// The LLM call counts come from the rollup only: trace rows leave them 0.
+    pub llm_calls: u64,
+    pub llm_calls_no_cost: u64,
+    pub llm_calls_no_tokens: u64,
 }
 
 impl SpanSums {
@@ -39,6 +43,9 @@ impl SpanSums {
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
         self.total_tokens += other.total_tokens;
+        self.llm_calls += other.llm_calls;
+        self.llm_calls_no_cost += other.llm_calls_no_cost;
+        self.llm_calls_no_tokens += other.llm_calls_no_tokens;
     }
 
     fn metric(&self, metric: Metric) -> f64 {
@@ -48,6 +55,10 @@ impl SpanSums {
             Metric::TotalTokens | Metric::TokensPerTrace => self.total_tokens as f64,
             _ => self.cost,
         }
+    }
+
+    fn percent_of_llm_calls(&self, count: u64) -> Option<f64> {
+        (self.llm_calls > 0).then(|| count as f64 / self.llm_calls as f64 * 100.0)
     }
 }
 
@@ -112,6 +123,9 @@ impl Series {
                 input_tokens: row.input_tokens,
                 output_tokens: row.output_tokens,
                 total_tokens: row.total_tokens,
+                llm_calls: row.llm_calls,
+                llm_calls_no_cost: row.llm_calls_no_cost,
+                llm_calls_no_tokens: row.llm_calls_no_tokens,
             };
             self.spans
                 .entry(row.minute as i64 / 60)
@@ -134,6 +148,7 @@ impl Series {
                     input_tokens: row.input_tokens,
                     output_tokens: row.output_tokens,
                     total_tokens: row.total_tokens,
+                    ..Default::default()
                 },
                 max_cost: row.max_cost,
                 durations: BTreeMap::new(),
@@ -168,7 +183,8 @@ impl Series {
     }
 
     /// The models with the most of the rule's metric in the window, capped at
-    /// `MAX_GROUPS`.
+    /// `MAX_GROUPS`. For a share of LLM calls, the models with the most calls,
+    /// leaving out the ones without any.
     pub fn top_models(&self, rule: &Rule, window: Minutes) -> Vec<String> {
         let mut totals: HashMap<&str, SpanSums> = HashMap::new();
         for models in self.spans.range(window.start..window.end).map(|(_, m)| m) {
@@ -178,9 +194,14 @@ impl Series {
                 }
             }
         }
+        let by_llm_calls = rule.metric.is_llm_call_rate();
         let mut ranked: Vec<(&str, f64)> = totals
             .into_iter()
-            .map(|(model, sums)| (model, sums.metric(rule.metric)))
+            .filter(|(_, sums)| !by_llm_calls || sums.llm_calls > 0)
+            .map(|(model, sums)| match by_llm_calls {
+                true => (model, sums.llm_calls as f64),
+                false => (model, sums.metric(rule.metric)),
+            })
             .collect();
         ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(b.0)));
         ranked.truncate(MAX_GROUPS);
@@ -209,10 +230,10 @@ pub struct Contributor {
     pub share: f64,
 }
 
-/// Unfiltered cost and token sums come from the span rollup. Everything else
-/// is a trace-level number.
+/// Unfiltered cost and token sums and the shares of LLM calls come from the
+/// span rollup. Everything else is a trace-level number.
 pub fn reads_spans(rule: &Rule) -> bool {
-    rule.filters.is_empty() && (rule.metric.is_span_sum() || rule.metric.is_per_trace())
+    rule.filters.is_empty() && rule.metric.can_split_by_model()
 }
 
 pub fn reads_traces(rule: &Rule) -> bool {
@@ -221,7 +242,8 @@ pub fn reads_traces(rule: &Rule) -> bool {
 
 struct Measured {
     value: Option<f64>,
-    traces: u64,
+    /// What `min_traces` is compared to.
+    volume: u64,
 }
 
 fn measure(rule: &Rule, series: &Series, group: Option<&str>, window: Minutes) -> Measured {
@@ -247,13 +269,16 @@ fn measure(rule: &Rule, series: &Series, group: Option<&str>, window: Minutes) -
         Metric::ErrorRate => traces.map(|t| t.percent_of_traces(t.error_traces)),
         Metric::NoCostRate => traces.map(|t| t.percent_of_traces(t.no_cost_traces)),
         Metric::NoTokensRate => traces.map(|t| t.percent_of_traces(t.no_tokens_traces)),
+        Metric::LlmNoCostRate => sums.and_then(|s| s.percent_of_llm_calls(s.llm_calls_no_cost)),
+        Metric::LlmNoTokensRate => sums.and_then(|s| s.percent_of_llm_calls(s.llm_calls_no_tokens)),
         Metric::LatencyP50 => traces.and_then(|t| t.latency(0.5)),
         Metric::LatencyP95 => traces.and_then(|t| t.latency(0.95)),
     };
-    Measured {
-        value,
-        traces: trace_count,
-    }
+    let volume = match rule.metric.is_llm_call_rate() {
+        true => sums.map(|s| s.llm_calls).unwrap_or(0),
+        false => trace_count,
+    };
+    Measured { value, volume }
 }
 
 fn minute_of(at: DateTime<Utc>) -> i64 {
@@ -350,7 +375,7 @@ pub fn observe(
         at: time_of(end),
         value: measured.value,
         baseline,
-        traces: measured.traces,
+        volume: measured.volume,
         ingestion_behind: context.ingestion_behind,
     }
 }
@@ -385,6 +410,8 @@ mod tests {
             output_tokens: tokens,
             total_tokens: tokens * 2,
             llm_calls: 1,
+            llm_calls_no_cost: 0,
+            llm_calls_no_tokens: 0,
         }
     }
 
@@ -539,7 +566,7 @@ mod tests {
             Some(5.0)
         );
         assert_eq!(observed(json!({ "metric": "error_rate" })).value, Some(5.0));
-        assert_eq!(observed(json!({ "metric": "error_rate" })).traces, 100);
+        assert_eq!(observed(json!({ "metric": "error_rate" })).volume, 100);
         // Unfiltered per-trace numbers divide the span sums by the traces.
         assert_eq!(
             observed(json!({ "metric": "cost_per_trace" })).value,
@@ -585,10 +612,60 @@ mod tests {
 
         assert_eq!(observed("no_cost_rate", 100).value, Some(50.0));
         assert_eq!(observed("no_tokens_rate", 100).value, Some(10.0));
-        assert_eq!(observed("no_cost_rate", 100).traces, 100);
+        assert_eq!(observed("no_cost_rate", 100).volume, 100);
         // A window without traces has no share, and no errored traces either.
         assert_eq!(observed("no_cost_rate", 110).value, None);
         assert_eq!(observed("error_traces", 110).value, None);
+    }
+
+    #[test]
+    fn llm_call_shares_divide_by_the_llm_calls_in_the_window() {
+        let row = |minute: i64, model: &str, calls: u64, no_cost: u64, no_tokens: u64| {
+            SpanMetricsMinute {
+                llm_calls: calls,
+                llm_calls_no_cost: no_cost,
+                llm_calls_no_tokens: no_tokens,
+                ..span_row(minute, model, 1.0, 10)
+            }
+        };
+        let mut series = Series::default();
+        series.add_span_rows(&[
+            row(96, "a", 60, 30, 0),
+            row(98, "a", 20, 10, 5),
+            row(98, "b", 20, 0, 5),
+            // A span with cost that is not an LLM call.
+            row(99, "c", 0, 0, 0),
+            row(120, "a", 9, 9, 9),
+        ]);
+        // One trace made every call, so a trace-level share would be 100% or 0%.
+        series.add_trace_rows(&[trace_row(98, 0, 1, 0, 1.0)]);
+        let observed = |fields: Value, group: Option<&str>, end: i64| {
+            let rule = rule(fields);
+            assert!(reads_spans(&rule) && !reads_traces(&rule));
+            observe(&rule, &series, group, end, Context::default())
+        };
+        let no_cost = json!({ "metric": "llm_no_cost_rate" });
+        let no_tokens = json!({ "metric": "llm_no_tokens_rate" });
+
+        assert_eq!(observed(no_cost.clone(), None, 100).value, Some(40.0));
+        assert_eq!(observed(no_tokens.clone(), None, 100).value, Some(10.0));
+        // Minimum volume counts LLM calls, not traces.
+        assert_eq!(observed(no_cost.clone(), None, 100).volume, 100);
+
+        let split = json!({ "metric": "llm_no_cost_rate", "groupBy": "model" });
+        assert_eq!(observed(split.clone(), Some("a"), 100).value, Some(50.0));
+        assert_eq!(observed(split.clone(), Some("a"), 100).volume, 80);
+        assert_eq!(observed(split.clone(), Some("b"), 100).value, Some(0.0));
+        // No LLM calls, so no share.
+        assert_eq!(observed(split.clone(), Some("c"), 100).value, None);
+        assert_eq!(observed(no_cost, None, 110).value, None);
+
+        let rule = rule(split);
+        let window = Minutes {
+            start: 95,
+            end: 100,
+        };
+        assert_eq!(series.top_models(&rule, window), vec!["a", "b"]);
     }
 
     #[test]
