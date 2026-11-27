@@ -90,7 +90,11 @@ fn metric_value(metric: Metric, value: f64) -> String {
         Metric::TokensPerTrace => plural(value.round(), "token"),
         Metric::TraceCount => plural(value.round(), "trace"),
         Metric::ErrorTraces => number(value.round(), 0),
-        Metric::ErrorRate | Metric::NoCostRate | Metric::NoTokensRate => percent(value),
+        Metric::ErrorRate
+        | Metric::NoCostRate
+        | Metric::NoTokensRate
+        | Metric::LlmNoCostRate
+        | Metric::LlmNoTokensRate => percent(value),
         Metric::LatencyP50 | Metric::LatencyP95 if value < 1.0 => {
             format!("{} ms", number(value * 1000.0, 0))
         }
@@ -122,6 +126,8 @@ fn metric_label(metric: Metric) -> &'static str {
         Metric::ErrorRate => "Error rate",
         Metric::NoCostRate => "Traces with no cost",
         Metric::NoTokensRate => "Traces with no tokens",
+        Metric::LlmNoCostRate => "LLM calls with no cost",
+        Metric::LlmNoTokensRate => "LLM calls with no tokens",
         Metric::LatencyP50 => "Latency p50",
         Metric::LatencyP95 => "Latency p95",
     }
@@ -771,6 +777,22 @@ mod tests {
         assert_eq!(
             message(&rule, "", &opened, &incident()).summary,
             "Errored traces over the last 30 minutes is 12. That is above the warning threshold of 5."
+        );
+    }
+
+    #[test]
+    fn a_share_of_llm_calls_names_the_model() {
+        let rule = rule(json!({
+            "metric": "llm_no_cost_rate",
+            "groupBy": "model",
+            "window": { "minutes": 60 },
+            "condition": { "type": "value" },
+            "warning": 5,
+        }));
+        let opened = transition(TransitionKind::Opened, Level::Warning, 62.5);
+        assert_eq!(
+            message(&rule, "gpt-4o", &opened, &incident()).summary,
+            "LLM calls with no cost for gpt-4o over the last hour is 62.5%. That is above the warning threshold of 5%."
         );
     }
 
